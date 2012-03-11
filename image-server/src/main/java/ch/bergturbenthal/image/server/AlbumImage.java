@@ -22,6 +22,10 @@ public class AlbumImage {
     this.cacheDir = cacheDir;
   }
 
+  public String getName() {
+    return file.getName();
+  }
+
   public File getThumbnail(final int width, final int height, final boolean crop) {
     try {
       final File cachedFile = new File(cacheDir, makeCachedFilename(width, height, crop));

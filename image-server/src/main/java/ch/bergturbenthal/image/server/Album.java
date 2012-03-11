@@ -18,9 +18,11 @@ public class Album {
   private final long cachedImages = 0;
   private Collection<AlbumImage> images = null;
   private final File cacheDir;
+  private final String name;
 
-  public Album(final File baseDir) {
+  public Album(final File baseDir, final String name) {
     this.baseDir = baseDir;
+    this.name = name;
     prepareGitignore();
     cacheDir = new File(baseDir, CACHE_DIR);
     if (!cacheDir.exists())
@@ -28,7 +30,7 @@ public class Album {
   }
 
   public String getName() {
-    return baseDir.getName();
+    return name;
   }
 
   public synchronized Collection<AlbumImage> listImages() {

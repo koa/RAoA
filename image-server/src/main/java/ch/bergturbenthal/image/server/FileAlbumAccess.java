@@ -23,8 +23,11 @@ public class FileAlbumAccess implements AlbumAccess {
   public Collection<Album> listAlbums() {
     try {
       final ArrayList<Album> ret = new ArrayList<Album>();
-      for (final File albumDir : findAlbums(baseDir.getFile())) {
-        ret.add(new Album(albumDir));
+      final File basePath = baseDir.getFile().getAbsoluteFile();
+      final int basePathLength = basePath.getAbsolutePath().length();
+      for (final File albumDir : findAlbums(basePath)) {
+        final String name = albumDir.getAbsolutePath().substring(basePathLength);
+        ret.add(new Album(albumDir, name));
       }
       return ret;
     } catch (final IOException e) {
