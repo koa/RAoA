@@ -3,7 +3,6 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>ch.bergturbenthal.image.client</groupId>
 	<artifactId>image-client</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
 	<packaging>apk</packaging>
 	<properties>
 		<android-platform>8</android-platform>
@@ -89,8 +88,8 @@
 		</pluginManagement>
 	</build>
 	<parent>
-		<groupId>ch.berg-turbenthal.parent</groupId>
-		<artifactId>parent</artifactId>
-		<version>0.0.9</version>
+		<groupId>ch.bergturbenthal.image</groupId>
+		<artifactId>image-main</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
 	</parent>
 </project>

@@ -9,5 +9,6 @@
 			<attribute name="optional" value="true"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="src" output="bin/classes" path="src"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>

@@ -3,12 +3,11 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>ch.bergturbenthal.image.server</groupId>
 	<artifactId>image-server</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
 	<packaging>war</packaging>
 	<parent>
-		<groupId>ch.berg-turbenthal.parent</groupId>
-		<artifactId>parent</artifactId>
-		<version>0.0.9</version>
+		<groupId>ch.bergturbenthal.image</groupId>
+		<artifactId>image-main</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
 	</parent>
 	<properties>
 		<java-version>1.6</java-version>

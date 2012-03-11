@@ -1,0 +1,16 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>ch.bergturbenthal.image</groupId>
+  <artifactId>image-main</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <modules>
+  	<module>image-client</module>
+  	<module>image-server</module>
+  </modules>
+  <parent>
+  	<groupId>ch.berg-turbenthal.parent</groupId>
+  	<artifactId>parent</artifactId>
+  	<version>0.0.10-SNAPSHOT</version>
+  </parent>
+</project>
