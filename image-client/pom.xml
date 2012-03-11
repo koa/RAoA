@@ -92,4 +92,11 @@
 		<artifactId>image-main</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
 	</parent>
+	<dependencies>
+		<dependency>
+			<groupId>javax.jmdns</groupId>
+			<artifactId>jmdns</artifactId>
+			<version>3.4.1</version>
+		</dependency>
+	</dependencies>
 </project>

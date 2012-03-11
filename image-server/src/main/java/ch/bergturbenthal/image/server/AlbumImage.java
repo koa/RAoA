@@ -3,6 +3,11 @@ package ch.bergturbenthal.image.server;
 import java.io.File;
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.text.ParseException;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.TimeZone;
 
 import org.im4java.core.ConvertCmd;
 import org.im4java.core.IM4JavaException;
@@ -10,16 +15,54 @@ import org.im4java.core.IMOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.imaging.ImageProcessingException;
+import com.drew.metadata.Directory;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.MetadataException;
+import com.drew.metadata.exif.ExifDirectory;
+import com.drew.metadata.exif.GpsDirectory;
+
 public class AlbumImage {
+  private static class TagId {
+    private final Class<? extends Directory> directory;
+    private final int tagId;
+
+    public TagId(final Class<? extends Directory> directory, final int tagId) {
+      this.directory = directory;
+      this.tagId = tagId;
+    }
+
+  }
+
   private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
   private final static MessageFormat THUMBNAIL_MESSAGE_FORMAT = new MessageFormat("{0}-{1}_{2}.jpg");
   private final static MessageFormat CROP_THUMBNAIL_MESSAGE_FORMAT = new MessageFormat("{0}-{1}_{2}c.jpg");
   private final File file;
   private final File cacheDir;
+  private Metadata metadata;
 
   public AlbumImage(final File file, final File cacheDir) {
     this.file = file;
     this.cacheDir = cacheDir;
+    try {
+      metadata = ImageMetadataReader.readMetadata(file);
+    } catch (final ImageProcessingException e) {
+      throw new RuntimeException("Cannot read metadata from " + file, e);
+    }
+  }
+
+  public Date captureDate() {
+    final Date gpsDate = readGpsDate();
+    if (gpsDate != null)
+      return gpsDate;
+    for (final TagId index : Arrays.asList(new TagId(ExifDirectory.class, ExifDirectory.TAG_DATETIME_ORIGINAL), new TagId(ExifDirectory.class,
+                                                                                                                          ExifDirectory.TAG_DATETIME))) {
+      final Date date = readDate(index.directory, index.tagId);
+      if (date != null)
+        return date;
+    }
+    return null;
   }
 
   public String getName() {
@@ -66,6 +109,43 @@ public class AlbumImage {
       cacheFileName = filenameFormat.format(new Object[] { file.getName(), width, height });
     }
     return cacheFileName;
+  }
+
+  private Date readDate(final Class<? extends Directory> directory, final int tag) {
+    try {
+      if (metadata.containsDirectory(directory)) {
+        final Directory directory2 = metadata.getDirectory(directory);
+        if (directory2.containsTag(tag))
+          try {
+            return directory2.getDate(tag);
+          } catch (final MetadataException e) {
+            throw new RuntimeException("Cannot read " + directory.getName() + ":" + directory2.getDescription(tag) + " from " + file, e);
+          }
+      }
+      return null;
+    } catch (final MetadataException e) {
+      throw new RuntimeException("Cannot read " + directory.getName() + ":" + tag + " from " + file, e);
+    }
+  }
+
+  private Date readGpsDate() {
+    try {
+      if (!metadata.containsDirectory(GpsDirectory.class))
+        return null;
+      final Directory directory = metadata.getDirectory(GpsDirectory.class);
+      if (!directory.containsTag(GpsDirectory.TAG_GPS_TIME_STAMP))
+        return null;
+      final int[] time = directory.getIntArray(7);
+      final String date = directory.getString(29);
+      final Object[] values = new MessageFormat("{0,number}:{1,number}:{2,number}").parse(date);
+      final GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+      calendar.set(((Number) values[0]).intValue(), ((Number) values[1]).intValue(), ((Number) values[2]).intValue(), time[0], time[1], time[2]);
+      return calendar.getTime();
+    } catch (final MetadataException e) {
+      throw new RuntimeException("Cannot read Gps-Date from " + file, e);
+    } catch (final ParseException e) {
+      throw new RuntimeException("Cannot read Gps-Date from " + file, e);
+    }
   }
 
   private void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException, InterruptedException,

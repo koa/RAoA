@@ -14,4 +14,13 @@
   	<artifactId>parent</artifactId>
   	<version>0.0.10-SNAPSHOT</version>
   </parent>
+  <dependencyManagement>
+  	<dependencies>
+  		<dependency>
+  			<groupId>javax.jmdns</groupId>
+  			<artifactId>jmdns</artifactId>
+  			<version>3.4.1</version>
+  		</dependency>
+  	</dependencies>
+  </dependencyManagement>
 </project>

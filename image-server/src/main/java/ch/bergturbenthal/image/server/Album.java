@@ -11,12 +11,15 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 public class Album {
   private static String CACHE_DIR = ".servercache";
   private final File baseDir;
   private final long cachedImages = 0;
-  private Collection<AlbumImage> images = null;
+  private List<AlbumImage> images = null;
   private final File cacheDir;
   private final String name;
 
@@ -33,9 +36,8 @@ public class Album {
     return name;
   }
 
-  public synchronized Collection<AlbumImage> listImages() {
-    loadImagesIfNeeded();
-    return new ArrayList<AlbumImage>(images);
+  public synchronized List<AlbumImage> listImages() {
+    return new ArrayList<AlbumImage>(loadImages());
   }
 
   @Override
@@ -44,17 +46,16 @@ public class Album {
   }
 
   public synchronized long totalSize() {
-    loadImagesIfNeeded();
     long size = 0;
-    for (final AlbumImage image : images) {
+    for (final AlbumImage image : loadImages()) {
       size += image.readSize();
     }
     return size;
   }
 
-  private synchronized void loadImagesIfNeeded() {
+  private synchronized Collection<AlbumImage> loadImages() {
     if (baseDir.lastModified() == cachedImages)
-      return;
+      return images;
     final File[] foundFiles = baseDir.listFiles(new FileFilter() {
       @Override
       public boolean accept(final File file) {
@@ -68,6 +69,14 @@ public class Album {
     for (final File file : foundFiles) {
       images.add(new AlbumImage(file, cacheDir));
     }
+    Collections.sort(images, new Comparator<AlbumImage>() {
+      @Override
+      public int compare(final AlbumImage o1, final AlbumImage o2) {
+        final int cmp = o1.captureDate().compareTo(o2.captureDate());
+        return cmp;
+      }
+    });
+    return images;
   }
 
   private void prepareGitignore() {
