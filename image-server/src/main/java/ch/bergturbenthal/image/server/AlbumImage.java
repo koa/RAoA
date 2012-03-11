@@ -42,6 +42,15 @@ public class AlbumImage {
     }
   }
 
+  public long readSize() {
+    return file.length();
+  }
+
+  @Override
+  public String toString() {
+    return "AlbumImage [file=" + file.getName() + "]";
+  }
+
   private String makeCachedFilename(final int width, final int height, final boolean crop) {
     final MessageFormat filenameFormat;
     if (crop)
@@ -55,13 +64,9 @@ public class AlbumImage {
     return cacheFileName;
   }
 
-  public long readSize() {
-    return file.length();
-  }
-
   private void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException, InterruptedException,
                                                                                                            IM4JavaException {
-    logger.info("Start convert " + file);
+    logger.debug("Start convert " + file);
     final ConvertCmd cmd = new ConvertCmd();
     final IMOperation operation = new IMOperation();
     operation.addImage(file.getAbsolutePath());
@@ -72,8 +77,9 @@ public class AlbumImage {
     } else
       operation.resize(Integer.valueOf(width), Integer.valueOf(height));
     operation.addImage(cachedFile.getAbsolutePath());
-    logger.info("Start operation");
+    logger.debug("Start operation");
     cmd.run(operation);
-    logger.info("End operation");
+    logger.debug("End operation");
   }
+
 }
