@@ -33,8 +33,7 @@ public class ServerListAdapter extends BaseAdapter {
 
   @Override
   public Object getItem(final int arg0) {
-    // TODO Auto-generated method stub
-    return null;
+    return items.get(arg0);
   }
 
   @Override
