@@ -1,11 +1,13 @@
 package ch.bergturbenthal.image.server.controller;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -20,18 +22,19 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.ResponseBody;
 
-import ch.bergturbenthal.image.data.AlbumDetail;
-import ch.bergturbenthal.image.data.AlbumEntry;
-import ch.bergturbenthal.image.data.AlbumImageEntry;
-import ch.bergturbenthal.image.data.AlbumList;
+import ch.bergturbenthal.image.data.model.AlbumDetail;
+import ch.bergturbenthal.image.data.model.AlbumEntry;
+import ch.bergturbenthal.image.data.model.AlbumImageEntry;
+import ch.bergturbenthal.image.data.model.AlbumList;
 import ch.bergturbenthal.image.server.Album;
 import ch.bergturbenthal.image.server.AlbumAccess;
 import ch.bergturbenthal.image.server.AlbumImage;
 
 @Controller
 @RequestMapping("/albums")
-public class AlbumController {
+public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   private static class AlbumData {
     private Album album;
     private AlbumDetail detailData = null;
@@ -51,48 +54,85 @@ public class AlbumController {
     }
   }
 
-  private Map<String, AlbumData> foundAlbums = null;
-
   @Autowired
   private AlbumAccess albumAccess;
 
-  @RequestMapping(value = "{albumid}", method = RequestMethod.GET)
-  public AlbumDetail listAlbumContent(@PathVariable("albumid") final String albumid, final HttpServletResponse response) {
+  private Map<String, AlbumData> foundAlbums = null;
+
+  @Override
+  public AlbumDetail listAlbumContent(final String albumid) {
     final AlbumData savedAlbum = loadAlbums().get(albumid);
     if (savedAlbum == null) {
-      response.setStatus(404);
       return null;
     }
     return getAlbumDetail(albumid, savedAlbum).detailData;
   }
 
+  @RequestMapping(value = "{albumid}", method = RequestMethod.GET)
+  public @ResponseBody
+  AlbumDetail listAlbumContent(@PathVariable("albumid") final String albumid, final HttpServletResponse response) {
+    final AlbumDetail content = listAlbumContent(albumid);
+    if (content == null)
+      response.setStatus(404);
+    return content;
+  }
+
+  @Override
   @RequestMapping(method = RequestMethod.GET)
-  public AlbumList listAlbums() {
+  public @ResponseBody
+  AlbumList listAlbums() {
     final AlbumList albumList = new AlbumList();
     final Set<Entry<String, AlbumData>> keySet = loadAlbums().entrySet();
     for (final Entry<String, AlbumData> entry : keySet) {
-      albumList.getAlbumNames().add(new AlbumEntry(entry.getKey(), entry.getValue().album.getName()));
+      final AlbumData detail = getAlbumDetail(entry.getKey(), entry.getValue());
+      final AlbumEntry albumEntry = new AlbumEntry(entry.getKey(), entry.getValue().album.getName());
+      long minDate = Long.MAX_VALUE;
+      long maxDate = Long.MIN_VALUE;
+      final Collection<AlbumImage> images = detail.images.values();
+      for (final AlbumImage albumImage : images) {
+        final Date captureDate = albumImage.captureDate();
+        if (captureDate == null)
+          continue;
+        final long time = captureDate.getTime();
+        if (time > maxDate)
+          maxDate = time;
+        if (time < minDate)
+          minDate = time;
+      }
+      if (minDate != Long.MAX_VALUE && maxDate != Long.MIN_VALUE) {
+        albumEntry.setFirstPhotoDate(new Date(minDate));
+        albumEntry.setLastPhotoDate(new Date(maxDate));
+      }
+      albumList.getAlbumNames().add(albumEntry);
     }
     return albumList;
+  }
+
+  @Override
+  public File readImage(final String albumId, final String imageId, final int width, final int height) {
+    final AlbumData savedAlbum = loadAlbums().get(albumId);
+    if (savedAlbum == null) {
+      return null;
+    }
+    final AlbumData albumData = getAlbumDetail(albumId, savedAlbum);
+    final AlbumImage image = albumData.images.get(imageId);
+    if (image == null) {
+      return null;
+    }
+    return image.getThumbnail(width, height, false);
   }
 
   @RequestMapping(value = "{albumId}/image/{imageId}-{width}x{height}.jpg", method = RequestMethod.GET)
   public void
       readImage(@PathVariable("albumId") final String albumId, @PathVariable("imageId") final String imageId, @PathVariable("width") final int width,
                 @PathVariable("height") final int height, final HttpServletResponse response) throws IOException {
-    final AlbumData savedAlbum = loadAlbums().get(albumId);
-    if (savedAlbum == null) {
-      response.setStatus(404);
-      return;
-    }
-    final AlbumData albumData = getAlbumDetail(albumId, savedAlbum);
-    final AlbumImage image = albumData.images.get(imageId);
-    if (image == null) {
+    final File foundImage = readImage(albumId, imageId, width, height);
+    if (foundImage == null) {
       response.setStatus(404);
       return;
     }
     response.setContentType("image/jpeg");
-    final FileInputStream inputStream = new FileInputStream(image.getThumbnail(width, height, false));
+    final FileInputStream inputStream = new FileInputStream(foundImage);
     try {
       final ServletOutputStream outputStream = response.getOutputStream();
       try {

@@ -1,4 +1,4 @@
-package ch.bergturbenthal.image.data;
+package ch.bergturbenthal.image.data.model;
 
 import java.util.Date;
 

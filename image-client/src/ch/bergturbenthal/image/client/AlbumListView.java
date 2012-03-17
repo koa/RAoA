@@ -1,57 +1,64 @@
 package ch.bergturbenthal.image.client;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestTemplate;
+import java.util.Comparator;
+import java.util.Date;
 
 import android.app.ListActivity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
-import ch.bergturbenthal.image.data.AlbumList;
+import ch.bergturbenthal.image.client.resolver.AlbumService;
+import ch.bergturbenthal.image.client.resolver.Resolver;
+import ch.bergturbenthal.image.data.model.AlbumEntry;
+import ch.bergturbenthal.image.data.model.AlbumList;
 
 public class AlbumListView extends ListActivity {
+  private AlbumService albumService = null;
 
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-    final Intent intent = getIntent();
-    final String[] hostnames = intent.getStringArrayExtra("hostnames");
-    final int port = intent.getIntExtra("port", -1);
-    for (final String hostname : hostnames) {
-      try {
+    final AlbumListAdapter albumList = new AlbumListAdapter(this);
+    setListAdapter(albumList);
+    final Resolver resolver = new Resolver(this);
+    resolver.establishLastConnection(new Resolver.ConnectionUrlListener() {
 
-        final String url = "http://" + hostname + ":" + port + "/albums";
-        Log.d("QUERY", "Try host " + url);
-        // Set the Accept header for "application/xml"
-        final HttpHeaders requestHeaders = new HttpHeaders();
-        final List<MediaType> acceptableMediaTypes = new ArrayList<MediaType>();
-        acceptableMediaTypes.add(MediaType.APPLICATION_XML);
-        requestHeaders.setAccept(acceptableMediaTypes);
-        // Populate the headers in an HttpEntity object to use for the request
-        final HttpEntity<?> requestEntity = new HttpEntity<Object>(requestHeaders);
+      @Override
+      public void notifyConnectionEstabilshed(final String foundUrl) {
+        albumService = new AlbumService(foundUrl);
+        final AlbumList foundAlbums = albumService.listAlbums();
+        runOnUiThread(new Runnable() {
 
-        // Create a new RestTemplate instance
-        final RestTemplate restTemplate = new RestTemplate();
+          @Override
+          public void run() {
+            albumList.clear();
+            for (final AlbumEntry entry : foundAlbums.getAlbumNames()) {
+              albumList.add(entry);
+            }
+            albumList.sort(new Comparator<AlbumEntry>() {
 
-        // Perform the HTTP GET request
-        final ResponseEntity<AlbumList> responseEntity = restTemplate.exchange(url, HttpMethod.GET, requestEntity, AlbumList.class);
-
-        // Return the list of states
-        final AlbumList stateList = responseEntity.getBody();
-        Log.e("QUERY", "Connected");
-        break;
-      } catch (final ResourceAccessException ex) {
-        Log.d("QUERY", "Cannot access to host " + hostname + " try next", ex);
+              @Override
+              public int compare(final AlbumEntry lhs, final AlbumEntry rhs) {
+                final Date firstPhotoDate1 = lhs.getFirstPhotoDate();
+                final Date firstPhotoDate2 = rhs.getFirstPhotoDate();
+                if (firstPhotoDate1 == null) {
+                  if (firstPhotoDate2 == null)
+                    return 0;
+                  return 1;
+                }
+                if (firstPhotoDate2 == null)
+                  return -1;
+                return firstPhotoDate1.compareTo(firstPhotoDate2);
+              }
+            });
+          }
+        });
       }
-    }
+
+      @Override
+      public void notifyConnectionNotEstablished() {
+        startActivity(new Intent(AlbumListView.this, SelectServerListView.class));
+      }
+    });
   }
 
 }

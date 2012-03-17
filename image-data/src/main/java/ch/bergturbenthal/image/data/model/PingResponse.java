@@ -1,4 +1,4 @@
-package ch.bergturbenthal.image.data;
+package ch.bergturbenthal.image.data.model;
 
 public class PingResponse {
   private String version = "1";

@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">Photos</string>
     <string name="connecting">Connecting</string>
+    <string name="timeSpanOneDate">%s</string>
+    <string name="timeSpanTwoDates">%1$s-%2$s</string>
 </resources>

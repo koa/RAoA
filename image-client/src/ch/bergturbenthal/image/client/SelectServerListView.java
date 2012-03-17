@@ -3,6 +3,7 @@ package ch.bergturbenthal.image.client;
 import java.io.IOException;
 
 import android.app.ListActivity;
+import android.content.Intent;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -74,6 +75,7 @@ public class SelectServerListView extends ListActivity {
                     Toast.makeText(getApplicationContext(), "Connected: " + foundUrl, 5000).show();
                   }
                 });
+                startActivity(new Intent(getApplicationContext(), AlbumListView.class));
               }
 
               @Override

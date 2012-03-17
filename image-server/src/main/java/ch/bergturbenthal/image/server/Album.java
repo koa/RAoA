@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 
 public class Album {
@@ -72,8 +73,16 @@ public class Album {
     Collections.sort(images, new Comparator<AlbumImage>() {
       @Override
       public int compare(final AlbumImage o1, final AlbumImage o2) {
-        final int cmp = o1.captureDate().compareTo(o2.captureDate());
-        return cmp;
+        final Date date1 = o1.captureDate();
+        final Date date2 = o2.captureDate();
+        if (date1 == null) {
+          if (date2 == null)
+            return 0;
+          return 1;
+        }
+        if (date2 == null)
+          return -1;
+        return date1.compareTo(date2);
       }
     });
     return images;

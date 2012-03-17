@@ -41,6 +41,7 @@ public class AlbumImage {
   private final File file;
   private final File cacheDir;
   private Metadata metadata;
+  private final Date captureDate;
 
   public AlbumImage(final File file, final File cacheDir) {
     this.file = file;
@@ -50,19 +51,11 @@ public class AlbumImage {
     } catch (final ImageProcessingException e) {
       throw new RuntimeException("Cannot read metadata from " + file, e);
     }
+    captureDate = readCaptureDateFromMetadata();
   }
 
   public Date captureDate() {
-    final Date gpsDate = readGpsDate();
-    if (gpsDate != null)
-      return gpsDate;
-    for (final TagId index : Arrays.asList(new TagId(ExifDirectory.class, ExifDirectory.TAG_DATETIME_ORIGINAL), new TagId(ExifDirectory.class,
-                                                                                                                          ExifDirectory.TAG_DATETIME))) {
-      final Date date = readDate(index.directory, index.tagId);
-      if (date != null)
-        return date;
-    }
-    return null;
+    return captureDate;
   }
 
   public String getName() {
@@ -109,6 +102,19 @@ public class AlbumImage {
       cacheFileName = filenameFormat.format(new Object[] { file.getName(), width, height });
     }
     return cacheFileName;
+  }
+
+  private Date readCaptureDateFromMetadata() {
+    final Date gpsDate = readGpsDate();
+    if (gpsDate != null)
+      return gpsDate;
+    for (final TagId index : Arrays.asList(new TagId(ExifDirectory.class, ExifDirectory.TAG_DATETIME_ORIGINAL), new TagId(ExifDirectory.class,
+                                                                                                                          ExifDirectory.TAG_DATETIME))) {
+      final Date date = readDate(index.directory, index.tagId);
+      if (date != null)
+        return date;
+    }
+    return null;
   }
 
   private Date readDate(final Class<? extends Directory> directory, final int tag) {
