@@ -62,11 +62,13 @@ public class AlbumImage {
     return file.getName();
   }
 
-  public File getThumbnail(final int width, final int height, final boolean crop) {
+  public File getThumbnail(final int width, final int height, final boolean crop, final boolean onlyFromCache) {
     try {
       final File cachedFile = new File(cacheDir, makeCachedFilename(width, height, crop));
       if (cachedFile.exists() && cachedFile.lastModified() > file.lastModified())
         return cachedFile;
+      if (onlyFromCache)
+        return null;
       synchronized (this) {
         if (cachedFile.exists() && cachedFile.lastModified() > file.lastModified())
           return cachedFile;
@@ -160,6 +162,7 @@ public class AlbumImage {
     final ConvertCmd cmd = new ConvertCmd();
     final IMOperation operation = new IMOperation();
     operation.addImage(file.getAbsolutePath());
+    operation.autoOrient();
     if (crop) {
       operation.resize(Integer.valueOf(width), Integer.valueOf(height), "^");
       operation.gravity("center");

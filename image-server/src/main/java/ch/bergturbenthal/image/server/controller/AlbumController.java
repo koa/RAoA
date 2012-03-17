@@ -12,8 +12,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 
 import javax.servlet.ServletOutputStream;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.codec.binary.Base32;
@@ -57,6 +59,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   @Autowired
   private AlbumAccess albumAccess;
 
+  private final Semaphore concurrentConvertSemaphore = new Semaphore(4);
   private Map<String, AlbumData> foundAlbums = null;
 
   @Override
@@ -120,19 +123,37 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     if (image == null) {
       return null;
     }
-    return image.getThumbnail(width, height, false);
+    final File cachedImage = image.getThumbnail(width, height, false, true);
+    if (cachedImage != null)
+      return cachedImage;
+    try {
+      concurrentConvertSemaphore.acquire();
+      try {
+        return image.getThumbnail(width, height, false, false);
+      } finally {
+        concurrentConvertSemaphore.release();
+      }
+    } catch (final InterruptedException ex) {
+      throw new RuntimeException(ex);
+    }
   }
 
   @RequestMapping(value = "{albumId}/image/{imageId}-{width}x{height}.jpg", method = RequestMethod.GET)
-  public void
-      readImage(@PathVariable("albumId") final String albumId, @PathVariable("imageId") final String imageId, @PathVariable("width") final int width,
-                @PathVariable("height") final int height, final HttpServletResponse response) throws IOException {
+  public void readImage(@PathVariable("albumId") final String albumId, @PathVariable("imageId") final String imageId,
+                        @PathVariable("width") final int width, @PathVariable("height") final int height, final HttpServletRequest request,
+                        final HttpServletResponse response) throws IOException {
     final File foundImage = readImage(albumId, imageId, width, height);
     if (foundImage == null) {
       response.setStatus(404);
       return;
     }
     response.setContentType("image/jpeg");
+    final long modifiedTime = request.getDateHeader("If-Modified-Since");
+    if (foundImage.lastModified() <= modifiedTime) {
+      response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+      return;
+    }
+    response.setDateHeader("last-modified", modifiedTime);
     final FileInputStream inputStream = new FileInputStream(foundImage);
     try {
       final ServletOutputStream outputStream = response.getOutputStream();

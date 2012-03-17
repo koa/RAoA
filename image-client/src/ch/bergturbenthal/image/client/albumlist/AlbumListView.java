@@ -8,8 +8,12 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ListView;
 import ch.bergturbenthal.image.client.R;
 import ch.bergturbenthal.image.client.SelectServerListView;
+import ch.bergturbenthal.image.client.album.AlbumContentView;
 import ch.bergturbenthal.image.client.resolver.AlbumService;
 import ch.bergturbenthal.image.client.resolver.Resolver;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
@@ -40,12 +44,24 @@ public class AlbumListView extends ListActivity {
     super.onCreate(savedInstanceState);
     final AlbumListAdapter albumList = new AlbumListAdapter(this);
     setListAdapter(albumList);
+    final ListView lv = getListView();
+    lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+
+      @Override
+      public void onItemClick(final AdapterView<?> arg0, final View arg1, final int position, final long arg3) {
+        final AlbumEntry item = albumList.getItem(position);
+        final String albumId = item.getId();
+        final Intent intent = new Intent(AlbumListView.this, AlbumContentView.class);
+        intent.putExtra("albumId", albumId);
+        startActivity(intent);
+      }
+    });
     final Resolver resolver = new Resolver(this);
     resolver.establishLastConnection(new Resolver.ConnectionUrlListener() {
 
       @Override
       public void notifyConnectionEstabilshed(final String foundUrl) {
-        albumService = new AlbumService(foundUrl);
+        albumService = new AlbumService(foundUrl, getApplicationContext());
         final AlbumList foundAlbums = albumService.listAlbums();
         runOnUiThread(new Runnable() {
 
@@ -85,5 +101,4 @@ public class AlbumListView extends ListActivity {
   private void showSelectServerActivity() {
     startActivity(new Intent(AlbumListView.this, SelectServerListView.class));
   }
-
 }

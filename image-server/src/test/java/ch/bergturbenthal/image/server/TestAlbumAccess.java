@@ -59,7 +59,7 @@ public class TestAlbumAccess {
 
           @Override
           public Void call() throws Exception {
-            final File thumbnail = image.getThumbnail(400, 400, false);
+            final File thumbnail = image.getThumbnail(400, 400, false, false);
             System.out.println(image + ":" + thumbnail.length());
             return null;
           }
