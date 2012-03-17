@@ -12,6 +12,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.Toast;
+import ch.bergturbenthal.image.client.albumlist.AlbumListView;
 import ch.bergturbenthal.image.client.resolver.Resolver;
 
 public class SelectServerListView extends ListActivity {

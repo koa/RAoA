@@ -1,4 +1,4 @@
-package ch.bergturbenthal.image.client;
+package ch.bergturbenthal.image.client.albumlist;
 
 import java.util.Comparator;
 import java.util.Date;
@@ -6,6 +6,10 @@ import java.util.Date;
 import android.app.ListActivity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
+import ch.bergturbenthal.image.client.R;
+import ch.bergturbenthal.image.client.SelectServerListView;
 import ch.bergturbenthal.image.client.resolver.AlbumService;
 import ch.bergturbenthal.image.client.resolver.Resolver;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
@@ -13,6 +17,23 @@ import ch.bergturbenthal.image.data.model.AlbumList;
 
 public class AlbumListView extends ListActivity {
   private AlbumService albumService = null;
+
+  @Override
+  public boolean onCreateOptionsMenu(final Menu menu) {
+    getMenuInflater().inflate(R.menu.menu, menu);
+    return true;
+  }
+
+  @Override
+  public boolean onOptionsItemSelected(final MenuItem item) {
+    switch (item.getItemId()) {
+    case R.id.selectServerItem:
+      showSelectServerActivity();
+      return true;
+    default:
+      return super.onOptionsItemSelected(item);
+    }
+  }
 
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
@@ -56,9 +77,13 @@ public class AlbumListView extends ListActivity {
 
       @Override
       public void notifyConnectionNotEstablished() {
-        startActivity(new Intent(AlbumListView.this, SelectServerListView.class));
+        showSelectServerActivity();
       }
     });
+  }
+
+  private void showSelectServerActivity() {
+    startActivity(new Intent(AlbumListView.this, SelectServerListView.class));
   }
 
 }

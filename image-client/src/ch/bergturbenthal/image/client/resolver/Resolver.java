@@ -203,23 +203,14 @@ public class Resolver implements Closeable {
   private boolean notifyListener(final ServiceInfo info, final ConnectionUrlListener listener) {
     for (final String hostname : info.getHostAddresses()) {
       final String url = "http://" + hostname + ":" + info.getPort();
-      try {
-        if (pingService(url)) {
-          final SharedPreferences sharedPreferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
-          final Editor edit = sharedPreferences.edit();
-          edit.putString(LAST_URL, url);
-          edit.putString(LAST_SERVICENAME, info.getName());
-          edit.commit();
-          listener.notifyConnectionEstabilshed(url);
-          return true;
-        }
-      } catch (final ResourceAccessException ex) {
-        final Throwable connectException = ex.getCause();
-        if (connectException != null && connectException instanceof ConnectException) {
-          // try next
-          Log.d(TAG, "Connect to " + url + "/ failed, try more");
-        } else
-          throw ex;
+      if (pingService(url)) {
+        final SharedPreferences sharedPreferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+        final Editor edit = sharedPreferences.edit();
+        edit.putString(LAST_URL, url);
+        edit.putString(LAST_SERVICENAME, info.getName());
+        edit.commit();
+        listener.notifyConnectionEstabilshed(url);
+        return true;
       }
     }
     return false;
@@ -227,9 +218,23 @@ public class Resolver implements Closeable {
 
   private boolean pingService(final String foundUrl) {
     final RestTemplate restTemplate = new RestTemplate();
-    final ResponseEntity<PingResponse> entity = restTemplate.getForEntity(foundUrl + "/ping.json", PingResponse.class);
-    final boolean pingOk = entity.getStatusCode().series() == Series.SUCCESSFUL;
-    return pingOk;
+    try {
+      try {
+        final ResponseEntity<PingResponse> entity = restTemplate.getForEntity(foundUrl + "/ping.json", PingResponse.class);
+        final boolean pingOk = entity.getStatusCode().series() == Series.SUCCESSFUL;
+        return pingOk;
+      } catch (final ResourceAccessException ex) {
+        final Throwable connectException = ex.getCause();
+        if (connectException != null && connectException instanceof ConnectException) {
+          // try next
+          Log.d(TAG, "Connect to " + foundUrl + "/ failed, try more");
+          return false;
+        } else
+          throw ex;
+      }
+    } catch (final Exception ex) {
+      throw new RuntimeException("Cannot connect to " + foundUrl, ex);
+    }
   }
 
   private synchronized void setup() {

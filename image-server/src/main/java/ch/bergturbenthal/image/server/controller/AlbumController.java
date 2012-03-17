@@ -103,6 +103,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
         albumEntry.setFirstPhotoDate(new Date(minDate));
         albumEntry.setLastPhotoDate(new Date(maxDate));
       }
+      albumEntry.setPhotoCount(images.size());
       albumList.getAlbumNames().add(albumEntry);
     }
     return albumList;

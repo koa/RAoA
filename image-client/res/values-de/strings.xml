@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Photos</string>
-    <string name="connecting">Connecting</string>
+    <string name="connecting">Verbinde</string>
     <string name="timeSpanOneDate">%s</string>
     <string name="timeSpanTwoDates">%1$s-%2$s</string>
-    <string name="select_server_menu">select Server</string>
+    <string name="select_server_menu">wähle Server</string>
 </resources>
