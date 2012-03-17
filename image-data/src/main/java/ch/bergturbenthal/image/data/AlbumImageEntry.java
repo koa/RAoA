@@ -2,8 +2,6 @@ package ch.bergturbenthal.image.data;
 
 import java.util.Date;
 
-import javax.xml.bind.annotation.XmlAttribute;
-
 public class AlbumImageEntry {
   private String id;
   private Date creationDate;
@@ -13,7 +11,6 @@ public class AlbumImageEntry {
     return creationDate;
   }
 
-  @XmlAttribute
   public String getId() {
     return id;
   }

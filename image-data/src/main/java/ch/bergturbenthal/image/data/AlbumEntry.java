@@ -1,6 +1,5 @@
 package ch.bergturbenthal.image.data;
 
-import javax.xml.bind.annotation.XmlAttribute;
 
 public class AlbumEntry {
   private String id;
@@ -14,12 +13,10 @@ public class AlbumEntry {
     this.name = name;
   }
 
-  @XmlAttribute
   public String getId() {
     return id;
   }
 
-  @XmlAttribute
   public String getName() {
     return name;
   }

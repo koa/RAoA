@@ -13,7 +13,7 @@
 		<android-version>2.2.1</android-version>
 		<!-- Available Android versions: 1.5_r3, 1.5_r4, 1.6_r2, 2.1.2, 2.1_r1, 
 			2.2.1, 2.3.1, 2.3.3, 4.0.1.2 -->
-		<spring-android-version>1.0.0.RC1</spring-android-version>
+		<spring-android-version>1.0.0.BUILD-SNAPSHOT</spring-android-version>
 		<spring-social-version>1.0.2.RELEASE</spring-social-version>
 		<spring-social-facebook-version>1.0.1.RELEASE</spring-social-facebook-version>
 		<spring-security-crypto-version>3.1.0.RELEASE</spring-security-crypto-version>
