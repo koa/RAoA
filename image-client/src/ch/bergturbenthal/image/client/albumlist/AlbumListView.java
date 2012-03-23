@@ -1,5 +1,10 @@
 package ch.bergturbenthal.image.client.albumlist;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
 import android.app.ListActivity;
 import android.content.Intent;
 import android.os.AsyncTask;
@@ -80,12 +85,19 @@ public class AlbumListView extends ListActivity {
       public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
         albumService = new AlbumService(foundUrl, getApplicationContext());
         final AlbumList foundAlbums = albumService.listAlbums();
+        final List<AlbumEntry> albums = new ArrayList<AlbumEntry>(foundAlbums.getAlbumNames());
+        Collections.sort(albums, new Comparator<AlbumEntry>() {
+          @Override
+          public int compare(final AlbumEntry o1, final AlbumEntry o2) {
+            return o1.getName().compareTo(o2.getName());
+          }
+        });
         runOnUiThread(new Runnable() {
 
           @Override
           public void run() {
             albumList.clear();
-            for (final AlbumEntry entry : foundAlbums.getAlbumNames()) {
+            for (final AlbumEntry entry : albums) {
               albumList.add(entry);
             }
           }

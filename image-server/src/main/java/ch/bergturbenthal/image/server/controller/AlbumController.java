@@ -7,9 +7,11 @@ import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -89,10 +91,11 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   AlbumList listAlbums() {
     final AlbumList albumList = new AlbumList();
     final Set<Entry<String, AlbumData>> keySet = loadAlbums().entrySet();
+    final Collection<AlbumEntry> albumNames = albumList.getAlbumNames();
     for (final Entry<String, AlbumData> entry : keySet) {
       final AlbumEntry albumEntry = new AlbumEntry(entry.getKey(), entry.getValue().album.getName());
       albumEntry.getClients().addAll(entry.getValue().album.listClients());
-      albumList.getAlbumNames().add(albumEntry);
+      albumNames.add(albumEntry);
     }
     return albumList;
   }
@@ -192,15 +195,16 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
       detail.setName(savedAlbum.album.getName());
       detail.setId(albumid);
       final Map<String, AlbumImage> images = new HashMap<String, AlbumImage>();
+      final List<AlbumImageEntry> imagesResult = new ArrayList<AlbumImageEntry>();
       for (final AlbumImage albumImage : savedAlbum.album.listImages()) {
         final String id = sha1(albumImage.getName());
         images.put(id, albumImage);
         final AlbumImageEntry entry = new AlbumImageEntry();
         entry.setId(id);
         entry.setName(albumImage.getName());
-        entry.setCreationDate(albumImage.captureDate());
-        detail.getImages().add(entry);
+        imagesResult.add(entry);
       }
+      detail.getImages().addAll(imagesResult);
       savedAlbum.detailData = detail;
       savedAlbum.images = images;
     }

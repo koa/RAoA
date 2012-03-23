@@ -42,6 +42,7 @@ public class FileAlbumAccess implements AlbumAccess {
   private Collection<File> findAlbums(final File dir) {
     final File gitSubDir = new File(dir, ".git");
     if (gitSubDir.exists() && gitSubDir.isDirectory()) {
+      System.out.println("Found: " + dir);
       return Collections.singleton(dir);
     }
     final File[] foundFiles = dir.listFiles(new FileFilter() {

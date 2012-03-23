@@ -7,9 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
 
 import android.app.IntentService;
 import android.content.Intent;
@@ -27,7 +25,7 @@ import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 public class DownloadService extends IntentService {
 
   private static final String TAG = "Service";
-  private final ExecutorService executorService = new ThreadPoolExecutor(1, 4, 20, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+  private final ExecutorService executorService = Executors.newFixedThreadPool(4);
 
   public DownloadService() {
     super("Image Download Service");

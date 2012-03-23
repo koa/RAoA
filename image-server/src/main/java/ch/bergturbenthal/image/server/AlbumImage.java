@@ -40,21 +40,18 @@ public class AlbumImage {
   private final static MessageFormat CROP_THUMBNAIL_MESSAGE_FORMAT = new MessageFormat("{0}-{1}_{2}c.jpg");
   private final File file;
   private final File cacheDir;
-  private Metadata metadata;
-  private final Date captureDate;
+  private Metadata metadata = null;
+  private Date captureDate = null;
 
   public AlbumImage(final File file, final File cacheDir) {
     this.file = file;
     this.cacheDir = cacheDir;
-    try {
-      metadata = ImageMetadataReader.readMetadata(file);
-    } catch (final ImageProcessingException e) {
-      throw new RuntimeException("Cannot read metadata from " + file, e);
-    }
-    captureDate = readCaptureDateFromMetadata();
   }
 
   public Date captureDate() {
+    if (captureDate == null)
+      captureDate = readCaptureDateFromMetadata();
+
     return captureDate;
   }
 
@@ -93,6 +90,17 @@ public class AlbumImage {
     return "AlbumImage [file=" + file.getName() + "]";
   }
 
+  private Metadata getMetadata() {
+    if (metadata != null)
+      return metadata;
+    try {
+      metadata = ImageMetadataReader.readMetadata(file);
+    } catch (final ImageProcessingException e) {
+      throw new RuntimeException("Cannot read metadata from " + file, e);
+    }
+    return metadata;
+  }
+
   private String makeCachedFilename(final int width, final int height, final boolean crop) {
     final MessageFormat filenameFormat;
     if (crop)
@@ -121,6 +129,7 @@ public class AlbumImage {
 
   private Date readDate(final Class<? extends Directory> directory, final int tag) {
     try {
+      final Metadata metadata = getMetadata();
       if (metadata.containsDirectory(directory)) {
         final Directory directory2 = metadata.getDirectory(directory);
         if (directory2.containsTag(tag))
@@ -138,6 +147,7 @@ public class AlbumImage {
 
   private Date readGpsDate() {
     try {
+      final Metadata metadata = getMetadata();
       if (!metadata.containsDirectory(GpsDirectory.class))
         return null;
       final Directory directory = metadata.getDirectory(GpsDirectory.class);
