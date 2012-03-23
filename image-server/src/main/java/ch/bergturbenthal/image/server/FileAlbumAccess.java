@@ -11,8 +11,6 @@ import java.util.Collections;
 import org.springframework.core.io.Resource;
 
 public class FileAlbumAccess implements AlbumAccess {
-  // @Value("/data/heap/data/photos")
-  // @Value("/data/heap/data/photos/old/Landschaft/Vorführung Seilbahn 2012-02-18")
   private Resource baseDir;
 
   public Resource getBaseDir() {
@@ -42,7 +40,6 @@ public class FileAlbumAccess implements AlbumAccess {
   private Collection<File> findAlbums(final File dir) {
     final File gitSubDir = new File(dir, ".git");
     if (gitSubDir.exists() && gitSubDir.isDirectory()) {
-      System.out.println("Found: " + dir);
       return Collections.singleton(dir);
     }
     final File[] foundFiles = dir.listFiles(new FileFilter() {
