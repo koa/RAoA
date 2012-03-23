@@ -10,15 +10,18 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import ch.bergturbenthal.image.data.util.StringUtil;
 
 public class Album {
   private static String CACHE_DIR = ".servercache";
   private static String CLIENT_FILE = ".clientlist";
+  private static String AUTOADD_FILE = ".autoadd";
   private final File baseDir;
   private final long cachedImages = 0;
   private List<AlbumImage> images = null;
@@ -106,45 +109,33 @@ public class Album {
     for (final File file : foundFiles) {
       images.add(new AlbumImage(file, cacheDir));
     }
-    // Collections.sort(images, new Comparator<AlbumImage>() {
-    // @Override
-    // public int compare(final AlbumImage o1, final AlbumImage o2) {
-    // final Date date1 = o1.captureDate();
-    // final Date date2 = o2.captureDate();
-    // if (date1 == null) {
-    // if (date2 == null)
-    // return 0;
-    // return 1;
-    // }
-    // if (date2 == null)
-    // return -1;
-    // return date1.compareTo(date2);
-    // }
-    // });
     return images;
   }
 
   private void prepareGitignore() {
     try {
       final File gitignore = new File(baseDir, ".gitignore");
+      final Set<String> ignoreEntries = new HashSet<String>(Arrays.asList(CACHE_DIR, AUTOADD_FILE));
       if (gitignore.exists()) {
         final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(gitignore), "utf-8"));
         try {
-          while (true) {
+          while (ignoreEntries.size() > 0) {
             final String line = reader.readLine();
             if (line == null)
               break;
-            if (line.equals(CACHE_DIR))
-              // already added
-              return;
+            ignoreEntries.remove(line);
           }
         } finally {
           reader.close();
         }
       }
+      if (ignoreEntries.size() == 0)
+        return;
       final PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(gitignore, true), "utf-8"));
       try {
-        writer.println(CACHE_DIR);
+        for (final String entry : ignoreEntries) {
+          writer.println(entry);
+        }
       } finally {
         writer.close();
       }
