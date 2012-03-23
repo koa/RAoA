@@ -1,7 +1,12 @@
 package ch.bergturbenthal.image.server;
 
-import java.util.Collection;
+import java.io.File;
+import java.util.Map;
 
 public interface AlbumAccess {
-  Collection<Album> listAlbums();
+  Album getAlbum(String albumId);
+
+  void importFiles(File importBaseDir);
+
+  Map<String, Album> listAlbums();
 }

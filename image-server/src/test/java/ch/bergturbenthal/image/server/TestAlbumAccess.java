@@ -53,8 +53,8 @@ public class TestAlbumAccess {
   @Test
   public void testFindAlbums() throws InterruptedException {
     final Collection<Callable<Void>> runnables = new ArrayList<Callable<Void>>();
-    for (final Album album : albumAccess.listAlbums()) {
-      for (final AlbumImage image : album.listImages()) {
+    for (final Album album : albumAccess.listAlbums().values()) {
+      for (final AlbumImage image : album.listImages().values()) {
         runnables.add(new Callable<Void>() {
 
           @Override

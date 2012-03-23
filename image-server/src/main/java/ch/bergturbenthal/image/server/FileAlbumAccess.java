@@ -7,34 +7,135 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.imaging.ImageProcessingException;
+import com.drew.metadata.Metadata;
+
 public class FileAlbumAccess implements AlbumAccess {
+  private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
   private Resource baseDir;
+  private Resource importBaseDir;
+  private Map<String, Album> loadedAlbums = null;
+
+  @Override
+  public Album getAlbum(final String albumId) {
+    return listAlbums().get(albumId);
+  }
 
   public Resource getBaseDir() {
     return baseDir;
   }
 
+  public Resource getImportBaseDir() {
+    return importBaseDir;
+  }
+
   @Override
-  public Collection<Album> listAlbums() {
+  public void importFiles(final File importDir) {
+
     try {
-      final ArrayList<Album> ret = new ArrayList<Album>();
-      final File basePath = baseDir.getFile().getAbsoluteFile();
-      final int basePathLength = basePath.getAbsolutePath().length();
-      for (final File albumDir : findAlbums(basePath)) {
-        final String name = albumDir.getAbsolutePath().substring(basePathLength);
-        ret.add(new Album(albumDir, name));
+      if (!importDir.getAbsolutePath().startsWith(importBaseDir.getFile().getAbsolutePath())) {
+        logger.error("Secutity-Error: Not allowed to read Images from " + importDir + " (Import-Path is " + importBaseDir + ")");
+        return;
       }
-      return ret;
+      final SortedMap<Date, Album> importAlbums = new TreeMap<Date, Album>();
+      for (final Album album : listAlbums().values()) {
+        final Date beginDate = album.autoAddBeginDate();
+        if (beginDate != null)
+          importAlbums.put(beginDate, album);
+      }
+      final Collection<File> importCandicates = collectImportFiles(importDir);
+      for (final File file : importCandicates) {
+        try {
+          final Metadata metadata = ImageMetadataReader.readMetadata(file);
+          final Date createDate = MetadataUtil.readCreateDate(metadata);
+          if (createDate == null)
+            // skip images without creation date
+            continue;
+          final SortedMap<Date, Album> entriesBeforeDate = importAlbums.headMap(createDate);
+          if (entriesBeforeDate.isEmpty())
+            // no matching album found
+            continue;
+          final Album album = entriesBeforeDate.get(entriesBeforeDate.lastKey());
+          if (album.importImage(file)) {
+            logger.debug("image " + file + " imported successfully");
+            file.delete();
+          } else {
+            logger.warn("Could not import image " + file);
+          }
+        } catch (final ImageProcessingException e) {
+          throw new RuntimeException("Cannot import file " + file, e);
+        }
+      }
     } catch (final IOException e) {
-      throw new RuntimeException("Troubles while accessing resource " + baseDir, e);
+      throw new RuntimeException("Cannot import from " + importDir, e);
     }
   }
 
-  public void setBaseDir(final Resource baseDir) {
+  @Override
+  public Map<String, Album> listAlbums() {
+    if (loadedAlbums == null) {
+      synchronized (this) {
+        try {
+          final Map<String, Album> ret = new HashMap<String, Album>();
+          final File basePath = baseDir.getFile().getAbsoluteFile();
+          final int basePathLength = basePath.getAbsolutePath().length();
+          for (final File albumDir : findAlbums(basePath)) {
+            final String name = albumDir.getAbsolutePath().substring(basePathLength);
+            ret.put(Util.sha1(albumDir.getAbsolutePath()), new Album(albumDir, name));
+          }
+          loadedAlbums = ret;
+        } catch (final IOException e) {
+          throw new RuntimeException("Troubles while accessing resource " + baseDir, e);
+        }
+      }
+    }
+    return loadedAlbums;
+  }
+
+  public synchronized void setBaseDir(final Resource baseDir) {
     this.baseDir = baseDir;
+    loadedAlbums = null;
+  }
+
+  public void setImportBaseDir(final Resource importBaseDir) {
+    this.importBaseDir = importBaseDir;
+  }
+
+  private Collection<File> collectImportFiles(final File importDir) {
+    if (!importDir.isDirectory())
+      return Collections.emptyList();
+    final ArrayList<File> ret = new ArrayList<File>();
+    ret.addAll(Arrays.asList(importDir.listFiles(new FileFilter() {
+      @Override
+      public boolean accept(final File pathname) {
+        if (!pathname.canRead())
+          return false;
+        if (!pathname.isFile())
+          return false;
+        final String lowerFilename = pathname.getName().toLowerCase();
+        return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".nef") || lowerFilename.endsWith(".jpeg");
+      }
+    })));
+    for (final File dir : importDir.listFiles(new FileFilter() {
+      @Override
+      public boolean accept(final File pathname) {
+        return pathname.isDirectory();
+      }
+    })) {
+      ret.addAll(collectImportFiles(dir));
+    }
+    return ret;
   }
 
   private Collection<File> findAlbums(final File dir) {
