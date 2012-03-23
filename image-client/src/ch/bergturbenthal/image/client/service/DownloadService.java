@@ -54,6 +54,8 @@ public class DownloadService extends IntentService {
               final File albumDirectory = new File(serverDirectory, album.getName());
               if (!albumDirectory.exists())
                 albumDirectory.mkdirs();
+              else
+                new SingleMediaScanner(DownloadService.this, albumDirectory);
               final AlbumDetail albumContent = albumService.listAlbumContent(album.getId());
               for (final AlbumImageEntry image : albumContent.getImages()) {
                 executorService.submit(new Runnable() {
@@ -67,8 +69,9 @@ public class DownloadService extends IntentService {
                       ifModifiedSince = null;
                     final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), 1600, 1600, ifModifiedSince);
                     final Date lastModified = imageResult.getLastModified();
-                    if (lastModified == null)
+                    if (lastModified == null) {
                       return;
+                    }
                     try {
                       final InputStream inputStream = imageResult.getDataStream();
                       try {
@@ -90,7 +93,6 @@ public class DownloadService extends IntentService {
                         inputStream.close();
                       }
                       imageFile.setLastModified(lastModified.getTime());
-                      new SingleMediaScanner(DownloadService.this, imageFile);
                     } catch (final IOException e) {
                       throw new RuntimeException("Cannot read " + album.getName() + ":" + image.getName(), e);
                     }

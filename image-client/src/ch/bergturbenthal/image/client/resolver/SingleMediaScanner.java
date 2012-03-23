@@ -24,7 +24,7 @@ public class SingleMediaScanner implements MediaScannerConnectionClient {
     if (mFile.isDirectory())
       scanDirectory(mFile);
     else
-      mMs.scanFile(mFile.getAbsolutePath(), null);
+      mMs.scanFile(mFile.getAbsolutePath(), "image/jpeg");
   }
 
   @Override
@@ -40,7 +40,7 @@ public class SingleMediaScanner implements MediaScannerConnectionClient {
         return pathname.isFile() && pathname.canRead() && pathname.getName().endsWith(".jpg");
       }
     })) {
-      mMs.scanFile(file.getAbsolutePath(), null);
+      mMs.scanFile(file.getAbsolutePath(), "image/jpeg");
     }
     for (final File subdir : directory.listFiles(new FileFilter() {
 
