@@ -32,7 +32,7 @@ import ch.bergturbenthal.image.data.model.PingResponse;
 
 public class Resolver implements Closeable {
   public static interface ConnectionUrlListener {
-    void notifyConnectionEstabilshed(String foundUrl);
+    void notifyConnectionEstabilshed(String foundUrl, String serverName);
 
     void notifyConnectionNotEstablished();
   }
@@ -75,11 +75,13 @@ public class Resolver implements Closeable {
 
       @Override
       public Boolean call() throws Exception {
-        if (running.getAndSet(false)) {
-          stopRunning();
-          return Boolean.TRUE;
+        synchronized (Resolver.this) {
+          if (running.getAndSet(false)) {
+            stopRunning();
+            return Boolean.TRUE;
+          }
+          return Boolean.FALSE;
         }
-        return Boolean.FALSE;
       }
     };
     new AsyncTask<Void, Void, Void>() {
@@ -138,19 +140,26 @@ public class Resolver implements Closeable {
   }
 
   public void establishLastConnection(final ConnectionUrlListener listener) {
-    final SharedPreferences sharedPreferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
-    final String foundUrl = sharedPreferences.getString(LAST_URL, null);
-    if (foundUrl != null) {
-      if (pingService(foundUrl)) {
-        listener.notifyConnectionEstabilshed(foundUrl);
-        return;
+    new AsyncTask<Void, Void, Void>() {
+
+      @Override
+      protected Void doInBackground(final Void... params) {
+        final SharedPreferences sharedPreferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+        final String foundUrl = sharedPreferences.getString(LAST_URL, null);
+        if (foundUrl != null) {
+          if (pingService(foundUrl)) {
+            listener.notifyConnectionEstabilshed(foundUrl, sharedPreferences.getString(LAST_SERVICENAME, "undef"));
+            return null;
+          }
+        }
+        final String lastServiceName = sharedPreferences.getString(LAST_SERVICENAME, null);
+        if (lastServiceName != null) {
+          connectServiceName(lastServiceName, listener);
+        } else
+          listener.notifyConnectionNotEstablished();
+        return null;
       }
-    }
-    final String lastServiceName = sharedPreferences.getString(LAST_SERVICENAME, null);
-    if (lastServiceName != null) {
-      connectServiceName(lastServiceName, listener);
-    } else
-      listener.notifyConnectionNotEstablished();
+    }.execute();
   }
 
   public synchronized void findServices(final ServiceNameListener listener) {
@@ -189,7 +198,7 @@ public class Resolver implements Closeable {
     stopRunning();
   }
 
-  private void notifyAndShutdown(final ServiceInfo info, final ConnectionUrlListener listener, final Callable<Boolean> shutdownRunnable) {
+  private synchronized void notifyAndShutdown(final ServiceInfo info, final ConnectionUrlListener listener, final Callable<Boolean> shutdownRunnable) {
     if (!notifyListener(info, listener))
       return;
     stopRunning();
@@ -209,7 +218,7 @@ public class Resolver implements Closeable {
         edit.putString(LAST_URL, url);
         edit.putString(LAST_SERVICENAME, info.getName());
         edit.commit();
-        listener.notifyConnectionEstabilshed(url);
+        listener.notifyConnectionEstabilshed(url, info.getName());
         return true;
       }
     }

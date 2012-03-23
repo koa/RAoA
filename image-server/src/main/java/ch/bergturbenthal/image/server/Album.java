@@ -14,10 +14,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+
+import ch.bergturbenthal.image.data.util.StringUtil;
 
 public class Album {
   private static String CACHE_DIR = ".servercache";
+  private static String CLIENT_FILE = ".clientlist";
   private final File baseDir;
   private final long cachedImages = 0;
   private List<AlbumImage> images = null;
@@ -33,12 +37,47 @@ public class Album {
       cacheDir.mkdir();
   }
 
+  public synchronized void addClient(final String client) {
+    final Collection<String> clients = listClients();
+    clients.add(client);
+    saveClientList(clients);
+  }
+
   public String getName() {
     return name;
   }
 
+  public synchronized Collection<String> listClients() {
+    final File file = new File(baseDir, CLIENT_FILE);
+    if (file.exists() && file.canRead()) {
+      try {
+        final Collection<String> clients = new HashSet<String>();
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "utf-8"));
+        try {
+          while (true) {
+            final String line = reader.readLine();
+            if (line == null)
+              return clients;
+            clients.add(line);
+          }
+        } finally {
+          reader.close();
+        }
+      } catch (final IOException e) {
+        throw new RuntimeException("Cannot read client-list: " + file, e);
+      }
+    } else
+      return new HashSet<String>();
+  }
+
   public synchronized List<AlbumImage> listImages() {
     return new ArrayList<AlbumImage>(loadImages());
+  }
+
+  public synchronized void removeClient(final String client) {
+    final Collection<String> clients = listClients();
+    clients.remove(client);
+    saveClientList(clients);
   }
 
   @Override
@@ -114,6 +153,22 @@ public class Album {
       }
     } catch (final IOException e) {
       throw new RuntimeException("Cannot prepare .gitignore-file", e);
+    }
+  }
+
+  private void saveClientList(final Collection<String> clients) {
+    final File file = new File(baseDir, CLIENT_FILE);
+    try {
+      final PrintWriter writer = new PrintWriter(file, "utf-8");
+      try {
+        for (final String clientId : clients) {
+          writer.println(StringUtil.filterClientIdString(clientId));
+        }
+      } finally {
+        writer.close();
+      }
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot write client-list to " + file, e);
     }
   }
 }

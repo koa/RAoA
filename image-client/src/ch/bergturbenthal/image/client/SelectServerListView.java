@@ -69,11 +69,11 @@ public class SelectServerListView extends ListActivity {
             resolver.connectServiceName(selectedServer, new Resolver.ConnectionUrlListener() {
 
               @Override
-              public void notifyConnectionEstabilshed(final String foundUrl) {
+              public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
                 runOnUiThread(new Runnable() {
                   @Override
                   public void run() {
-                    Toast.makeText(getApplicationContext(), "Connected: " + foundUrl, 5000).show();
+                    Toast.makeText(getApplicationContext(), "Connected: " + serverName + "(" + foundUrl + ")", 5000).show();
                   }
                 });
                 startActivity(new Intent(getApplicationContext(), AlbumListView.class));

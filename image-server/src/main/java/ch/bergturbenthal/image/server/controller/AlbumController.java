@@ -3,6 +3,7 @@ package ch.bergturbenthal.image.server.controller;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -22,10 +23,12 @@ import org.apache.commons.codec.binary.Base32;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
@@ -87,33 +90,16 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     final AlbumList albumList = new AlbumList();
     final Set<Entry<String, AlbumData>> keySet = loadAlbums().entrySet();
     for (final Entry<String, AlbumData> entry : keySet) {
-      final AlbumData detail = getAlbumDetail(entry.getKey(), entry.getValue());
       final AlbumEntry albumEntry = new AlbumEntry(entry.getKey(), entry.getValue().album.getName());
-      long minDate = Long.MAX_VALUE;
-      long maxDate = Long.MIN_VALUE;
-      final Collection<AlbumImage> images = detail.images.values();
-      for (final AlbumImage albumImage : images) {
-        final Date captureDate = albumImage.captureDate();
-        if (captureDate == null)
-          continue;
-        final long time = captureDate.getTime();
-        if (time > maxDate)
-          maxDate = time;
-        if (time < minDate)
-          minDate = time;
-      }
-      if (minDate != Long.MAX_VALUE && maxDate != Long.MIN_VALUE) {
-        albumEntry.setFirstPhotoDate(new Date(minDate));
-        albumEntry.setLastPhotoDate(new Date(maxDate));
-      }
-      albumEntry.setPhotoCount(images.size());
+      albumEntry.getClients().addAll(entry.getValue().album.listClients());
       albumList.getAlbumNames().add(albumEntry);
     }
     return albumList;
   }
 
   @Override
-  public File readImage(final String albumId, final String imageId, final int width, final int height) {
+  public ImageResult
+      readImage(final String albumId, final String imageId, final int width, final int height, final Date ifModifiedSince) throws IOException {
     final AlbumData savedAlbum = loadAlbums().get(albumId);
     if (savedAlbum == null) {
       return null;
@@ -125,11 +111,12 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     }
     final File cachedImage = image.getThumbnail(width, height, false, true);
     if (cachedImage != null)
-      return cachedImage;
+      return makeImageResult(cachedImage);
     try {
       concurrentConvertSemaphore.acquire();
       try {
-        return image.getThumbnail(width, height, false, false);
+        final File thumbnail = image.getThumbnail(width, height, false, false);
+        return makeImageResult(thumbnail);
       } finally {
         concurrentConvertSemaphore.release();
       }
@@ -142,20 +129,20 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   public void readImage(@PathVariable("albumId") final String albumId, @PathVariable("imageId") final String imageId,
                         @PathVariable("width") final int width, @PathVariable("height") final int height, final HttpServletRequest request,
                         final HttpServletResponse response) throws IOException {
-    final File foundImage = readImage(albumId, imageId, width, height);
+    final long modifiedTime = request.getDateHeader("If-Modified-Since");
+    final ImageResult foundImage = readImage(albumId, imageId, width, height, modifiedTime > 0 ? new Date(modifiedTime) : null);
     if (foundImage == null) {
       response.setStatus(404);
       return;
     }
     response.setContentType("image/jpeg");
-    final long modifiedTime = request.getDateHeader("If-Modified-Since");
-    if (foundImage.lastModified() <= modifiedTime) {
+    if (foundImage.getLastModified().getTime() <= modifiedTime) {
       response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
       return;
     }
-    response.setDateHeader("last-modified", modifiedTime);
-    final FileInputStream inputStream = new FileInputStream(foundImage);
+    final InputStream inputStream = foundImage.getDataStream();
     try {
+      response.setDateHeader("last-modified", foundImage.getLastModified().getTime());
       final ServletOutputStream outputStream = response.getOutputStream();
       try {
         final byte[] buffer = new byte[8192];
@@ -171,6 +158,32 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     } finally {
       inputStream.close();
     }
+  }
+
+  @Override
+  public void registerClient(final String albumId, final String clientId) {
+    final AlbumData albumData = loadAlbums().get(albumId);
+    if (albumData == null)
+      return;
+    albumData.album.addClient(clientId);
+  }
+
+  @RequestMapping(value = "{albumId}/registerClient", method = RequestMethod.PUT)
+  public void registerClient(@PathVariable("albumId") final String albumId, @RequestBody final String clientId, final HttpServletResponse response) {
+    registerClient(albumId, clientId);
+  }
+
+  @Override
+  public void unRegisterClient(final String albumId, final String clientId) {
+    final AlbumData albumData = loadAlbums().get(albumId);
+    if (albumData == null)
+      return;
+    albumData.album.removeClient(clientId);
+  }
+
+  @RequestMapping(value = "{albumId}/unRegisterClient", method = RequestMethod.PUT)
+  public void unRegisterClient(@PathVariable("albumId") final String albumId, @RequestBody final String clientId, final HttpServletResponse response) {
+    unRegisterClient(albumId, clientId);
   }
 
   private synchronized AlbumData getAlbumDetail(final String albumid, final AlbumData savedAlbum) {
@@ -205,6 +218,16 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
       }
     }
     return foundAlbums;
+  }
+
+  private ImageResult makeImageResult(final File sourceFile) {
+    return new ImageResult(new Date(sourceFile.lastModified()), new ImageResult.StreamSource() {
+
+      @Override
+      public InputStream getInputStream() throws IOException {
+        return new FileInputStream(sourceFile);
+      }
+    });
   }
 
 }

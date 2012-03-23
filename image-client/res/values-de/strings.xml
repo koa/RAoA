@@ -5,4 +5,5 @@
     <string name="timeSpanOneDate">%s</string>
     <string name="timeSpanTwoDates">%1$s-%2$s</string>
     <string name="select_server_menu">wähle Server</string>
+    <string name="client_name">Gerätename</string>
 </resources>
