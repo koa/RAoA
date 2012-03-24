@@ -89,6 +89,7 @@ public class FileAlbumAccess implements AlbumAccess {
         try {
           final Map<String, Album> ret = new HashMap<String, Album>();
           final File basePath = baseDir.getFile().getAbsoluteFile();
+          logger.debug("Base-Path: " + basePath);
           final int basePathLength = basePath.getAbsolutePath().length();
           for (final File albumDir : findAlbums(basePath)) {
             final String name = albumDir.getAbsolutePath().substring(basePathLength);
@@ -150,9 +151,11 @@ public class FileAlbumAccess implements AlbumAccess {
       }
     });
     final ArrayList<File> ret = new ArrayList<File>();
-    Arrays.sort(foundFiles);
-    for (final File subDir : foundFiles) {
-      ret.addAll(findAlbums(subDir));
+    if (foundFiles != null) {
+      Arrays.sort(foundFiles);
+      for (final File subDir : foundFiles) {
+        ret.addAll(findAlbums(subDir));
+      }
     }
     return ret;
   }
