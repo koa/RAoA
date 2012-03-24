@@ -11,8 +11,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.MessageFormat;
@@ -28,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.codec.binary.Base32;
+import org.apache.commons.io.FileUtils;
 
 import ch.bergturbenthal.image.data.util.StringUtil;
 
@@ -150,29 +149,7 @@ public class Album {
           // new Filename found -> import file
           final File tempFile = new File(baseDir, targetFile.getName() + "-temp");
           try {
-            final FileInputStream fileInputStream = new FileInputStream(imageFile);
-            try {
-              final FileChannel inputChannel = fileInputStream.getChannel();
-              try {
-                final FileOutputStream fileOutputStream = new FileOutputStream(tempFile);
-                try {
-                  final FileChannel outputChannel = fileOutputStream.getChannel();
-                  try {
-                    final long copied = outputChannel.transferFrom(inputChannel, 0, length);
-                    if (copied != length)
-                      return false;
-                  } finally {
-                    outputChannel.close();
-                  }
-                } finally {
-                  fileOutputStream.close();
-                }
-              } finally {
-                inputChannel.close();
-              }
-            } finally {
-              fileInputStream.close();
-            }
+            FileUtils.copyFile(imageFile, tempFile);
             if (tempFile.renameTo(targetFile)) {
               final ImportEntry loadedEntry = findOrMakeImportEntryForExisting(targetFile);
               return loadedEntry.getHash().equals(sha1OfFile);
@@ -236,6 +213,8 @@ public class Album {
   }
 
   private void appendImportEntry(final ImportEntry newEntry) {
+    if (importEntries == null)
+      loadImportEntries();
     try {
       final PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(indexFile(), true), "utf-8"));
       try {
@@ -260,6 +239,8 @@ public class Album {
   }
 
   private synchronized ImportEntry findExistingImportEntry(final String sha1OfFile) {
+    if (importEntries == null)
+      loadImportEntries();
     for (final ImportEntry entry : importEntries) {
       if (entry.getHash().equals(sha1OfFile))
         return entry;
@@ -268,6 +249,8 @@ public class Album {
   }
 
   private synchronized ImportEntry findOrMakeImportEntryForExisting(final File existingFile) {
+    if (importEntries == null)
+      loadImportEntries();
     for (final ImportEntry entry : importEntries) {
       if (entry.getFilename().equals(existingFile.getName()))
         return entry;
@@ -303,7 +286,7 @@ public class Album {
     return images;
   }
 
-  private void loadImportEntries() {
+  private synchronized void loadImportEntries() {
     importEntries = new ArrayList<Album.ImportEntry>();
     final File file = indexFile();
     if (file.exists()) {
@@ -337,15 +320,15 @@ public class Album {
       final MessageDigest md = MessageDigest.getInstance("SHA-1");
       final FileInputStream fileInputStream = new FileInputStream(file);
       try {
-        final FileChannel channel = fileInputStream.getChannel();
-        try {
-          final MappedByteBuffer byteBuffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, file.length());
-          md.update(byteBuffer);
-          final Base32 base32 = new Base32();
-          return base32.encodeToString(md.digest()).toLowerCase();
-        } finally {
-          channel.close();
+        final byte[] buffer = new byte[8192];
+        while (true) {
+          final int read = fileInputStream.read(buffer);
+          if (read < 0)
+            break;
+          md.update(buffer, 0, read);
         }
+        final Base32 base32 = new Base32();
+        return base32.encodeToString(md.digest()).toLowerCase();
       } finally {
         fileInputStream.close();
       }
