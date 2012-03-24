@@ -94,9 +94,15 @@
 	</parent>
 	<dependencies>
 		<dependency>
+			<groupId>com.google.android</groupId>
+			<artifactId>android</artifactId>
+			<version>${android-version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
 			<groupId>javax.jmdns</groupId>
 			<artifactId>jmdns</artifactId>
-			</dependency>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.android</groupId>
 			<artifactId>spring-android-rest-template</artifactId>
