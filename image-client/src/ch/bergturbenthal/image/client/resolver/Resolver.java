@@ -20,6 +20,7 @@ import javax.jmdns.impl.JmmDNSImpl;
 import org.springframework.http.HttpStatus.Series;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import android.content.Context;
@@ -211,7 +212,7 @@ public class Resolver implements Closeable {
 
   private boolean notifyListener(final ServiceInfo info, final ConnectionUrlListener listener) {
     for (final String hostname : info.getHostAddresses()) {
-      final String url = "http://" + hostname + ":" + info.getPort();
+      final String url = "http://" + hostname + ":" + info.getPort() + "/rest";
       if (pingService(url)) {
         final SharedPreferences sharedPreferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
         final Editor edit = sharedPreferences.edit();
@@ -240,6 +241,9 @@ public class Resolver implements Closeable {
           return false;
         } else
           throw ex;
+      } catch (final RestClientException ex) {
+        Log.d(TAG, "Connect to " + foundUrl + "/ failed, try more");
+        return false;
       }
     } catch (final Exception ex) {
       throw new RuntimeException("Cannot connect to " + foundUrl, ex);
