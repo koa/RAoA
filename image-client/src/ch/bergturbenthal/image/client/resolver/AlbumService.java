@@ -18,7 +18,6 @@ import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 
-import android.content.Context;
 import ch.bergturbenthal.image.data.api.Album;
 import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
@@ -26,13 +25,11 @@ import ch.bergturbenthal.image.data.model.AlbumList;
 
 public class AlbumService implements Album {
   private final String baseUrl;
-  private final Context context;
   private final RestTemplate restTemplate;
   private final ConcurrentMap<File, Object> waitMap = new ConcurrentHashMap<File, Object>();
 
-  public AlbumService(final String baseUrl, final Context context) {
+  public AlbumService(final String baseUrl) {
     this.baseUrl = baseUrl;
-    this.context = context;
     restTemplate = new RestTemplate();
   }
 

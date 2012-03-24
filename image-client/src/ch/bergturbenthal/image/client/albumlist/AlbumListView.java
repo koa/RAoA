@@ -83,7 +83,7 @@ public class AlbumListView extends ListActivity {
 
       @Override
       public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
-        albumService = new AlbumService(foundUrl, getApplicationContext());
+        albumService = new AlbumService(foundUrl);
         final AlbumList foundAlbums = albumService.listAlbums();
         final List<AlbumEntry> albums = new ArrayList<AlbumEntry>(foundAlbums.getAlbumNames());
         Collections.sort(albums, new Comparator<AlbumEntry>() {

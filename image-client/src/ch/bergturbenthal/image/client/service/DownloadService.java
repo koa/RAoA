@@ -44,7 +44,7 @@ public class DownloadService extends IntentService {
         final File serverDirectory = new File(imagesDirectory, serverName);
         if (!serverDirectory.exists())
           serverDirectory.mkdirs();
-        final AlbumService albumService = new AlbumService(foundUrl, DownloadService.this);
+        final AlbumService albumService = new AlbumService(foundUrl);
         for (final AlbumEntry album : albumService.listAlbums().getAlbumNames()) {
           if (!album.getClients().contains(clientId))
             continue;
