@@ -44,6 +44,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   @RequestMapping(value = "import", method = RequestMethod.GET)
   public void importDirectory(@RequestParam("path") final String path, final HttpServletResponse response) throws IOException {
     albumAccess.importFiles(new File(path));
+    System.gc();
     response.getWriter().println("Import finished");
   }
 
