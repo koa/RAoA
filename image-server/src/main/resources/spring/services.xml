@@ -4,7 +4,7 @@
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
 		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.1.xsd">
 	<bean class="ch.bergturbenthal.image.server.FileAlbumAccess">
-		<property name="baseDir" value="file:/data/heap/data/photos" />
-		<property name="importBaseDir" value="file:/media" />
+		<property name="baseDir" value="${images.photos.dir}" />
+		<property name="importBaseDir" value="${images.import.dir}" />
 	</bean>
 </beans>
