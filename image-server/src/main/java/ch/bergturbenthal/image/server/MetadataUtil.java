@@ -7,6 +7,9 @@ import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.TimeZone;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.MetadataException;
@@ -25,15 +28,22 @@ public class MetadataUtil {
 
   }
 
+  private static Logger logger = LoggerFactory.getLogger(MetadataUtil.class);
+
   public static Date readCreateDate(final Metadata metadata) {
     final Date gpsDate = readGpsDate(metadata);
-    if (gpsDate != null)
+    if (gpsDate != null) {
+      // logger.info("GPS-Date: " + gpsDate);
       return gpsDate;
+    }
     for (final TagId index : Arrays.asList(new TagId(ExifDirectory.class, ExifDirectory.TAG_DATETIME_ORIGINAL), new TagId(ExifDirectory.class,
                                                                                                                           ExifDirectory.TAG_DATETIME))) {
       final Date date = readDate(metadata, index.directory, index.tagId);
-      if (date != null)
+      if (date != null) {
+        // logger.info(index.directory.getSimpleName() + ":" + index.tagId +
+        // ": " + date);
         return date;
+      }
     }
     return null;
 
@@ -67,7 +77,7 @@ public class MetadataUtil {
       final String date = directory.getString(29);
       final Object[] values = new MessageFormat("{0,number}:{1,number}:{2,number}").parse(date);
       final GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-      calendar.set(((Number) values[0]).intValue(), ((Number) values[1]).intValue(), ((Number) values[2]).intValue(), time[0], time[1], time[2]);
+      calendar.set(((Number) values[0]).intValue(), ((Number) values[1]).intValue() - 1, ((Number) values[2]).intValue(), time[0], time[1], time[2]);
       return calendar.getTime();
     } catch (final MetadataException e) {
       throw new RuntimeException("Cannot read Gps-Date", e);
