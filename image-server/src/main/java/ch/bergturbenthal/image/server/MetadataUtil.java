@@ -33,15 +33,14 @@ public class MetadataUtil {
   public static Date readCreateDate(final Metadata metadata) {
     final Date gpsDate = readGpsDate(metadata);
     if (gpsDate != null) {
-      // logger.info("GPS-Date: " + gpsDate);
+      logger.info("GPS-Date: " + gpsDate);
       return gpsDate;
     }
     for (final TagId index : Arrays.asList(new TagId(ExifDirectory.class, ExifDirectory.TAG_DATETIME_ORIGINAL), new TagId(ExifDirectory.class,
                                                                                                                           ExifDirectory.TAG_DATETIME))) {
       final Date date = readDate(metadata, index.directory, index.tagId);
       if (date != null) {
-        // logger.info(index.directory.getSimpleName() + ":" + index.tagId +
-        // ": " + date);
+        logger.info(index.directory.getSimpleName() + ":" + index.tagId + ": " + date);
         return date;
       }
     }

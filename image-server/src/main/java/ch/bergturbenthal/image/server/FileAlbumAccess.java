@@ -117,7 +117,7 @@ public class FileAlbumAccess implements AlbumAccess {
           final Album album = entriesBeforeDate.get(entriesBeforeDate.lastKey());
           // logger.info(" ->" + album.getName());
           if (album.importImage(file)) {
-            logger.debug("image " + file + " imported successfully");
+            logger.debug("image " + file + " imported successfully to " + album.getName());
             file.delete();
           } else {
             logger.warn("Could not import image " + file);
