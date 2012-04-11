@@ -9,7 +9,6 @@
         android:layout_height="wrap_content"
         android:layout_alignParentLeft="true"
         android:onClick="onAlbumClicked"
-        android:text="CheckBox"
         android:textAppearance="?android:attr/textAppearanceLarge" />
 
 </RelativeLayout>

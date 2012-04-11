@@ -4,7 +4,6 @@ import java.io.IOException;
 
 import android.app.ListActivity;
 import android.content.Intent;
-import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.View;
@@ -18,8 +17,6 @@ import ch.bergturbenthal.image.client.resolver.Resolver;
 public class SelectServerListView extends ListActivity {
 
   protected static final String TAG = "MDNS";
-
-  WifiManager.MulticastLock lock;
 
   private Resolver resolver;
 

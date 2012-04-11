@@ -55,6 +55,17 @@ public class AlbumImage {
     return captureDate;
   }
 
+  private Metadata getMetadata() {
+    if (metadata != null)
+      return metadata;
+    try {
+      metadata = ImageMetadataReader.readMetadata(file);
+    } catch (final ImageProcessingException e) {
+      throw new RuntimeException("Cannot read metadata from " + file, e);
+    }
+    return metadata;
+  }
+
   public String getName() {
     return file.getName();
   }
@@ -79,26 +90,6 @@ public class AlbumImage {
     } catch (final IM4JavaException e) {
       throw new RuntimeException("Cannot make thumbnail of " + file, e);
     }
-  }
-
-  public long readSize() {
-    return file.length();
-  }
-
-  @Override
-  public String toString() {
-    return "AlbumImage [file=" + file.getName() + "]";
-  }
-
-  private Metadata getMetadata() {
-    if (metadata != null)
-      return metadata;
-    try {
-      metadata = ImageMetadataReader.readMetadata(file);
-    } catch (final ImageProcessingException e) {
-      throw new RuntimeException("Cannot read metadata from " + file, e);
-    }
-    return metadata;
   }
 
   private String makeCachedFilename(final int width, final int height, final boolean crop) {
@@ -166,6 +157,10 @@ public class AlbumImage {
     }
   }
 
+  public long readSize() {
+    return file.length();
+  }
+
   private void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException, InterruptedException,
                                                                                                            IM4JavaException {
     logger.debug("Start convert " + file);
@@ -183,6 +178,11 @@ public class AlbumImage {
     logger.debug("Start operation");
     cmd.run(operation);
     logger.debug("End operation");
+  }
+
+  @Override
+  public String toString() {
+    return "AlbumImage [file=" + file.getName() + "]";
   }
 
 }
