@@ -6,4 +6,5 @@
     <string name="client_name">Clientname</string>
     <string name="start_download_menu_title">Start Download</string>
     <string name="select_server_title">Select Server</string>
+    <string name="progress_indication_title">Downloading Photos</string>
 </resources>
