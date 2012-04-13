@@ -78,7 +78,7 @@ public class AlbumImage {
       if (onlyFromCache)
         return null;
       synchronized (this) {
-        if (cachedFile.exists() && cachedFile.lastModified() > file.lastModified())
+        if (cachedFile.exists() && cachedFile.lastModified() >= file.lastModified())
           return cachedFile;
         scaleImageDown(width, height, crop, cachedFile);
       }

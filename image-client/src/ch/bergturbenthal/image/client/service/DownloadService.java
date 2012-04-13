@@ -13,17 +13,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import android.app.IntentService;
 import android.app.Notification;
+import android.app.Notification.Builder;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Environment;
 import android.preference.PreferenceManager;
 import android.util.Log;
-import android.widget.RemoteViews;
 import ch.bergturbenthal.image.client.R;
 import ch.bergturbenthal.image.client.resolver.AlbumService;
 import ch.bergturbenthal.image.client.resolver.Resolver;
-import ch.bergturbenthal.image.client.resolver.SingleMediaScanner;
 import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
@@ -35,10 +37,9 @@ public class DownloadService extends IntentService {
   private static final int PROGRESS_INDICATION = 1;
   private final ExecutorService executorService = Executors.newFixedThreadPool(4);
   private NotificationManager notificationManager;
-  private Notification notification;
-  private RemoteViews notificationView;
 
   private long lastUpdate = System.currentTimeMillis();
+  private Notification notification;
 
   public DownloadService() {
     super("Image Download Service");
@@ -87,7 +88,7 @@ public class DownloadService extends IntentService {
                 final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), 1600, 1600, ifModifiedSince);
                 final Date lastModified = imageResult.getLastModified();
                 if (lastModified == null) {
-                  updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue());
+                  updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), null);
                   return;
                 }
                 try {
@@ -112,10 +113,10 @@ public class DownloadService extends IntentService {
                   }
                   imageFile.setLastModified(lastModified.getTime());
                 } catch (final IOException e) {
-                  updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue());
+                  updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), null);
                   throw new RuntimeException("Cannot read " + album.getName() + ":" + image.getName(), e);
                 }
-                updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue());
+                updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), imageFile);
               }
             });
           }
@@ -127,7 +128,11 @@ public class DownloadService extends IntentService {
           Log.i(TAG, "Service cancelled");
         }
         cancelProgress();
-        new SingleMediaScanner(DownloadService.this, serverDirectory);
+
+        final Intent scanIntent = new Intent(Intent.ACTION_MEDIA_MOUNTED);
+        scanIntent.setData(Uri.fromFile(serverDirectory));
+        sendBroadcast(scanIntent);
+        // startActivity(scanIntent);
       }
 
       @Override
@@ -140,22 +145,34 @@ public class DownloadService extends IntentService {
 
   private void prepareProgressBar() {
     notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-    notification = new Notification();
-    notificationView = new RemoteViews(getPackageName(), R.layout.progress_notification);
-    notification.contentView = notificationView;
-    notification.flags |= Notification.FLAG_ONGOING_EVENT | Notification.FLAG_NO_CLEAR;
-    notificationView.setProgressBar(R.id.progressBar, 0, 0, true);
-    notification.icon = R.drawable.logo;
+    final Notification notification =
+                                      new Notification.Builder(this).setOngoing(true).setProgress(0, 0, true).setSmallIcon(R.drawable.icon)
+                                                                    .getNotification();
+
+    notification.flags |= Notification.FLAG_NO_CLEAR;
     notificationManager.notify(PROGRESS_INDICATION, notification);
   }
 
-  private synchronized void updateProgress(final int currentValue, final int maxValue) {
+  private synchronized void updateProgress(final int currentValue, final int maxValue, final File lastImage) {
     final long now = System.currentTimeMillis();
-    if (now - lastUpdate < 200)
+    if (now - lastUpdate < 300)
       return;
-    lastUpdate = now;
-    notificationView.setProgressBar(R.id.progressBar, maxValue, currentValue, false);
+    if (notification == null) {
+      final Builder builder =
+                              new Notification.Builder(this).setOngoing(true).setProgress(maxValue, currentValue, false)
+                                                            .setSmallIcon(R.drawable.icon);
+      builder.setContentTitle(getResources().getText(R.string.progress_indication_title));
+      notification = builder.getNotification();
+      notification.flags |= Notification.FLAG_NO_CLEAR;
+    }
+    notification.contentView.setProgressBar(android.R.id.progress, maxValue, currentValue, false);
+    if (lastImage != null) {
+      final Bitmap largeIcon = BitmapFactory.decodeFile(lastImage.getAbsolutePath());
+      notification.largeIcon = largeIcon;
+    }
+
     notificationManager.notify(PROGRESS_INDICATION, notification);
+    lastUpdate = now;
   }
 
 }

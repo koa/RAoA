@@ -4,7 +4,7 @@
     android:versionCode="1"
     android:versionName="1.0" >
 
-    <uses-sdk android:minSdkVersion="10" >
+    <uses-sdk android:minSdkVersion="10" android:targetSdkVersion="15">
     </uses-sdk>
 
     <uses-permission android:name="android.permission.INTERNET" >
