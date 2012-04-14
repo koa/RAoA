@@ -19,6 +19,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Environment;
 import android.preference.PreferenceManager;
@@ -128,11 +129,13 @@ public class DownloadService extends IntentService {
           Log.i(TAG, "Service cancelled");
         }
         cancelProgress();
+        MediaScannerConnection.scanFile(context, serverDirectory.list(), null, new MediaScannerConnection.OnScanCompletedListener() {
+          @Override
+          public void onScanCompleted(final String path, final Uri uri) {
+            // TODO Auto-generated method stub
 
-        final Intent scanIntent = new Intent(Intent.ACTION_MEDIA_MOUNTED);
-        scanIntent.setData(Uri.fromFile(serverDirectory));
-        sendBroadcast(scanIntent);
-        // startActivity(scanIntent);
+          }
+        });
       }
 
       @Override
