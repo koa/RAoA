@@ -5,7 +5,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collection;
 import java.util.Date;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -17,8 +19,6 @@ import android.app.Notification.Builder;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Environment;
@@ -50,6 +50,12 @@ public class DownloadService extends IntentService {
     notificationManager.cancel(PROGRESS_INDICATION);
   }
 
+  private void notifyStartScan() {
+    final Builder builder = new Notification.Builder(this).setOngoing(true).setSmallIcon(R.drawable.icon);
+    builder.setContentTitle(getResources().getText(R.string.progress_indication_title));
+    notificationManager.notify(PROGRESS_INDICATION, builder.getNotification());
+  }
+
   @Override
   protected void onHandleIntent(final Intent intent) {
     final Context context = this;
@@ -64,6 +70,7 @@ public class DownloadService extends IntentService {
         prepareProgressBar();
         final AtomicInteger totalImageCount = new AtomicInteger(0);
         final AtomicInteger doneImageCount = new AtomicInteger(0);
+        final Collection<String> addedFiles = new ConcurrentLinkedQueue<String>();
         final File serverDirectory = new File(imagesDirectory, serverName);
         if (!serverDirectory.exists())
           serverDirectory.mkdirs();
@@ -89,7 +96,8 @@ public class DownloadService extends IntentService {
                 final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), 1600, 1600, ifModifiedSince);
                 final Date lastModified = imageResult.getLastModified();
                 if (lastModified == null) {
-                  updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), null);
+                  updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), imageFile);
+                  addedFiles.add(imageFile.getAbsolutePath());
                   return;
                 }
                 try {
@@ -113,6 +121,7 @@ public class DownloadService extends IntentService {
                     inputStream.close();
                   }
                   imageFile.setLastModified(lastModified.getTime());
+                  addedFiles.add(imageFile.getAbsolutePath());
                 } catch (final IOException e) {
                   updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), null);
                   throw new RuntimeException("Cannot read " + album.getName() + ":" + image.getName(), e);
@@ -128,14 +137,14 @@ public class DownloadService extends IntentService {
         } catch (final InterruptedException e) {
           Log.i(TAG, "Service cancelled");
         }
+        // notifyStartScan();
+        MediaScannerConnection.scanFile(context, addedFiles.toArray(new String[addedFiles.size()]), null,
+                                        new MediaScannerConnection.OnScanCompletedListener() {
+                                          @Override
+                                          public void onScanCompleted(final String path, final Uri uri) {
+                                          }
+                                        });
         cancelProgress();
-        MediaScannerConnection.scanFile(context, serverDirectory.list(), null, new MediaScannerConnection.OnScanCompletedListener() {
-          @Override
-          public void onScanCompleted(final String path, final Uri uri) {
-            // TODO Auto-generated method stub
-
-          }
-        });
       }
 
       @Override
@@ -169,10 +178,12 @@ public class DownloadService extends IntentService {
       notification.flags |= Notification.FLAG_NO_CLEAR;
     }
     notification.contentView.setProgressBar(android.R.id.progress, maxValue, currentValue, false);
-    if (lastImage != null) {
-      final Bitmap largeIcon = BitmapFactory.decodeFile(lastImage.getAbsolutePath());
-      notification.largeIcon = largeIcon;
-    }
+    // if (lastImage != null) {
+    // final Bitmap largeIcon =
+    // BitmapFactory.decodeFile(lastImage.getAbsolutePath(), new
+    // BitmapFactory.Options());
+    // notification.largeIcon = largeIcon;
+    // }
 
     notificationManager.notify(PROGRESS_INDICATION, notification);
     lastUpdate = now;
