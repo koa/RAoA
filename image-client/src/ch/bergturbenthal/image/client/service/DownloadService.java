@@ -7,6 +7,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,6 +24,8 @@ import android.app.Notification.Builder;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Environment;
@@ -46,16 +53,6 @@ public class DownloadService extends IntentService {
     super("Image Download Service");
   }
 
-  private void cancelProgress() {
-    notificationManager.cancel(PROGRESS_INDICATION);
-  }
-
-  private void notifyStartScan() {
-    final Builder builder = new Notification.Builder(this).setOngoing(true).setSmallIcon(R.drawable.icon);
-    builder.setContentTitle(getResources().getText(R.string.progress_indication_title));
-    notificationManager.notify(PROGRESS_INDICATION, builder.getNotification());
-  }
-
   @Override
   protected void onHandleIntent(final Intent intent) {
     final Context context = this;
@@ -68,6 +65,8 @@ public class DownloadService extends IntentService {
       @Override
       public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
         prepareProgressBar();
+        final SharedPreferences preferences = context.getSharedPreferences("lastmodified", MODE_PRIVATE);
+        final Map<String, Date> newLastModified = new ConcurrentHashMap<String, Date>();
         final AtomicInteger totalImageCount = new AtomicInteger(0);
         final AtomicInteger doneImageCount = new AtomicInteger(0);
         final Collection<String> addedFiles = new ConcurrentLinkedQueue<String>();
@@ -88,9 +87,11 @@ public class DownloadService extends IntentService {
               @Override
               public void run() {
                 final File imageFile = new File(albumDirectory, image.getName() + ".jpg");
+                final String lastModifiedKey = album.getName() + "/" + image.getName();
+                final long ifModifiedSinceLong = preferences.getLong(lastModifiedKey, -1);
                 final Date ifModifiedSince;
-                if (imageFile.exists())
-                  ifModifiedSince = new Date(imageFile.lastModified());
+                if (ifModifiedSinceLong > 0)
+                  ifModifiedSince = new Date(ifModifiedSinceLong);
                 else
                   ifModifiedSince = null;
                 final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), 1600, 1600, ifModifiedSince);
@@ -120,8 +121,11 @@ public class DownloadService extends IntentService {
                   } finally {
                     inputStream.close();
                   }
-                  imageFile.setLastModified(lastModified.getTime());
+                  final Date created = imageResult.getCreated();
+                  if (created != null)
+                    imageFile.setLastModified(created.getTime());
                   addedFiles.add(imageFile.getAbsolutePath());
+                  newLastModified.put(lastModifiedKey, lastModified);
                 } catch (final IOException e) {
                   updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), null);
                   throw new RuntimeException("Cannot read " + album.getName() + ":" + image.getName(), e);
@@ -144,6 +148,16 @@ public class DownloadService extends IntentService {
                                           public void onScanCompleted(final String path, final Uri uri) {
                                           }
                                         });
+        final Set<String> keysToRemove = new HashSet<String>(preferences.getAll().keySet());
+        keysToRemove.removeAll(newLastModified.keySet());
+        final Editor editor = preferences.edit();
+        for (final String removeKey : keysToRemove) {
+          editor.remove(removeKey);
+        }
+        for (final Entry<String, Date> entry : newLastModified.entrySet()) {
+          editor.putLong(entry.getKey(), entry.getValue().getTime());
+        }
+        editor.commit();
         cancelProgress();
       }
 
@@ -153,6 +167,16 @@ public class DownloadService extends IntentService {
       }
     });
 
+  }
+
+  private void cancelProgress() {
+    notificationManager.cancel(PROGRESS_INDICATION);
+  }
+
+  private void notifyStartScan() {
+    final Builder builder = new Notification.Builder(this).setOngoing(true).setSmallIcon(R.drawable.icon);
+    builder.setContentTitle(getResources().getText(R.string.progress_indication_title));
+    notificationManager.notify(PROGRESS_INDICATION, builder.getNotification());
   }
 
   private void prepareProgressBar() {

@@ -2,13 +2,15 @@ package ch.bergturbenthal.image.client.resolver;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.Locale;
+import java.util.TimeZone;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +28,11 @@ import ch.bergturbenthal.image.data.model.AlbumList;
 public class AlbumService implements Album {
   private final String baseUrl;
   private final RestTemplate restTemplate;
-  private final ConcurrentMap<File, Object> waitMap = new ConcurrentHashMap<File, Object>();
+
+  private static final String[] DATE_FORMATS = new String[] { "EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd-MMM-yy HH:mm:ss zzz",
+                                                             "EEE MMM dd HH:mm:ss yyyy" };
+
+  private static TimeZone GMT = TimeZone.getTimeZone("GMT");
 
   public AlbumService(final String baseUrl) {
     this.baseUrl = baseUrl;
@@ -61,13 +67,30 @@ public class AlbumService implements Album {
       @Override
       public ImageResult extractData(final ClientHttpResponse response) throws IOException {
         if (response.getStatusCode() == HttpStatus.NOT_MODIFIED)
-          return new ImageResult(null, null);
-        final long lastModified = response.getHeaders().getLastModified();
+          return ImageResult.makeNotModifiedResult();
+        final HttpHeaders headers = response.getHeaders();
+        final long lastModified = headers.getLastModified();
         final Date lastModifiedDate;
         if (lastModified > 0)
           lastModifiedDate = new Date(lastModified);
         else
           lastModifiedDate = null;
+        Date createDate = null;
+        final String createDateString = headers.getFirst("created-at");
+        if (createDateString != null) {
+          for (final String dateFormat : DATE_FORMATS) {
+            final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat, Locale.US);
+            simpleDateFormat.setTimeZone(GMT);
+            try {
+              createDate = simpleDateFormat.parse(createDateString);
+              break;
+            } catch (final ParseException e) {
+              // ignore
+            }
+          }
+          if (createDate == null)
+            throw new IllegalArgumentException("Cannot parse date value \"" + createDateString + "\" for \"created-at\" header");
+        }
         final ByteArrayOutputStream arrayOutputStream = new ByteArrayOutputStream();
         final InputStream inputStream = response.getBody();
         final byte[] buffer = new byte[8192];
@@ -77,7 +100,7 @@ public class AlbumService implements Album {
             break;
           arrayOutputStream.write(buffer, 0, read);
         }
-        return new ImageResult(lastModifiedDate, new ImageResult.StreamSource() {
+        return ImageResult.makeModifiedResult(lastModifiedDate, createDate, new ImageResult.StreamSource() {
           @Override
           public InputStream getInputStream() throws IOException {
             return new ByteArrayInputStream(arrayOutputStream.toByteArray());

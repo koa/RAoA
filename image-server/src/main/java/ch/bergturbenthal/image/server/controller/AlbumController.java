@@ -104,12 +104,12 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     }
     final File cachedImage = image.getThumbnail(width, height, false, true);
     if (cachedImage != null)
-      return makeImageResult(cachedImage);
+      return makeImageResult(cachedImage, image, ifModifiedSince);
     try {
       concurrentConvertSemaphore.acquire();
       try {
         final File thumbnail = image.getThumbnail(width, height, false, false);
-        return makeImageResult(thumbnail);
+        return makeImageResult(thumbnail, image, ifModifiedSince);
       } finally {
         concurrentConvertSemaphore.release();
       }
@@ -129,9 +129,14 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
       return;
     }
     response.setContentType("image/jpeg");
-    if (foundImage.getLastModified().getTime() <= modifiedTime) {
+
+    if (!foundImage.isModified()) {
       response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
       return;
+    }
+    final Date created = foundImage.getCreated();
+    if (created != null) {
+      response.setDateHeader("created-at", created.getTime());
     }
     final InputStream inputStream = foundImage.getDataStream();
     try {
@@ -179,14 +184,17 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     unRegisterClient(albumId, clientId);
   }
 
-  private ImageResult makeImageResult(final File sourceFile) {
-    return new ImageResult(new Date(sourceFile.lastModified()), new ImageResult.StreamSource() {
+  private ImageResult makeImageResult(final File sourceFile, final AlbumImage image, final Date ifModifiedSince) {
+    final Date lastModified = new Date(sourceFile.lastModified());
+    if (ifModifiedSince == null || ifModifiedSince.before(lastModified))
+      return ImageResult.makeModifiedResult(lastModified, image.captureDate(), new ImageResult.StreamSource() {
 
-      @Override
-      public InputStream getInputStream() throws IOException {
-        return new FileInputStream(sourceFile);
-      }
-    });
+        @Override
+        public InputStream getInputStream() throws IOException {
+          return new FileInputStream(sourceFile);
+        }
+      });
+    else
+      return ImageResult.makeNotModifiedResult();
   }
-
 }

@@ -120,7 +120,7 @@ public class Album {
     return name;
   }
 
-  public boolean importImage(final File imageFile) {
+  public boolean importImage(final File imageFile, final Date createDate) {
     if (!imageFile.exists())
       return false;
     final long length = imageFile.length();
@@ -139,7 +139,7 @@ public class Album {
           return true;
       }
       for (int i = 0; true; i++) {
-        final File targetFile = new File(baseDir, makeFilename(imageFile.getName(), i));
+        final File targetFile = new File(baseDir, makeFilename(imageFile.getName(), i, createDate));
         if (targetFile.exists()) {
           final ImportEntry entry = findOrMakeImportEntryForExisting(targetFile);
           if (entry.getHash().equals(sha1OfFile))
@@ -308,11 +308,11 @@ public class Album {
     }
   }
 
-  private String makeFilename(final String name, final int i) {
+  private String makeFilename(final String name, final int i, final Date timestamp) {
     if (i == 0)
-      return name;
+      return MessageFormat.format("{1,date,yyyy-MM-dd-hh-mm-ss}-{0}", name, timestamp);
     final int lastPt = name.lastIndexOf(".");
-    return MessageFormat.format("{0}-{1}{2}", name.substring(0, lastPt), i, name.substring(lastPt));
+    return MessageFormat.format("{3,date,yyyy-MM-dd-hh-mm-ss}-{0}-{1}{2}", name.substring(0, lastPt), i, name.substring(lastPt), timestamp);
   }
 
   private String makeSha1(final File file) {

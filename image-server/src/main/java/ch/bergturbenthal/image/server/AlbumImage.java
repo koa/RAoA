@@ -55,17 +55,6 @@ public class AlbumImage {
     return captureDate;
   }
 
-  private Metadata getMetadata() {
-    if (metadata != null)
-      return metadata;
-    try {
-      metadata = ImageMetadataReader.readMetadata(file);
-    } catch (final ImageProcessingException e) {
-      throw new RuntimeException("Cannot read metadata from " + file, e);
-    }
-    return metadata;
-  }
-
   public String getName() {
     return file.getName();
   }
@@ -90,6 +79,26 @@ public class AlbumImage {
     } catch (final IM4JavaException e) {
       throw new RuntimeException("Cannot make thumbnail of " + file, e);
     }
+  }
+
+  public long readSize() {
+    return file.length();
+  }
+
+  @Override
+  public String toString() {
+    return "AlbumImage [file=" + file.getName() + "]";
+  }
+
+  private Metadata getMetadata() {
+    if (metadata != null)
+      return metadata;
+    try {
+      metadata = ImageMetadataReader.readMetadata(file);
+    } catch (final ImageProcessingException e) {
+      throw new RuntimeException("Cannot read metadata from " + file, e);
+    }
+    return metadata;
   }
 
   private String makeCachedFilename(final int width, final int height, final boolean crop) {
@@ -148,17 +157,13 @@ public class AlbumImage {
       final String date = directory.getString(29);
       final Object[] values = new MessageFormat("{0,number}:{1,number}:{2,number}").parse(date);
       final GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-      calendar.set(((Number) values[0]).intValue(), ((Number) values[1]).intValue(), ((Number) values[2]).intValue(), time[0], time[1], time[2]);
+      calendar.set(((Number) values[0]).intValue(), ((Number) values[1]).intValue() - 1, ((Number) values[2]).intValue(), time[0], time[1], time[2]);
       return calendar.getTime();
     } catch (final MetadataException e) {
       throw new RuntimeException("Cannot read Gps-Date from " + file, e);
     } catch (final ParseException e) {
       throw new RuntimeException("Cannot read Gps-Date from " + file, e);
     }
-  }
-
-  public long readSize() {
-    return file.length();
   }
 
   private void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException, InterruptedException,
@@ -181,11 +186,6 @@ public class AlbumImage {
     tempFile.renameTo(cachedFile);
     cachedFile.setLastModified(file.lastModified());
     logger.debug("End operation");
-  }
-
-  @Override
-  public String toString() {
-    return "AlbumImage [file=" + file.getName() + "]";
   }
 
 }
