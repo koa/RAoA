@@ -75,8 +75,6 @@ public class AlbumListView extends ListActivity {
   protected void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     clientId = PreferenceManager.getDefaultSharedPreferences(this).getString("client_name", null);
-    final AlbumListAdapter albumList = new AlbumListAdapter(this, clientId);
-    setListAdapter(albumList);
 
     final Resolver resolver = new Resolver(this);
     resolver.establishLastConnection(new Resolver.ConnectionUrlListener() {
@@ -96,10 +94,8 @@ public class AlbumListView extends ListActivity {
 
           @Override
           public void run() {
-            albumList.clear();
-            for (final AlbumEntry entry : albums) {
-              albumList.add(entry);
-            }
+            final AlbumListAdapter albumList = new AlbumListAdapter(AlbumListView.this, clientId, albums);
+            setListAdapter(albumList);
           }
         });
       }

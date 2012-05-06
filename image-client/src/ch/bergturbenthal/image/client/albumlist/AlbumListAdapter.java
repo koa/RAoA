@@ -1,9 +1,9 @@
 package ch.bergturbenthal.image.client.albumlist;
 
 import java.util.Collection;
+import java.util.List;
 
 import android.content.Context;
-import android.text.format.DateFormat;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,14 +15,12 @@ import ch.bergturbenthal.image.data.model.AlbumEntry;
 public class AlbumListAdapter extends ArrayAdapter<AlbumEntry> {
 
   private final LayoutInflater inflater;
-  private final java.text.DateFormat dateFormat;
   private final String clientId;
 
-  public AlbumListAdapter(final Context context, final String clientId) {
-    super(context, R.layout.album_list_item);
+  public AlbumListAdapter(final Context context, final String clientId, final List<AlbumEntry> albums) {
+    super(context, R.layout.album_list_item, albums);
     this.clientId = clientId;
     inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-    dateFormat = DateFormat.getDateFormat(context);
   }
 
   @Override

@@ -21,9 +21,8 @@
         <activity android:name=".albumlist.AlbumListView" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+            </intent-filter>            
         </activity>
         <activity android:name=".album.AlbumContentView" >
         </activity>
@@ -34,6 +33,8 @@
             </intent-filter>
         </service>
         <activity android:name=".preferences.Preferences"></activity>
+        <activity android:name=".albumpager.AlbumPagerActivity">
+        </activity>
     </application>
 
 </manifest>
