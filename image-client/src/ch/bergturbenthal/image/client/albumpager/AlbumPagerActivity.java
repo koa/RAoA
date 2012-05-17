@@ -9,12 +9,15 @@ import android.app.ActionBar.TabListener;
 import android.app.FragmentTransaction;
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.view.ViewPager;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.CheckBox;
 import ch.bergturbenthal.image.client.R;
 import ch.bergturbenthal.image.client.SelectServerListView;
 import ch.bergturbenthal.image.client.preferences.Preferences;
@@ -27,11 +30,37 @@ public class AlbumPagerActivity extends FragmentActivity {
   private AlbumPagerAdapter pagerAdapter;
   private TabListener tabListener;
   private ActionBar actionBar;
+  private AlbumService albumService;
+
+  private ArrayList<String> clientNames;
+
+  public void onAlbumClicked(final View v) {
+    final CheckBox checkbox = (CheckBox) v;
+    final String albumId = (String) checkbox.getTag();
+    if (albumId == null)
+      return;
+    if (clientNames == null)
+      return;
+    final String clientId = clientNames.get(viewPager.getCurrentItem());
+    if (clientId == null)
+      return;
+    new AsyncTask<Void, Void, Void>() {
+      @Override
+      protected Void doInBackground(final Void... params) {
+        if (checkbox.isChecked())
+          albumService.registerClient(albumId, clientId);
+        else
+          albumService.unRegisterClient(albumId, clientId);
+        return null;
+      }
+    }.execute();
+  }
 
   @Override
   public void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.album_switcher);
+
     pagerAdapter = new AlbumPagerAdapter(getSupportFragmentManager());
     viewPager = (ViewPager) findViewById(R.id.pager);
     viewPager.setAdapter(pagerAdapter);
@@ -47,7 +76,9 @@ public class AlbumPagerActivity extends FragmentActivity {
 
       @Override
       public void onTabSelected(final Tab tab, final FragmentTransaction ft) {
+        final int scrollX = viewPager.getScrollX();
         viewPager.setCurrentItem(tab.getPosition());
+        viewPager.setScrollX(scrollX);
       }
 
       @Override
@@ -58,14 +89,10 @@ public class AlbumPagerActivity extends FragmentActivity {
 
       @Override
       public void onPageScrolled(final int position, final float positionOffset, final int positionOffsetPixels) {
-        // TODO Auto-generated method stub
-
       }
 
       @Override
       public void onPageScrollStateChanged(final int state) {
-        // TODO Auto-generated method stub
-
       }
 
       @Override
@@ -107,20 +134,21 @@ public class AlbumPagerActivity extends FragmentActivity {
 
       @Override
       public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
-        final AlbumService albumService = new AlbumService(foundUrl);
+        albumService = new AlbumService(foundUrl);
         final Collection<String> collectedClients = albumService.listKnownClientNames();
-        final ArrayList<String> clientNames = new ArrayList<String>();
-        final String clientName = PreferenceManager.getDefaultSharedPreferences(AlbumPagerActivity.this).getString("client_name", null);
-        if (clientName != null) {
-          collectedClients.remove(clientName);
-          clientNames.add(clientName);
-        }
-        clientNames.addAll(collectedClients);
 
         runOnUiThread(new Runnable() {
 
           @Override
           public void run() {
+            clientNames = new ArrayList<String>();
+            final String clientName = PreferenceManager.getDefaultSharedPreferences(AlbumPagerActivity.this).getString("client_name", null);
+            if (clientName != null) {
+              collectedClients.remove(clientName);
+              clientNames.add(clientName);
+            }
+            clientNames.addAll(collectedClients);
+
             progressDialog.hide();
             actionBar.removeAllTabs();
             for (final String client : clientNames) {
