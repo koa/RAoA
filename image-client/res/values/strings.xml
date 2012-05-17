@@ -8,4 +8,6 @@
     <string name="select_server_title">Select Server</string>
     <string name="progress_indication_title">Downloading Photos</string>
     <string name="update_indication_title">Refreshing new downloaded Photos</string>
+    <string name="wait_for_server_message">Please wait …</string>
+    <string name="preferences_menu_title">Preferences</string>
 </resources>

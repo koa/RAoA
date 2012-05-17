@@ -9,7 +9,6 @@ import android.app.ListActivity;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Environment;
 import android.preference.PreferenceManager;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -20,7 +19,6 @@ import ch.bergturbenthal.image.client.SelectServerListView;
 import ch.bergturbenthal.image.client.preferences.Preferences;
 import ch.bergturbenthal.image.client.resolver.AlbumService;
 import ch.bergturbenthal.image.client.resolver.Resolver;
-import ch.bergturbenthal.image.client.resolver.SingleMediaScanner;
 import ch.bergturbenthal.image.client.service.DownloadService;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
@@ -105,7 +103,8 @@ public class AlbumListView extends ListActivity {
         showSelectServerActivity();
       }
     });
-    new SingleMediaScanner(this, Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES));
+    // new SingleMediaScanner(this,
+    // Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES));
   }
 
   private void showSelectServerActivity() {

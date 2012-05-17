@@ -6,9 +6,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Collection;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.util.TreeSet;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -23,6 +25,7 @@ import org.springframework.web.client.RestTemplate;
 import ch.bergturbenthal.image.data.api.Album;
 import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
+import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
 
 public class AlbumService implements Album {
@@ -53,6 +56,14 @@ public class AlbumService implements Album {
     if (response.hasBody())
       return response.getBody();
     throw new RuntimeException("Response without body while calling " + baseUrl + " status: " + response.getStatusCode());
+  }
+
+  public Collection<String> listKnownClientNames() {
+    final Collection<String> ret = new TreeSet<String>();
+    for (final AlbumEntry album : listAlbums().getAlbumNames()) {
+      ret.addAll(album.getClients());
+    }
+    return ret;
   }
 
   @Override

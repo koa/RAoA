@@ -3,7 +3,6 @@ package ch.bergturbenthal.image.client;
 import java.io.IOException;
 
 import android.app.ListActivity;
-import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.View;
@@ -11,7 +10,6 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.Toast;
-import ch.bergturbenthal.image.client.albumlist.AlbumListView;
 import ch.bergturbenthal.image.client.resolver.Resolver;
 
 public class SelectServerListView extends ListActivity {
@@ -73,7 +71,9 @@ public class SelectServerListView extends ListActivity {
                     Toast.makeText(getApplicationContext(), "Connected: " + serverName + "(" + foundUrl + ")", 5000).show();
                   }
                 });
-                startActivity(new Intent(getApplicationContext(), AlbumListView.class));
+                finish();
+                // startActivity(new Intent(getApplicationContext(),
+                // AlbumListView.class));
               }
 
               @Override
