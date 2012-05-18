@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.eclipse.jgit.api.Git;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +29,7 @@ public class TestAlbumImport {
       try {
         // final File dir = resource.getFile();
         final File albumDir = new File(albumBaseDir, "album");
-        new File(albumDir, ".git").mkdirs();
+        Git.init().setDirectory(albumDir).call();
         final PrintWriter writer = new PrintWriter(new File(albumDir, ".autoadd"), "utf-8");
         writer.println("2001-01-01");
         writer.close();
