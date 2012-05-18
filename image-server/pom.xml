@@ -165,6 +165,10 @@
 			<groupId>javax.jmdns</groupId>
 			<artifactId>jmdns</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.eclipse.jgit</groupId>
+			<artifactId>org.eclipse.jgit</artifactId>
+		</dependency>
 	</dependencies>
 
 	<repositories>
@@ -212,7 +216,7 @@
 									<version>0.0.1-SNAPSHOT</version>
 									<type>apk</type>
 									<overWrite>true</overWrite>
-									
+
 								</artifactItem>
 							</artifactItems>
 							<outputDirectory>${project.build.directory}/wars</outputDirectory>

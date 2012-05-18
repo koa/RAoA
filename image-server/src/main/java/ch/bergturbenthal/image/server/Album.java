@@ -19,14 +19,20 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.NoFilepatternException;
+import org.eclipse.jgit.errors.UnmergedPathException;
 
 import ch.bergturbenthal.image.data.util.StringUtil;
 
@@ -68,12 +74,24 @@ public class Album {
   private long cachedImages = 0;
   private Map<String, AlbumImage> images = null;
   private final File cacheDir;
-  private final String name;
   private Collection<ImportEntry> importEntries = null;
+  private final String[] nameComps;
+  private final Git git;
 
-  public Album(final File baseDir, final String name) {
+  public Album(final File baseDir, final String[] nameComps) {
     this.baseDir = baseDir;
-    this.name = name;
+    this.nameComps = nameComps;
+
+    if (new File(baseDir, ".git").exists()) {
+      try {
+        git = Git.open(baseDir);
+      } catch (final IOException e) {
+        throw new RuntimeException("Cannot access to git-repository of " + baseDir, e);
+      }
+    } else {
+      git = Git.init().setDirectory(baseDir).call();
+    }
+
     prepareGitignore();
     cacheDir = new File(baseDir, CACHE_DIR);
     if (!cacheDir.exists())
@@ -81,6 +99,7 @@ public class Album {
     if (autoaddFile().exists()) {
       loadImportEntries();
     }
+    commit("initialized repository for image-server");
   }
 
   public synchronized void addClient(final String client) {
@@ -112,12 +131,32 @@ public class Album {
     }
   }
 
+  public void commit(final String message) {
+    try {
+      git.commit().setMessage(message).call();
+    } catch (final GitAPIException e) {
+      throw new RuntimeException("Cannot execute commit on " + getName(), e);
+    } catch (final UnmergedPathException e) {
+      throw new RuntimeException("Cannot execute commit on " + getName(), e);
+    }
+  }
+
   public AlbumImage getImage(final String imageId) {
     return loadImages().get(imageId);
   }
 
   public String getName() {
-    return name;
+    final StringBuilder ret = new StringBuilder();
+    for (final String comp : nameComps) {
+      if (ret.length() != 0)
+        ret.append("/");
+      ret.append(comp);
+    }
+    return ret.toString();
+  }
+
+  public List<String> getNameComps() {
+    return Collections.unmodifiableList(Arrays.asList(nameComps));
   }
 
   public boolean importImage(final File imageFile, final Date createDate) {
@@ -152,11 +191,16 @@ public class Album {
             FileUtils.copyFile(imageFile, tempFile);
             if (tempFile.renameTo(targetFile)) {
               final ImportEntry loadedEntry = findOrMakeImportEntryForExisting(targetFile);
-              return loadedEntry.getHash().equals(sha1OfFile);
+              final boolean importOk = loadedEntry.getHash().equals(sha1OfFile);
+              if (importOk)
+                git.add().addFilepattern(targetFile.getName()).call();
+              return importOk;
             } else
               return false;
           } catch (final IOException ex) {
             throw new RuntimeException("Cannot copy file " + imageFile, ex);
+          } catch (final NoFilepatternException e) {
+            throw new RuntimeException("Cannot add File to git-repository", e);
           } finally {
             // clear cache
             cachedImages = 0;
@@ -366,8 +410,11 @@ public class Album {
       } finally {
         writer.close();
       }
+      git.add().addFilepattern(gitignore.getName()).call();
     } catch (final IOException e) {
       throw new RuntimeException("Cannot prepare .gitignore-file", e);
+    } catch (final NoFilepatternException e) {
+      throw new RuntimeException("Error while executing git-command", e);
     }
   }
 
