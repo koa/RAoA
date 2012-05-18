@@ -31,12 +31,12 @@
 	</dependencyManagement>
 	<repositories>
 		<repository>
-			<id>Neptun</id>
+			<id>Neptun snapshots</id>
 			<name>Neptun-snapshots</name>
 			<url>http://www.berg-turbenthal.ch/artifactory/libs-snapshots-local</url>
 		</repository>
 		<repository>
-			<id>Neptun</id>
+			<id>Neptun releases</id>
 			<name>Neptun-releases</name>
 			<url>http://www.berg-turbenthal.ch/artifactory/libs-releases-local</url>
 		</repository>
