@@ -41,6 +41,12 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
 
   private final Semaphore concurrentConvertSemaphore = new Semaphore(4);
 
+  @RequestMapping(method = RequestMethod.POST)
+  @Override
+  public String createAlbum(@RequestBody final String[] pathComps) {
+    return albumAccess.createAlbum(pathComps);
+  }
+
   @RequestMapping(value = "import", method = RequestMethod.GET)
   public void importDirectory(@RequestParam("path") final String path, final HttpServletResponse response) throws IOException {
     albumAccess.importFiles(new File(path));
@@ -57,6 +63,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     ret.setId(albumid);
     ret.setName(album.getName());
     ret.getClients().addAll(album.listClients());
+    ret.setAutoAddDate(album.getAutoAddBeginDate());
     final Map<String, AlbumImage> images = album.listImages();
     for (final Entry<String, AlbumImage> albumImageEntry : images.entrySet()) {
       final AlbumImageEntry entry = new AlbumImageEntry();
@@ -84,8 +91,9 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     final AlbumList albumList = new AlbumList();
     final Collection<AlbumEntry> albumNames = albumList.getAlbumNames();
     for (final Entry<String, Album> entry : albumAccess.listAlbums().entrySet()) {
-      final AlbumEntry albumEntry = new AlbumEntry(entry.getKey(), entry.getValue().getName());
-      albumEntry.getClients().addAll(entry.getValue().listClients());
+      final Album album = entry.getValue();
+      final AlbumEntry albumEntry = new AlbumEntry(entry.getKey(), album.getName());
+      albumEntry.getClients().addAll(album.listClients());
       albumNames.add(albumEntry);
     }
     return albumList;
@@ -169,6 +177,19 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   @RequestMapping(value = "{albumId}/registerClient", method = RequestMethod.PUT)
   public void registerClient(@PathVariable("albumId") final String albumId, @RequestBody final String clientId, final HttpServletResponse response) {
     registerClient(albumId, clientId);
+  }
+
+  @Override
+  public void setAutoAddDate(final String albumId, final Date autoAddDate) {
+    final Album album = albumAccess.getAlbum(albumId);
+    if (album == null)
+      return;
+    album.setAutoAddBeginDate(autoAddDate);
+  }
+
+  @RequestMapping(value = "{albumId}/setAutoAddDate", method = RequestMethod.PUT)
+  public void setAutoAddDate(@PathVariable("albumId") final String albumId, @RequestBody final Date autoAddDate, final HttpServletResponse response) {
+    setAutoAddDate(albumId, autoAddDate);
   }
 
   @Override

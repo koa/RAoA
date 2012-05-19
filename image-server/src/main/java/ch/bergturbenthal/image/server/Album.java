@@ -13,8 +13,8 @@ import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.text.DateFormat;
 import java.text.MessageFormat;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,6 +33,7 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.errors.UnmergedPathException;
+import org.joda.time.format.ISODateTimeFormat;
 
 import ch.bergturbenthal.image.data.util.StringUtil;
 
@@ -66,6 +67,7 @@ public class Album {
 
   }
 
+  private static final DateFormat DATE_ONLY_PATTERN = new SimpleDateFormat("yyyy-MM-dd");
   private static String CACHE_DIR = ".servercache";
   private static String CLIENT_FILE = ".clientlist";
   private static String AUTOADD_FILE = ".autoadd";
@@ -108,7 +110,17 @@ public class Album {
     saveClientList(clients);
   }
 
-  public Date autoAddBeginDate() {
+  public synchronized void commit(final String message) {
+    try {
+      git.commit().setMessage(message).call();
+    } catch (final GitAPIException e) {
+      throw new RuntimeException("Cannot execute commit on " + getName(), e);
+    } catch (final UnmergedPathException e) {
+      throw new RuntimeException("Cannot execute commit on " + getName(), e);
+    }
+  }
+
+  public synchronized Date getAutoAddBeginDate() {
     final File file = autoaddFile();
     if (!file.exists())
       return null;
@@ -118,26 +130,12 @@ public class Album {
         final String line = reader.readLine();
         if (line == null)
           return null;
-        try {
-          return new SimpleDateFormat("yyyy-MM-dd").parse(line);
-        } catch (final ParseException e) {
-          throw new RuntimeException("Cannot parse date " + line + " from File " + file, e);
-        }
+        return ISODateTimeFormat.dateTimeParser().parseDateTime(line).toDate();
       } finally {
         reader.close();
       }
     } catch (final IOException e) {
       throw new RuntimeException("Cannot read " + file, e);
-    }
-  }
-
-  public void commit(final String message) {
-    try {
-      git.commit().setMessage(message).call();
-    } catch (final GitAPIException e) {
-      throw new RuntimeException("Cannot execute commit on " + getName(), e);
-    } catch (final UnmergedPathException e) {
-      throw new RuntimeException("Cannot execute commit on " + getName(), e);
     }
   }
 
@@ -243,6 +241,20 @@ public class Album {
     saveClientList(clients);
   }
 
+  public synchronized void setAutoAddBeginDate(final Date date) {
+    final File file = autoaddFile();
+    try {
+      final PrintWriter writer = new PrintWriter(file, "utf-8");
+      try {
+        writer.println(ISODateTimeFormat.basicDateTime().print(date.getTime()));
+      } finally {
+        writer.close();
+      }
+    } catch (final IOException ex) {
+      throw new RuntimeException("Cannot write new date to " + file, ex);
+    }
+  }
+
   @Override
   public String toString() {
     return "Album [" + getName() + "]";
@@ -273,8 +285,7 @@ public class Album {
   }
 
   private File autoaddFile() {
-    final File file = new File(baseDir, AUTOADD_FILE);
-    return file;
+    return new File(baseDir, AUTOADD_FILE);
   }
 
   private BufferedReader bufferedReader(final File file) throws UnsupportedEncodingException, FileNotFoundException {

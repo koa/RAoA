@@ -8,6 +8,8 @@ import ch.bergturbenthal.image.data.model.AlbumList;
 
 public interface Album {
 
+  String createAlbum(String[] pathComps);
+
   AlbumDetail listAlbumContent(String albumid);
 
   AlbumList listAlbums();
@@ -16,6 +18,7 @@ public interface Album {
 
   void registerClient(String albumId, String clientId);
 
-  void unRegisterClient(String albumId, String clientId);
+  void setAutoAddDate(String albumId, Date autoAddDate);
 
+  void unRegisterClient(String albumId, String clientId);
 }

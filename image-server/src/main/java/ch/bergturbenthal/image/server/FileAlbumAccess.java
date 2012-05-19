@@ -11,6 +11,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +33,7 @@ public class FileAlbumAccess implements AlbumAccess {
   private final AtomicLong lastLoadedDate = new AtomicLong(0);
 
   @Override
-  public synchronized Album createAlbum(final String[] pathNames) {
+  public synchronized String createAlbum(final String[] pathNames) {
     final Map<String, Album> albums = listAlbums();
     final File basePath = getBasePath();
     File newAlbumPath = basePath;
@@ -43,10 +44,10 @@ public class FileAlbumAccess implements AlbumAccess {
       throw new RuntimeException("Cannot create Album " + pathNames);
     }
     if (newAlbumPath.exists()) {
-      for (final Album album : albums.values()) {
-        if (Arrays.equals(album.getNameComps().toArray(), pathNames)) {
+      for (final Entry<String, Album> albumEntry : albums.entrySet()) {
+        if (Arrays.equals(albumEntry.getValue().getNameComps().toArray(), pathNames)) {
           // album already exists
-          return album;
+          return albumEntry.getKey();
         }
       }
       throw new RuntimeException("Directory " + newAlbumPath + " already exsists");
@@ -59,8 +60,9 @@ public class FileAlbumAccess implements AlbumAccess {
 
     final String[] nameComps = newAlbumPath.getAbsolutePath().substring(getBasePath().getAbsolutePath().length()).split(File.pathSeparator);
     final Album newAlbum = new Album(newAlbumPath, nameComps);
-    loadedAlbums.put(Util.sha1(newAlbumPath.getAbsolutePath()), newAlbum);
-    return newAlbum;
+    final String albumKey = Util.sha1(newAlbumPath.getAbsolutePath());
+    loadedAlbums.put(albumKey, newAlbum);
+    return albumKey;
   }
 
   @Override
@@ -87,7 +89,7 @@ public class FileAlbumAccess implements AlbumAccess {
       final HashSet<Album> modifiedAlbums = new HashSet<Album>();
       final SortedMap<Date, Album> importAlbums = new TreeMap<Date, Album>();
       for (final Album album : listAlbums().values()) {
-        final Date beginDate = album.autoAddBeginDate();
+        final Date beginDate = album.getAutoAddBeginDate();
         if (beginDate != null)
           importAlbums.put(beginDate, album);
       }

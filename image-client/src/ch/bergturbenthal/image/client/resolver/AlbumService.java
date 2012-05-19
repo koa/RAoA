@@ -43,6 +43,14 @@ public class AlbumService implements Album {
   }
 
   @Override
+  public String createAlbum(final String[] pathComps) {
+    final ResponseEntity<String> response = restTemplate.postForEntity(baseUrl + "/albums", pathComps, String.class);
+    if (response.hasBody())
+      return response.getBody();
+    throw new RuntimeException("Response without body. Status: " + response.getStatusCode());
+  }
+
+  @Override
   public AlbumDetail listAlbumContent(final String albumid) {
     final ResponseEntity<AlbumDetail> response = restTemplate.getForEntity(baseUrl + "/albums/{id}.json", AlbumDetail.class, albumid);
     if (response.hasBody())
@@ -125,6 +133,11 @@ public class AlbumService implements Album {
   @Override
   public void registerClient(final String albumId, final String clientId) {
     restTemplate.put(baseUrl + "/albums/{albumId}/registerClient", clientId, albumId);
+  }
+
+  @Override
+  public void setAutoAddDate(final String albumId, final Date autoAddDate) {
+    restTemplate.put(baseUrl + "/albums/{albumId}/setAutoAddDate", autoAddDate, albumId);
   }
 
   @Override

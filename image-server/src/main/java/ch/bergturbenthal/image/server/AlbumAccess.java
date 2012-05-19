@@ -9,9 +9,9 @@ public interface AlbumAccess {
    * 
    * @param pathNames
    *          whished path-components
-   * @return reference to created album
+   * @return id of created album
    */
-  Album createAlbum(String[] pathNames);
+  String createAlbum(String[] pathNames);
 
   /**
    * read a found album
