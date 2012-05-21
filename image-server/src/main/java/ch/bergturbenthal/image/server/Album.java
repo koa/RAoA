@@ -310,9 +310,9 @@ public class Album {
 
   private String makeFilename(final String name, final int i, final Date timestamp) {
     if (i == 0)
-      return MessageFormat.format("{1,date,yyyy-MM-dd-hh-mm-ss}-{0}", name, timestamp);
+      return MessageFormat.format("{1,date,yyyy-MM-dd-HH-mm-ss}-{0}", name, timestamp);
     final int lastPt = name.lastIndexOf(".");
-    return MessageFormat.format("{3,date,yyyy-MM-dd-hh-mm-ss}-{0}-{1}{2}", name.substring(0, lastPt), i, name.substring(lastPt), timestamp);
+    return MessageFormat.format("{3,date,yyyy-MM-dd-HH-mm-ss}-{0}-{1}{2}", name.substring(0, lastPt), i, name.substring(lastPt), timestamp);
   }
 
   private String makeSha1(final File file) {
