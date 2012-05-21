@@ -76,9 +76,9 @@ public class AlbumPagerActivity extends FragmentActivity {
 
       @Override
       public void onTabSelected(final Tab tab, final FragmentTransaction ft) {
-        final int scrollX = viewPager.getScrollX();
+        final int scrollY = viewPager.getScrollY();
         viewPager.setCurrentItem(tab.getPosition());
-        viewPager.setScrollX(scrollX);
+        viewPager.setScrollY(scrollY);
       }
 
       @Override

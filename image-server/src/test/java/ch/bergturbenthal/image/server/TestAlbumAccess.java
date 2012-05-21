@@ -8,6 +8,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.eclipse.jgit.api.Git;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +27,7 @@ public class TestAlbumAccess {
     static {
       try {
         final File dir = resource.getFile();
-        new File(dir, ".git").mkdir();
+        Git.init().setDirectory(dir).call();
       } catch (final IOException e) {
         throw new RuntimeException("Cannot initialize Test", e);
       }

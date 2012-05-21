@@ -9,9 +9,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +29,39 @@ public class FileAlbumAccess implements AlbumAccess {
   private Resource baseDir;
   private Resource importBaseDir;
   private Map<String, Album> loadedAlbums = null;
+  private final AtomicLong lastLoadedDate = new AtomicLong(0);
+
+  @Override
+  public synchronized Album createAlbum(final String[] pathNames) {
+    final Map<String, Album> albums = listAlbums();
+    final File basePath = getBasePath();
+    File newAlbumPath = basePath;
+    for (final String pathComp : pathNames) {
+      newAlbumPath = new File(newAlbumPath, pathComp);
+    }
+    if (!newAlbumPath.getAbsolutePath().startsWith(basePath.getAbsolutePath())) {
+      throw new RuntimeException("Cannot create Album " + pathNames);
+    }
+    if (newAlbumPath.exists()) {
+      for (final Album album : albums.values()) {
+        if (Arrays.equals(album.getNameComps().toArray(), pathNames)) {
+          // album already exists
+          return album;
+        }
+      }
+      throw new RuntimeException("Directory " + newAlbumPath + " already exsists");
+    }
+    if (!newAlbumPath.exists()) {
+      final boolean createParent = newAlbumPath.mkdirs();
+      if (!createParent)
+        throw new RuntimeException("Cannot create Directory " + newAlbumPath);
+    }
+
+    final String[] nameComps = newAlbumPath.getAbsolutePath().substring(getBasePath().getAbsolutePath().length()).split(File.pathSeparator);
+    final Album newAlbum = new Album(newAlbumPath, nameComps);
+    loadedAlbums.put(Util.sha1(newAlbumPath.getAbsolutePath()), newAlbum);
+    return newAlbum;
+  }
 
   @Override
   public Album getAlbum(final String albumId) {
@@ -48,6 +84,7 @@ public class FileAlbumAccess implements AlbumAccess {
         logger.error("Secutity-Error: Not allowed to read Images from " + importDir + " (Import-Path is " + importBaseDir + ")");
         return;
       }
+      final HashSet<Album> modifiedAlbums = new HashSet<Album>();
       final SortedMap<Date, Album> importAlbums = new TreeMap<Date, Album>();
       for (final Album album : listAlbums().values()) {
         final Date beginDate = album.autoAddBeginDate();
@@ -70,6 +107,7 @@ public class FileAlbumAccess implements AlbumAccess {
           final Album album = entriesBeforeDate.get(entriesBeforeDate.lastKey());
           // logger.info(" ->" + album.getName());
           if (album.importImage(file, createDate)) {
+            modifiedAlbums.add(album);
             logger.debug("image " + file + " imported successfully to " + album.getName());
             file.delete();
           } else {
@@ -79,6 +117,9 @@ public class FileAlbumAccess implements AlbumAccess {
           throw new RuntimeException("Cannot import file " + file, e);
         }
       }
+      for (final Album album : modifiedAlbums) {
+        album.commit("automatically imported");
+      }
     } catch (final IOException e) {
       throw new RuntimeException("Cannot import from " + importDir, e);
     }
@@ -86,21 +127,23 @@ public class FileAlbumAccess implements AlbumAccess {
 
   @Override
   public Map<String, Album> listAlbums() {
-    if (loadedAlbums == null) {
+    if (needToLoadAlbumList()) {
       synchronized (this) {
-        try {
-          final Map<String, Album> ret = new HashMap<String, Album>();
-          final File basePath = baseDir.getFile().getAbsoluteFile();
-          logger.debug("Base-Path: " + basePath);
-          final int basePathLength = basePath.getAbsolutePath().length();
-          for (final File albumDir : findAlbums(basePath)) {
-            final String name = albumDir.getAbsolutePath().substring(basePathLength);
-            ret.put(Util.sha1(albumDir.getAbsolutePath()), new Album(albumDir, name));
+        if (needToLoadAlbumList())
+          try {
+            final Map<String, Album> ret = new HashMap<String, Album>();
+            final File basePath = getBasePath();
+            logger.debug("Load Repositories from: " + basePath);
+            final int basePathLength = basePath.getAbsolutePath().length();
+            for (final File albumDir : findAlbums(basePath)) {
+              final String[] nameComps = albumDir.getAbsolutePath().substring(basePathLength).split(File.pathSeparator);
+              ret.put(Util.sha1(albumDir.getAbsolutePath()), new Album(albumDir, nameComps));
+            }
+            lastLoadedDate.set(System.currentTimeMillis());
+            loadedAlbums = ret;
+          } catch (final Throwable e) {
+            throw new RuntimeException("Troubles while accessing resource " + baseDir, e);
           }
-          loadedAlbums = ret;
-        } catch (final IOException e) {
-          throw new RuntimeException("Troubles while accessing resource " + baseDir, e);
-        }
       }
     }
     return loadedAlbums;
@@ -160,5 +203,17 @@ public class FileAlbumAccess implements AlbumAccess {
       }
     }
     return ret;
+  }
+
+  private File getBasePath() {
+    try {
+      return baseDir.getFile().getAbsoluteFile();
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot read base-path from " + baseDir, e);
+    }
+  }
+
+  private boolean needToLoadAlbumList() {
+    return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
   }
 }
