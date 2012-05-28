@@ -184,7 +184,6 @@ public class AlbumImage {
     logger.debug("Start operation");
     cmd.run(operation);
     tempFile.renameTo(cachedFile);
-    cachedFile.setLastModified(file.lastModified());
     logger.debug("End operation");
   }
 
