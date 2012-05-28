@@ -87,13 +87,11 @@ public class DownloadService extends IntentService {
               @Override
               public void run() {
                 final File imageFile = new File(albumDirectory, image.getName() + ".jpg");
-                final String lastModifiedKey = album.getName() + "/" + image.getName();
-                final long ifModifiedSinceLong = preferences.getLong(lastModifiedKey, -1);
                 final Date ifModifiedSince;
-                if (ifModifiedSinceLong > 0)
-                  ifModifiedSince = new Date(ifModifiedSinceLong);
+                if (imageFile.exists())
+                  ifModifiedSince = new Date(imageFile.lastModified());
                 else
-                  ifModifiedSince = null;
+                  ifModifiedSince = new Date(0);
                 final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), 1600, 1600, ifModifiedSince);
                 final Date lastModified = imageResult.getLastModified();
                 if (lastModified == null) {
@@ -121,9 +119,9 @@ public class DownloadService extends IntentService {
                   } finally {
                     inputStream.close();
                   }
-                  final Date created = imageResult.getCreated();
-                  if (created != null)
-                    imageFile.setLastModified(created.getTime());
+                  // final Date created = imageResult.getCreated();
+                  // if (created != null)
+                  // imageFile.setLastModified(created.getTime());
                   addedFiles.add(imageFile.getAbsolutePath());
                   newLastModified.put(lastModifiedKey, lastModified);
                 } catch (final IOException e) {
