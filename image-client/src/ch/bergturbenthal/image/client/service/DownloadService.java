@@ -7,11 +7,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Date;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,10 +19,6 @@ import android.app.Notification.Builder;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.content.SharedPreferences.Editor;
-import android.media.MediaScannerConnection;
-import android.net.Uri;
 import android.os.Environment;
 import android.preference.PreferenceManager;
 import android.util.Log;
@@ -65,98 +56,86 @@ public class DownloadService extends IntentService {
       @Override
       public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
         prepareProgressBar();
-        final SharedPreferences preferences = context.getSharedPreferences("lastmodified", MODE_PRIVATE);
-        final Map<String, Date> newLastModified = new ConcurrentHashMap<String, Date>();
-        final AtomicInteger totalImageCount = new AtomicInteger(0);
-        final AtomicInteger doneImageCount = new AtomicInteger(0);
-        final Collection<String> addedFiles = new ConcurrentLinkedQueue<String>();
-        final File serverDirectory = new File(imagesDirectory, serverName);
-        if (!serverDirectory.exists())
-          serverDirectory.mkdirs();
-        final AlbumService albumService = new AlbumService(foundUrl);
-        for (final AlbumEntry album : albumService.listAlbums().getAlbumNames()) {
-          if (!album.getClients().contains(clientId))
-            continue;
-          final File albumDirectory = new File(serverDirectory, album.getName());
-          if (!albumDirectory.exists())
-            albumDirectory.mkdirs();
-          final AlbumDetail albumContent = albumService.listAlbumContent(album.getId());
-          for (final AlbumImageEntry image : albumContent.getImages()) {
-            totalImageCount.incrementAndGet();
-            executorService.submit(new Runnable() {
-              @Override
-              public void run() {
-                final File imageFile = new File(albumDirectory, image.getName() + ".jpg");
-                final Date ifModifiedSince;
-                if (imageFile.exists())
-                  ifModifiedSince = new Date(imageFile.lastModified());
-                else
-                  ifModifiedSince = new Date(0);
-                final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), 1600, 1600, ifModifiedSince);
-                final Date lastModified = imageResult.getLastModified();
-                if (lastModified == null) {
-                  updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), imageFile);
-                  addedFiles.add(imageFile.getAbsolutePath());
-                  return;
-                }
-                try {
-                  final InputStream inputStream = imageResult.getDataStream();
-                  try {
-                    final File tempImageFile = new File(albumDirectory, image.getId() + ".jpg-temp");
-                    final OutputStream outputStream = new FileOutputStream(tempImageFile);
-                    try {
-                      final byte[] buffer = new byte[8192];
-                      while (true) {
-                        final int read = inputStream.read(buffer);
-                        if (read < 0)
-                          break;
-                        outputStream.write(buffer, 0, read);
-                      }
-                    } finally {
-                      outputStream.close();
-                    }
-                    tempImageFile.renameTo(imageFile);
-                  } finally {
-                    inputStream.close();
-                  }
-                  // final Date created = imageResult.getCreated();
-                  // if (created != null)
-                  // imageFile.setLastModified(created.getTime());
-                  addedFiles.add(imageFile.getAbsolutePath());
-                  newLastModified.put(lastModifiedKey, lastModified);
-                } catch (final IOException e) {
-                  updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), null);
-                  throw new RuntimeException("Cannot read " + album.getName() + ":" + image.getName(), e);
-                }
-                updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), imageFile);
-              }
-            });
-          }
-        }
         try {
-          executorService.shutdown();
-          executorService.awaitTermination(1, TimeUnit.HOURS);
-        } catch (final InterruptedException e) {
-          Log.i(TAG, "Service cancelled");
+          final AtomicInteger totalImageCount = new AtomicInteger(0);
+          final AtomicInteger doneImageCount = new AtomicInteger(0);
+          final Collection<String> addedFiles = new ConcurrentLinkedQueue<String>();
+          final File serverDirectory = new File(imagesDirectory, serverName);
+          if (!serverDirectory.exists())
+            serverDirectory.mkdirs();
+          final AlbumService albumService = new AlbumService(foundUrl);
+          for (final AlbumEntry album : albumService.listAlbums().getAlbumNames()) {
+            if (!album.getClients().contains(clientId))
+              continue;
+            final File albumDirectory = new File(serverDirectory, album.getName());
+            if (!albumDirectory.exists())
+              albumDirectory.mkdirs();
+            final AlbumDetail albumContent = albumService.listAlbumContent(album.getId());
+            for (final AlbumImageEntry image : albumContent.getImages()) {
+              totalImageCount.incrementAndGet();
+              executorService.submit(new Runnable() {
+                @Override
+                public void run() {
+                  final File imageFile = new File(albumDirectory, image.getName() + ".jpg");
+                  final Date ifModifiedSince;
+                  if (imageFile.exists())
+                    ifModifiedSince = new Date(imageFile.lastModified());
+                  else
+                    ifModifiedSince = new Date(0);
+                  final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), 1600, 1600, ifModifiedSince);
+                  final Date lastModified = imageResult.getLastModified();
+                  if (lastModified == null) {
+                    updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), imageFile);
+                    addedFiles.add(imageFile.getAbsolutePath());
+                    return;
+                  }
+                  try {
+                    final InputStream inputStream = imageResult.getDataStream();
+                    try {
+                      final File tempImageFile = new File(albumDirectory, image.getId() + ".jpg-temp");
+                      final OutputStream outputStream = new FileOutputStream(tempImageFile);
+                      try {
+                        final byte[] buffer = new byte[8192];
+                        while (true) {
+                          final int read = inputStream.read(buffer);
+                          if (read < 0)
+                            break;
+                          outputStream.write(buffer, 0, read);
+                        }
+                      } finally {
+                        outputStream.close();
+                      }
+                      tempImageFile.renameTo(imageFile);
+                    } finally {
+                      inputStream.close();
+                    }
+                    addedFiles.add(imageFile.getAbsolutePath());
+                  } catch (final IOException e) {
+                    updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), null);
+                    throw new RuntimeException("Cannot read " + album.getName() + ":" + image.getName(), e);
+                  }
+                  updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), imageFile);
+                }
+              });
+            }
+          }
+          try {
+            executorService.shutdown();
+            executorService.awaitTermination(1, TimeUnit.HOURS);
+          } catch (final InterruptedException e) {
+            Log.i(TAG, "Service cancelled");
+          }
+          // notifyStartScan();
+          // MediaScannerConnection.scanFile(context, addedFiles.toArray(new
+          // String[addedFiles.size()]), null,
+          // new MediaScannerConnection.OnScanCompletedListener() {
+          // @Override
+          // public void onScanCompleted(final String path, final Uri uri) {
+          // }
+          // });
+        } finally {
+          cancelProgress();
         }
-        // notifyStartScan();
-        MediaScannerConnection.scanFile(context, addedFiles.toArray(new String[addedFiles.size()]), null,
-                                        new MediaScannerConnection.OnScanCompletedListener() {
-                                          @Override
-                                          public void onScanCompleted(final String path, final Uri uri) {
-                                          }
-                                        });
-        final Set<String> keysToRemove = new HashSet<String>(preferences.getAll().keySet());
-        keysToRemove.removeAll(newLastModified.keySet());
-        final Editor editor = preferences.edit();
-        for (final String removeKey : keysToRemove) {
-          editor.remove(removeKey);
-        }
-        for (final Entry<String, Date> entry : newLastModified.entrySet()) {
-          editor.putLong(entry.getKey(), entry.getValue().getTime());
-        }
-        editor.commit();
-        cancelProgress();
       }
 
       @Override
