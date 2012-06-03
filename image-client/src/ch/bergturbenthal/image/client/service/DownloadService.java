@@ -142,6 +142,12 @@ public class DownloadService extends IntentService {
       public void notifyConnectionNotEstablished() {
         Log.w(TAG, "Could not extablish connection to server");
       }
+
+      @Override
+      public void notifyStartConnection() {
+        // TODO Auto-generated method stub
+
+      }
     });
 
   }

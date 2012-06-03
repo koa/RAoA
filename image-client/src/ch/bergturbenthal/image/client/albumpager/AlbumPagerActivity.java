@@ -22,6 +22,8 @@ import ch.bergturbenthal.image.client.R;
 import ch.bergturbenthal.image.client.SelectServerListView;
 import ch.bergturbenthal.image.client.preferences.Preferences;
 import ch.bergturbenthal.image.client.resolver.AlbumService;
+import ch.bergturbenthal.image.client.resolver.ConnectedHandler;
+import ch.bergturbenthal.image.client.resolver.ConnectionAdapter;
 import ch.bergturbenthal.image.client.resolver.Resolver;
 import ch.bergturbenthal.image.client.service.DownloadService;
 
@@ -112,7 +114,7 @@ public class AlbumPagerActivity extends FragmentActivity {
   public boolean onOptionsItemSelected(final MenuItem item) {
     switch (item.getItemId()) {
     case R.id.selectServerItem:
-      showSelectServer();
+      startActivity(new Intent(this, SelectServerListView.class));
       return true;
     case R.id.preferences:
       startActivity(new Intent(getBaseContext(), Preferences.class));
@@ -130,11 +132,11 @@ public class AlbumPagerActivity extends FragmentActivity {
     super.onResume();
     final ProgressDialog progressDialog = ProgressDialog.show(this, "", getResources().getString(R.string.wait_for_server_message), true);
     final Resolver resolver = new Resolver(this);
-    resolver.establishLastConnection(new Resolver.ConnectionUrlListener() {
+    resolver.establishLastConnection(new ConnectionAdapter(this, new ConnectedHandler() {
 
       @Override
-      public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
-        albumService = new AlbumService(foundUrl);
+      public void connected(final AlbumService service, final String serverName) {
+        albumService = service;
         final Collection<String> collectedClients = albumService.listKnownClientNames();
 
         runOnUiThread(new Runnable() {
@@ -161,24 +163,6 @@ public class AlbumPagerActivity extends FragmentActivity {
           }
         });
       }
-
-      @Override
-      public void notifyConnectionNotEstablished() {
-        runOnUiThread(new Runnable() {
-
-          @Override
-          public void run() {
-            progressDialog.hide();
-          }
-        });
-        showSelectServer();
-      }
-
-    });
-
-  }
-
-  private void showSelectServer() {
-    startActivity(new Intent(AlbumPagerActivity.this, SelectServerListView.class));
+    }));
   }
 }

@@ -15,6 +15,8 @@ import android.widget.TextView;
 import ch.bergturbenthal.image.client.R;
 import ch.bergturbenthal.image.client.albumlist.AlbumListAdapter;
 import ch.bergturbenthal.image.client.resolver.AlbumService;
+import ch.bergturbenthal.image.client.resolver.ConnectedHandler;
+import ch.bergturbenthal.image.client.resolver.ConnectionAdapter;
 import ch.bergturbenthal.image.client.resolver.Resolver;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 
@@ -33,12 +35,11 @@ public class AlbumListFragment extends ListFragment {
 
     final Context context = container.getContext();
     final Resolver resolver = new Resolver(context);
-    resolver.establishLastConnection(new Resolver.ConnectionUrlListener() {
+    resolver.establishLastConnection(new ConnectionAdapter(getActivity(), new ConnectedHandler() {
 
       @Override
-      public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
-        final AlbumService albumService = new AlbumService(foundUrl);
-        final List<AlbumEntry> albums = new ArrayList<AlbumEntry>(albumService.listAlbums().getAlbumNames());
+      public void connected(final AlbumService service, final String serverName) {
+        final List<AlbumEntry> albums = new ArrayList<AlbumEntry>(service.listAlbums().getAlbumNames());
         Collections.sort(albums, new Comparator<AlbumEntry>() {
           @Override
           public int compare(final AlbumEntry o1, final AlbumEntry o2) {
@@ -55,11 +56,7 @@ public class AlbumListFragment extends ListFragment {
         });
       }
 
-      @Override
-      public void notifyConnectionNotEstablished() {
-      }
-
-    });
+    }));
 
     return rootView;
   }

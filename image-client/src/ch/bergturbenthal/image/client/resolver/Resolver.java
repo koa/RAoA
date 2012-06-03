@@ -36,6 +36,8 @@ public class Resolver implements Closeable {
     void notifyConnectionEstabilshed(String foundUrl, String serverName);
 
     void notifyConnectionNotEstablished();
+
+    void notifyStartConnection();
   }
 
   public static interface ServiceNameListener {
@@ -70,6 +72,7 @@ public class Resolver implements Closeable {
   }
 
   public void connectServiceName(final String servicename, final ConnectionUrlListener listener) {
+    listener.notifyStartConnection();
     setup();
     final Callable<Boolean> shutdownRunnable = new Callable<Boolean>() {
       final AtomicBoolean running = new AtomicBoolean(true);
@@ -141,6 +144,7 @@ public class Resolver implements Closeable {
   }
 
   public void establishLastConnection(final ConnectionUrlListener listener) {
+    listener.notifyStartConnection();
     new AsyncTask<Void, Void, Void>() {
 
       @Override

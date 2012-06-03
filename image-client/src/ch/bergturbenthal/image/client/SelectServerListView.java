@@ -86,6 +86,10 @@ public class SelectServerListView extends ListActivity {
                   }
                 });
               }
+
+              @Override
+              public void notifyStartConnection() {
+              }
             });
             return null;
           }
