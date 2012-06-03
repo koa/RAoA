@@ -10,4 +10,11 @@
     <string name="update_indication_title">Refreshing new downloaded Photos</string>
     <string name="wait_for_server_message">Please wait …</string>
     <string name="preferences_menu_title">Preferences</string>
+    <string name="create_folder_parent_title">Parent folder</string>
+    <string name="create_folder_album_title">New album</string>
+    <string name="create_folder_album_hint">Neewiller 09</string>
+    <string name="create_folder_execute_title">Create Folder</string>
+    <string name="create_folder_date_title">begin date</string>
+    <string name="create_folder_error_no_folder">Please select a folder</string>
+    <string name="create_folder_error_no_abum_name">Pleas input a album name</string>
 </resources>

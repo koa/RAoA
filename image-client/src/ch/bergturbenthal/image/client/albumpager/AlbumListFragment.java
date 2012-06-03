@@ -33,9 +33,7 @@ public class AlbumListFragment extends ListFragment {
     final String clientTitle = args.getString(CLIENT_TITLE);
     textView.setText(clientTitle);
 
-    final Context context = container.getContext();
-    final Resolver resolver = new Resolver(context);
-    resolver.establishLastConnection(new ConnectionAdapter(getActivity(), new ConnectedHandler() {
+    new Resolver(container.getContext()).establishLastConnection(new ConnectionAdapter(getActivity(), new ConnectedHandler() {
 
       @Override
       public void connected(final AlbumService service, final String serverName) {
@@ -50,7 +48,7 @@ public class AlbumListFragment extends ListFragment {
 
           @Override
           public void run() {
-            final AlbumListAdapter albumList = new AlbumListAdapter(context, clientTitle, albums);
+            final AlbumListAdapter albumList = new AlbumListAdapter(container.getContext(), clientTitle, albums);
             setListAdapter(albumList);
           }
         });

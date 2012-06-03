@@ -9,4 +9,8 @@
     <string name="update_indication_title">neue Photos einlesen</string>
     <string name="wait_for_server_message">Bitte Warten …</string>
     <string name="preferences_menu_title">Einstellungen</string>
+    <string name="create_folder_parent_title">Ordner</string>
+    <string name="create_folder_album_title">neues Album</string>
+    <string name="create_folder_execute_title">Erzeuge Album</string>
+    <string name="create_folder_date_title">Startdatum</string>
 </resources>

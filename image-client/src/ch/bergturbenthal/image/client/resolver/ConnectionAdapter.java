@@ -30,24 +30,13 @@ public class ConnectionAdapter implements ConnectionUrlListener {
 
   @Override
   public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
-    handler.post(new Runnable() {
-      @Override
-      public void run() {
-        progressDialog.hide();
-      }
-    });
+    hideProgress();
     connectedHandler.connected(new AlbumService(foundUrl), serverName);
   }
 
   @Override
   public synchronized void notifyConnectionNotEstablished() {
-    handler.post(new Runnable() {
-
-      @Override
-      public void run() {
-        progressDialog.hide();
-      }
-    });
+    hideProgress();
     context.startActivity(new Intent(context, SelectServerListView.class));
   }
 
@@ -63,6 +52,22 @@ public class ConnectionAdapter implements ConnectionUrlListener {
       });
     }
     connectionStarted = true;
+  }
+
+  @Override
+  protected void finalize() throws Throwable {
+    hideProgress();
+  }
+
+  private void hideProgress() {
+    handler.post(new Runnable() {
+      @Override
+      public void run() {
+        if (progressDialog != null)
+          progressDialog.hide();
+        progressDialog = null;
+      }
+    });
   }
 
 }

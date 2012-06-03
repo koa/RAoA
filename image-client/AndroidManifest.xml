@@ -26,11 +26,17 @@
         <service android:name=".service.DownloadService" >
         </service>
         <activity android:name=".preferences.Preferences"></activity>
-        <activity android:name=".albumpager.AlbumPagerActivity">
+        <activity android:name=".albumpager.AlbumPagerActivity" android:label="Synchronisations">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>            
+        </activity>
+        <activity android:name=".createalbum.CreateAlbumActivity" android:label="Create Album">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
         </activity>
     </application>
 
