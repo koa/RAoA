@@ -43,7 +43,8 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
 
   @RequestMapping(method = RequestMethod.POST)
   @Override
-  public String createAlbum(@RequestBody final String[] pathComps) {
+  public @ResponseBody
+  String createAlbum(@RequestBody final String[] pathComps) {
     return albumAccess.createAlbum(pathComps);
   }
 
