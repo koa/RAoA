@@ -63,6 +63,7 @@ public class CreateAlbumActivity extends Activity {
       @Override
       protected void onPostExecute(final Void result) {
         progressDialog.dismiss();
+        finish();
       }
 
     }.execute();
