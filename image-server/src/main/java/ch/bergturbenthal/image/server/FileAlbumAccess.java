@@ -45,7 +45,7 @@ public class FileAlbumAccess implements AlbumAccess {
     }
     if (newAlbumPath.exists()) {
       for (final Entry<String, Album> albumEntry : albums.entrySet()) {
-        if (Arrays.equals(albumEntry.getValue().getNameComps().toArray(), pathNames)) {
+        if (Arrays.asList(pathNames).equals(albumEntry.getValue().getNameComps())) {
           // album already exists
           return albumEntry.getKey();
         }
@@ -139,7 +139,7 @@ public class FileAlbumAccess implements AlbumAccess {
             final int basePathLength = basePath.getAbsolutePath().length();
             for (final File albumDir : findAlbums(basePath)) {
               logger.debug("Load Repository " + albumDir);
-              final String[] nameComps = albumDir.getAbsolutePath().substring(basePathLength).split(File.pathSeparator);
+              final String[] nameComps = albumDir.getAbsolutePath().substring(basePathLength + 1).split(File.pathSeparator);
               ret.put(Util.sha1(albumDir.getAbsolutePath()), new Album(albumDir, nameComps));
             }
             lastLoadedDate.set(System.currentTimeMillis());

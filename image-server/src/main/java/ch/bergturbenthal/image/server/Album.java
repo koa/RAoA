@@ -94,14 +94,15 @@ public class Album {
       git = Git.init().setDirectory(baseDir).call();
     }
 
-    prepareGitignore();
+    final boolean modified = prepareGitignore();
     cacheDir = new File(baseDir, CACHE_DIR);
     if (!cacheDir.exists())
       cacheDir.mkdir();
     if (autoaddFile().exists()) {
       loadImportEntries();
     }
-    commit("initialized repository for image-server");
+    if (modified)
+      commit("initialized repository for image-server");
   }
 
   public synchronized void addClient(final String client) {
@@ -112,10 +113,15 @@ public class Album {
 
   public synchronized void commit(final String message) {
     try {
-      git.commit().setMessage(message).call();
+      if (!git.status().call().isClean())
+        git.commit().setMessage(message).call();
     } catch (final GitAPIException e) {
       throw new RuntimeException("Cannot execute commit on " + getName(), e);
     } catch (final UnmergedPathException e) {
+      throw new RuntimeException("Cannot execute commit on " + getName(), e);
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot execute commit on " + getName(), e);
+    } catch (final RuntimeException e) {
       throw new RuntimeException("Cannot execute commit on " + getName(), e);
     }
   }
@@ -394,7 +400,7 @@ public class Album {
     }
   }
 
-  private void prepareGitignore() {
+  private boolean prepareGitignore() {
     try {
       final File gitignore = new File(baseDir, ".gitignore");
       final Set<String> ignoreEntries = new HashSet<String>(Arrays.asList(CACHE_DIR, AUTOADD_FILE));
@@ -412,7 +418,7 @@ public class Album {
         }
       }
       if (ignoreEntries.size() == 0)
-        return;
+        return false;
       final PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(gitignore, true), "utf-8"));
       try {
         for (final String entry : ignoreEntries) {
@@ -427,6 +433,7 @@ public class Album {
     } catch (final NoFilepatternException e) {
       throw new RuntimeException("Error while executing git-command", e);
     }
+    return true;
   }
 
   private void saveClientList(final Collection<String> clients) {

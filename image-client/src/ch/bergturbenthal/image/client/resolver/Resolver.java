@@ -112,6 +112,7 @@ public class Resolver implements Closeable {
 
           @Override
           public void serviceAdded(final ServiceEvent event) {
+            Log.i("DEBUG", "Service " + event.getName() + " found");
             if (servicename.equals(event.getName())) {
               event.getDNS().requestServiceInfo(event.getType(), event.getName());
             }
@@ -152,7 +153,8 @@ public class Resolver implements Closeable {
         final SharedPreferences sharedPreferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
         final String foundUrl = sharedPreferences.getString(LAST_URL, null);
         if (foundUrl != null) {
-          if (pingService(foundUrl)) {
+          boolean pingOk = pingService(foundUrl);
+          if (pingOk) {
             listener.notifyConnectionEstabilshed(foundUrl, sharedPreferences.getString(LAST_SERVICENAME, "undef"));
             return null;
           }
