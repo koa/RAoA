@@ -138,6 +138,7 @@ public class FileAlbumAccess implements AlbumAccess {
             logger.debug("Load Repositories from: " + basePath);
             final int basePathLength = basePath.getAbsolutePath().length();
             for (final File albumDir : findAlbums(basePath)) {
+              logger.debug("Load Repository " + albumDir);
               final String[] nameComps = albumDir.getAbsolutePath().substring(basePathLength).split(File.pathSeparator);
               ret.put(Util.sha1(albumDir.getAbsolutePath()), new Album(albumDir, nameComps));
             }

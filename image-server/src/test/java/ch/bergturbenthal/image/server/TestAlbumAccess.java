@@ -23,11 +23,11 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 public class TestAlbumAccess {
   @Configuration
   static class Config {
-    private static ClassPathResource resource = new ClassPathResource("testalbum");
+    private static ClassPathResource resource = new ClassPathResource("photos");
     static {
       try {
         final File dir = resource.getFile();
-        Git.init().setDirectory(dir).call();
+        Git.init().setDirectory(new File(dir, "testalbum")).call();
       } catch (final IOException e) {
         throw new RuntimeException("Cannot initialize Test", e);
       }
