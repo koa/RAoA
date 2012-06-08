@@ -23,7 +23,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 public class TestAlbumImport {
   @Configuration
   static class Config {
-    private static ClassPathResource resource = new ClassPathResource("testalbum");
+    private static ClassPathResource resource = new ClassPathResource("photos/testalbum");
     private static File albumBaseDir = new File("target/testalbum", UUID.randomUUID().toString());
     static {
       try {
