@@ -154,7 +154,8 @@ public class Album {
     for (final String comp : nameComps) {
       if (ret.length() != 0)
         ret.append("/");
-      ret.append(comp);
+      if (comp.length() > 0)
+        ret.append(comp);
     }
     return ret.toString();
   }

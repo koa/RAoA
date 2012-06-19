@@ -67,6 +67,7 @@ public class DownloadService extends IntentService {
           for (final AlbumEntry album : albumService.listAlbums().getAlbumNames()) {
             if (!album.getClients().contains(clientId))
               continue;
+
             final File albumDirectory = new File(serverDirectory, album.getName());
             if (!albumDirectory.exists())
               albumDirectory.mkdirs();
