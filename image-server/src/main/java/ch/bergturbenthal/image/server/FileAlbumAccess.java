@@ -58,7 +58,7 @@ public class FileAlbumAccess implements AlbumAccess {
         throw new RuntimeException("Cannot create Directory " + newAlbumPath);
     }
 
-    final String[] nameComps = newAlbumPath.getAbsolutePath().substring(getBasePath().getAbsolutePath().length()).split(File.pathSeparator);
+    final String[] nameComps = newAlbumPath.getAbsolutePath().substring(getBasePath().getAbsolutePath().length() + 1).split(File.pathSeparator);
     final Album newAlbum = new Album(newAlbumPath, nameComps);
     final String albumKey = Util.sha1(newAlbumPath.getAbsolutePath());
     loadedAlbums.put(albumKey, newAlbum);
