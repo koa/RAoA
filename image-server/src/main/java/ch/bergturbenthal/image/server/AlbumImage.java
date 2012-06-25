@@ -169,7 +169,7 @@ public class AlbumImage {
   private void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException, InterruptedException,
                                                                                                            IM4JavaException {
     final File tempPngFilename = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.png");
-    final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp");
+    final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.jpg");
     logger.debug("Start convert " + file);
     final ConvertCmd cmd = new ConvertCmd();
     final IMOperation primaryOperation = new IMOperation();
@@ -184,6 +184,7 @@ public class AlbumImage {
       secondOperation.extent(Integer.valueOf(width), Integer.valueOf(height));
     } else
       secondOperation.resize(Integer.valueOf(width), Integer.valueOf(height));
+    secondOperation.quality(Double.valueOf(70));
     secondOperation.addImage(tempFile.getAbsolutePath());
     logger.debug("Start operation 1: " + primaryOperation);
     cmd.run(primaryOperation);
