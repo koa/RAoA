@@ -168,22 +168,29 @@ public class AlbumImage {
 
   private void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException, InterruptedException,
                                                                                                            IM4JavaException {
+    final File tempPngFilename = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.png");
     final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp");
     logger.debug("Start convert " + file);
     final ConvertCmd cmd = new ConvertCmd();
-    final IMOperation operation = new IMOperation();
-    operation.addImage(file.getAbsolutePath());
-    operation.autoOrient();
+    final IMOperation primaryOperation = new IMOperation();
+    primaryOperation.addImage(file.getAbsolutePath());
+    primaryOperation.addImage(tempPngFilename.getAbsolutePath());
+    final IMOperation secondOperation = new IMOperation();
+    secondOperation.addImage(tempPngFilename.getAbsolutePath());
+    secondOperation.autoOrient();
     if (crop) {
-      operation.resize(Integer.valueOf(width), Integer.valueOf(height), "^");
-      operation.gravity("center");
-      operation.extent(Integer.valueOf(width), Integer.valueOf(height));
+      secondOperation.resize(Integer.valueOf(width), Integer.valueOf(height), "^");
+      secondOperation.gravity("center");
+      secondOperation.extent(Integer.valueOf(width), Integer.valueOf(height));
     } else
-      operation.resize(Integer.valueOf(width), Integer.valueOf(height));
-    operation.addImage(tempFile.getAbsolutePath());
-    logger.debug("Start operation");
-    cmd.run(operation);
+      secondOperation.resize(Integer.valueOf(width), Integer.valueOf(height));
+    secondOperation.addImage(tempFile.getAbsolutePath());
+    logger.debug("Start operation 1: " + primaryOperation);
+    cmd.run(primaryOperation);
+    logger.debug("Start operation 2: " + secondOperation);
+    cmd.run(secondOperation);
     tempFile.renameTo(cachedFile);
+    tempPngFilename.delete();
     logger.debug("End operation");
   }
 
