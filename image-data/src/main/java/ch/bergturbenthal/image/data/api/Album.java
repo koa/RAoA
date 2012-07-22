@@ -14,7 +14,7 @@ public interface Album {
 
   AlbumList listAlbums();
 
-  ImageResult readImage(final String albumId, final String imageId, final int width, final int height, Date ifModifiedSince) throws IOException;
+  ImageResult readImage(final String albumId, final String imageId, Date ifModifiedSince) throws IOException;
 
   void registerClient(String albumId, String clientId);
 

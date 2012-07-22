@@ -101,8 +101,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   }
 
   @Override
-  public ImageResult
-      readImage(final String albumId, final String imageId, final int width, final int height, final Date ifModifiedSince) throws IOException {
+  public ImageResult readImage(final String albumId, final String imageId, final Date ifModifiedSince) throws IOException {
     final Album album = albumAccess.getAlbum(albumId);
     if (album == null) {
       return null;
@@ -111,13 +110,13 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     if (image == null) {
       return null;
     }
-    final File cachedImage = image.getThumbnail(width, height, false, true);
+    final File cachedImage = image.getThumbnail();
     if (cachedImage != null)
       return makeImageResult(cachedImage, image, ifModifiedSince);
     try {
       concurrentConvertSemaphore.acquire();
       try {
-        final File thumbnail = image.getThumbnail(width, height, false, false);
+        final File thumbnail = image.getThumbnail();
         return makeImageResult(thumbnail, image, ifModifiedSince);
       } finally {
         concurrentConvertSemaphore.release();
@@ -127,12 +126,11 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     }
   }
 
-  @RequestMapping(value = "{albumId}/image/{imageId}-{width}x{height}.jpg", method = RequestMethod.GET)
+  @RequestMapping(value = "{albumId}/image/{imageId}.jpg", method = RequestMethod.GET)
   public void readImage(@PathVariable("albumId") final String albumId, @PathVariable("imageId") final String imageId,
-                        @PathVariable("width") final int width, @PathVariable("height") final int height, final HttpServletRequest request,
-                        final HttpServletResponse response) throws IOException {
+                        final HttpServletRequest request, final HttpServletResponse response) throws IOException {
     final long modifiedTime = request.getDateHeader("If-Modified-Since");
-    final ImageResult foundImage = readImage(albumId, imageId, width, height, modifiedTime > 0 ? new Date(modifiedTime) : null);
+    final ImageResult foundImage = readImage(albumId, imageId, modifiedTime > 0 ? new Date(modifiedTime) : null);
     if (foundImage == null) {
       response.setStatus(404);
       return;

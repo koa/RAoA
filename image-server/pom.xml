@@ -173,6 +173,8 @@
 			<groupId>joda-time</groupId>
 			<artifactId>joda-time</artifactId>
 		</dependency>
+		<!-- <dependency> <groupId>xuggle</groupId> <artifactId>xuggle-xuggler</artifactId> 
+			<version>5.2</version> </dependency> -->
 	</dependencies>
 
 	<repositories>
@@ -184,6 +186,10 @@
 		<repository>
 			<id>cedarsoft-thirdparty</id>
 			<url>http://maven.cedarsoft.com/content/repositories/thirdparty/</url>
+		</repository>
+		<repository>
+			<id>xuggle repo</id>
+			<url>http://xuggle.googlecode.com/svn/trunk/repo/share/java/</url>
 		</repository>
 	</repositories>
 	<build>

@@ -83,7 +83,7 @@ public class DownloadService extends IntentService {
                     ifModifiedSince = new Date(imageFile.lastModified());
                   else
                     ifModifiedSince = new Date(0);
-                  final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), 1600, 1600, ifModifiedSince);
+                  final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), ifModifiedSince);
                   final Date lastModified = imageResult.getLastModified();
                   if (lastModified == null) {
                     updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), imageFile);

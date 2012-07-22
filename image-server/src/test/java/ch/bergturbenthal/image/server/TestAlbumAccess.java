@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.eclipse.jgit.api.Git;
 import org.junit.Test;
@@ -41,8 +42,8 @@ public class TestAlbumAccess {
     }
 
     @Bean
-    public ExecutorService executorService() {
-      return Executors.newFixedThreadPool(4);
+    public ScheduledExecutorService executorService() {
+      return Executors.newScheduledThreadPool(4);
     }
   }
 
@@ -60,7 +61,7 @@ public class TestAlbumAccess {
 
           @Override
           public Void call() throws Exception {
-            final File thumbnail = image.getThumbnail(400, 400, false, false);
+            final File thumbnail = image.getThumbnail();
             System.out.println(image + ":" + thumbnail.length());
             return null;
           }

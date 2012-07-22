@@ -35,9 +35,9 @@ public class AlbumImage {
 
   }
 
+  private static final int THUMBNAIL_SIZE = 1600;
+
   private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
-  private final static MessageFormat THUMBNAIL_MESSAGE_FORMAT = new MessageFormat("{0}-{1}_{2}.jpg");
-  private final static MessageFormat CROP_THUMBNAIL_MESSAGE_FORMAT = new MessageFormat("{0}-{1}_{2}c.jpg");
   private final File file;
   private final File cacheDir;
   private Metadata metadata = null;
@@ -59,17 +59,15 @@ public class AlbumImage {
     return file.getName();
   }
 
-  public File getThumbnail(final int width, final int height, final boolean crop, final boolean onlyFromCache) {
+  public File getThumbnail() {
     try {
-      final File cachedFile = new File(cacheDir, makeCachedFilename(width, height, crop));
+      final File cachedFile = new File(cacheDir, file.getName());
       if (cachedFile.exists() && cachedFile.lastModified() > file.lastModified())
         return cachedFile;
-      if (onlyFromCache)
-        return null;
       synchronized (this) {
         if (cachedFile.exists() && cachedFile.lastModified() >= file.lastModified())
           return cachedFile;
-        scaleImageDown(width, height, crop, cachedFile);
+        scaleImageDown(THUMBNAIL_SIZE, THUMBNAIL_SIZE, false, cachedFile);
       }
       return cachedFile;
     } catch (final IOException e) {
@@ -99,19 +97,6 @@ public class AlbumImage {
       throw new RuntimeException("Cannot read metadata from " + file, e);
     }
     return metadata;
-  }
-
-  private String makeCachedFilename(final int width, final int height, final boolean crop) {
-    final MessageFormat filenameFormat;
-    if (crop)
-      filenameFormat = CROP_THUMBNAIL_MESSAGE_FORMAT;
-    else
-      filenameFormat = THUMBNAIL_MESSAGE_FORMAT;
-    final String cacheFileName;
-    synchronized (filenameFormat) {
-      cacheFileName = filenameFormat.format(new Object[] { file.getName(), width, height });
-    }
-    return cacheFileName;
   }
 
   private Date readCaptureDateFromMetadata() {
@@ -178,12 +163,7 @@ public class AlbumImage {
     final IMOperation secondOperation = new IMOperation();
     secondOperation.addImage(tempPngFilename.getAbsolutePath());
     secondOperation.autoOrient();
-    if (crop) {
-      secondOperation.resize(Integer.valueOf(width), Integer.valueOf(height), "^");
-      secondOperation.gravity("center");
-      secondOperation.extent(Integer.valueOf(width), Integer.valueOf(height));
-    } else
-      secondOperation.resize(Integer.valueOf(width), Integer.valueOf(height));
+    secondOperation.resize(Integer.valueOf(width), Integer.valueOf(height));
     secondOperation.quality(Double.valueOf(70));
     secondOperation.addImage(tempFile.getAbsolutePath());
     logger.debug("Start operation 1: " + primaryOperation);
@@ -193,6 +173,11 @@ public class AlbumImage {
     tempFile.renameTo(cachedFile);
     tempPngFilename.delete();
     logger.debug("End operation");
+  }
+
+  private void scaleVideoDown(final File cachedFile) {
+    logger.debug("Start transcode " + file);
+
   }
 
 }

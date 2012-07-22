@@ -1,10 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<beans xmlns="http://www.springframework.org/schema/beans"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
-	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
-		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.1.xsd">
-	<bean class="ch.bergturbenthal.image.server.FileAlbumAccess">
-		<property name="baseDir" value="${images.photos.dir}" />
-		<property name="importBaseDir" value="${images.import.dir}" />
-	</bean>
+<beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns="http://www.springframework.org/schema/beans"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.1.xsd" >
+
+    <bean class="ch.bergturbenthal.image.server.FileAlbumAccess" >
+
+        <property
+            name="baseDir"
+            value="${images.photos.dir}" />
+
+        <property
+            name="importBaseDir"
+            value="${images.import.dir}" />
+    </bean>
+
+    <bean
+        id="executorService"
+        class="java.util.concurrent.Executors"
+        factory-method="newScheduledThreadPool" >
+
+        <constructor-arg value="4" />
+    </bean>
+
 </beans>

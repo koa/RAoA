@@ -14,11 +14,15 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import javax.annotation.PostConstruct;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 
 import com.drew.imaging.ImageMetadataReader;
@@ -31,6 +35,8 @@ public class FileAlbumAccess implements AlbumAccess {
   private Resource importBaseDir;
   private Map<String, Album> loadedAlbums = null;
   private final AtomicLong lastLoadedDate = new AtomicLong(0);
+  @Autowired
+  private ScheduledExecutorService executorService;
 
   @Override
   public synchronized String createAlbum(final String[] pathNames) {
@@ -125,6 +131,7 @@ public class FileAlbumAccess implements AlbumAccess {
     } catch (final IOException e) {
       throw new RuntimeException("Cannot import from " + importDir, e);
     }
+    refreshThumbnails();
   }
 
   @Override
@@ -159,6 +166,24 @@ public class FileAlbumAccess implements AlbumAccess {
 
   public void setImportBaseDir(final Resource importBaseDir) {
     this.importBaseDir = importBaseDir;
+  }
+
+  /**
+   * Start scheduling automatically after initializing
+   */
+  @PostConstruct
+  protected void startScheduling() {
+    executorService.scheduleWithFixedDelay(new Runnable() {
+
+      @Override
+      public void run() {
+        try {
+          refreshThumbnails();
+        } catch (final Throwable t) {
+          logger.warn("Exception while refreshing thumbnails", t);
+        }
+      }
+    }, 30, 2 * 60 * 60, TimeUnit.SECONDS);
   }
 
   private Collection<File> collectImportFiles(final File importDir) {
@@ -218,5 +243,19 @@ public class FileAlbumAccess implements AlbumAccess {
 
   private boolean needToLoadAlbumList() {
     return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
+  }
+
+  private void refreshThumbnails() {
+    for (final Album album : listAlbums().values()) {
+      for (final AlbumImage image : album.listImages().values()) {
+        executorService.submit(new Runnable() {
+
+          @Override
+          public void run() {
+            image.getThumbnail();
+          }
+        });
+      }
+    }
   }
 }

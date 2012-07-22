@@ -75,8 +75,8 @@ public class AlbumService implements Album {
   }
 
   @Override
-  public ImageResult readImage(final String albumId, final String imageId, final int width, final int height, final Date ifModifiedSince) {
-    return restTemplate.execute(baseUrl + "/albums/{albumId}/image/{imageId}-{width}x{height}.jpg", HttpMethod.GET, new RequestCallback() {
+  public ImageResult readImage(final String albumId, final String imageId, final Date ifModifiedSince) {
+    return restTemplate.execute(baseUrl + "/albums/{albumId}/image/{imageId}.jpg", HttpMethod.GET, new RequestCallback() {
       @Override
       public void doWithRequest(final ClientHttpRequest request) throws IOException {
         if (ifModifiedSince != null)
@@ -126,7 +126,7 @@ public class AlbumService implements Album {
           }
         });
       }
-    }, albumId, imageId, width, height);
+    }, albumId, imageId);
 
   }
 

@@ -6,6 +6,7 @@ import java.io.PrintWriter;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.eclipse.jgit.api.Git;
 import org.junit.Test;
@@ -48,8 +49,8 @@ public class TestAlbumImport {
     }
 
     @Bean
-    public ExecutorService executorService() {
-      return Executors.newFixedThreadPool(4);
+    public ScheduledExecutorService executorService() {
+      return Executors.newScheduledThreadPool(4);
     }
 
     @Bean
