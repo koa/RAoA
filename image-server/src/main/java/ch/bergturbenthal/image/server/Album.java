@@ -253,7 +253,7 @@ public class Album {
     try {
       final PrintWriter writer = new PrintWriter(file, "utf-8");
       try {
-        writer.println(ISODateTimeFormat.basicDateTime().print(date.getTime()));
+        writer.println(ISODateTimeFormat.dateTime().print(date.getTime()));
       } finally {
         writer.close();
       }
