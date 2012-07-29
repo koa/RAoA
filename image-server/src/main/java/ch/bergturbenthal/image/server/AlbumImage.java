@@ -153,26 +153,35 @@ public class AlbumImage {
 
   private void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException, InterruptedException,
                                                                                                            IM4JavaException {
-    final File tempPngFilename = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.png");
     final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.jpg");
-    logger.debug("Start convert " + file);
+    logger.debug("Convert " + file);
     final ConvertCmd cmd = new ConvertCmd();
-    final IMOperation primaryOperation = new IMOperation();
-    primaryOperation.addImage(file.getAbsolutePath());
-    primaryOperation.addImage(tempPngFilename.getAbsolutePath());
+    final File secondStepInputFile;
+    final boolean deleteInputFileAfter;
+    if (!file.getName().toLowerCase().endsWith("jpg")) {
+      secondStepInputFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.png");
+      final IMOperation primaryOperation = new IMOperation();
+      primaryOperation.addImage(file.getAbsolutePath());
+      primaryOperation.addImage(secondStepInputFile.getAbsolutePath());
+      // logger.debug("Start conversion prepare: " + primaryOperation);
+      cmd.run(primaryOperation);
+      deleteInputFileAfter = true;
+    } else {
+      secondStepInputFile = file;
+      deleteInputFileAfter = false;
+    }
     final IMOperation secondOperation = new IMOperation();
-    secondOperation.addImage(tempPngFilename.getAbsolutePath());
+    secondOperation.addImage(secondStepInputFile.getAbsolutePath());
     secondOperation.autoOrient();
     secondOperation.resize(Integer.valueOf(width), Integer.valueOf(height));
     secondOperation.quality(Double.valueOf(70));
     secondOperation.addImage(tempFile.getAbsolutePath());
-    logger.debug("Start operation 1: " + primaryOperation);
-    cmd.run(primaryOperation);
-    logger.debug("Start operation 2: " + secondOperation);
+    // logger.debug("Start conversion: " + secondOperation);
     cmd.run(secondOperation);
     tempFile.renameTo(cachedFile);
-    tempPngFilename.delete();
-    logger.debug("End operation");
+    if (deleteInputFileAfter)
+      secondStepInputFile.delete();
+    // logger.debug("End operation");
   }
 
   private void scaleVideoDown(final File cachedFile) {
