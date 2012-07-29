@@ -3,7 +3,6 @@ package ch.bergturbenthal.image.client;
 import java.io.IOException;
 
 import android.app.ListActivity;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.AdapterView;
@@ -57,43 +56,8 @@ public class SelectServerListView extends ListActivity {
       public void onItemClick(final AdapterView<?> arg0, final View arg1, final int item, final long arg3) {
         final String selectedServer = serverList.getItem(item);
         Toast.makeText(getApplicationContext(), R.string.connecting, 2 * 1000).show();
-        new AsyncTask<Void, Void, Void>() {
-
-          @Override
-          protected Void doInBackground(final Void... params) {
-            resolver.connectServiceName(selectedServer, new Resolver.ConnectionUrlListener() {
-
-              @Override
-              public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
-                runOnUiThread(new Runnable() {
-                  @Override
-                  public void run() {
-                    Toast.makeText(getApplicationContext(), "Connected: " + serverName + "(" + foundUrl + ")", 5000).show();
-                  }
-                });
-                finish();
-                // startActivity(new Intent(getApplicationContext(),
-                // AlbumListView.class));
-              }
-
-              @Override
-              public void notifyConnectionNotEstablished() {
-                runOnUiThread(new Runnable() {
-
-                  @Override
-                  public void run() {
-                    Toast.makeText(getApplicationContext(), "Not Connected: ", 5000).show();
-                  }
-                });
-              }
-
-              @Override
-              public void notifyStartConnection() {
-              }
-            });
-            return null;
-          }
-        }.execute();
+        resolver.setSelectedServiceName(selectedServer);
+        finish();
       }
     });
   }

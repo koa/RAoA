@@ -60,15 +60,12 @@ public class DownloadService extends IntentService {
           final AtomicInteger totalImageCount = new AtomicInteger(0);
           final AtomicInteger doneImageCount = new AtomicInteger(0);
           final Collection<String> addedFiles = new ConcurrentLinkedQueue<String>();
-          final File serverDirectory = new File(imagesDirectory, serverName);
-          if (!serverDirectory.exists())
-            serverDirectory.mkdirs();
           final AlbumService albumService = new AlbumService(foundUrl);
           for (final AlbumEntry album : albumService.listAlbums().getAlbumNames()) {
             if (!album.getClients().contains(clientId))
               continue;
 
-            final File albumDirectory = new File(serverDirectory, album.getName());
+            final File albumDirectory = new File(imagesDirectory, album.getName());
             if (!albumDirectory.exists())
               albumDirectory.mkdirs();
             final AlbumDetail albumContent = albumService.listAlbumContent(album.getId());

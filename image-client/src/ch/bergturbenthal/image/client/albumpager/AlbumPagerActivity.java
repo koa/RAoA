@@ -35,6 +35,7 @@ public class AlbumPagerActivity extends FragmentActivity {
   private AlbumService albumService;
 
   private ArrayList<String> clientNames;
+  private ProgressDialog progressDialog;
 
   public void onAlbumClicked(final View v) {
     final CheckBox checkbox = (CheckBox) v;
@@ -62,6 +63,38 @@ public class AlbumPagerActivity extends FragmentActivity {
   public void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.album_switcher);
+
+  }
+
+  @Override
+  public boolean onCreateOptionsMenu(final Menu menu) {
+    getMenuInflater().inflate(R.menu.menu, menu);
+    return true;
+  }
+
+  @Override
+  public boolean onOptionsItemSelected(final MenuItem item) {
+    switch (item.getItemId()) {
+    case R.id.selectServerItem:
+      startActivity(new Intent(this, SelectServerListView.class));
+      return true;
+    case R.id.preferences:
+      startActivity(new Intent(getBaseContext(), Preferences.class));
+      return true;
+    case R.id.start_download:
+      startService(new Intent(this, DownloadService.class));
+      return true;
+    default:
+      return super.onOptionsItemSelected(item);
+    }
+  }
+
+  @Override
+  protected void onResume() {
+    super.onResume();
+    if (progressDialog != null)
+      progressDialog.hide();
+    progressDialog = ProgressDialog.show(this, "AlbumPagerActivity.onResume", getResources().getString(R.string.wait_for_server_message), true);
 
     pagerAdapter = new AlbumPagerAdapter(getSupportFragmentManager());
     viewPager = (ViewPager) findViewById(R.id.pager);
@@ -102,35 +135,7 @@ public class AlbumPagerActivity extends FragmentActivity {
         getActionBar().setSelectedNavigationItem(position);
       }
     });
-  }
 
-  @Override
-  public boolean onCreateOptionsMenu(final Menu menu) {
-    getMenuInflater().inflate(R.menu.menu, menu);
-    return true;
-  }
-
-  @Override
-  public boolean onOptionsItemSelected(final MenuItem item) {
-    switch (item.getItemId()) {
-    case R.id.selectServerItem:
-      startActivity(new Intent(this, SelectServerListView.class));
-      return true;
-    case R.id.preferences:
-      startActivity(new Intent(getBaseContext(), Preferences.class));
-      return true;
-    case R.id.start_download:
-      startService(new Intent(this, DownloadService.class));
-      return true;
-    default:
-      return super.onOptionsItemSelected(item);
-    }
-  }
-
-  @Override
-  protected void onResume() {
-    super.onResume();
-    final ProgressDialog progressDialog = ProgressDialog.show(this, "", getResources().getString(R.string.wait_for_server_message), true);
     final Resolver resolver = new Resolver(this);
     resolver.establishLastConnection(new ConnectionAdapter(this, new ConnectedHandler() {
 
@@ -150,8 +155,9 @@ public class AlbumPagerActivity extends FragmentActivity {
               clientNames.add(clientName);
             }
             clientNames.addAll(collectedClients);
-
-            progressDialog.hide();
+            if (progressDialog != null)
+              progressDialog.hide();
+            progressDialog = null;
             actionBar.removeAllTabs();
             for (final String client : clientNames) {
               actionBar.addTab(actionBar.newTab().setText(client).setTabListener(tabListener));

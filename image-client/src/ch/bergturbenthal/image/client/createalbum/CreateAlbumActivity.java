@@ -88,7 +88,7 @@ public class CreateAlbumActivity extends Activity {
 
           @Override
           public void run() {
-            dialogRef.set(ProgressDialog.show(CreateAlbumActivity.this, "",
+            dialogRef.set(ProgressDialog.show(CreateAlbumActivity.this, "CreateAlbumActivity.onResume",
                                               CreateAlbumActivity.this.getResources().getString(R.string.wait_for_server_message), true));
           }
         });
