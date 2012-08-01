@@ -177,12 +177,16 @@ public class AlbumImage {
   private void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException, InterruptedException,
                                                                                                            IM4JavaException {
     final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.jpg");
+    if (tempFile.exists())
+      tempFile.delete();
     logger.debug("Convert " + file);
     final ConvertCmd cmd = new ConvertCmd();
     final File secondStepInputFile;
     final boolean deleteInputFileAfter;
     if (!file.getName().toLowerCase().endsWith("jpg")) {
       secondStepInputFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.png");
+      if (secondStepInputFile.exists())
+        secondStepInputFile.delete();
       final IMOperation primaryOperation = new IMOperation();
       primaryOperation.addImage(file.getAbsolutePath());
       primaryOperation.addImage(secondStepInputFile.getAbsolutePath());
@@ -213,6 +217,8 @@ public class AlbumImage {
     // .servercache/out.mp4
     logger.debug("Start transcode " + file);
     final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + "-tmp.mp4");
+    if (tempFile.exists())
+      tempFile.delete();
     try {
       final Process process =
                               Runtime.getRuntime().exec(new String[] { "avconv", "-i", file.getAbsolutePath(), "-vcodec", "libx264", "-b:v", "1024k",
