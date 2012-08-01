@@ -257,7 +257,7 @@ public class Resolver implements Closeable {
   }
 
   private boolean pingService(final String foundUrl) {
-    final RestTemplate restTemplate = new RestTemplate();
+    final RestTemplate restTemplate = new RestTemplate(true);
     try {
       try {
         final ResponseEntity<PingResponse> entity = restTemplate.getForEntity(foundUrl + "/ping.json", PingResponse.class);
@@ -271,6 +271,10 @@ public class Resolver implements Closeable {
           return false;
         } else
           throw ex;
+        // } catch (final IllegalArgumentException ex) {
+        // Log.d(TAG, "Connect to " + foundUrl +
+        // "/ failed possible trouble with ipv6, try more");
+        // return false;
       } catch (final RestClientException ex) {
         Log.d(TAG, "Connect to " + foundUrl + "/ failed, try more");
         return false;

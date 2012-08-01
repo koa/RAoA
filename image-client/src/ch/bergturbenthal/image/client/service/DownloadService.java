@@ -60,7 +60,7 @@ public class DownloadService extends IntentService {
           final AtomicInteger totalImageCount = new AtomicInteger(0);
           final AtomicInteger doneImageCount = new AtomicInteger(0);
           final Collection<String> addedFiles = new ConcurrentLinkedQueue<String>();
-          final AlbumService albumService = new AlbumService(foundUrl);
+          final AlbumService albumService = new AlbumService(foundUrl, getApplicationContext());
           for (final AlbumEntry album : albumService.listAlbums().getAlbumNames()) {
             if (!album.getClients().contains(clientId))
               continue;
@@ -74,7 +74,11 @@ public class DownloadService extends IntentService {
               executorService.submit(new Runnable() {
                 @Override
                 public void run() {
-                  final File imageFile = new File(albumDirectory, image.getName() + ".jpg");
+                  final File imageFile;
+                  if (image.isVideo())
+                    imageFile = new File(albumDirectory, image.getName() + ".mp4");
+                  else
+                    imageFile = new File(albumDirectory, image.getName() + ".jpg");
                   final Date ifModifiedSince;
                   if (imageFile.exists())
                     ifModifiedSince = new Date(imageFile.lastModified());

@@ -93,8 +93,9 @@ public class AlbumPagerActivity extends FragmentActivity {
   protected void onResume() {
     super.onResume();
     if (progressDialog != null)
-      progressDialog.hide();
-    progressDialog = ProgressDialog.show(this, "AlbumPagerActivity.onResume", getResources().getString(R.string.wait_for_server_message), true);
+      progressDialog.show();
+    else
+      progressDialog = ProgressDialog.show(this, "AlbumPagerActivity.onResume", getResources().getString(R.string.wait_for_server_message), true);
 
     pagerAdapter = new AlbumPagerAdapter(getSupportFragmentManager());
     viewPager = (ViewPager) findViewById(R.id.pager);
@@ -157,7 +158,7 @@ public class AlbumPagerActivity extends FragmentActivity {
             clientNames.addAll(collectedClients);
             if (progressDialog != null)
               progressDialog.hide();
-            progressDialog = null;
+            // progressDialog = null;
             actionBar.removeAllTabs();
             for (final String client : clientNames) {
               actionBar.addTab(actionBar.newTab().setText(client).setTabListener(tabListener));

@@ -71,6 +71,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
       final AlbumImage albumImage = albumImageEntry.getValue();
       entry.setName(albumImage.getName());
       entry.setId(albumImageEntry.getKey());
+      entry.setVideo(albumImage.isVideo());
       ret.getImages().add(entry);
     }
     return ret;

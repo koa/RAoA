@@ -183,7 +183,7 @@ public class FileAlbumAccess implements AlbumAccess {
           logger.warn("Exception while refreshing thumbnails", t);
         }
       }
-    }, 30, 2 * 60 * 60, TimeUnit.SECONDS);
+    }, 5, 2 * 60 * 60, TimeUnit.SECONDS);
   }
 
   private Collection<File> collectImportFiles(final File importDir) {

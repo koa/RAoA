@@ -337,7 +337,7 @@ public class Album {
         if (!file.isFile() || !file.canRead())
           return false;
         final String lowerFilename = file.getName().toLowerCase();
-        return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".jpeg") || lowerFilename.endsWith(".nef");
+        return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".jpeg") || lowerFilename.endsWith(".nef") || lowerFilename.endsWith(".mkv");
       }
     });
     images = new HashMap<String, AlbumImage>();

@@ -2,6 +2,7 @@ package ch.bergturbenthal.image.server;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.text.MessageFormat;
 import java.text.ParseException;
 import java.util.Arrays;
@@ -61,13 +62,16 @@ public class AlbumImage {
 
   public File getThumbnail() {
     try {
-      final File cachedFile = new File(cacheDir, file.getName());
+      final File cachedFile = makeCachedFile();
       if (cachedFile.exists() && cachedFile.lastModified() > file.lastModified())
         return cachedFile;
       synchronized (this) {
         if (cachedFile.exists() && cachedFile.lastModified() >= file.lastModified())
           return cachedFile;
-        scaleImageDown(THUMBNAIL_SIZE, THUMBNAIL_SIZE, false, cachedFile);
+        if (isVideo())
+          scaleVideoDown(cachedFile);
+        else
+          scaleImageDown(THUMBNAIL_SIZE, THUMBNAIL_SIZE, false, cachedFile);
       }
       return cachedFile;
     } catch (final IOException e) {
@@ -77,6 +81,15 @@ public class AlbumImage {
     } catch (final IM4JavaException e) {
       throw new RuntimeException("Cannot make thumbnail of " + file, e);
     }
+  }
+
+  /**
+   * returns true if the image is a video
+   * 
+   * @return
+   */
+  public boolean isVideo() {
+    return file.getName().toLowerCase().endsWith(".mkv");
   }
 
   public long readSize() {
@@ -99,7 +112,17 @@ public class AlbumImage {
     return metadata;
   }
 
+  private File makeCachedFile() {
+    final String name = file.getName();
+    if (isVideo()) {
+      return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
+    }
+    return new File(cacheDir, name);
+  }
+
   private Date readCaptureDateFromMetadata() {
+    if (isVideo())
+      return null;
     final Date gpsDate = readGpsDate();
     if (gpsDate != null)
       return gpsDate;
@@ -185,8 +208,35 @@ public class AlbumImage {
   }
 
   private void scaleVideoDown(final File cachedFile) {
+    // avconv -i file001.mkv -vcodec libx264 -b:v 1024k -profile:v baseline -b:a
+    // 24k -vf yadif -vf scale=1280:720 -acodec libvo_aacenc -sn -r 30
+    // .servercache/out.mp4
     logger.debug("Start transcode " + file);
-
+    final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + "-tmp.mp4");
+    try {
+      final Process process =
+                              Runtime.getRuntime().exec(new String[] { "avconv", "-i", file.getAbsolutePath(), "-vcodec", "libx264", "-b:v", "1024k",
+                                                                      "-profile:v", "baseline", "-b:a", "24k", "-vf", "yadif", "-vf",
+                                                                      "scale=1280:720", "-acodec", "libvo_aacenc", "-sn", "-r", "30",
+                                                                      tempFile.getAbsolutePath() });
+      final StringBuilder errorMessage = new StringBuilder();
+      final InputStreamReader reader = new InputStreamReader(process.getErrorStream());
+      final char[] buffer = new char[8192];
+      while (true) {
+        final int read = reader.read(buffer);
+        if (read < 0)
+          break;
+        errorMessage.append(buffer, 0, read);
+      }
+      final int resultCode = process.waitFor();
+      if (resultCode != 0)
+        throw new RuntimeException("Cannot convert video " + file + ": RC-Code: " + resultCode + "\n" + errorMessage.toString());
+      tempFile.renameTo(cachedFile);
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot convert video " + file, e);
+    } catch (final InterruptedException e) {
+      throw new RuntimeException("Cannot convert video " + file, e);
+    }
   }
 
 }

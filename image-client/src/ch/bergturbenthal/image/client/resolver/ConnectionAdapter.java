@@ -31,7 +31,7 @@ public class ConnectionAdapter implements ConnectionUrlListener {
   @Override
   public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
     hideProgress();
-    connectedHandler.connected(new AlbumService(foundUrl), serverName);
+    connectedHandler.connected(new AlbumService(foundUrl, context), serverName);
   }
 
   @Override

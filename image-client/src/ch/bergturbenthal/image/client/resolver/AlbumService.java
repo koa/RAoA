@@ -1,9 +1,8 @@
 package ch.bergturbenthal.image.client.resolver;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
@@ -11,6 +10,7 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
 import java.util.TreeSet;
+import java.util.UUID;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -22,6 +22,7 @@ import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 
+import android.content.Context;
 import ch.bergturbenthal.image.data.api.Album;
 import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
@@ -36,10 +37,12 @@ public class AlbumService implements Album {
                                                              "EEE MMM dd HH:mm:ss yyyy" };
 
   private static TimeZone GMT = TimeZone.getTimeZone("GMT");
+  private final Context context;
 
-  public AlbumService(final String baseUrl) {
+  public AlbumService(final String baseUrl, final Context context) {
     this.baseUrl = baseUrl;
-    restTemplate = new RestTemplate();
+    this.context = context;
+    restTemplate = new RestTemplate(true);
   }
 
   @Override
@@ -110,21 +113,35 @@ public class AlbumService implements Album {
           if (createDate == null)
             throw new IllegalArgumentException("Cannot parse date value \"" + createDateString + "\" for \"created-at\" header");
         }
-        final ByteArrayOutputStream arrayOutputStream = new ByteArrayOutputStream();
-        final InputStream inputStream = response.getBody();
-        final byte[] buffer = new byte[8192];
-        while (true) {
-          final int read = inputStream.read(buffer);
-          if (read < 0)
-            break;
-          arrayOutputStream.write(buffer, 0, read);
-        }
-        return ImageResult.makeModifiedResult(lastModifiedDate, createDate, new ImageResult.StreamSource() {
-          @Override
-          public InputStream getInputStream() throws IOException {
-            return new ByteArrayInputStream(arrayOutputStream.toByteArray());
+        final String tempFilename = UUID.randomUUID().toString();
+        final OutputStream arrayOutputStream = context.openFileOutput(tempFilename, Context.MODE_PRIVATE);
+        boolean retOk = false;
+        try {
+          final InputStream inputStream = response.getBody();
+          final byte[] buffer = new byte[8192];
+          while (true) {
+            final int read = inputStream.read(buffer);
+            if (read < 0)
+              break;
+            arrayOutputStream.write(buffer, 0, read);
           }
-        });
+          retOk = true;
+          return ImageResult.makeModifiedResult(lastModifiedDate, createDate, new ImageResult.StreamSource() {
+            @Override
+            public InputStream getInputStream() throws IOException {
+              return context.openFileInput(tempFilename);
+            }
+
+            @Override
+            protected void finalize() throws Throwable {
+              context.deleteFile(tempFilename);
+              super.finalize();
+            }
+          });
+        } finally {
+          if (!retOk)
+            context.deleteFile(tempFilename);
+        }
       }
     }, albumId, imageId);
 
