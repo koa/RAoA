@@ -136,12 +136,12 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
       response.setStatus(404);
       return;
     }
-    response.setContentType("image/jpeg");
 
     if (!foundImage.isModified()) {
       response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
       return;
     }
+    response.setContentType(foundImage.getMimeType());
     final Date created = foundImage.getCreated();
     if (created != null) {
       response.setDateHeader("created-at", created.getTime());
@@ -214,7 +214,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
         public InputStream getInputStream() throws IOException {
           return new FileInputStream(sourceFile);
         }
-      });
+      }, image.isVideo() ? "video/mp4" : "image/jpeg");
     else
       return ImageResult.makeNotModifiedResult();
   }
