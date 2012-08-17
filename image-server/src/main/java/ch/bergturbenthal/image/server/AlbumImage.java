@@ -8,7 +8,9 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.Map;
 import java.util.TimeZone;
+import java.util.WeakHashMap;
 
 import org.im4java.core.ConvertCmd;
 import org.im4java.core.IM4JavaException;
@@ -39,6 +41,17 @@ public class AlbumImage {
   private static final int THUMBNAIL_SIZE = 1600;
 
   private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
+  private static Map<File, AlbumImage> loadedImages = new WeakHashMap<File, AlbumImage>();
+
+  public static synchronized AlbumImage makeImage(final File file, final File cacheDir) {
+    final AlbumImage cachedImage = loadedImages.get(file);
+    if (cachedImage != null)
+      return cachedImage;
+    final AlbumImage newImage = new AlbumImage(file, cacheDir);
+    loadedImages.put(file, newImage);
+    return newImage;
+  }
+
   private final File file;
   private final File cacheDir;
   private Metadata metadata = null;
@@ -174,8 +187,9 @@ public class AlbumImage {
     }
   }
 
-  private void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException, InterruptedException,
-                                                                                                           IM4JavaException {
+  private synchronized void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException,
+                                                                                                                        InterruptedException,
+                                                                                                                        IM4JavaException {
     final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.jpg");
     if (tempFile.exists())
       tempFile.delete();
@@ -211,7 +225,7 @@ public class AlbumImage {
     // logger.debug("End operation");
   }
 
-  private void scaleVideoDown(final File cachedFile) {
+  private synchronized void scaleVideoDown(final File cachedFile) {
     // avconv -i file001.mkv -vcodec libx264 -b:v 1024k -profile:v baseline -b:a
     // 24k -vf yadif -vf scale=1280:720 -acodec libvo_aacenc -sn -r 30
     // .servercache/out.mp4
