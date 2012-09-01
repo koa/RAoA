@@ -342,7 +342,7 @@ public class Album {
     });
     images = new HashMap<String, AlbumImage>();
     for (final File file : foundFiles) {
-      images.put(Util.sha1(file.getAbsolutePath()), new AlbumImage(file, cacheDir));
+      images.put(Util.sha1(file.getAbsolutePath()), AlbumImage.makeImage(file, cacheDir));
     }
     cachedImages = lastModifiedBaseDir;
     return images;

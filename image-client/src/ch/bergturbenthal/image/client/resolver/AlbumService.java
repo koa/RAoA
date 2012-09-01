@@ -11,6 +11,8 @@ import java.util.Locale;
 import java.util.TimeZone;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -23,6 +25,7 @@ import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 
 import android.content.Context;
+import android.util.Log;
 import ch.bergturbenthal.image.data.api.Album;
 import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
@@ -31,18 +34,37 @@ import ch.bergturbenthal.image.data.model.AlbumList;
 
 public class AlbumService implements Album {
   private final String baseUrl;
-  private final RestTemplate restTemplate;
 
+  private final RestTemplate restTemplate;
   private static final String[] DATE_FORMATS = new String[] { "EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd-MMM-yy HH:mm:ss zzz",
                                                              "EEE MMM dd HH:mm:ss yyyy" };
 
   private static TimeZone GMT = TimeZone.getTimeZone("GMT");
+
   private final Context context;
+  private final BlockingQueue<String> cleanupQueue = new LinkedBlockingQueue<String>();
+  private final Thread bgThread;
 
   public AlbumService(final String baseUrl, final Context context) {
     this.baseUrl = baseUrl;
     this.context = context;
     restTemplate = new RestTemplate(true);
+    bgThread = new Thread(new Runnable() {
+
+      @Override
+      public void run() {
+        try {
+          while (true) {
+            final String filename = cleanupQueue.take();
+            context.deleteFile(filename);
+          }
+        } catch (final InterruptedException ex) {
+          Log.d("AlbumService", "background-cleanup terminated", ex);
+        }
+      }
+    });
+    bgThread.setDaemon(true);
+    bgThread.start();
   }
 
   @Override
@@ -91,6 +113,7 @@ public class AlbumService implements Album {
         if (response.getStatusCode() == HttpStatus.NOT_MODIFIED)
           return ImageResult.makeNotModifiedResult();
         final HttpHeaders headers = response.getHeaders();
+        final String mimeType = headers.getContentType().toString();
         final long lastModified = headers.getLastModified();
         final Date lastModifiedDate;
         if (lastModified > 0)
@@ -134,10 +157,11 @@ public class AlbumService implements Album {
 
             @Override
             protected void finalize() throws Throwable {
-              context.deleteFile(tempFilename);
+              cleanupQueue.add(tempFilename);
+              // context.deleteFile(tempFilename);
               super.finalize();
             }
-          });
+          }, mimeType);
         } finally {
           if (!retOk)
             context.deleteFile(tempFilename);
@@ -160,6 +184,13 @@ public class AlbumService implements Album {
   @Override
   public void unRegisterClient(final String albumId, final String clientId) {
     restTemplate.put(baseUrl + "/albums/{albumId}/unRegisterClient", clientId, albumId);
+  }
+
+  @Override
+  protected void finalize() throws Throwable {
+    // try to shutdown the background-thread
+    bgThread.interrupt();
+    super.finalize();
   }
 
 }
