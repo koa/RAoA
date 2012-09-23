@@ -105,6 +105,10 @@ public class AlbumImage {
     return file.getName().toLowerCase().endsWith(".mkv");
   }
 
+  public Date lastModified() {
+    return new Date(file.lastModified());
+  }
+
   public long readSize() {
     return file.length();
   }

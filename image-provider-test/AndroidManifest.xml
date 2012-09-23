@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="ch.bergturbenthal.image.provider.test"
+  android:versionCode="1" android:versionName="1.0">
+
+  <uses-sdk android:minSdkVersion="15" android:targetSdkVersion="15"/>
+  <instrumentation android:name="android.test.InstrumentationTestRunner" android:targetPackage="ch.bergturbenthal.image.provider.test"></instrumentation>
+  <application android:label="Image Provider Test">
+      <uses-library android:name="android.test.runner"/>
+  </application>
+
+</manifest>

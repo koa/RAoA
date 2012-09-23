@@ -70,20 +70,23 @@ public class DownloadService extends IntentService {
               albumDirectory.mkdirs();
             final AlbumDetail albumContent = albumService.listAlbumContent(album.getId());
             for (final AlbumImageEntry image : albumContent.getImages()) {
+              final File imageFile;
+              if (image.isVideo())
+                imageFile = new File(albumDirectory, image.getName() + ".mp4");
+              else
+                imageFile = new File(albumDirectory, image.getName() + ".jpg");
+              final Date ifModifiedSince;
+              if (imageFile.exists())
+                ifModifiedSince = new Date(imageFile.lastModified());
+              else
+                ifModifiedSince = new Date(0);
+              // no request for already up to date entries
+              if (image.getLastModified().before(ifModifiedSince))
+                continue;
               totalImageCount.incrementAndGet();
               executorService.submit(new Runnable() {
                 @Override
                 public void run() {
-                  final File imageFile;
-                  if (image.isVideo())
-                    imageFile = new File(albumDirectory, image.getName() + ".mp4");
-                  else
-                    imageFile = new File(albumDirectory, image.getName() + ".jpg");
-                  final Date ifModifiedSince;
-                  if (imageFile.exists())
-                    ifModifiedSince = new Date(imageFile.lastModified());
-                  else
-                    ifModifiedSince = new Date(0);
                   final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), ifModifiedSince);
                   final Date lastModified = imageResult.getLastModified();
                   if (lastModified == null) {
