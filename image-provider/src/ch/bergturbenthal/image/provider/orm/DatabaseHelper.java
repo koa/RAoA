@@ -5,7 +5,8 @@ import java.sql.SQLException;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
-import ch.bergturbenthal.image.provider.model.Album;
+import ch.bergturbenthal.image.provider.model.AlbumEntity;
+import ch.bergturbenthal.image.provider.model.ClientEntity;
 
 import com.j256.ormlite.android.apptools.OrmLiteSqliteOpenHelper;
 import com.j256.ormlite.support.ConnectionSource;
@@ -23,7 +24,8 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
   @Override
   public void onCreate(final SQLiteDatabase database, final ConnectionSource connectionSource) {
     try {
-      TableUtils.createTable(connectionSource, Album.class);
+      TableUtils.createTable(connectionSource, AlbumEntity.class);
+      TableUtils.createTable(connectionSource, ClientEntity.class);
     } catch (final SQLException e) {
       Log.e("ORM", "Can't create database", e);
       throw new RuntimeException(e);
@@ -33,12 +35,12 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
   @Override
   public void onUpgrade(final SQLiteDatabase database, final ConnectionSource connectionSource, final int oldVersion, final int newVersion) {
     try {
-      TableUtils.dropTable(connectionSource, Album.class, false);
+      TableUtils.dropTable(connectionSource, AlbumEntity.class, false);
+      TableUtils.dropTable(connectionSource, ClientEntity.class, false);
       onCreate(database, connectionSource);
     } catch (final SQLException e) {
       Log.e("ORM", "Can't update database", e);
       throw new RuntimeException(e);
     }
   }
-
 }

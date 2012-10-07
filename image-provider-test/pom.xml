@@ -8,9 +8,6 @@
   <artifactId>image-provider-test</artifactId>
   <name>Image Provider Test</name>
   <packaging>apk</packaging>
-  <properties>
-    <android.device>emulator</android.device>
-  </properties>
   <dependencies>
     <dependency>
       <groupId>com.google.android</groupId>
