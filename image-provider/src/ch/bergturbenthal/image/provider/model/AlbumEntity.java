@@ -9,7 +9,7 @@ import com.j256.ormlite.field.ForeignCollectionField;
 import com.j256.ormlite.table.DatabaseTable;
 
 @DatabaseTable(tableName = "albums")
-public class AlbumEntity extends AbstractCacheableEntity<String> {
+public class AlbumEntity {
   @DatabaseField(canBeNull = false)
   private String name;
   @DatabaseField(id = true)
@@ -22,21 +22,18 @@ public class AlbumEntity extends AbstractCacheableEntity<String> {
   @ForeignCollectionField(eager = false)
   private final Collection<AlbumEntryEntity> entries = new ArrayList<AlbumEntryEntity>();
 
-  public AlbumEntity(final String id) {
-    super(true);
-    this.id = id;
+  AlbumEntity() {
+    id = null;
   }
 
-  AlbumEntity() {
-    super(false);
-    id = null;
+  public AlbumEntity(final String id) {
+    this.id = id;
   }
 
   public Date getAutoAddDate() {
     return autoAddDate;
   }
 
-  @Override
   public String getId() {
     return id;
   }
@@ -50,12 +47,10 @@ public class AlbumEntity extends AbstractCacheableEntity<String> {
   }
 
   public void setAutoAddDate(final Date autoAddDate) {
-    checkDifference(this.autoAddDate, autoAddDate);
     this.autoAddDate = autoAddDate;
   }
 
   public void setName(final String name) {
-    checkDifference(this.name, name);
     this.name = name;
   }
 

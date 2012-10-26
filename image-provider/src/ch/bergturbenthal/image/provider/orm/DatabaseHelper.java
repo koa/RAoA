@@ -8,6 +8,7 @@ import android.util.Log;
 import ch.bergturbenthal.image.provider.model.AlbumEntity;
 import ch.bergturbenthal.image.provider.model.ClientEntity;
 
+import com.j256.ormlite.android.AndroidConnectionSource;
 import com.j256.ormlite.android.apptools.OrmLiteSqliteOpenHelper;
 import com.j256.ormlite.support.ConnectionSource;
 import com.j256.ormlite.table.TableUtils;
@@ -16,6 +17,10 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
 
   private static final String DATABASE_NAME = "images";
   private static final int DATABASE_VERSION = 1;
+
+  public static AndroidConnectionSource makeConnectionSource(final Context context) {
+    return new AndroidConnectionSource(new DatabaseHelper(context));
+  }
 
   public DatabaseHelper(final Context context) {
     super(context, DATABASE_NAME, null, DATABASE_VERSION);

@@ -6,7 +6,7 @@ import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 
 @DatabaseTable(tableName = "clients")
-public class ClientEntity extends AbstractCacheableEntity<UUID> {
+public class ClientEntity {
   @DatabaseField(id = true)
   private final UUID id;
   @DatabaseField
@@ -14,25 +14,22 @@ public class ClientEntity extends AbstractCacheableEntity<UUID> {
   @DatabaseField(foreign = true)
   private final AlbumEntity album;
 
-  public ClientEntity(final AlbumEntity album, final String name) {
-    super(true);
-    this.album = album;
-    this.name = name;
-    id = UUID.randomUUID();
-  }
-
   ClientEntity() {
-    super(false);
     name = null;
     album = null;
     id = null;
+  }
+
+  public ClientEntity(final AlbumEntity album, final String name) {
+    this.album = album;
+    this.name = name;
+    id = UUID.randomUUID();
   }
 
   public AlbumEntity getAlbum() {
     return album;
   }
 
-  @Override
   public UUID getId() {
     return id;
   }
