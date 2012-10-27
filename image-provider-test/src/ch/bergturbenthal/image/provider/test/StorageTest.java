@@ -7,6 +7,7 @@ import java.util.concurrent.Callable;
 import android.test.AndroidTestCase;
 import android.util.Log;
 import ch.bergturbenthal.image.provider.model.AlbumEntity;
+import ch.bergturbenthal.image.provider.model.ArchiveEntity;
 import ch.bergturbenthal.image.provider.model.ClientEntity;
 import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
 
@@ -31,10 +32,9 @@ public class StorageTest extends AndroidTestCase {
   protected void setUp() throws Exception {
     super.setUp();
     connectionSource = DatabaseHelper.makeConnectionSource(getContext());
-    final RuntimeExceptionDao<AlbumEntity, String> albumDao = RuntimeExceptionDao.createDao(connectionSource, AlbumEntity.class);
-    final RuntimeExceptionDao<ClientEntity, String> clientDao = RuntimeExceptionDao.createDao(connectionSource, ClientEntity.class);
-    clear(albumDao);
-    clear(clientDao);
+    clear(RuntimeExceptionDao.<ArchiveEntity, String> createDao(connectionSource, ArchiveEntity.class));
+    clear(RuntimeExceptionDao.<AlbumEntity, String> createDao(connectionSource, AlbumEntity.class));
+    clear(RuntimeExceptionDao.<ClientEntity, String> createDao(connectionSource, ClientEntity.class));
   }
 
   public void testHelloWorld() {
@@ -43,6 +43,7 @@ public class StorageTest extends AndroidTestCase {
 
   public void testStoreAlbum() throws SQLException {
 
+    final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = RuntimeExceptionDao.createDao(connectionSource, ArchiveEntity.class);
     final RuntimeExceptionDao<AlbumEntity, String> albumDao = RuntimeExceptionDao.createDao(connectionSource, AlbumEntity.class);
     final RuntimeExceptionDao<ClientEntity, String> clientDao = RuntimeExceptionDao.createDao(connectionSource, ClientEntity.class);
 
@@ -58,7 +59,9 @@ public class StorageTest extends AndroidTestCase {
     TransactionManager.callInTransaction(connectionSource, new Callable<Void>() {
       @Override
       public Void call() throws Exception {
-        final AlbumEntity album = new AlbumEntity(UUID.randomUUID().toString());
+        final ArchiveEntity archive = new ArchiveEntity("dummy-archive");
+        archiveDao.create(archive);
+        final AlbumEntity album = new AlbumEntity(archive, UUID.randomUUID().toString());
         final ClientEntity client = new ClientEntity(album, "test-client");
         album.getInterestingClients().add(client);
         album.setName("TestAlbum");

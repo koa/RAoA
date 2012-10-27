@@ -1,15 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="ch.bergturbenthal.image.provider"
-  android:versionCode="1" android:versionName="1.0">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="ch.bergturbenthal.image.provider"
+    android:versionCode="1"
+    android:versionName="1.0" >
 
-  <uses-sdk android:minSdkVersion="15" android:targetSdkVersion="15"/>
+    <uses-sdk
+        android:minSdkVersion="15"
+        android:targetSdkVersion="15" />
 
-  <uses-permission android:name="android.permission.INTERNET" />
-  <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
-  <application android:label="Image" android:hardwareAccelerated="true">
+    <application
+        android:hardwareAccelerated="true"
+        android:label="RoyalArchive Provider" >
+        <receiver
+            android:name=".service.NetworkReceiver"
+            android:enabled="true" >
+            <intent-filter>
+                <action android:name="android.net.wifi.STATE_CHANGE" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.net.wifi.WIFI_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
-  </application>
+        <service
+            android:name=".service.SynchronisationService"
+            android:enabled="true" >
+        </service>
+
+        <activity android:name=".service.NetworkActivity" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
 
 </manifest>
