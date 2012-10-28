@@ -38,6 +38,32 @@ public class FileAlbumAccess implements AlbumAccess {
   @Autowired
   private ScheduledExecutorService executorService;
 
+  private Collection<File> collectImportFiles(final File importDir) {
+    if (!importDir.isDirectory())
+      return Collections.emptyList();
+    final ArrayList<File> ret = new ArrayList<File>();
+    ret.addAll(Arrays.asList(importDir.listFiles(new FileFilter() {
+      @Override
+      public boolean accept(final File pathname) {
+        if (!pathname.canRead())
+          return false;
+        if (!pathname.isFile())
+          return false;
+        final String lowerFilename = pathname.getName().toLowerCase();
+        return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".nef") || lowerFilename.endsWith(".jpeg");
+      }
+    })));
+    for (final File dir : importDir.listFiles(new FileFilter() {
+      @Override
+      public boolean accept(final File pathname) {
+        return pathname.isDirectory();
+      }
+    })) {
+      ret.addAll(collectImportFiles(dir));
+    }
+    return ret;
+  }
+
   @Override
   public synchronized String createAlbum(final String[] pathNames) {
     final Map<String, Album> albums = listAlbums();
@@ -71,6 +97,27 @@ public class FileAlbumAccess implements AlbumAccess {
     return albumKey;
   }
 
+  private Collection<File> findAlbums(final File dir) {
+    final File gitSubDir = new File(dir, ".git");
+    if (gitSubDir.exists() && gitSubDir.isDirectory()) {
+      return Collections.singleton(dir);
+    }
+    final File[] foundFiles = dir.listFiles(new FileFilter() {
+      @Override
+      public boolean accept(final File pathname) {
+        return pathname.isDirectory();
+      }
+    });
+    final ArrayList<File> ret = new ArrayList<File>();
+    if (foundFiles != null) {
+      Arrays.sort(foundFiles);
+      for (final File subDir : foundFiles) {
+        ret.addAll(findAlbums(subDir));
+      }
+    }
+    return ret;
+  }
+
   @Override
   public Album getAlbum(final String albumId) {
     return listAlbums().get(albumId);
@@ -78,6 +125,14 @@ public class FileAlbumAccess implements AlbumAccess {
 
   public Resource getBaseDir() {
     return baseDir;
+  }
+
+  private File getBasePath() {
+    try {
+      return baseDir.getFile().getAbsoluteFile();
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot read base-path from " + baseDir, e);
+    }
   }
 
   public Resource getImportBaseDir() {
@@ -99,6 +154,7 @@ public class FileAlbumAccess implements AlbumAccess {
         if (beginDate != null)
           importAlbums.put(beginDate, album);
       }
+      final Collection<File> deleteFiles = new ArrayList<File>();
       final Collection<File> importCandicates = collectImportFiles(importDir);
       for (final File file : importCandicates) {
         try {
@@ -117,7 +173,7 @@ public class FileAlbumAccess implements AlbumAccess {
           if (album.importImage(file, createDate)) {
             modifiedAlbums.add(album);
             logger.debug("image " + file + " imported successfully to " + album.getName());
-            file.delete();
+            deleteFiles.add(file);
           } else {
             logger.warn("Could not import image " + file);
           }
@@ -127,6 +183,11 @@ public class FileAlbumAccess implements AlbumAccess {
       }
       for (final Album album : modifiedAlbums) {
         album.commit("automatically imported");
+      }
+      for (final File file : deleteFiles) {
+        final boolean deleted = file.delete();
+        if (!deleted)
+          logger.error("Cannot delete File " + file);
       }
     } catch (final IOException e) {
       throw new RuntimeException("Cannot import from " + importDir, e);
@@ -159,6 +220,24 @@ public class FileAlbumAccess implements AlbumAccess {
     return loadedAlbums;
   }
 
+  private boolean needToLoadAlbumList() {
+    return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
+  }
+
+  private void refreshThumbnails() {
+    for (final Album album : listAlbums().values()) {
+      for (final AlbumImage image : album.listImages().values()) {
+        executorService.submit(new Runnable() {
+
+          @Override
+          public void run() {
+            image.getThumbnail();
+          }
+        });
+      }
+    }
+  }
+
   public synchronized void setBaseDir(final Resource baseDir) {
     this.baseDir = baseDir;
     loadedAlbums = null;
@@ -184,78 +263,5 @@ public class FileAlbumAccess implements AlbumAccess {
         }
       }
     }, 5, 2 * 60 * 60, TimeUnit.SECONDS);
-  }
-
-  private Collection<File> collectImportFiles(final File importDir) {
-    if (!importDir.isDirectory())
-      return Collections.emptyList();
-    final ArrayList<File> ret = new ArrayList<File>();
-    ret.addAll(Arrays.asList(importDir.listFiles(new FileFilter() {
-      @Override
-      public boolean accept(final File pathname) {
-        if (!pathname.canRead())
-          return false;
-        if (!pathname.isFile())
-          return false;
-        final String lowerFilename = pathname.getName().toLowerCase();
-        return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".nef") || lowerFilename.endsWith(".jpeg");
-      }
-    })));
-    for (final File dir : importDir.listFiles(new FileFilter() {
-      @Override
-      public boolean accept(final File pathname) {
-        return pathname.isDirectory();
-      }
-    })) {
-      ret.addAll(collectImportFiles(dir));
-    }
-    return ret;
-  }
-
-  private Collection<File> findAlbums(final File dir) {
-    final File gitSubDir = new File(dir, ".git");
-    if (gitSubDir.exists() && gitSubDir.isDirectory()) {
-      return Collections.singleton(dir);
-    }
-    final File[] foundFiles = dir.listFiles(new FileFilter() {
-      @Override
-      public boolean accept(final File pathname) {
-        return pathname.isDirectory();
-      }
-    });
-    final ArrayList<File> ret = new ArrayList<File>();
-    if (foundFiles != null) {
-      Arrays.sort(foundFiles);
-      for (final File subDir : foundFiles) {
-        ret.addAll(findAlbums(subDir));
-      }
-    }
-    return ret;
-  }
-
-  private File getBasePath() {
-    try {
-      return baseDir.getFile().getAbsoluteFile();
-    } catch (final IOException e) {
-      throw new RuntimeException("Cannot read base-path from " + baseDir, e);
-    }
-  }
-
-  private boolean needToLoadAlbumList() {
-    return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
-  }
-
-  private void refreshThumbnails() {
-    for (final Album album : listAlbums().values()) {
-      for (final AlbumImage image : album.listImages().values()) {
-        executorService.submit(new Runnable() {
-
-          @Override
-          public void run() {
-            image.getThumbnail();
-          }
-        });
-      }
-    }
   }
 }
