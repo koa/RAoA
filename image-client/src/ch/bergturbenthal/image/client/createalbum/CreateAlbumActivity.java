@@ -43,7 +43,7 @@ public class CreateAlbumActivity extends Activity {
       return;
     }
     final DatePicker datePicker = (DatePicker) findViewById(R.id.selectDate);
-    final DateMidnight selectedDate = new DateMidnight(datePicker.getYear(), datePicker.getMonth(), datePicker.getDayOfMonth());
+    final DateMidnight selectedDate = new DateMidnight(datePicker.getYear(), datePicker.getMonth() + 1, datePicker.getDayOfMonth());
     final ProgressDialog progressDialog = ProgressDialog.show(this, "", getResources().getString(R.string.wait_for_server_message), true);
     new AsyncTask<Void, Void, Void>() {
       @Override
