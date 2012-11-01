@@ -1,8 +1,20 @@
 package ch.bergturbenthal.image.provider.service;
 
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+
+import org.springframework.http.HttpStatus.Series;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -11,6 +23,7 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
+import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.provider.R;
 import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
 
@@ -25,8 +38,14 @@ public class SynchronisationService extends Service implements ResultListener {
 
   @Override
   public void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints) {
-    // TODO Auto-generated method stub
-
+    final Map<InetSocketAddress, PingResponse> pingResponses = new HashMap<InetSocketAddress, PingResponse>();
+    for (final InetSocketAddress inetSocketAddress : knownServiceEndpoints) {
+      final PingResponse response = pingService(makeUrl(inetSocketAddress));
+      if (response != null) {
+        pingResponses.put(inetSocketAddress, response);
+      }
+    }
+    Log.i(SERVICE_TAG, pingResponses.toString());
   }
 
   @Override
@@ -61,6 +80,41 @@ public class SynchronisationService extends Service implements ResultListener {
       dnsListener.stopListening();
     }
     return START_STICKY;
+  }
+
+  private URL makeUrl(final InetSocketAddress inetSocketAddress) {
+    try {
+      return new URL("http", inetSocketAddress.getHostName(), inetSocketAddress.getPort(), "rest");
+    } catch (final MalformedURLException e) {
+      throw new RuntimeException("Cannot create URL for Socket " + inetSocketAddress, e);
+    }
+  }
+
+  private PingResponse pingService(final URL url) {
+    final RestTemplate restTemplate = new RestTemplate(true);
+    try {
+      try {
+        final ResponseEntity<PingResponse> entity = restTemplate.getForEntity(url + "/ping.json", PingResponse.class);
+        final boolean pingOk = entity.getStatusCode().series() == Series.SUCCESSFUL;
+        return entity.getBody();
+      } catch (final ResourceAccessException ex) {
+        final Throwable cause = ex.getCause();
+        if (cause != null && cause instanceof ConnectException) {
+          // try next
+          Log.d(SERVICE_TAG, "Connect to " + url + "/ failed, try more");
+          return null;
+        } else if (cause != null && cause instanceof UnknownHostException) {
+          Log.d(SERVICE_TAG, "Connect to " + url + "/ failed cause of spring-bug with ipv6, try more");
+          return null;
+        } else
+          throw ex;
+      } catch (final RestClientException ex) {
+        Log.d(SERVICE_TAG, "Connect to " + url + "/ failed, try more");
+        return null;
+      }
+    } catch (final Exception ex) {
+      throw new RuntimeException("Cannot connect to " + url, ex);
+    }
   }
 
 }

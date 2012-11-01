@@ -23,6 +23,13 @@ public interface AlbumAccess {
   Album getAlbum(String albumId);
 
   /**
+   * Unique ID of this Collection
+   * 
+   * @return collection-id
+   */
+  String getCollectionId();
+
+  /**
    * import files of given directory into the albums.
    * 
    * @param importBaseDir

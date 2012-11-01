@@ -41,56 +41,9 @@ public class MDnsListener {
     this.executorService = executorService;
   }
 
-  public synchronized void startListening() {
-    setup();
-    final ServiceListener listener = new ServiceListener() {
-
-      @Override
-      public void serviceAdded(final ServiceEvent event) {
-        event.getDNS().requestServiceInfo(event.getType(), event.getName());
-      }
-
-      @Override
-      public void serviceRemoved(final ServiceEvent event) {
-        queryAll();
-      }
-
-      @Override
-      public void serviceResolved(final ServiceEvent event) {
-        queryAll();
-      }
-    };
-
-    jmmDNS.addServiceListener(SERVICE_NAME_URL, listener);
-
-    jmmDNS.addNetworkTopologyListener(new NetworkTopologyListener() {
-
-      @Override
-      public void inetAddressAdded(final NetworkTopologyEvent event) {
-        jmmDNS.addServiceListener(SERVICE_NAME_URL, listener);
-      }
-
-      @Override
-      public void inetAddressRemoved(final NetworkTopologyEvent event) {
-        queryAll();
-      }
-    });
-  }
-
-  public synchronized void stopListening() {
-    if (jmmDNS != null) {
-      if (lock != null)
-        lock.release();
-      try {
-        jmmDNS.close();
-      } catch (final IOException e) {
-        throw new RuntimeException(e);
-      }
-      jmmDNS = null;
-    }
-  }
-
-  private synchronized void queryAll() {
+  public synchronized void pollForServices() {
+    if (jmmDNS == null)
+      return;
     if (pendingFuture != null) {
       pendingFuture.cancel(false);
     }
@@ -110,6 +63,55 @@ public class MDnsListener {
         }
       }
     }, 2, TimeUnit.SECONDS);
+  }
+
+  public synchronized void startListening() {
+    setup();
+    final ServiceListener listener = new ServiceListener() {
+
+      @Override
+      public void serviceAdded(final ServiceEvent event) {
+        event.getDNS().requestServiceInfo(event.getType(), event.getName());
+      }
+
+      @Override
+      public void serviceRemoved(final ServiceEvent event) {
+        pollForServices();
+      }
+
+      @Override
+      public void serviceResolved(final ServiceEvent event) {
+        pollForServices();
+      }
+    };
+
+    jmmDNS.addServiceListener(SERVICE_NAME_URL, listener);
+
+    jmmDNS.addNetworkTopologyListener(new NetworkTopologyListener() {
+
+      @Override
+      public void inetAddressAdded(final NetworkTopologyEvent event) {
+        jmmDNS.addServiceListener(SERVICE_NAME_URL, listener);
+      }
+
+      @Override
+      public void inetAddressRemoved(final NetworkTopologyEvent event) {
+        pollForServices();
+      }
+    });
+  }
+
+  public synchronized void stopListening() {
+    if (jmmDNS != null) {
+      if (lock != null)
+        lock.release();
+      try {
+        jmmDNS.close();
+      } catch (final IOException e) {
+        throw new RuntimeException(e);
+      }
+      jmmDNS = null;
+    }
   }
 
   private synchronized void setup() {
