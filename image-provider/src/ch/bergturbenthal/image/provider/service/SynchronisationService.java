@@ -1,32 +1,33 @@
 package ch.bergturbenthal.image.provider.service;
 
+import java.net.InetSocketAddress;
+import java.util.Collection;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
-import android.os.Binder;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import ch.bergturbenthal.image.provider.R;
+import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
 
-public class SynchronisationService extends Service {
-  /**
-   * Class for clients to access. Because we know this service always runs in
-   * the same process as its clients, we don't need to deal with IPC.
-   */
-  public class LocalBinder extends Binder {
-    SynchronisationService getService() {
-      return SynchronisationService.this;
-    }
-  }
+public class SynchronisationService extends Service implements ResultListener {
 
   private final int NOTIFICATION = R.string.synchronisation_service_started;
   private final static String SERVICE_TAG = "Synchronisation Service";
 
-  private final IBinder binder = new LocalBinder();
   private NotificationManager notificationManager;
   private MDnsListener dnsListener;
+  private ScheduledThreadPoolExecutor executorService;
+
+  @Override
+  public void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints) {
+    // TODO Auto-generated method stub
+
+  }
 
   @Override
   public IBinder onBind(final Intent arg0) {
@@ -37,18 +38,20 @@ public class SynchronisationService extends Service {
   public void onCreate() {
     super.onCreate();
     notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-    dnsListener = new MDnsListener(getApplicationContext());
+    executorService = new ScheduledThreadPoolExecutor(1);
+    dnsListener = new MDnsListener(getApplicationContext(), this, executorService);
   }
 
   @Override
   public void onDestroy() {
+    executorService.shutdownNow();
     notificationManager.cancel(NOTIFICATION);
     dnsListener.stopListening();
   }
 
   @Override
   public int onStartCommand(final Intent intent, final int flags, final int startId) {
-    Log.i(SERVICE_TAG, "Synchronisation started");
+    Log.i(SERVICE_TAG, "Synchronisation started " + this);
     final boolean start = intent.getBooleanExtra("start", true);
     if (start) {
       dnsListener.startListening();

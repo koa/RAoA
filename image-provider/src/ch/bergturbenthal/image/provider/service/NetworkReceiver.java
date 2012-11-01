@@ -1,35 +1,15 @@
 package ch.bergturbenthal.image.provider.service;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.os.IBinder;
 import android.util.Log;
-import ch.bergturbenthal.image.provider.service.SynchronisationService.LocalBinder;
 
 public class NetworkReceiver extends BroadcastReceiver {
   private static final String NETWORK_RECEIVER_TAG = "NetworkReceiver";
-  private final ServiceConnection connection = new ServiceConnection() {
-
-    @Override
-    public void onServiceConnected(final ComponentName name, final IBinder service) {
-      foundServices.put(name, (LocalBinder) service);
-    }
-
-    @Override
-    public void onServiceDisconnected(final ComponentName name) {
-      foundServices.remove(name);
-    }
-  };
-  private final ConcurrentMap<ComponentName, SynchronisationService.LocalBinder> foundServices =
-                                                                                                 new ConcurrentHashMap<ComponentName, SynchronisationService.LocalBinder>();
 
   @Override
   public void onReceive(final Context context, final Intent intent) {
@@ -45,7 +25,8 @@ public class NetworkReceiver extends BroadcastReceiver {
       Log.i(NETWORK_RECEIVER_TAG, "Wifi disconnected");
       intent2.putExtra("start", false);
     }
-    context.stopService(intent2);
+    final ComponentName componentName = context.startService(intent2);
+    Log.i(NETWORK_RECEIVER_TAG, "Service startet: " + componentName);
   }
 
 }

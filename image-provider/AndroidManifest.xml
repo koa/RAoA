@@ -17,7 +17,7 @@
 
     <application
         android:hardwareAccelerated="true"
-        android:label="RoyalArchive Provider" >
+        android:label="RoyalArchive Provider" android:debuggable="true">
         <receiver
             android:name=".service.NetworkReceiver"
             android:enabled="true" >
@@ -33,12 +33,12 @@
             android:enabled="true" >
         </service>
 
-        <activity android:name=".service.NetworkActivity" >
+     <!--    <activity android:name=".service.NetworkActivity" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity> -->
     </application>
 
 </manifest>

@@ -191,8 +191,9 @@ public class FileAlbumAccess implements AlbumAccess {
       }
     } catch (final IOException e) {
       throw new RuntimeException("Cannot import from " + importDir, e);
+    } finally {
+      refreshThumbnails();
     }
-    refreshThumbnails();
   }
 
   @Override
