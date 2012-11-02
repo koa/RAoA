@@ -6,9 +6,14 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.http.HttpStatus.Series;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +30,15 @@ import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.provider.R;
+import ch.bergturbenthal.image.provider.model.AlbumEntity;
+import ch.bergturbenthal.image.provider.model.ArchiveEntity;
+import ch.bergturbenthal.image.provider.orm.DaoHolder;
+import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
 import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
+import ch.bergturbenthal.image.provider.util.ExecutorServiceUtil;
+
+import com.j256.ormlite.android.AndroidConnectionSource;
+import com.j256.ormlite.dao.RuntimeExceptionDao;
 
 public class SynchronisationService extends Service implements ResultListener {
 
@@ -35,16 +48,48 @@ public class SynchronisationService extends Service implements ResultListener {
   private NotificationManager notificationManager;
   private MDnsListener dnsListener;
   private ScheduledThreadPoolExecutor executorService;
+  private final AtomicReference<Map<String, ArchiveConnection>> connectionMap =
+                                                                                new AtomicReference<Map<String, ArchiveConnection>>(
+                                                                                                                                    Collections.<String, ArchiveConnection> emptyMap());
+  private ExecutorService wrappedExecutorService;
+
+  private final ThreadLocal<DaoHolder> transactionManager = new ThreadLocal<DaoHolder>() {
+
+    @Override
+    protected DaoHolder initialValue() {
+      return new DaoHolder(connectionSource);
+    }
+  };
+  private AndroidConnectionSource connectionSource;
 
   @Override
   public void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints) {
-    final Map<InetSocketAddress, PingResponse> pingResponses = new HashMap<InetSocketAddress, PingResponse>();
+    final Map<String, Map<URL, PingResponse>> pingResponses = new HashMap<String, Map<URL, PingResponse>>();
     for (final InetSocketAddress inetSocketAddress : knownServiceEndpoints) {
-      final PingResponse response = pingService(makeUrl(inetSocketAddress));
+      final URL url = makeUrl(inetSocketAddress);
+      final PingResponse response = pingService(url);
       if (response != null) {
-        pingResponses.put(inetSocketAddress, response);
+        if (pingResponses.containsKey(response.getCollectionId())) {
+          pingResponses.get(response.getCollectionId()).put(url, response);
+        } else {
+          final Map<URL, PingResponse> map = new HashMap<URL, PingResponse>();
+          map.put(url, response);
+          pingResponses.put(response.getCollectionId(), map);
+        }
       }
     }
+    final HashMap<String, ArchiveConnection> oldConnectionMap = new HashMap<String, ArchiveConnection>(connectionMap.get());
+    final HashMap<String, ArchiveConnection> newConnectionMap = new HashMap<String, ArchiveConnection>();
+    for (final Entry<String, Map<URL, PingResponse>> responseEntry : pingResponses.entrySet()) {
+      final String archiveId = responseEntry.getKey();
+      final ArchiveConnection connection =
+                                           oldConnectionMap.containsKey(archiveId) ? oldConnectionMap.get(archiveId)
+                                                                                  : new ArchiveConnection(archiveId, wrappedExecutorService);
+      connection.updateServerConnections(responseEntry.getValue());
+      newConnectionMap.put(archiveId, connection);
+    }
+    connectionMap.set(newConnectionMap);
+    updateAlbumsOnDB();
     Log.i(SERVICE_TAG, pingResponses.toString());
   }
 
@@ -57,7 +102,10 @@ public class SynchronisationService extends Service implements ResultListener {
   public void onCreate() {
     super.onCreate();
     notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-    executorService = new ScheduledThreadPoolExecutor(1);
+    executorService = new ScheduledThreadPoolExecutor(2);
+    wrappedExecutorService = ExecutorServiceUtil.wrap(executorService);
+    connectionSource = DatabaseHelper.makeConnectionSource(getApplicationContext());
+
     dnsListener = new MDnsListener(getApplicationContext(), this, executorService);
   }
 
@@ -80,6 +128,14 @@ public class SynchronisationService extends Service implements ResultListener {
       dnsListener.stopListening();
     }
     return START_STICKY;
+  }
+
+  private RuntimeExceptionDao<AlbumEntity, String> getAlbumDao() {
+    return transactionManager.get().getDao(AlbumEntity.class);
+  }
+
+  private RuntimeExceptionDao<ArchiveEntity, String> getArchiveDao() {
+    return transactionManager.get().getDao(ArchiveEntity.class);
   }
 
   private URL makeUrl(final InetSocketAddress inetSocketAddress) {
@@ -117,4 +173,39 @@ public class SynchronisationService extends Service implements ResultListener {
     }
   }
 
+  private void updateAlbumsOnDB() {
+    wrappedExecutorService.execute(new Runnable() {
+
+      @Override
+      public void run() {
+        transactionManager.get().callInTransaction(new Callable<Void>() {
+
+          @Override
+          public Void call() throws Exception {
+            final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
+            final RuntimeExceptionDao<AlbumEntity, String> albumDao = getAlbumDao();
+            for (final Entry<String, ArchiveConnection> archive : connectionMap.get().entrySet()) {
+              final String archiveName = archive.getKey();
+              final ArchiveEntity loadedArchive = archiveDao.queryForId(archiveName);
+              ArchiveEntity archiveEntity;
+              if (loadedArchive == null) {
+                archiveEntity = new ArchiveEntity(archiveName);
+                archiveDao.create(archiveEntity);
+              } else
+                archiveEntity = loadedArchive;
+              final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
+              for (final Entry<String, AlbumConnection> albumEntry : albums.entrySet()) {
+                final String dbId = AlbumEntity.generateId(archiveEntity, albumEntry.getKey());
+                if (!albumDao.idExists(dbId)) {
+                  final AlbumEntity newAlbumEntity = new AlbumEntity(archiveEntity, albumEntry.getKey());
+                  albumDao.create(newAlbumEntity);
+                }
+              }
+            }
+            return null;
+          }
+        });
+      }
+    });
+  }
 }

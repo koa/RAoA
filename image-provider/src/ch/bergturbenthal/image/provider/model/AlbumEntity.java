@@ -10,6 +10,10 @@ import com.j256.ormlite.table.DatabaseTable;
 
 @DatabaseTable(tableName = "albums")
 public class AlbumEntity {
+  public static String generateId(final ArchiveEntity archive, final String id) {
+    return archive.getName() + ":" + id;
+  }
+
   @DatabaseField(foreign = true)
   private final ArchiveEntity archive;
   @DatabaseField(canBeNull = false)
@@ -18,20 +22,22 @@ public class AlbumEntity {
   private final String id;
   @ForeignCollectionField(eager = true)
   private final Collection<ClientEntity> interestingClients = new ArrayList<ClientEntity>();
+
   @DatabaseField
   private Date autoAddDate;
 
   @ForeignCollectionField(eager = false)
   private final Collection<AlbumEntryEntity> entries = new ArrayList<AlbumEntryEntity>();
 
+  public AlbumEntity(final ArchiveEntity archive, final String name) {
+    this.archive = archive;
+    this.id = generateId(archive, name);
+    this.name = name;
+  }
+
   AlbumEntity() {
     id = null;
     archive = null;
-  }
-
-  public AlbumEntity(final ArchiveEntity archive, final String id) {
-    this.archive = archive;
-    this.id = id;
   }
 
   public ArchiveEntity getArchive() {
@@ -60,10 +66,6 @@ public class AlbumEntity {
 
   public void setAutoAddDate(final Date autoAddDate) {
     this.autoAddDate = autoAddDate;
-  }
-
-  public void setName(final String name) {
-    this.name = name;
   }
 
 }
