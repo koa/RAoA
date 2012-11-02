@@ -10,16 +10,13 @@ import com.j256.ormlite.table.DatabaseTable;
 
 @DatabaseTable(tableName = "albums")
 public class AlbumEntity {
-  public static String generateId(final ArchiveEntity archive, final String id) {
-    return archive.getName() + ":" + id;
-  }
 
-  @DatabaseField(foreign = true)
+  @DatabaseField(foreign = true, indexName = "name_index", uniqueIndex = true)
   private final ArchiveEntity archive;
-  @DatabaseField(canBeNull = false)
-  private String name;
-  @DatabaseField(id = true)
-  private final String id;
+  @DatabaseField(canBeNull = false, indexName = "name_index", uniqueIndex = true)
+  private final String name;
+  @DatabaseField(generatedId = true)
+  private int id;
   @ForeignCollectionField(eager = true)
   private final Collection<ClientEntity> interestingClients = new ArrayList<ClientEntity>();
 
@@ -31,13 +28,13 @@ public class AlbumEntity {
 
   public AlbumEntity(final ArchiveEntity archive, final String name) {
     this.archive = archive;
-    this.id = generateId(archive, name);
     this.name = name;
   }
 
   AlbumEntity() {
-    id = null;
+    id = -1;
     archive = null;
+    name = null;
   }
 
   public ArchiveEntity getArchive() {
@@ -52,7 +49,7 @@ public class AlbumEntity {
     return entries;
   }
 
-  public String getId() {
+  public int getId() {
     return id;
   }
 

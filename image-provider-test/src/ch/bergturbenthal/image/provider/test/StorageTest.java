@@ -19,24 +19,6 @@ import com.j256.ormlite.misc.TransactionManager;
 public class StorageTest extends AndroidTestCase {
   private AndroidConnectionSource connectionSource;
 
-  private <T> void clear(final RuntimeExceptionDao<T, ?> dao) {
-    for (final CloseableIterator<T> albumIter = dao.iterator(); albumIter.hasNext();) {
-      final T next = albumIter.next();
-      Log.i("CLEAR", "remove " + next);
-      dao.delete(next);
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  protected void setUp() throws Exception {
-    super.setUp();
-    connectionSource = DatabaseHelper.makeConnectionSource(getContext());
-    clear(RuntimeExceptionDao.<ArchiveEntity, String> createDao(connectionSource, ArchiveEntity.class));
-    clear(RuntimeExceptionDao.<AlbumEntity, String> createDao(connectionSource, AlbumEntity.class));
-    clear(RuntimeExceptionDao.<ClientEntity, String> createDao(connectionSource, ClientEntity.class));
-  }
-
   public void testHelloWorld() {
     System.out.println("Hello world");
   }
@@ -64,7 +46,6 @@ public class StorageTest extends AndroidTestCase {
         final AlbumEntity album = new AlbumEntity(archive, UUID.randomUUID().toString());
         final ClientEntity client = new ClientEntity(album, "test-client");
         album.getInterestingClients().add(client);
-        album.setName("TestAlbum");
         albumDao.create(album);
         clientDao.create(client);
         assertEquals(1, albumDao.queryForAll().size());
@@ -78,5 +59,23 @@ public class StorageTest extends AndroidTestCase {
         return null;
       }
     });
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  protected void setUp() throws Exception {
+    super.setUp();
+    connectionSource = DatabaseHelper.makeConnectionSource(getContext());
+    clear(RuntimeExceptionDao.<ArchiveEntity, String> createDao(connectionSource, ArchiveEntity.class));
+    clear(RuntimeExceptionDao.<AlbumEntity, String> createDao(connectionSource, AlbumEntity.class));
+    clear(RuntimeExceptionDao.<ClientEntity, String> createDao(connectionSource, ClientEntity.class));
+  }
+
+  private <T> void clear(final RuntimeExceptionDao<T, ?> dao) {
+    for (final CloseableIterator<T> albumIter = dao.iterator(); albumIter.hasNext();) {
+      final T next = albumIter.next();
+      Log.i("CLEAR", "remove " + next);
+      dao.delete(next);
+    }
   }
 }

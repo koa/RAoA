@@ -8,6 +8,7 @@ import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
@@ -122,10 +123,13 @@ public class SynchronisationService extends Service implements ResultListener {
     final boolean start = intent.getBooleanExtra("start", true);
     if (start) {
       dnsListener.startListening();
-      final Notification notification = new NotificationCompat.Builder(this).setContentTitle("Syncing").getNotification();
+      final Notification notification =
+                                        new NotificationCompat.Builder(this).setContentTitle("Syncing")
+                                                                            .setSmallIcon(android.R.drawable.ic_dialog_info).getNotification();
       notificationManager.notify(NOTIFICATION, notification);
     } else {
       dnsListener.stopListening();
+      notificationManager.cancel(NOTIFICATION);
     }
     return START_STICKY;
   }
@@ -195,8 +199,11 @@ public class SynchronisationService extends Service implements ResultListener {
                 archiveEntity = loadedArchive;
               final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
               for (final Entry<String, AlbumConnection> albumEntry : albums.entrySet()) {
-                final String dbId = AlbumEntity.generateId(archiveEntity, albumEntry.getKey());
-                if (!albumDao.idExists(dbId)) {
+                final Map<String, Object> valueMap = new HashMap<String, Object>();
+                valueMap.put("archive", albumEntry);
+                valueMap.put("name", albumEntry.getKey());
+                final List<AlbumEntity> foundEntries = albumDao.queryForFieldValues(valueMap);
+                if (foundEntries.isEmpty()) {
                   final AlbumEntity newAlbumEntity = new AlbumEntity(archiveEntity, albumEntry.getKey());
                   albumDao.create(newAlbumEntity);
                 }

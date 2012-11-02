@@ -17,7 +17,7 @@ import com.j256.ormlite.table.TableUtils;
 public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
 
   private static final String DATABASE_NAME = "images";
-  private static final int DATABASE_VERSION = 1;
+  private static final int DATABASE_VERSION = 2;
 
   private static Class<?>[] entities = new Class[] { ArchiveEntity.class, AlbumEntity.class, ClientEntity.class };
 
@@ -45,7 +45,7 @@ public class DatabaseHelper extends OrmLiteSqliteOpenHelper {
   public void onUpgrade(final SQLiteDatabase database, final ConnectionSource connectionSource, final int oldVersion, final int newVersion) {
     try {
       for (final Class<?> entityType : entities) {
-        TableUtils.dropTable(connectionSource, entityType, false);
+        TableUtils.dropTable(connectionSource, entityType, true);
       }
       onCreate(database, connectionSource);
     } catch (final SQLException e) {
