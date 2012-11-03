@@ -1,39 +1,46 @@
 package ch.bergturbenthal.image.provider.model;
 
+import com.j256.ormlite.field.DataType;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 
 @DatabaseTable(tableName = "album_entry")
 public class AlbumEntryEntity {
-  @DatabaseField(canBeNull = false)
+  @DatabaseField(canBeNull = false, indexName = "entry_name_index", uniqueIndex = true)
   private final String name;
-  @DatabaseField(id = true)
-  private final String id;
-  @DatabaseField(foreign = true)
+  @DatabaseField(generatedId = true)
+  private final int id = -1;
+  @DatabaseField(foreign = true, indexName = "entry_name_index", uniqueIndex = true)
   private final AlbumEntity album;
+  @DatabaseField(canBeNull = false, dataType = DataType.ENUM_STRING)
+  private final AlbumEntryType type;
 
-  protected AlbumEntryEntity() {
-    id = null;
-    name = null;
-    album = null;
+  public AlbumEntryEntity(final AlbumEntity album, final String name, final AlbumEntryType type) {
+    this.album = album;
+    this.name = name;
+    this.type = type;
   }
 
-  public AlbumEntryEntity(final AlbumEntity album, final String id, final String name) {
-    this.album = album;
-    this.id = id;
-    this.name = name;
+  protected AlbumEntryEntity() {
+    name = null;
+    album = null;
+    type = null;
   }
 
   public AlbumEntity getAlbum() {
     return album;
   }
 
-  public String getId() {
+  public int getId() {
     return id;
   }
 
   public String getName() {
     return name;
+  }
+
+  public AlbumEntryType getType() {
+    return type;
   }
 
 }

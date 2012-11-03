@@ -16,8 +16,9 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
     <application
+        android:debuggable="true"
         android:hardwareAccelerated="true"
-        android:label="RoyalArchive Provider" android:debuggable="true">
+        android:label="RoyalArchive Provider" >
         <receiver
             android:name=".service.NetworkReceiver"
             android:enabled="true" >
@@ -33,12 +34,17 @@
             android:enabled="true" >
         </service>
 
-     <!--    <activity android:name=".service.NetworkActivity" >
+        <activity android:name=".service.NetworkActivity" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity> -->
+        </activity>
+
+        <provider
+            android:name="RoyalArchiveContentProvider"
+            android:authorities="ch.bergturbenthal.image.provider" />
     </application>
 
 </manifest>

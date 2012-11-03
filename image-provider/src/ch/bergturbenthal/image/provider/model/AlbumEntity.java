@@ -19,12 +19,16 @@ public class AlbumEntity {
   private int id;
   @ForeignCollectionField(eager = true)
   private final Collection<ClientEntity> interestingClients = new ArrayList<ClientEntity>();
-
   @DatabaseField
   private Date autoAddDate;
-
+  @DatabaseField
+  private boolean syncThumbnails = false;
   @ForeignCollectionField(eager = false)
   private final Collection<AlbumEntryEntity> entries = new ArrayList<AlbumEntryEntity>();
+  @DatabaseField
+  private boolean shouldSync = false;
+  @DatabaseField
+  private boolean synced = false;
 
   public AlbumEntity(final ArchiveEntity archive, final String name) {
     this.archive = archive;
@@ -61,8 +65,32 @@ public class AlbumEntity {
     return name;
   }
 
+  public boolean getSyncThumbnails() {
+    return syncThumbnails;
+  }
+
+  public boolean isShouldSync() {
+    return shouldSync;
+  }
+
+  public boolean isSynced() {
+    return synced;
+  }
+
   public void setAutoAddDate(final Date autoAddDate) {
     this.autoAddDate = autoAddDate;
+  }
+
+  public void setShouldSync(final boolean shouldSync) {
+    this.shouldSync = shouldSync;
+  }
+
+  public void setSynced(final boolean isSynced) {
+    this.synced = isSynced;
+  }
+
+  public void setSyncThumbnails(final boolean syncThumbnails) {
+    this.syncThumbnails = syncThumbnails;
   }
 
 }

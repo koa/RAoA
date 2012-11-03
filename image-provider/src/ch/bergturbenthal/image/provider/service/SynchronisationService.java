@@ -13,7 +13,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.http.HttpStatus.Series;
@@ -38,8 +40,8 @@ import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
 import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.image.provider.util.ExecutorServiceUtil;
 
-import com.j256.ormlite.android.AndroidConnectionSource;
 import com.j256.ormlite.dao.RuntimeExceptionDao;
+import com.j256.ormlite.support.ConnectionSource;
 
 public class SynchronisationService extends Service implements ResultListener {
 
@@ -61,7 +63,8 @@ public class SynchronisationService extends Service implements ResultListener {
       return new DaoHolder(connectionSource);
     }
   };
-  private AndroidConnectionSource connectionSource;
+  private ConnectionSource connectionSource;
+  private ScheduledFuture<?> pollingFuture = null;
 
   @Override
   public void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints) {
@@ -115,23 +118,31 @@ public class SynchronisationService extends Service implements ResultListener {
     executorService.shutdownNow();
     notificationManager.cancel(NOTIFICATION);
     dnsListener.stopListening();
+    stopPolling();
   }
 
   @Override
   public int onStartCommand(final Intent intent, final int flags, final int startId) {
     Log.i(SERVICE_TAG, "Synchronisation started " + this);
-    final boolean start = intent.getBooleanExtra("start", true);
+    final boolean start = intent == null || intent.getBooleanExtra("start", true);
     if (start) {
       dnsListener.startListening();
       final Notification notification =
                                         new NotificationCompat.Builder(this).setContentTitle("Syncing")
                                                                             .setSmallIcon(android.R.drawable.ic_dialog_info).getNotification();
       notificationManager.notify(NOTIFICATION, notification);
+      startPolling();
+      return START_STICKY;
     } else {
       dnsListener.stopListening();
       notificationManager.cancel(NOTIFICATION);
+      stopPolling();
+      return START_STICKY;
     }
-    return START_STICKY;
+  }
+
+  private <V> V callInTransaction(final Callable<V> callable) {
+    return transactionManager.get().callInTransaction(callable);
   }
 
   private RuntimeExceptionDao<AlbumEntity, String> getAlbumDao() {
@@ -156,7 +167,12 @@ public class SynchronisationService extends Service implements ResultListener {
       try {
         final ResponseEntity<PingResponse> entity = restTemplate.getForEntity(url + "/ping.json", PingResponse.class);
         final boolean pingOk = entity.getStatusCode().series() == Series.SUCCESSFUL;
-        return entity.getBody();
+        if (pingOk)
+          return entity.getBody();
+        else {
+          Log.i(SERVICE_TAG, "Error connecting Service at " + url + ", " + entity.getStatusCode() + " " + entity.getStatusCode().getReasonPhrase());
+          return null;
+        }
       } catch (final ResourceAccessException ex) {
         final Throwable cause = ex.getCause();
         if (cause != null && cause instanceof ConnectException) {
@@ -177,12 +193,28 @@ public class SynchronisationService extends Service implements ResultListener {
     }
   }
 
+  private synchronized void startPolling() {
+    pollingFuture = executorService.scheduleWithFixedDelay(new Runnable() {
+      @Override
+      public void run() {
+        updateAlbumsOnDB();
+      }
+    }, 10, 20, TimeUnit.MINUTES);
+
+  }
+
+  private synchronized void stopPolling() {
+    if (pollingFuture != null)
+      pollingFuture.cancel(false);
+    pollingFuture = null;
+  }
+
   private void updateAlbumsOnDB() {
     wrappedExecutorService.execute(new Runnable() {
 
       @Override
       public void run() {
-        transactionManager.get().callInTransaction(new Callable<Void>() {
+        callInTransaction(new Callable<Void>() {
 
           @Override
           public Void call() throws Exception {
@@ -206,6 +238,7 @@ public class SynchronisationService extends Service implements ResultListener {
                 if (foundEntries.isEmpty()) {
                   final AlbumEntity newAlbumEntity = new AlbumEntity(archiveEntity, albumEntry.getKey());
                   albumDao.create(newAlbumEntity);
+                  Log.i("TAG", "Album-Id: " + newAlbumEntity.getId());
                 }
               }
             }

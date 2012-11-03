@@ -12,6 +12,7 @@ public class NetworkActivity extends Activity {
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+
     // Registers BroadcastReceiver to track network connection changes.
     final IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
     receiver = new NetworkReceiver();
