@@ -232,13 +232,12 @@ public class SynchronisationService extends Service implements ResultListener {
               final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
               for (final Entry<String, AlbumConnection> albumEntry : albums.entrySet()) {
                 final Map<String, Object> valueMap = new HashMap<String, Object>();
-                valueMap.put("archive", albumEntry);
+                valueMap.put("archive_id", albumEntry);
                 valueMap.put("name", albumEntry.getKey());
                 final List<AlbumEntity> foundEntries = albumDao.queryForFieldValues(valueMap);
                 if (foundEntries.isEmpty()) {
                   final AlbumEntity newAlbumEntity = new AlbumEntity(archiveEntity, albumEntry.getKey());
                   albumDao.create(newAlbumEntity);
-                  Log.i("TAG", "Album-Id: " + newAlbumEntity.getId());
                 }
               }
             }

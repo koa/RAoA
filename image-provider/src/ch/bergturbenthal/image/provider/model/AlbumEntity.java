@@ -11,9 +11,9 @@ import com.j256.ormlite.table.DatabaseTable;
 @DatabaseTable(tableName = "albums")
 public class AlbumEntity {
 
-  @DatabaseField(foreign = true, indexName = "name_index", uniqueIndex = true)
+  @DatabaseField(foreign = true, uniqueIndexName = "name_index")
   private final ArchiveEntity archive;
-  @DatabaseField(canBeNull = false, indexName = "name_index", uniqueIndex = true)
+  @DatabaseField(canBeNull = false, uniqueIndexName = "name_index")
   private final String name;
   @DatabaseField(generatedId = true)
   private int id;

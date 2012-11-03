@@ -4,7 +4,7 @@
 
   <uses-sdk android:minSdkVersion="15" android:targetSdkVersion="15"/>
   <instrumentation android:name="android.test.InstrumentationTestRunner" android:targetPackage="ch.bergturbenthal.image.provider.test"></instrumentation>
-  <application android:label="Image Provider Test">
+  <application android:label="Image Provider Test" android:debuggable="true">
       <uses-library android:name="android.test.runner"/>
   </application>
 

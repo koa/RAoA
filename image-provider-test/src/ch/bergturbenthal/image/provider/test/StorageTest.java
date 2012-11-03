@@ -19,10 +19,6 @@ import com.j256.ormlite.misc.TransactionManager;
 public class StorageTest extends AndroidTestCase {
   private AndroidConnectionSource connectionSource;
 
-  public void testHelloWorld() {
-    System.out.println("Hello world");
-  }
-
   public void testStoreAlbum() throws SQLException {
 
     final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = RuntimeExceptionDao.createDao(connectionSource, ArchiveEntity.class);
