@@ -49,6 +49,7 @@ import com.j256.ormlite.support.ConnectionSource;
 
 public class SynchronisationService extends Service implements ResultListener {
 
+  private static final String UPDATE_DB_NOTIFICATION = "UpdateDb";
   private final int NOTIFICATION = R.string.synchronisation_service_started;
   private final static String SERVICE_TAG = "Synchronisation Service";
 
@@ -236,58 +237,70 @@ public class SynchronisationService extends Service implements ResultListener {
 
       @Override
       public void run() {
-        callInTransaction(new Callable<Void>() {
+        try {
+          final Notification.Builder builder = new Notification.Builder(getApplicationContext());
+          builder.setContentTitle("DB Update").setSmallIcon(android.R.drawable.ic_dialog_info).setContentText("Download in progress");
+          notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
+          callInTransaction(new Callable<Void>() {
 
-          @Override
-          public Void call() throws Exception {
-            final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
-            final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-            final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
-            for (final Entry<String, ArchiveConnection> archive : connectionMap.get().entrySet()) {
-              final String archiveName = archive.getKey();
-              final ArchiveEntity loadedArchive = archiveDao.queryForId(archiveName);
-              ArchiveEntity archiveEntity;
-              if (loadedArchive == null) {
-                archiveEntity = new ArchiveEntity(archiveName);
-                archiveDao.create(archiveEntity);
-              } else
-                archiveEntity = loadedArchive;
-              final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
-              for (final Entry<String, AlbumConnection> albumEntry : albums.entrySet()) {
-                final AlbumConnection albumConnection = albumEntry.getValue();
-                final AlbumDetail albumDetail = albumConnection.getAlbumDetail();
-                final String name = albumEntry.getKey();
-                final List<AlbumEntity> foundEntries = findAlbumByArchiveAndName(archiveEntity, name);
-                final AlbumEntity albumEntity;
-                if (foundEntries.isEmpty()) {
-                  albumEntity = new AlbumEntity(archiveEntity, name);
-                  albumEntity.setAutoAddDate(albumDetail.getAutoAddDate());
-                  albumDao.create(albumEntity);
-                } else {
-                  albumEntity = foundEntries.get(0);
-                  albumEntity.setAutoAddDate(albumDetail.getAutoAddDate());
-                  albumDao.update(albumEntity);
-                }
-                final Collection<AlbumEntryEntity> entries = albumEntity.getEntries();
-                final Map<String, AlbumEntryEntity> existingEntries = new HashMap<String, AlbumEntryEntity>();
-                for (final AlbumEntryEntity albumEntryEntity : entries) {
-                  existingEntries.put(albumEntryEntity.getName(), albumEntryEntity);
-                }
-                for (final AlbumImageEntry albumImage : albumDetail.getImages()) {
-                  final AlbumEntryEntity existingEntry = existingEntries.get(albumImage.getName());
-                  if (existingEntry == null) {
-                    final AlbumEntryEntity albumEntryEntity =
-                                                              new AlbumEntryEntity(albumEntity, albumImage.getName(),
-                                                                                   albumImage.isVideo() ? AlbumEntryType.VIDEO : AlbumEntryType.IMAGE);
-                    albumEntryDao.create(albumEntryEntity);
+            @Override
+            public Void call() throws Exception {
+              final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
+              final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+              final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
+              for (final Entry<String, ArchiveConnection> archive : connectionMap.get().entrySet()) {
+                final String archiveName = archive.getKey();
+                builder.setContentText("Downloading from " + archiveName);
+                final ArchiveEntity loadedArchive = archiveDao.queryForId(archiveName);
+                ArchiveEntity archiveEntity;
+                if (loadedArchive == null) {
+                  archiveEntity = new ArchiveEntity(archiveName);
+                  archiveDao.create(archiveEntity);
+                } else
+                  archiveEntity = loadedArchive;
+                final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
+                int albumCounter = 0;
+                for (final Entry<String, AlbumConnection> albumEntry : albums.entrySet()) {
+                  builder.setProgress(albums.size(), albumCounter++, false);
+                  notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
+                  final AlbumConnection albumConnection = albumEntry.getValue();
+                  final AlbumDetail albumDetail = albumConnection.getAlbumDetail();
+                  final String name = albumEntry.getKey();
+                  final List<AlbumEntity> foundEntries = findAlbumByArchiveAndName(archiveEntity, name);
+                  final AlbumEntity albumEntity;
+                  if (foundEntries.isEmpty()) {
+                    albumEntity = new AlbumEntity(archiveEntity, name);
+                    albumEntity.setAutoAddDate(albumDetail.getAutoAddDate());
+                    albumDao.create(albumEntity);
+                  } else {
+                    albumEntity = foundEntries.get(0);
+                    albumEntity.setAutoAddDate(albumDetail.getAutoAddDate());
+                    albumDao.update(albumEntity);
+                  }
+                  final Collection<AlbumEntryEntity> entries = albumEntity.getEntries();
+                  final Map<String, AlbumEntryEntity> existingEntries = new HashMap<String, AlbumEntryEntity>();
+                  for (final AlbumEntryEntity albumEntryEntity : entries) {
+                    existingEntries.put(albumEntryEntity.getName(), albumEntryEntity);
+                  }
+                  for (final AlbumImageEntry albumImage : albumDetail.getImages()) {
+                    final AlbumEntryEntity existingEntry = existingEntries.get(albumImage.getName());
+                    if (existingEntry == null) {
+                      final AlbumEntryEntity albumEntryEntity =
+                                                                new AlbumEntryEntity(albumEntity, albumImage.getName(),
+                                                                                     albumImage.isVideo() ? AlbumEntryType.VIDEO
+                                                                                                         : AlbumEntryType.IMAGE);
+                      albumEntryDao.create(albumEntryEntity);
+                    }
                   }
                 }
               }
+              return null;
             }
-            return null;
-          }
 
-        });
+          });
+        } finally {
+          notificationManager.cancel(UPDATE_DB_NOTIFICATION, NOTIFICATION);
+        }
       }
     });
   }
