@@ -94,7 +94,6 @@ public class ArchiveContentProvider extends ContentProvider {
         final RuntimeExceptionDao<AlbumEntity, String> albumDao = transactionManager.get().getDao(AlbumEntity.class);
         final QueryBuilder<AlbumEntity, String> queryBuilder = albumDao.queryBuilder();
 
-        final String[] queryingProjection = projection == null ? Data.Album.ALL_COLUMNS : projection;
         final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
         fieldReaders.put(Data.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
           @Override
@@ -103,15 +102,7 @@ public class ArchiveContentProvider extends ContentProvider {
           }
         });
 
-        // final List<AlbumEntity> albums = albumDao.queryForAll();
-        // final MatrixCursor matrixCursor = new MatrixCursor(new String[] {
-        // Data.Album.ID, Data.Album.NAME, Data.Album.ARCHIVE_NAME });
-        // for (final AlbumEntity albumEntity : albums) {
-        // matrixCursor.addRow(new Object[] { albumEntity.getId(),
-        // albumEntity.getName(), albumEntity.getArchive().getName() });
-        // }
-        return new EntityCursor<AlbumEntity>(queryBuilder, queryingProjection, fieldReaders);
-        // return matrixCursor;
+        return new EntityCursor<AlbumEntity>(queryBuilder, projection, fieldReaders);
 
       default:
         break;

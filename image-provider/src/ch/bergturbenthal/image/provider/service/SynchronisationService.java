@@ -31,9 +31,13 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
+import ch.bergturbenthal.image.data.model.AlbumDetail;
+import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.provider.R;
 import ch.bergturbenthal.image.provider.model.AlbumEntity;
+import ch.bergturbenthal.image.provider.model.AlbumEntryEntity;
+import ch.bergturbenthal.image.provider.model.AlbumEntryType;
 import ch.bergturbenthal.image.provider.model.ArchiveEntity;
 import ch.bergturbenthal.image.provider.orm.DaoHolder;
 import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
@@ -145,8 +149,26 @@ public class SynchronisationService extends Service implements ResultListener {
     return transactionManager.get().callInTransaction(callable);
   }
 
-  private RuntimeExceptionDao<AlbumEntity, String> getAlbumDao() {
+  private List<AlbumEntity> findAlbumByArchiveAndName(final ArchiveEntity archiveEntity, final String name) {
+    final Map<String, Object> valueMap = new HashMap<String, Object>();
+    valueMap.put("archive_id", archiveEntity);
+    valueMap.put("name", name);
+    return getAlbumDao().queryForFieldValues(valueMap);
+  }
+
+  private List<AlbumEntryEntity> findAlbumEntryByAlbumAndName(final AlbumEntity albumEntity, final String name) {
+    final Map<String, Object> valueMap = new HashMap<String, Object>();
+    valueMap.put("album_id", albumEntity);
+    valueMap.put("name", name);
+    return getAlbumEntryDao().queryForFieldValues(valueMap);
+  }
+
+  private RuntimeExceptionDao<AlbumEntity, Integer> getAlbumDao() {
     return transactionManager.get().getDao(AlbumEntity.class);
+  }
+
+  private RuntimeExceptionDao<AlbumEntryEntity, Integer> getAlbumEntryDao() {
+    return transactionManager.get().getDao(AlbumEntryEntity.class);
   }
 
   private RuntimeExceptionDao<ArchiveEntity, String> getArchiveDao() {
@@ -219,7 +241,8 @@ public class SynchronisationService extends Service implements ResultListener {
           @Override
           public Void call() throws Exception {
             final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
-            final RuntimeExceptionDao<AlbumEntity, String> albumDao = getAlbumDao();
+            final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+            final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
             for (final Entry<String, ArchiveConnection> archive : connectionMap.get().entrySet()) {
               final String archiveName = archive.getKey();
               final ArchiveEntity loadedArchive = archiveDao.queryForId(archiveName);
@@ -231,18 +254,39 @@ public class SynchronisationService extends Service implements ResultListener {
                 archiveEntity = loadedArchive;
               final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
               for (final Entry<String, AlbumConnection> albumEntry : albums.entrySet()) {
-                final Map<String, Object> valueMap = new HashMap<String, Object>();
-                valueMap.put("archive_id", albumEntry);
-                valueMap.put("name", albumEntry.getKey());
-                final List<AlbumEntity> foundEntries = albumDao.queryForFieldValues(valueMap);
+                final AlbumConnection albumConnection = albumEntry.getValue();
+                final AlbumDetail albumDetail = albumConnection.getAlbumDetail();
+                final String name = albumEntry.getKey();
+                final List<AlbumEntity> foundEntries = findAlbumByArchiveAndName(archiveEntity, name);
+                final AlbumEntity albumEntity;
                 if (foundEntries.isEmpty()) {
-                  final AlbumEntity newAlbumEntity = new AlbumEntity(archiveEntity, albumEntry.getKey());
-                  albumDao.create(newAlbumEntity);
+                  albumEntity = new AlbumEntity(archiveEntity, name);
+                  albumEntity.setAutoAddDate(albumDetail.getAutoAddDate());
+                  albumDao.create(albumEntity);
+                } else {
+                  albumEntity = foundEntries.get(0);
+                  albumEntity.setAutoAddDate(albumDetail.getAutoAddDate());
+                  albumDao.update(albumEntity);
+                }
+                final Collection<AlbumEntryEntity> entries = albumEntity.getEntries();
+                final Map<String, AlbumEntryEntity> existingEntries = new HashMap<String, AlbumEntryEntity>();
+                for (final AlbumEntryEntity albumEntryEntity : entries) {
+                  existingEntries.put(albumEntryEntity.getName(), albumEntryEntity);
+                }
+                for (final AlbumImageEntry albumImage : albumDetail.getImages()) {
+                  final AlbumEntryEntity existingEntry = existingEntries.get(albumImage.getName());
+                  if (existingEntry == null) {
+                    final AlbumEntryEntity albumEntryEntity =
+                                                              new AlbumEntryEntity(albumEntity, albumImage.getName(),
+                                                                                   albumImage.isVideo() ? AlbumEntryType.VIDEO : AlbumEntryType.IMAGE);
+                    albumEntryDao.create(albumEntryEntity);
+                  }
                 }
               }
             }
             return null;
           }
+
         });
       }
     });

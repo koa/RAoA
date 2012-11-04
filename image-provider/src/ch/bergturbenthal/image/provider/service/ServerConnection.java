@@ -19,7 +19,11 @@ import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
 
-public class ServerConnecion {
+public class ServerConnection {
+  private static interface ConnectionCallable<V> {
+    ResponseEntity<V> call(URL baseUrl) throws Exception;
+  }
+
   private String instanceId;
   private final AtomicReference<Collection<URL>> connections = new AtomicReference<Collection<URL>>(Collections.<URL> emptyList());
   private final RestTemplate restTemplate = new RestTemplate(true);
@@ -33,28 +37,24 @@ public class ServerConnecion {
 
     @Override
     public AlbumDetail listAlbumContent(final String albumid) {
-      // TODO Auto-generated method stub
-      return null;
+      return call(new ConnectionCallable<AlbumDetail>() {
+
+        @Override
+        public ResponseEntity<AlbumDetail> call(final URL baseUrl) throws Exception {
+          return restTemplate.getForEntity(baseUrl.toExternalForm() + "/albums/" + albumid + ".json", AlbumDetail.class);
+        }
+      });
     }
 
     @Override
     public AlbumList listAlbums() {
-      Throwable t = null;
-      for (final URL connection : connections.get()) {
-        try {
-          final ResponseEntity<AlbumList> response = restTemplate.getForEntity(connection.toExternalForm() + "/albums.json", AlbumList.class);
-          if (response.hasBody())
-            return response.getBody();
-        } catch (final Throwable ex) {
-          if (t != null)
-            Log.w("Server-connection", "Exception while calling server " + instanceId, t);
-          t = ex;
+      return call(new ConnectionCallable<AlbumList>() {
+
+        @Override
+        public ResponseEntity<AlbumList> call(final URL baseUrl) throws Exception {
+          return restTemplate.getForEntity(baseUrl.toExternalForm() + "/albums.json", AlbumList.class);
         }
-      }
-      if (t != null)
-        throw new RuntimeException("Cannot connect to server " + instanceId, t);
-      else
-        throw new RuntimeException("Cannot connect to server " + instanceId + ", no valid connection found");
+      });
     }
 
     @Override
@@ -82,6 +82,10 @@ public class ServerConnecion {
     }
   };
 
+  public AlbumDetail getAlbumDetail(final String albumId) {
+    return album.listAlbumContent(albumId);
+  }
+
   public String getInstanceId() {
     return instanceId;
   }
@@ -101,5 +105,25 @@ public class ServerConnecion {
 
   public void updateServerConnections(final Collection<URL> value) {
     connections.set(value);
+  }
+
+  private <V> V call(final ConnectionCallable<V> callable) {
+    Throwable t = null;
+    for (final URL connection : connections.get()) {
+      try {
+        final ResponseEntity<V> response;
+        response = callable.call(connection);
+        if (response.hasBody())
+          return response.getBody();
+      } catch (final Throwable ex) {
+        if (t != null)
+          Log.w("Server-connection", "Exception while calling server " + instanceId, t);
+        t = ex;
+      }
+    }
+    if (t != null)
+      throw new RuntimeException("Cannot connect to server " + instanceId, t);
+    else
+      throw new RuntimeException("Cannot connect to server " + instanceId + ", no valid connection found");
   }
 }

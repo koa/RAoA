@@ -6,11 +6,11 @@ import com.j256.ormlite.table.DatabaseTable;
 
 @DatabaseTable(tableName = "album_entry")
 public class AlbumEntryEntity {
-  @DatabaseField(canBeNull = false, indexName = "entry_name_index", uniqueIndex = true)
+  @DatabaseField(canBeNull = false, uniqueIndexName = "entry_name_index")
   private final String name;
   @DatabaseField(generatedId = true)
   private final int id = -1;
-  @DatabaseField(foreign = true, indexName = "entry_name_index", uniqueIndex = true)
+  @DatabaseField(foreign = true, uniqueIndexName = "entry_name_index")
   private final AlbumEntity album;
   @DatabaseField(canBeNull = false, dataType = DataType.ENUM_STRING)
   private final AlbumEntryType type;

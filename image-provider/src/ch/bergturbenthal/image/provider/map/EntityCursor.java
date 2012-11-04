@@ -1,6 +1,7 @@
 package ch.bergturbenthal.image.provider.map;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -21,11 +22,13 @@ public class EntityCursor<V> extends AbstractCursor {
   private int calculatedCount = -1;
 
   public EntityCursor(final QueryBuilder<V, String> queryBuilder, final String[] queryingProjection, final Map<String, FieldReader<V>> fieldReaders)
-                                                                                                                                                    throws java.sql.SQLException {
-    final List<String> queryingProjectionList = new ArrayList<String>(queryingProjection.length);
-    final List<FieldReader<V>> fieldReaderList = new ArrayList<FieldReader<V>>(queryingProjection.length);
-    for (int i = 0; i < queryingProjection.length; i++) {
-      final String columnName = queryingProjection[i];
+
+  throws java.sql.SQLException {
+
+    final List<String> queryingProjectionList = new ArrayList<String>();
+    final List<FieldReader<V>> fieldReaderList = new ArrayList<FieldReader<V>>();
+    final List<String> fieldList = queryingProjection == null ? new ArrayList<String>(fieldReaders.keySet()) : Arrays.asList(queryingProjection);
+    for (final String columnName : fieldList) {
       final FieldReader<V> fieldReader = fieldReaders.get(columnName);
       if (fieldReader == null) {
         Log.i(TAG, "no field Reader for field " + columnName);

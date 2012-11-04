@@ -14,13 +14,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
+import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.PingResponse;
 
 public class ArchiveConnection {
+  private static interface ServerConnectionCallable<V> {
+    V callServer(ServerConnection connection, String albumId);
+  }
+
   private final String archiveId;
-  private final AtomicReference<Map<String, ServerConnecion>> serverConnections =
-                                                                                  new AtomicReference<Map<String, ServerConnecion>>(
-                                                                                                                                    Collections.<String, ServerConnecion> emptyMap());
+  private final AtomicReference<Map<String, ServerConnection>> serverConnections =
+                                                                                   new AtomicReference<Map<String, ServerConnection>>(
+                                                                                                                                      Collections.<String, ServerConnection> emptyMap());
   private final ExecutorService executorService;
 
   public ArchiveConnection(final String archiveId, final ExecutorService executorService) {
@@ -31,7 +36,7 @@ public class ArchiveConnection {
   public Map<String, AlbumConnection> listAlbums() {
     final Map<String, Future<Map<String, String>>> results = new HashMap<String, Future<Map<String, String>>>();
     // submit all queries
-    for (final Entry<String, ServerConnecion> connectionEntry : serverConnections.get().entrySet()) {
+    for (final Entry<String, ServerConnection> connectionEntry : serverConnections.get().entrySet()) {
       results.put(connectionEntry.getKey(), executorService.submit(new Callable<Map<String, String>>() {
         @Override
         public Map<String, String> call() throws Exception {
@@ -65,6 +70,17 @@ public class ArchiveConnection {
         public Collection<String> connectedServers() {
           return connections.values();
         }
+
+        @Override
+        public AlbumDetail getAlbumDetail() {
+          for (final Entry<String, String> connectionEntry : connections.entrySet()) {
+            final String serverId = connectionEntry.getKey();
+            final String albumId = connectionEntry.getValue();
+            final ServerConnection serverConnection = serverConnections.get().get(serverId);
+            return serverConnection.getAlbumDetail(albumId);
+          }
+          return null;
+        }
       });
     }
     return albumConnections;
@@ -81,11 +97,11 @@ public class ArchiveConnection {
       }
     }
 
-    final HashMap<String, ServerConnecion> newConnections = new HashMap<String, ServerConnecion>();
-    final Map<String, ServerConnecion> oldConnections = serverConnections.get();
+    final HashMap<String, ServerConnection> newConnections = new HashMap<String, ServerConnection>();
+    final Map<String, ServerConnection> oldConnections = serverConnections.get();
     for (final Entry<String, Collection<URL>> connectionEntry : connectionsByServer.entrySet()) {
       final String serverId = connectionEntry.getKey();
-      final ServerConnecion connection = oldConnections.containsKey(serverId) ? oldConnections.get(serverId) : new ServerConnecion();
+      final ServerConnection connection = oldConnections.containsKey(serverId) ? oldConnections.get(serverId) : new ServerConnection();
       connection.updateServerConnections(connectionEntry.getValue());
       newConnections.put(serverId, connection);
     }
