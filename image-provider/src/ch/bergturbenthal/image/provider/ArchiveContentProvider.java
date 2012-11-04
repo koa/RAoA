@@ -1,8 +1,6 @@
 package ch.bergturbenthal.image.provider;
 
 import java.io.FileNotFoundException;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
 import android.content.ContentProvider;
@@ -13,6 +11,9 @@ import android.database.SQLException;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
+import ch.bergturbenthal.image.provider.map.FieldReader;
+import ch.bergturbenthal.image.provider.map.MapperUtil;
+import ch.bergturbenthal.image.provider.map.StringFieldReader;
 import ch.bergturbenthal.image.provider.model.AlbumEntity;
 import ch.bergturbenthal.image.provider.orm.DaoHolder;
 import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
@@ -25,73 +26,6 @@ import com.j256.ormlite.stmt.QueryBuilder;
 import com.j256.ormlite.support.ConnectionSource;
 
 public class ArchiveContentProvider extends ContentProvider {
-  public abstract class BooleanFieldReader<V> extends NumericFieldReader<V> {
-    public BooleanFieldReader() {
-      super(Cursor.FIELD_TYPE_INTEGER);
-      // TODO Auto-generated constructor stub
-    }
-
-    public abstract Boolean getBooleanValue(V value);
-
-    @Override
-    public Number getNumber(final V value) {
-      final Boolean booleanValue = getBooleanValue(value);
-      if (booleanValue == null)
-        return null;
-      return Integer.valueOf(booleanValue.booleanValue() ? 1 : 0);
-    }
-  }
-
-  public static interface FieldReader<V> {
-    Number getNumber(V value);
-
-    String getString(V value);
-
-    int getType();
-
-    boolean isNull(V value);
-  }
-
-  public abstract class NumericFieldReader<V> implements FieldReader<V> {
-    final int type;
-
-    public NumericFieldReader(final int type) {
-      this.type = type;
-    }
-
-    @Override
-    public String getString(final V value) {
-      return getNumber(value).toString();
-    }
-
-    @Override
-    public int getType() {
-      return type;
-    }
-
-    @Override
-    public boolean isNull(final V value) {
-      return getNumber(value) == null;
-    }
-  }
-
-  public abstract class StringFieldReader<V> implements FieldReader<V> {
-    @Override
-    public Number getNumber(final V value) {
-      throw new IllegalArgumentException("Cannot read Number of a string field");
-    }
-
-    @Override
-    public int getType() {
-      return Cursor.FIELD_TYPE_STRING;
-    }
-
-    @Override
-    public boolean isNull(final V value) {
-      return getString(value) == null;
-    }
-  }
-
   public static enum UriType {
     @Path("albums")
     ALBUM_LIST,
@@ -99,6 +33,114 @@ public class ArchiveContentProvider extends ContentProvider {
     ALBUM_ENTRY,
     @Path("albums/#/thumbnail")
     THUMBNAIL_ENTRY
+  }
+
+  private static class EntityCursor<V> extends AbstractCursor {
+    private final String[] queryingProjection;
+    private final QueryBuilder<V, String> queryBuilder;
+    private final FieldReader<V>[] fieldReaders;
+    private final CloseableIterator<V> dataIterator;
+    private V currentEntry = null;
+    private int calculatedCount = -1;
+
+    public EntityCursor(final String[] queryingProjection, final QueryBuilder<V, String> queryBuilder, final Map<String, FieldReader<V>> fieldReaders)
+                                                                                                                                                      throws java.sql.SQLException {
+      this.queryingProjection = queryingProjection;
+      this.queryBuilder = queryBuilder;
+      this.dataIterator = queryBuilder.iterator();
+      this.fieldReaders = new FieldReader[queryingProjection.length];
+      for (int i = 0; i < queryingProjection.length; i++) {
+        final FieldReader<V> fieldReader = fieldReaders.get(queryingProjection[i]);
+        if (fieldReader == null) {
+          throw new RuntimeException("no field Reader for field " + queryingProjection[i]);
+        }
+        this.fieldReaders[i] = fieldReader;
+      }
+    }
+
+    @Override
+    public String[] getColumnNames() {
+      return queryingProjection;
+    }
+
+    @Override
+    public synchronized int getCount() {
+      if (calculatedCount < 0) {
+        try {
+          calculatedCount = Integer.parseInt(queryBuilder.setCountOf(true).queryRawFirst()[0]);
+        } catch (final Throwable e) {
+          throw new RuntimeException("Cannot count results", e);
+        }
+        // TODO Auto-generated method stub
+      }
+      return calculatedCount;
+    }
+
+    @Override
+    public double getDouble(final int column) {
+      return getFieldReader(column).getNumber(currentEntry).doubleValue();
+    }
+
+    @Override
+    public float getFloat(final int column) {
+      return getFieldReader(column).getNumber(currentEntry).floatValue();
+    }
+
+    @Override
+    public int getInt(final int column) {
+      return getFieldReader(column).getNumber(currentEntry).intValue();
+    }
+
+    @Override
+    public long getLong(final int column) {
+      return getFieldReader(column).getNumber(currentEntry).longValue();
+    }
+
+    @Override
+    public short getShort(final int column) {
+      return getFieldReader(column).getNumber(currentEntry).shortValue();
+    }
+
+    @Override
+    public String getString(final int column) {
+      return getFieldReader(column).getString(currentEntry);
+    }
+
+    @Override
+    public int getType(final int column) {
+      final FieldReader<V> fieldReader = getFieldReader(column);
+      if (fieldReader.isNull(currentEntry))
+        return Cursor.FIELD_TYPE_NULL;
+      return fieldReader.getType();
+    }
+
+    @Override
+    public boolean isNull(final int column) {
+      return getFieldReader(column).isNull(currentEntry);
+    }
+
+    @Override
+    public boolean onMove(final int oldPosition, final int newPosition) {
+      if (oldPosition == newPosition)
+        return true;
+      if (oldPosition + 1 == newPosition) {
+        if (!dataIterator.hasNext())
+          return false;
+        currentEntry = dataIterator.next();
+        return true;
+      }
+      try {
+        currentEntry = dataIterator.moveRelative(newPosition - oldPosition);
+        return true;
+      } catch (final java.sql.SQLException e) {
+        Log.e(TAG, "Cannot move to " + newPosition, e);
+      }
+      return false;
+    }
+
+    private FieldReader<V> getFieldReader(final int column) {
+      return fieldReaders[column];
+    }
   }
 
   private static final String TAG = "Content Provider";
@@ -162,45 +204,11 @@ public class ArchiveContentProvider extends ContentProvider {
         final QueryBuilder<AlbumEntity, String> queryBuilder = albumDao.queryBuilder();
 
         final String[] queryingProjection = projection == null ? Data.Album.ALL_COLUMNS : projection;
-        final Map<String, FieldReader<AlbumEntity>> fieldReaders = new HashMap<String, ArchiveContentProvider.FieldReader<AlbumEntity>>();
+        final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
         fieldReaders.put(Data.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
           @Override
           public String getString(final AlbumEntity value) {
             return value.getArchive().getName();
-          }
-        });
-        fieldReaders.put(Data.Album.AUTOADD_DATE, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
-          @Override
-          public Number getNumber(final AlbumEntity value) {
-            final Date autoAddDate = value.getAutoAddDate();
-            if (autoAddDate == null)
-              return null;
-            return Long.valueOf(autoAddDate.getTime());
-          }
-        });
-        fieldReaders.put(Data.Album.ID, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
-          @Override
-          public Number getNumber(final AlbumEntity value) {
-            return Integer.valueOf(value.getId());
-          }
-        });
-        fieldReaders.put(Data.Album.NAME, new StringFieldReader<AlbumEntity>() {
-          @Override
-          public String getString(final AlbumEntity value) {
-            return value.getName();
-          }
-        });
-        fieldReaders.put(Data.Album.SHOULD_SYNC, new BooleanFieldReader<AlbumEntity>() {
-          @Override
-          public Boolean getBooleanValue(final AlbumEntity value) {
-            return value.isShouldSync();
-          }
-        });
-        fieldReaders.put(Data.Album.SYNCED, new BooleanFieldReader<AlbumEntity>() {
-
-          @Override
-          public Boolean getBooleanValue(final AlbumEntity value) {
-            return value.isSynced();
           }
         });
 
@@ -212,92 +220,7 @@ public class ArchiveContentProvider extends ContentProvider {
         // albumEntity.getName(), albumEntity.getArchive().getName() });
         // }
         final CloseableIterator<AlbumEntity> dataIterator = queryBuilder.iterator();
-        return new AbstractCursor() {
-
-          private AlbumEntity currentEntry = null;
-          private int calculatedCount = -1;
-
-          @Override
-          public String[] getColumnNames() {
-            return queryingProjection;
-          }
-
-          @Override
-          public synchronized int getCount() {
-            if (calculatedCount < 0) {
-              try {
-                calculatedCount = Integer.parseInt(queryBuilder.setCountOf(true).queryRawFirst()[0]);
-              } catch (final Throwable e) {
-                throw new RuntimeException("Cannot count results", e);
-              }
-              // TODO Auto-generated method stub
-            }
-            return calculatedCount;
-          }
-
-          @Override
-          public double getDouble(final int column) {
-            return fieldReaders.get(queryingProjection[column]).getNumber(currentEntry).doubleValue();
-          }
-
-          @Override
-          public float getFloat(final int column) {
-            return fieldReaders.get(queryingProjection[column]).getNumber(currentEntry).floatValue();
-          }
-
-          @Override
-          public int getInt(final int column) {
-            return fieldReaders.get(queryingProjection[column]).getNumber(currentEntry).intValue();
-          }
-
-          @Override
-          public long getLong(final int column) {
-            return fieldReaders.get(queryingProjection[column]).getNumber(currentEntry).longValue();
-          }
-
-          @Override
-          public short getShort(final int column) {
-            return fieldReaders.get(queryingProjection[column]).getNumber(currentEntry).shortValue();
-          }
-
-          @Override
-          public String getString(final int column) {
-            return fieldReaders.get(queryingProjection[column]).getString(currentEntry);
-          }
-
-          @Override
-          public int getType(final int column) {
-            final FieldReader<AlbumEntity> fieldReader = fieldReaders.get(queryingProjection[column]);
-            if (fieldReader.isNull(currentEntry))
-              return Cursor.FIELD_TYPE_NULL;
-            return fieldReader.getType();
-          }
-
-          @Override
-          public boolean isNull(final int column) {
-            return fieldReaders.get(queryingProjection[column]).isNull(currentEntry);
-          }
-
-          @Override
-          public boolean onMove(final int oldPosition, final int newPosition) {
-            if (oldPosition == newPosition)
-              return true;
-            if (oldPosition + 1 == newPosition) {
-              if (!dataIterator.hasNext())
-                return false;
-              currentEntry = dataIterator.next();
-              return true;
-            }
-            try {
-              currentEntry = dataIterator.moveRelative(newPosition - oldPosition);
-              return true;
-            } catch (final java.sql.SQLException e) {
-              Log.e(TAG, "Cannot move to " + newPosition, e);
-            }
-            return false;
-          }
-
-        };
+        return new EntityCursor(queryingProjection, queryBuilder, fieldReaders);
         // return matrixCursor;
 
       default:
