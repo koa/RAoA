@@ -4,11 +4,13 @@ import android.net.Uri;
 
 public class Data {
   public static class Album {
-    public static String ID = "_ID";
-    public static String NAME = "name";
-    public static String AUTOADD_DATE = "autoAddDate";
-    public static String SHOULD_SYNC = "shouldSync";
-    public static String SYNCED = "synced";
+    public static final String ARCHIVE_NAME = "archiveName";
+    public static final String ID = "_ID";
+    public static final String NAME = "name";
+    public static final String AUTOADD_DATE = "autoAddDate";
+    public static final String SHOULD_SYNC = "shouldSync";
+    public static final String SYNCED = "synced";
+    public static final String[] ALL_COLUMNS = new String[] { ARCHIVE_NAME, ID, NAME, AUTOADD_DATE, SHOULD_SYNC, SYNCED };
   }
 
   public static final String AUTHORITY = "ch.bergturbenthal.image.provider";

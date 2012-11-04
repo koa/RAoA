@@ -43,7 +43,7 @@
         </activity>
 
         <provider
-            android:name="RoyalArchiveContentProvider"
+            android:name=".ArchiveContentProvider"
             android:authorities="ch.bergturbenthal.image.provider" />
     </application>
 
