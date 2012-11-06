@@ -1,0 +1,10 @@
+
+src/RoyalArchiveOnAndroid/.classpath
+
+src/RoyalArchiveOnAndroid/.project
+
+src/RoyalArchiveOnAndroid/.settings/*
+
+src/RoyalArchiveOnAndroid/target/*
+
+.DS_Store
