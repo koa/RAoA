@@ -3,10 +3,10 @@ package ch.bergturbenthal.image.data.model;
 public class PingResponse {
   private String version = "1";
   private String serverId;
-  private String collectionId;
+  private String archiveId;
 
-  public String getCollectionId() {
-    return collectionId;
+  public String getArchiveId() {
+    return archiveId;
   }
 
   public String getServerId() {
@@ -17,8 +17,8 @@ public class PingResponse {
     return version;
   }
 
-  public void setCollectionId(final String collectionId) {
-    this.collectionId = collectionId;
+  public void setArchiveId(final String collectionId) {
+    this.archiveId = collectionId;
   }
 
   public void setServerId(final String serverId) {
@@ -31,7 +31,7 @@ public class PingResponse {
 
   @Override
   public String toString() {
-    return "PingResponse [version=" + version + ", collectionId=" + collectionId + ", serverId=" + serverId + "]";
+    return "PingResponse [version=" + version + ", collectionId=" + archiveId + ", serverId=" + serverId + "]";
   }
 
 }

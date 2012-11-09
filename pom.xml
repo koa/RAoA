@@ -10,6 +10,7 @@
     <module>image-data</module>
     <module>image-provider</module>
     <module>image-provider-test</module>
+    <module>image-provider-api</module>
   </modules>
   <parent>
     <groupId>ch.berg-turbenthal.parent</groupId>

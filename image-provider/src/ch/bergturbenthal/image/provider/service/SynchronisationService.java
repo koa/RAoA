@@ -78,12 +78,12 @@ public class SynchronisationService extends Service implements ResultListener {
       final URL url = makeUrl(inetSocketAddress);
       final PingResponse response = pingService(url);
       if (response != null) {
-        if (pingResponses.containsKey(response.getCollectionId())) {
-          pingResponses.get(response.getCollectionId()).put(url, response);
+        if (pingResponses.containsKey(response.getArchiveId())) {
+          pingResponses.get(response.getArchiveId()).put(url, response);
         } else {
           final Map<URL, PingResponse> map = new HashMap<URL, PingResponse>();
           map.put(url, response);
-          pingResponses.put(response.getCollectionId(), map);
+          pingResponses.put(response.getArchiveId(), map);
         }
       }
     }
@@ -128,9 +128,9 @@ public class SynchronisationService extends Service implements ResultListener {
 
   @Override
   public int onStartCommand(final Intent intent, final int flags, final int startId) {
-    Log.i(SERVICE_TAG, "Synchronisation started " + this);
     final boolean start = intent == null || intent.getBooleanExtra("start", true);
     if (start) {
+      Log.i(SERVICE_TAG, "Synchronisation started");
       dnsListener.startListening();
       final Notification notification =
                                         new NotificationCompat.Builder(this).setContentTitle("Syncing")
@@ -239,7 +239,8 @@ public class SynchronisationService extends Service implements ResultListener {
       public void run() {
         try {
           final Notification.Builder builder = new Notification.Builder(getApplicationContext());
-          builder.setContentTitle("DB Update").setSmallIcon(android.R.drawable.ic_dialog_info).setContentText("Download in progress");
+          builder.setContentTitle("DB Update").setSmallIcon(android.R.drawable.ic_dialog_info).setContentText("Download in progress")
+                 .setAutoCancel(false);
           notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
           callInTransaction(new Callable<Void>() {
 

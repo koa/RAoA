@@ -29,7 +29,7 @@ public class ArchiveContentProvider extends ContentProvider {
     @Path("albums")
     ALBUM_LIST,
     @Path("albums/#")
-    ALBUM_ENTRY,
+    ALBUM,
     @Path("albums/#/thumbnail")
     THUMBNAIL_ENTRY
   }
@@ -57,7 +57,7 @@ public class ArchiveContentProvider extends ContentProvider {
     switch (matcher.match(uri)) {
     case ALBUM_LIST:
       return "vnd.android.cursor.dir/vnd." + Data.AUTHORITY + "/album";
-    case ALBUM_ENTRY:
+    case ALBUM:
       return "vnd.android.cursor.item/vnd." + Data.AUTHORITY + "/album";
     case THUMBNAIL_ENTRY:
       return "image/jpeg";

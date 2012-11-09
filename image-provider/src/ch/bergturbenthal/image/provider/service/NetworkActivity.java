@@ -22,7 +22,6 @@ public class NetworkActivity extends Activity {
     receiver = new NetworkReceiver();
     this.registerReceiver(receiver, filter);
 
-    testReadContentProvider();
   }
 
   @Override
@@ -33,6 +32,11 @@ public class NetworkActivity extends Activity {
     if (receiver != null) {
       this.unregisterReceiver(receiver);
     }
+  }
+
+  @Override
+  protected void onResume() {
+    testReadContentProvider();
   }
 
   @Override

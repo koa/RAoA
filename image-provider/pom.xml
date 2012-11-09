@@ -144,6 +144,11 @@
       <groupId>com.j256.ormlite</groupId>
       <artifactId>ormlite-android</artifactId>
     </dependency>
+    <dependency>
+    	<groupId>ch.bergturbenthal.image</groupId>
+    	<artifactId>image-provider-api</artifactId>
+    	<version>0.0.1-SNAPSHOT</version>
+    </dependency>
   </dependencies>
   <packaging>apk</packaging>
 </project>

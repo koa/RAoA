@@ -23,7 +23,7 @@ public class PingController {
   PingResponse ping() {
     final PingResponse response = new PingResponse();
     response.setServerId(instanceId);
-    response.setCollectionId(dataAccess.getCollectionId());
+    response.setArchiveId(dataAccess.getCollectionId());
     return response;
   }
 }
