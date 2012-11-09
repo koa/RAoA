@@ -9,8 +9,7 @@
     <name>RoyalArchiveOnAndroid</name>
 
     <properties>
-        <platform.version> 4.0.1.2
-            </platform.version>
+        <platform.version> 4.0.1.2</platform.version>
     </properties>
 
     <dependencies>
@@ -34,7 +33,7 @@
                     <resourceDirectory>${project.basedir}/res</resourceDirectory>
                     <nativeLibrariesDirectory>${project.basedir}/src/main/native</nativeLibrariesDirectory>
                     <sdk>
-                        <platform>14</platform>
+                        <platform>15</platform>
                     </sdk>
                                         <undeployBeforeDeploy>true</undeployBeforeDeploy>
                 </configuration>

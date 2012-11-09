@@ -8,3 +8,5 @@ src/RoyalArchiveOnAndroid/.settings/*
 src/RoyalArchiveOnAndroid/target/*
 
 .DS_Store
+
+src/RoyalArchiveOnAndroid/*
