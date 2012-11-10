@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.os.Parcelable;
 import android.util.Log;
 
 public class NetworkReceiver extends BroadcastReceiver {
@@ -15,16 +16,18 @@ public class NetworkReceiver extends BroadcastReceiver {
   public void onReceive(final Context context, final Intent intent) {
     final ConnectivityManager conn = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
     final NetworkInfo networkInfo = conn.getActiveNetworkInfo();
-    final Intent intent2 = new Intent(context, SynchronisationService.class);
+    ServiceCommand command;
     if (networkInfo != null && networkInfo.getType() == ConnectivityManager.TYPE_WIFI && networkInfo.isConnected()) {
       // start network service
       Log.i(NETWORK_RECEIVER_TAG, "Wifi connected");
-      intent2.putExtra("start", true);
+      command = ServiceCommand.START;
     } else {
       // stop network service
       Log.i(NETWORK_RECEIVER_TAG, "Wifi disconnected");
-      intent2.putExtra("start", false);
+      command = ServiceCommand.STOP;
     }
+    final Intent intent2 = new Intent(context, SynchronisationService.class);
+    intent2.putExtra("command", (Parcelable) command);
     final ComponentName componentName = context.startService(intent2);
     Log.i(NETWORK_RECEIVER_TAG, "Service startet: " + componentName);
   }

@@ -53,7 +53,7 @@ public class MDnsListener {
       public void run() {
         synchronized (MDnsListener.this) {
           final HashSet<InetSocketAddress> foundEndpoints = new HashSet<InetSocketAddress>();
-          final ServiceInfo[] serviceInfos = jmmDNS.list(SERVICE_NAME_URL, 500);
+          final ServiceInfo[] serviceInfos = jmmDNS.list(SERVICE_NAME_URL, 1500);
           for (final ServiceInfo serviceInfo : serviceInfos) {
             for (final InetAddress hostAddress : serviceInfo.getInetAddresses()) {
               foundEndpoints.add(new InetSocketAddress(hostAddress, serviceInfo.getPort()));

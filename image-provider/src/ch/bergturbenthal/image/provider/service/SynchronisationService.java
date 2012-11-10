@@ -73,18 +73,25 @@ public class SynchronisationService extends Service implements ResultListener {
 
   @Override
   public void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints) {
+    for (final InetSocketAddress inetSocketAddress : knownServiceEndpoints) {
+      Log.i(SERVICE_TAG, "Addr: " + inetSocketAddress);
+    }
     final Map<String, Map<URL, PingResponse>> pingResponses = new HashMap<String, Map<URL, PingResponse>>();
     for (final InetSocketAddress inetSocketAddress : knownServiceEndpoints) {
       final URL url = makeUrl(inetSocketAddress);
-      final PingResponse response = pingService(url);
-      if (response != null) {
-        if (pingResponses.containsKey(response.getArchiveId())) {
-          pingResponses.get(response.getArchiveId()).put(url, response);
-        } else {
-          final Map<URL, PingResponse> map = new HashMap<URL, PingResponse>();
-          map.put(url, response);
-          pingResponses.put(response.getArchiveId(), map);
+      try {
+        final PingResponse response = pingService(url);
+        if (response != null) {
+          if (pingResponses.containsKey(response.getArchiveId())) {
+            pingResponses.get(response.getArchiveId()).put(url, response);
+          } else {
+            final Map<URL, PingResponse> map = new HashMap<URL, PingResponse>();
+            map.put(url, response);
+            pingResponses.put(response.getArchiveId(), map);
+          }
         }
+      } catch (final Throwable ex) {
+        Log.e(SERVICE_TAG, "Exception while polling " + url, ex);
       }
     }
     final HashMap<String, ArchiveConnection> oldConnectionMap = new HashMap<String, ArchiveConnection>(connectionMap.get());
@@ -128,22 +135,32 @@ public class SynchronisationService extends Service implements ResultListener {
 
   @Override
   public int onStartCommand(final Intent intent, final int flags, final int startId) {
-    final boolean start = intent == null || intent.getBooleanExtra("start", true);
-    if (start) {
-      Log.i(SERVICE_TAG, "Synchronisation started");
-      dnsListener.startListening();
-      final Notification notification =
-                                        new NotificationCompat.Builder(this).setContentTitle("Syncing")
-                                                                            .setSmallIcon(android.R.drawable.ic_dialog_info).getNotification();
-      notificationManager.notify(NOTIFICATION, notification);
-      startPolling();
-      return START_STICKY;
-    } else {
-      dnsListener.stopListening();
-      notificationManager.cancel(NOTIFICATION);
-      stopPolling();
-      return START_STICKY;
+    if (intent != null) {
+      final ServiceCommand command = intent.getParcelableExtra("command");
+      if (command != null)
+        switch (command) {
+        case START:
+          Log.i(SERVICE_TAG, "Synchronisation started");
+          dnsListener.startListening();
+          final Notification notification =
+                                            new NotificationCompat.Builder(this).setContentTitle("Syncing")
+                                                                                .setSmallIcon(android.R.drawable.ic_dialog_info).getNotification();
+          notificationManager.notify(NOTIFICATION, notification);
+          startPolling();
+          break;
+        case STOP:
+          dnsListener.stopListening();
+          notificationManager.cancel(NOTIFICATION);
+          stopPolling();
+          break;
+        case POLL:
+          updateAlbumsOnDB();
+          break;
+        default:
+          break;
+        }
     }
+    return START_STICKY;
   }
 
   private <V> V callInTransaction(final Callable<V> callable) {

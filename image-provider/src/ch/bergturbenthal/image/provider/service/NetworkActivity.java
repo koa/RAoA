@@ -2,40 +2,34 @@ package ch.bergturbenthal.image.provider.service;
 
 import android.app.Activity;
 import android.content.ContentResolver;
-import android.content.IntentFilter;
+import android.content.Intent;
 import android.database.Cursor;
-import android.net.ConnectivityManager;
 import android.os.Bundle;
+import android.os.Parcelable;
 import android.util.Log;
+import android.view.View;
+import android.view.View.OnClickListener;
 import ch.bergturbenthal.image.provider.Data;
+import ch.bergturbenthal.image.provider.R;
 
 public class NetworkActivity extends Activity {
-
-  private NetworkReceiver receiver;
 
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-
-    // Registers BroadcastReceiver to track network connection changes.
-    final IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
-    receiver = new NetworkReceiver();
-    this.registerReceiver(receiver, filter);
-
+    setContentView(R.layout.teststarter);
+    registerServiceCall(R.id.start, ServiceCommand.START);
   }
 
   @Override
   protected void onDestroy() {
     // TODO Auto-generated method stub
     super.onDestroy();
-    // Unregisters BroadcastReceiver when app is destroyed.
-    if (receiver != null) {
-      this.unregisterReceiver(receiver);
-    }
   }
 
   @Override
   protected void onResume() {
+    super.onResume();
     testReadContentProvider();
   }
 
@@ -43,6 +37,17 @@ public class NetworkActivity extends Activity {
   protected void onStart() {
     // TODO Auto-generated method stub
     super.onStart();
+  }
+
+  private void registerServiceCall(final int id, final ServiceCommand cmd) {
+    findViewById(id).setOnClickListener(new OnClickListener() {
+      @Override
+      public void onClick(final View v) {
+        final Intent intent = new Intent(NetworkActivity.this, SynchronisationService.class);
+        intent.putExtra("command", (Parcelable) cmd);
+        startService(intent);
+      }
+    });
   }
 
   private void testReadContentProvider() {
@@ -77,6 +82,6 @@ public class NetworkActivity extends Activity {
       }
       Log.i("Test", "Row[" + cursor.getPosition() + "]: " + builder.toString());
     }
-
+    cursor.close();
   }
 }
