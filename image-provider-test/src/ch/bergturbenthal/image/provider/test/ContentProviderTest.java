@@ -5,12 +5,12 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.test.AndroidTestCase;
 import android.util.Log;
-import ch.bergturbenthal.image.provider.Data;
+import ch.bergturbenthal.image.provider.Client;
 
 public class ContentProviderTest extends AndroidTestCase {
   public void testContentProvider() {
     final ContentResolver resolver = getContext().getContentResolver();
-    final Cursor cursor = resolver.query(Uri.parse("content://" + Data.AUTHORITY + "/albums"), null, null, null, null);
+    final Cursor cursor = resolver.query(Uri.parse("content://" + Client.AUTHORITY + "/albums"), null, null, null, null);
     Log.i("Test", "Result: " + cursor);
     while (cursor.moveToNext()) {
       final int count = cursor.getColumnCount();

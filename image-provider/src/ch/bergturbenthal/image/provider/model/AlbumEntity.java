@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 
-import ch.bergturbenthal.image.provider.Data;
+import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.map.CursorField;
 
 import com.j256.ormlite.field.DatabaseField;
@@ -56,7 +56,7 @@ public class AlbumEntity {
     return archive;
   }
 
-  @CursorField(Data.Album.AUTOADD_DATE)
+  @CursorField(Client.Album.AUTOADD_DATE)
   public Date getAutoAddDate() {
     return autoAddDate;
   }
@@ -65,7 +65,7 @@ public class AlbumEntity {
     return entries;
   }
 
-  @CursorField(Data.Album.ID)
+  @CursorField(Client.Album.ID)
   public int getId() {
     return id;
   }
@@ -74,7 +74,7 @@ public class AlbumEntity {
     return interestingClients;
   }
 
-  @CursorField(Data.Album.NAME)
+  @CursorField(Client.Album.NAME)
   public String getName() {
     return name;
   }
@@ -83,12 +83,12 @@ public class AlbumEntity {
     return syncThumbnails;
   }
 
-  @CursorField(Data.Album.SHOULD_SYNC)
+  @CursorField(Client.Album.SHOULD_SYNC)
   public boolean isShouldSync() {
     return shouldSync;
   }
 
-  @CursorField(Data.Album.SYNCED)
+  @CursorField(Client.Album.SYNCED)
   public boolean isSynced() {
     return synced;
   }

@@ -130,6 +130,7 @@
     <dependency>
       <groupId>org.springframework.android</groupId>
       <artifactId>spring-android-rest-template</artifactId>
+      <version>1.0.1.BUILD-KOA</version>
     </dependency>
     <dependency>
       <groupId>ch.bergturbenthal.image</groupId>

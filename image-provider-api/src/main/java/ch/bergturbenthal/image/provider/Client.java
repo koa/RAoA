@@ -2,7 +2,7 @@ package ch.bergturbenthal.image.provider;
 
 import android.net.Uri;
 
-public class Data {
+public class Client {
   public static class Album {
     public static final String ARCHIVE_NAME = "archiveName";
     public static final String ID = "_ID";

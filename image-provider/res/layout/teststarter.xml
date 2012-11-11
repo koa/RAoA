@@ -22,4 +22,10 @@
         android:layout_height="wrap_content"
         android:text="poll now" />
 
+    <Button
+        android:id="@+id/list_albums"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="List Albums" />
+
 </LinearLayout>

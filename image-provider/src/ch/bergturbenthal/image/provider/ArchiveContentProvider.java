@@ -30,13 +30,17 @@ public class ArchiveContentProvider extends ContentProvider {
     ALBUM_LIST,
     @Path("albums/#")
     ALBUM,
-    @Path("albums/#/thumbnail")
-    THUMBNAIL_ENTRY
+    @Path("albums/#/entries")
+    ALBUM_ENTRY_LIST,
+    @Path("albums/#/entries/#")
+    ALBUM_ENTRY,
+    @Path("albums/#/entries/#/thumbnail")
+    ALBUM_ENTRY_THUMBNAIL
   }
 
   static final String TAG = "Content Provider";
 
-  private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Data.AUTHORITY, UriType.class);
+  private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
   private final ThreadLocal<DaoHolder> transactionManager = new ThreadLocal<DaoHolder>() {
 
     @Override
@@ -56,10 +60,14 @@ public class ArchiveContentProvider extends ContentProvider {
     Log.i(TAG, "getType called");
     switch (matcher.match(uri)) {
     case ALBUM_LIST:
-      return "vnd.android.cursor.dir/vnd." + Data.AUTHORITY + "/album";
+      return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/album";
     case ALBUM:
-      return "vnd.android.cursor.item/vnd." + Data.AUTHORITY + "/album";
-    case THUMBNAIL_ENTRY:
+      return "vnd.android.cursor.item/vnd." + Client.AUTHORITY + "/album";
+    case ALBUM_ENTRY_LIST:
+      return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/album/entry";
+    case ALBUM_ENTRY:
+      return "vnd.android.cursor.item/vnd." + Client.AUTHORITY + "/album/entry";
+    case ALBUM_ENTRY_THUMBNAIL:
       return "image/jpeg";
     }
     throw new SQLException("Unknown Uri: " + uri);
@@ -95,7 +103,7 @@ public class ArchiveContentProvider extends ContentProvider {
         final QueryBuilder<AlbumEntity, String> queryBuilder = albumDao.queryBuilder();
 
         final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
-        fieldReaders.put(Data.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
+        fieldReaders.put(Client.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
           @Override
           public String getString(final AlbumEntity value) {
             return value.getArchive().getName();

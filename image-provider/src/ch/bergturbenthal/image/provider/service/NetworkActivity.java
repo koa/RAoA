@@ -9,7 +9,7 @@ import android.os.Parcelable;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
-import ch.bergturbenthal.image.provider.Data;
+import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.R;
 
 public class NetworkActivity extends Activity {
@@ -19,24 +19,14 @@ public class NetworkActivity extends Activity {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.teststarter);
     registerServiceCall(R.id.start, ServiceCommand.START);
-  }
-
-  @Override
-  protected void onDestroy() {
-    // TODO Auto-generated method stub
-    super.onDestroy();
-  }
-
-  @Override
-  protected void onResume() {
-    super.onResume();
-    testReadContentProvider();
-  }
-
-  @Override
-  protected void onStart() {
-    // TODO Auto-generated method stub
-    super.onStart();
+    registerServiceCall(R.id.stop, ServiceCommand.STOP);
+    registerServiceCall(R.id.poll, ServiceCommand.POLL);
+    findViewById(R.id.list_albums).setOnClickListener(new OnClickListener() {
+      @Override
+      public void onClick(final View v) {
+        testReadContentProvider();
+      }
+    });
   }
 
   private void registerServiceCall(final int id, final ServiceCommand cmd) {
@@ -52,7 +42,7 @@ public class NetworkActivity extends Activity {
 
   private void testReadContentProvider() {
     final ContentResolver resolver = getContentResolver();
-    final Cursor cursor = resolver.query(Data.ALBUM_URI, null, null, null, null);
+    final Cursor cursor = resolver.query(Client.ALBUM_URI, null, null, null, null);
     Log.i("Test", "Result: " + cursor);
     while (cursor.moveToNext()) {
       final int count = cursor.getColumnCount();
