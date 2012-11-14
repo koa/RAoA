@@ -2,4 +2,6 @@
 <resources>
     <string name="hello">Hello RoyalArchiveOnAndroid!</string>
     <string name="app_name">RoyalArchiveOnAndroid</string>
+    <string name="next">next</string>
+    <string name="finished">finished!</string>
 </resources>
