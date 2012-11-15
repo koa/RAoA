@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hello">Hallo RoyalArchiveOnAndroid!</string>
+    <string name="app_name">RoyalArchiveOnAndroid</string>
+    <string name="next">weiter</string>
+    <string name="finished">fertig!</string>
+</resources>

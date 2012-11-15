@@ -9,6 +9,7 @@ src/RoyalArchiveOnAndroid/target/*
 
 .DS_Store
 
-src/RoyalArchiveOnAndroid/*
+src/RoyalArchiveOnAndroid/bin/*
 
-src/RoyalArchiveOnAndroid/bin/AndroidManifest.xml
+src/RoyalArchiveOnAndroid/gen/*
+
