@@ -10,5 +10,5 @@ public interface AlbumConnection {
 
   AlbumDto getAlbumDetail();
 
-  void readThumbnail(String filename, File targetFile, File tempFile);
+  void readThumbnail(String filename, File tempFile, File targetFile);
 }

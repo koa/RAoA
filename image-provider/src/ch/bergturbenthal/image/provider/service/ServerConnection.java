@@ -1,17 +1,32 @@
 package ch.bergturbenthal.image.provider.service;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.net.URL;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.Future;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.ClientHttpRequest;
+import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.web.client.RequestCallback;
+import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 
 import android.util.Log;
@@ -19,7 +34,6 @@ import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
-import ch.bergturbenthal.image.provider.util.DummyFuture;
 
 public class ServerConnection {
   private static interface ConnectionCallable<V> {
@@ -31,6 +45,11 @@ public class ServerConnection {
   private final AtomicReference<WeakReference<Map<String, String>>> albumIds = new AtomicReference<WeakReference<Map<String, String>>>();
   private final RestTemplate restTemplate = new RestTemplate(true);
   private final Map<String, SoftReference<AlbumDetail>> albumDetailCache = new HashMap<String, SoftReference<AlbumDetail>>();
+
+  private static final String[] DATE_FORMATS = new String[] { "EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd-MMM-yy HH:mm:ss zzz",
+                                                             "EEE MMM dd HH:mm:ss yyyy" };
+
+  private static TimeZone GMT = TimeZone.getTimeZone("GMT");
 
   public AlbumDetail getAlbumDetail(final String albumName) {
     final SoftReference<AlbumDetail> cachedValue = albumDetailCache.get(albumName);
@@ -44,7 +63,7 @@ public class ServerConnection {
 
       @Override
       public ResponseEntity<AlbumDetail> call(final URL baseUrl) throws Exception {
-        return restTemplate.getForEntity(baseUrl.toExternalForm() + "/albums/" + albumId + ".json", AlbumDetail.class);
+        return restTemplate.getForEntity(baseUrl.toExternalForm() + "/albums/{albumId}.json", AlbumDetail.class, albumId);
       }
     });
     final Map<String, String> entryIdMap = new HashMap<String, String>();
@@ -63,9 +82,79 @@ public class ServerConnection {
     return collectAlbums().keySet();
   }
 
-  public Future<Boolean> readThumbnail(final String albumName, final String file, final File tempFile, final File targetFile) {
+  public boolean readThumbnail(final String albumName, final String file, final File tempFile, final File targetFile) {
     final String albumId = resolveAlbumName(albumName);
-    return new DummyFuture<Boolean>(Boolean.TRUE);
+    final AlbumImageEntry foundEntry = findAlbumEntry(albumName, file);
+    if (foundEntry == null)
+      return false;
+    final Date lastModifiedOnServer = foundEntry.getLastModified();
+    if (targetFile.exists() && targetFile.lastModified() > lastModifiedOnServer.getTime())
+      // already loaded
+      return true;
+    return callOne(new ConnectionCallable<Boolean>() {
+
+      @Override
+      public ResponseEntity<Boolean> call(final URL baseUrl) throws Exception {
+
+        return restTemplate.execute(baseUrl.toExternalForm() + "/albums/{albumId}/image/{imageId}.jpg", HttpMethod.GET, new RequestCallback() {
+          @Override
+          public void doWithRequest(final ClientHttpRequest request) throws IOException {
+            if (targetFile.exists())
+              request.getHeaders().setIfModifiedSince(targetFile.lastModified());
+          }
+        }, new ResponseExtractor<ResponseEntity<Boolean>>() {
+          @Override
+          public ResponseEntity<Boolean> extractData(final ClientHttpResponse response) throws IOException {
+            if (response.getStatusCode() == HttpStatus.NOT_MODIFIED) {
+              return new ResponseEntity<Boolean>(Boolean.TRUE, response.getStatusCode());
+            }
+            final HttpHeaders headers = response.getHeaders();
+            final String mimeType = headers.getContentType().toString();
+            final long lastModified = headers.getLastModified();
+            final Date lastModifiedDate;
+            if (lastModified > 0)
+              lastModifiedDate = new Date(lastModified);
+            else
+              lastModifiedDate = null;
+            Date createDate = null;
+            final String createDateString = headers.getFirst("created-at");
+            if (createDateString != null) {
+              for (final String dateFormat : DATE_FORMATS) {
+                final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat, Locale.US);
+                simpleDateFormat.setTimeZone(GMT);
+                try {
+                  createDate = simpleDateFormat.parse(createDateString);
+                  break;
+                } catch (final ParseException e) {
+                  // ignore
+                }
+              }
+              if (createDate == null)
+                throw new IllegalArgumentException("Cannot parse date value \"" + createDateString + "\" for \"created-at\" header");
+            }
+            final OutputStream arrayOutputStream = new FileOutputStream(tempFile);
+            try {
+              final InputStream inputStream = response.getBody();
+              final byte[] buffer = new byte[8192];
+              while (true) {
+                final int read = inputStream.read(buffer);
+                if (read < 0)
+                  break;
+                arrayOutputStream.write(buffer, 0, read);
+              }
+            } finally {
+              arrayOutputStream.close();
+            }
+            tempFile.renameTo(targetFile);
+            if (lastModifiedDate != null)
+              targetFile.setLastModified(lastModifiedDate.getTime());
+
+            return new ResponseEntity<Boolean>(Boolean.TRUE, response.getStatusCode());
+          }
+        }, albumId, foundEntry.getId());
+      }
+    }).booleanValue();
+
   }
 
   public void setInstanceId(final String instanceId) {
@@ -116,6 +205,18 @@ public class ServerConnection {
     }
     albumIds.set(new WeakReference<Map<String, String>>(ret));
     return ret;
+  }
+
+  private AlbumImageEntry findAlbumEntry(final String albumName, final String file) {
+    AlbumImageEntry foundEntry = null;
+    final AlbumDetail albumDetail = getAlbumDetail(albumName);
+    for (final AlbumImageEntry albumImageEntry : albumDetail.getImages()) {
+      if (albumImageEntry.getName().equals(file)) {
+        foundEntry = albumImageEntry;
+        break;
+      }
+    }
+    return foundEntry;
   }
 
   private String resolveAlbumName(final String albumName) {

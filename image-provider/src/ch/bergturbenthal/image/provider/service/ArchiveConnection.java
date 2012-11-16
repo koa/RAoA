@@ -36,11 +36,19 @@ public class ArchiveConnection {
   private final AtomicReference<Map<String, ServerConnection>> serverConnections =
                                                                                    new AtomicReference<Map<String, ServerConnection>>(
                                                                                                                                       Collections.<String, ServerConnection> emptyMap());
+  private final AtomicReference<Map<String, AlbumConnection>> cachedAlbums = new AtomicReference<Map<String, AlbumConnection>>();
   private final ExecutorService executorService;
 
   public ArchiveConnection(final String archiveId, final ExecutorService executorService) {
     this.archiveId = archiveId;
     this.executorService = executorService;
+  }
+
+  public Map<String, AlbumConnection> getAlbums() {
+    final Map<String, AlbumConnection> cached = cachedAlbums.get();
+    if (cached != null)
+      return cached;
+    return listAlbums();
   }
 
   public Map<String, AlbumConnection> listAlbums() {
@@ -103,11 +111,16 @@ public class ArchiveConnection {
         }
 
         @Override
-        public void readThumbnail(final String filename, final File targetFile, final File tempFile) {
-
+        public void readThumbnail(final String filename, final File tempFile, final File targetFile) {
+          for (final String serverId : servers) {
+            final ServerConnection serverConnection = serverConnections.get().get(serverId);
+            if (serverConnection.readThumbnail(albumName, filename, tempFile, targetFile))
+              return;
+          }
         }
       });
     }
+    cachedAlbums.set(albumConnections);
     return albumConnections;
   }
 

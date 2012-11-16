@@ -1,6 +1,7 @@
 package ch.bergturbenthal.image.provider;
 
 import android.net.Uri;
+import android.net.Uri.Builder;
 
 public class Client {
   public static class Album {
@@ -15,4 +16,23 @@ public class Client {
 
   public static final String AUTHORITY = "ch.bergturbenthal.image.provider";
   public static final Uri ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
+
+  /**
+   * Build a Content-Provider-URI for reading a given Thumbnail from
+   * Content-Provider
+   * 
+   * @param albumId
+   *          id of album
+   * @param entryId
+   *          id of image
+   * @return built URI
+   */
+  public static Uri makeThumbnailUri(final int albumId, final int entryId) {
+    final Builder builder = ALBUM_URI.buildUpon();
+    builder.appendPath(Integer.toString(albumId));
+    builder.appendPath("entries");
+    builder.appendPath(Integer.toString(entryId));
+    builder.appendPath("thumbnail");
+    return builder.build();
+  }
 }

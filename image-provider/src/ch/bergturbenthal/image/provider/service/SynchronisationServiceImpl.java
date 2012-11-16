@@ -82,8 +82,39 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
-    // TODO Auto-generated method stub
-    return null;
+    return callInTransaction(new Callable<File>() {
+
+      @Override
+      public File call() throws Exception {
+        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
+        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+        final AlbumEntryEntity albumEntryEntity = albumEntryDao.queryForId(Integer.valueOf(thumbnailId));
+        if (albumEntryEntity == null)
+          return null;
+        final AlbumEntity album = albumEntryEntity.getAlbum();
+        albumDao.refresh(album);
+        final File targetFile = new File(thumbnailsDir, thumbnailId + ".thumbnail");
+        if (targetFile.exists() && targetFile.lastModified() >= albumEntryEntity.getLastModified().getTime()) {
+          return targetFile;
+        }
+        final Map<String, ArchiveConnection> archive = connectionMap.get();
+        if (archive == null)
+          return ifExsists(targetFile);
+        final ArchiveConnection archiveConnection = archive.get(album.getArchive().getName());
+        if (archiveConnection == null)
+          return ifExsists(targetFile);
+        final AlbumConnection albumConnection = archiveConnection.getAlbums().get(album.getName());
+        if (albumConnection == null)
+          return ifExsists(targetFile);
+        final File tempFile = new File(tempDir, thumbnailId + ".thumbnail-temp");
+        albumConnection.readThumbnail(albumEntryEntity.getName(), tempFile, targetFile);
+        return ifExsists(targetFile);
+      }
+
+      private File ifExsists(final File file) {
+        return file.exists() ? file : null;
+      }
+    });
   }
 
   @Override
@@ -303,9 +334,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
             final ArchiveEntity loadedArchive = archiveDao.queryForId(archiveName);
             if (loadedArchive == null) {
-              ArchiveEntity archiveEntity;
-              archiveEntity = new ArchiveEntity(archiveName);
-              archiveDao.create(archiveEntity);
+              archiveDao.create(new ArchiveEntity(archiveName));
             }
             return null;
           }
@@ -357,7 +386,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
                 if (existingEntry == null) {
                   final AlbumEntryEntity albumEntryEntity =
                                                             new AlbumEntryEntity(albumEntity, albumImageEntry.getKey(),
-                                                                                 albumImageEntry.getValue().getEntryType());
+                                                                                 albumImageEntry.getValue().getEntryType(),
+                                                                                 albumImageEntry.getValue().getLastModified());
                   albumEntryDao.create(albumEntryEntity);
                 }
               }

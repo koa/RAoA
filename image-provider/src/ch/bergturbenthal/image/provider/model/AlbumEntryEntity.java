@@ -1,5 +1,7 @@
 package ch.bergturbenthal.image.provider.model;
 
+import java.util.Date;
+
 import com.j256.ormlite.field.DataType;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
@@ -14,17 +16,21 @@ public class AlbumEntryEntity {
   private final AlbumEntity album;
   @DatabaseField(canBeNull = false, dataType = DataType.ENUM_STRING)
   private final AlbumEntryType type;
+  @DatabaseField(canBeNull = false)
+  private final Date lastModified;
 
-  public AlbumEntryEntity(final AlbumEntity album, final String name, final AlbumEntryType type) {
+  public AlbumEntryEntity(final AlbumEntity album, final String name, final AlbumEntryType type, final Date lastModified) {
     this.album = album;
     this.name = name;
     this.type = type;
+    this.lastModified = lastModified;
   }
 
   protected AlbumEntryEntity() {
     name = null;
     album = null;
     type = null;
+    lastModified = null;
   }
 
   public AlbumEntity getAlbum() {
@@ -33,6 +39,10 @@ public class AlbumEntryEntity {
 
   public int getId() {
     return id;
+  }
+
+  public Date getLastModified() {
+    return lastModified;
   }
 
   public String getName() {

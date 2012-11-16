@@ -123,15 +123,19 @@ public class ArchiveContentProvider extends ContentProvider {
   @Override
   public ParcelFileDescriptor openFile(final Uri uri, final String mode) throws FileNotFoundException {
     Log.i(TAG, "Open called for " + uri);
-    switch (matcher.match(uri)) {
+    final UriType match = matcher.match(uri);
+    if (match == null)
+      return super.openFile(uri, mode);
+    switch (match) {
     case ALBUM_ENTRY_THUMBNAIL:
       final List<String> segments = uri.getPathSegments();
       final String album = segments.get(1);
       final String image = segments.get(3);
       Log.i(TAG, "Selected Entry: " + album + ":" + image);
-
-      break;
-
+      final File thumbnail = service.getLoadedThumbnail(Integer.parseInt(image));
+      if (thumbnail == null)
+        throw new FileNotFoundException("Thumbnail-Image " + uri + " not found");
+      return ParcelFileDescriptor.open(thumbnail, ParcelFileDescriptor.MODE_READ_ONLY);
     default:
       break;
     }
