@@ -14,16 +14,17 @@ public class AlbumOverviewActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		
 	    setContentView(R.layout.album_overview);
-
+	    
 	    GridView gridview = (GridView) findViewById(R.id.album_overview);
 	    gridview.setAdapter(new AlbumOverviewAdapter(this));
 
-	    gridview.setOnItemClickListener(new OnItemClickListener() {
+	    /*gridview.setOnItemClickListener(new OnItemClickListener() {
 	        public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
 	            Toast.makeText(AlbumOverviewActivity.this, "" + position, Toast.LENGTH_SHORT).show();
 	        }
-	    });
+	    });*/
 		
 	}
 

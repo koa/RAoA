@@ -3,12 +3,17 @@ package ch.royalarchive.androidclient;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.BaseAdapter;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
+import android.widget.Toast;
+import android.widget.AdapterView.OnItemClickListener;
 
 public class AlbumOverviewAdapter extends BaseAdapter {
 
@@ -51,10 +56,18 @@ public class AlbumOverviewAdapter extends BaseAdapter {
 		}
 		
 		ImageView imageView = (ImageView) v.findViewById(R.id.album_item_image);
-		imageView.setLayoutParams(new RelativeLayout.LayoutParams(240, 240));
 		imageView.setImageResource(thumbnailIds[position]);
-		TextView tv = (TextView)v.findViewById(R.id.album_item_infobar);
-		tv.setText("Folder size");
+		OnClickListener clickListener = new OnClickListener() {
+			public void onClick(View v) {
+				Toast.makeText(context, "" + "hier weiterdenken!", Toast.LENGTH_SHORT).show();
+			}
+		};
+		imageView.setOnClickListener(clickListener);
+		
+		TextView albumName = (TextView)v.findViewById(R.id.album_item_name);
+		albumName.setText("Albumname");
+		TextView albumSize = (TextView)v.findViewById(R.id.album_item_size);
+		albumSize.setText("125");
 
 		return v;
 
