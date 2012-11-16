@@ -1,13 +1,13 @@
 package ch.bergturbenthal.image.provider.service;
 
 import java.io.File;
+import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.WeakHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -30,12 +30,15 @@ public class ServerConnection {
   private final AtomicReference<Collection<URL>> connections = new AtomicReference<Collection<URL>>(Collections.<URL> emptyList());
   private final AtomicReference<WeakReference<Map<String, String>>> albumIds = new AtomicReference<WeakReference<Map<String, String>>>();
   private final RestTemplate restTemplate = new RestTemplate(true);
-  private final Map<String, AlbumDetail> albumDetailCache = new WeakHashMap<String, AlbumDetail>();
+  private final Map<String, SoftReference<AlbumDetail>> albumDetailCache = new HashMap<String, SoftReference<AlbumDetail>>();
 
   public AlbumDetail getAlbumDetail(final String albumName) {
-    final AlbumDetail cachedValue = albumDetailCache.get(albumName);
-    if (cachedValue != null)
-      return cachedValue;
+    final SoftReference<AlbumDetail> cachedValue = albumDetailCache.get(albumName);
+    if (cachedValue != null) {
+      final AlbumDetail albumDetail = cachedValue.get();
+      if (albumDetail != null)
+        return albumDetail;
+    }
     final String albumId = resolveAlbumName(albumName);
     final AlbumDetail albumDetail = callOne(new ConnectionCallable<AlbumDetail>() {
 
@@ -48,7 +51,7 @@ public class ServerConnection {
     for (final AlbumImageEntry entry : albumDetail.getImages()) {
       entryIdMap.put(entry.getName(), entry.getId());
     }
-    albumDetailCache.put(albumName, albumDetail);
+    albumDetailCache.put(albumName, new SoftReference<AlbumDetail>(albumDetail));
     return albumDetail;
   }
 
