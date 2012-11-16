@@ -1,13 +1,16 @@
 package ch.bergturbenthal.image.provider.service;
 
+import java.io.File;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -15,13 +18,20 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
 import ch.bergturbenthal.image.data.model.AlbumDetail;
+import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.PingResponse;
+import ch.bergturbenthal.image.provider.model.AlbumEntryType;
+import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
+import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
 
 public class ArchiveConnection {
   private static interface ServerConnectionCallable<V> {
     V callServer(ServerConnection connection, String albumId);
   }
 
+  /**
+   * Ids per Server, per Album, per Filename
+   */
   private final String archiveId;
   private final AtomicReference<Map<String, ServerConnection>> serverConnections =
                                                                                    new AtomicReference<Map<String, ServerConnection>>(
@@ -34,52 +44,67 @@ public class ArchiveConnection {
   }
 
   public Map<String, AlbumConnection> listAlbums() {
-    final Map<String, Future<Map<String, String>>> results = new HashMap<String, Future<Map<String, String>>>();
+    final Map<String, Future<Collection<String>>> results = new HashMap<String, Future<Collection<String>>>();
     // submit all queries
     for (final Entry<String, ServerConnection> connectionEntry : serverConnections.get().entrySet()) {
-      results.put(connectionEntry.getKey(), executorService.submit(new Callable<Map<String, String>>() {
+      results.put(connectionEntry.getKey(), executorService.submit(new Callable<Collection<String>>() {
         @Override
-        public Map<String, String> call() throws Exception {
+        public Collection<String> call() throws Exception {
           return connectionEntry.getValue().listAlbums();
         }
       }));
     }
     // collect all results
-    final Map<String, Map<String, String>> collectedResults = collect(results);
+    final Map<String, Collection<String>> collectedResults = collect(results);
     // reorder results per album
-    final Map<String, Map<String, String>> perAlbumResults = new HashMap<String, Map<String, String>>();
-    for (final Entry<String, Map<String, String>> serverResultEntry : collectedResults.entrySet()) {
-      final String serverId = serverResultEntry.getKey();
-      for (final Entry<String, String> albumEntry : serverResultEntry.getValue().entrySet()) {
-        final String albumName = albumEntry.getKey();
-        final String albumId = albumEntry.getValue();
-
-        if (!perAlbumResults.containsKey(albumName)) {
-          perAlbumResults.put(albumName, new HashMap<String, String>());
-        }
-        perAlbumResults.get(albumName).put(serverId, albumId);
+    final Map<String, Set<String>> serverPerAlbum = new HashMap<String, Set<String>>();
+    for (final Entry<String, Collection<String>> serverEntry : collectedResults.entrySet()) {
+      final String serverId = serverEntry.getKey();
+      for (final String albumName : serverEntry.getValue()) {
+        if (serverPerAlbum.containsKey(albumName)) {
+          serverPerAlbum.get(albumName).add(serverId);
+        } else
+          serverPerAlbum.put(albumName, new HashSet<String>(Arrays.asList(serverId)));
       }
     }
+
     final Map<String, AlbumConnection> albumConnections = new HashMap<String, AlbumConnection>();
     // and make Album-Connections
-    for (final Entry<String, Map<String, String>> perAlbumEntry : perAlbumResults.entrySet()) {
-      final Map<String, String> connections = perAlbumEntry.getValue();
+    for (final Entry<String, Set<String>> perAlbumEntry : serverPerAlbum.entrySet()) {
+      final String albumName = perAlbumEntry.getKey();
+      final Set<String> servers = new HashSet<String>(perAlbumEntry.getValue());
       albumConnections.put(perAlbumEntry.getKey(), new AlbumConnection() {
 
         @Override
         public Collection<String> connectedServers() {
-          return connections.values();
+          return servers;
         }
 
         @Override
-        public AlbumDetail getAlbumDetail() {
-          for (final Entry<String, String> connectionEntry : connections.entrySet()) {
-            final String serverId = connectionEntry.getKey();
-            final String albumId = connectionEntry.getValue();
+        public AlbumDto getAlbumDetail() {
+          final AlbumDto ret = new AlbumDto();
+          final Map<String, AlbumEntryDto> entries = ret.getEntries();
+          for (final String serverId : servers) {
             final ServerConnection serverConnection = serverConnections.get().get(serverId);
-            return serverConnection.getAlbumDetail(albumId);
+            final AlbumDetail albumDetail = serverConnection.getAlbumDetail(albumName);
+            if (albumDetail.getAutoAddDate() != null)
+              ret.setAutoAddDate(albumDetail.getAutoAddDate());
+            for (final AlbumImageEntry entry : albumDetail.getImages()) {
+              final String name = entry.getName();
+              if (entries.containsKey(name) && entries.get(name).getLastModified().getTime() > entry.getLastModified().getTime())
+                continue;
+              final AlbumEntryDto dtoEntry = new AlbumEntryDto();
+              dtoEntry.setEntryType(entry.isVideo() ? AlbumEntryType.VIDEO : AlbumEntryType.IMAGE);
+              dtoEntry.setLastModified(entry.getLastModified());
+              entries.put(name, dtoEntry);
+            }
           }
-          return null;
+          return ret;
+        }
+
+        @Override
+        public void readThumbnail(final String filename, final File targetFile, final File tempFile) {
+
         }
       });
     }

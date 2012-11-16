@@ -1,5 +1,8 @@
 package ch.bergturbenthal.image.provider.test;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 import android.content.ContentResolver;
 import android.database.Cursor;
 import android.net.Uri;
@@ -40,5 +43,11 @@ public class ContentProviderTest extends AndroidTestCase {
       }
       Log.i("Test", "Row[" + cursor.getPosition() + "]: " + builder.toString());
     }
+  }
+
+  public void testThumbnailAccess() throws IOException {
+    final ContentResolver resolver = getContext().getContentResolver();
+    final InputStream inputStream = resolver.openInputStream(Uri.parse("content://" + Client.AUTHORITY + "/albums/1/entries/2/thumbnail"));
+    inputStream.close();
   }
 }

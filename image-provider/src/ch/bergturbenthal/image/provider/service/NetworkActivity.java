@@ -33,7 +33,7 @@ public class NetworkActivity extends Activity {
     findViewById(id).setOnClickListener(new OnClickListener() {
       @Override
       public void onClick(final View v) {
-        final Intent intent = new Intent(NetworkActivity.this, SynchronisationService.class);
+        final Intent intent = new Intent(NetworkActivity.this, SynchronisationServiceImpl.class);
         intent.putExtra("command", (Parcelable) cmd);
         startService(intent);
       }

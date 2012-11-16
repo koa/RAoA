@@ -30,7 +30,7 @@
         </receiver>
 
         <service
-            android:name=".service.SynchronisationService"
+            android:name=".service.SynchronisationServiceImpl"
             android:enabled="true" >
         </service>
 
