@@ -5,7 +5,6 @@ import java.io.InputStream;
 
 import android.content.ContentResolver;
 import android.database.Cursor;
-import android.net.Uri;
 import android.test.AndroidTestCase;
 import android.util.Log;
 import ch.bergturbenthal.image.provider.Client;
@@ -13,7 +12,7 @@ import ch.bergturbenthal.image.provider.Client;
 public class ContentProviderTest extends AndroidTestCase {
   public void testContentProvider() {
     final ContentResolver resolver = getContext().getContentResolver();
-    final Cursor cursor = resolver.query(Uri.parse("content://" + Client.AUTHORITY + "/albums"), null, null, null, null);
+    final Cursor cursor = resolver.query(Client.ALBUM_URI, null, null, null, null);
     Log.i("Test", "Result: " + cursor);
     while (cursor.moveToNext()) {
       final int count = cursor.getColumnCount();
@@ -47,7 +46,7 @@ public class ContentProviderTest extends AndroidTestCase {
 
   public void testThumbnailAccess() throws IOException {
     final ContentResolver resolver = getContext().getContentResolver();
-    final InputStream inputStream = resolver.openInputStream(Uri.parse("content://" + Client.AUTHORITY + "/albums/1/entries/2/thumbnail"));
+    final InputStream inputStream = resolver.openInputStream(Client.makeThumbnailUri(1, 2));
     inputStream.close();
   }
 }

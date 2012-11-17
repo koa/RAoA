@@ -44,7 +44,8 @@
 
         <provider
             android:name=".ArchiveContentProvider"
-            android:authorities="ch.bergturbenthal.image.provider" />
+            android:authorities="ch.bergturbenthal.image.provider" android:enabled="true" android:exported="true"
+            android:label="RoyalArchiveContentProvider" android:multiprocess="false"/>
     </application>
 
 </manifest>
