@@ -1,6 +1,5 @@
 package ch.royalarchive.androidclient;
 
-import ch.bergturbenthal.image.provider.Client;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -51,14 +50,6 @@ public class AlbumOverviewAdapter extends BaseAdapter {
 			v = li.inflate(R.layout.album_overview_item, null);
 		}
 		
-		ImageView imageView = (ImageView) v.findViewById(R.id.album_item_image);
-		imageView.setImageResource(thumbnailIds[position]);
-		imageView.setOnClickListener(new OnClickListener() {
-			public void onClick(View v) {
-				Toast.makeText(context, "" + "Zur Fotoübersicht!", Toast.LENGTH_SHORT).show();
-			}
-		});
-		
 		TextView albumName = (TextView)v.findViewById(R.id.album_item_name);
 		albumName.setText("Albumname");
 		TextView albumSize = (TextView)v.findViewById(R.id.album_item_size);
@@ -70,6 +61,14 @@ public class AlbumOverviewAdapter extends BaseAdapter {
 				Toast.makeText(context, "" + "Sorry, diese Funktion ist noch nicht implementiert!", Toast.LENGTH_SHORT).show();
 			}
 		});
+
+		ImageView imageView = (ImageView) v.findViewById(R.id.album_item_image);
+		imageView.setOnClickListener(new OnClickListener() {
+			public void onClick(View v) {
+				Toast.makeText(context, "" + "Zur Fotoübersicht!", Toast.LENGTH_SHORT).show();
+			}
+		});
+		imageView.setImageResource(thumbnailIds[position]);
 
 		return v;
 

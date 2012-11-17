@@ -7,26 +7,28 @@
         android:id="@+id/album_item_image"
         android:layout_width="@dimen/image_width"
         android:layout_height="@dimen/image_width" 
-        android:scaleType="centerCrop" />
+        android:scaleType="centerCrop" 
+        android:src="@drawable/bild4" />
 
-    <RelativeLayout 
+    <RelativeLayout
+        android:id="@+id/album_item_statusbar"
         android:layout_width="@dimen/image_width"
-        android:layout_height="fill_parent"
+        android:layout_height="48dp"
         android:layout_gravity="bottom"
         android:background="#88000000" >
        
         <TextView
-	        android:id="@+id/album_item_name"
-	        android:layout_width="fill_parent"
-	        android:layout_height="wrap_content"
-	        android:layout_marginLeft="4dp"/>
+            android:id="@+id/album_item_name"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="4dp" />
         
 	    <ImageView
 	        android:id="@+id/album_item_icon"
 	        android:layout_width="wrap_content"
 	        android:layout_height="wrap_content"
-	        android:layout_below="@id/album_item_name"
 	        android:layout_alignParentBottom="true"
+	        android:layout_alignParentLeft="true"
 	        android:src="@drawable/ic_menu_archive" />
 	    
 	    <TextView
