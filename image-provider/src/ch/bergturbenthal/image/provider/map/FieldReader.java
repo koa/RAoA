@@ -7,5 +7,7 @@ public interface FieldReader<V> {
 
   int getType();
 
+  Object getValue(V value);
+
   boolean isNull(V value);
 }

@@ -106,13 +106,13 @@ public class NetworkActivity extends Activity {
     final ContentResolver resolver = getContentResolver();
     final Cursor albumCursor = resolver.query(Client.ALBUM_URI, null, null, null, null);
     dumpCursor(albumCursor);
-    albumCursor.moveToPosition(1);
-    final int albumId = albumCursor.getInt(albumCursor.getColumnIndexOrThrow(Client.Album.ID));
+    if (albumCursor.moveToPosition(1)) {
+      final int albumId = albumCursor.getInt(albumCursor.getColumnIndexOrThrow(Client.Album.ID));
+      final Cursor entryCursor = resolver.query(Client.makeAlbumUri(albumId), null, null, null, null);
+      dumpCursor(entryCursor);
+      entryCursor.close();
+    }
     albumCursor.close();
-
-    final Cursor entryCursor = resolver.query(Client.makeAlbumUri(albumId), null, null, null, null);
-    dumpCursor(entryCursor);
-    entryCursor.close();
 
   }
 }

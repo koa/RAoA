@@ -42,6 +42,7 @@ public class EntityCursor<V, P> extends AbstractCursor {
     this.fieldReaders = fieldReaderList.toArray(new FieldReader[fieldReaderList.size()]);
     this.queryBuilder = queryBuilder;
     this.dataIterator = queryBuilder.iterator();
+    currentEntry = dataIterator.current();
   }
 
   @Override

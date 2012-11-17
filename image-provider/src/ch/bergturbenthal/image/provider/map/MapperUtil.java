@@ -2,12 +2,17 @@ package ch.bergturbenthal.image.provider.map;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
 import android.database.Cursor;
+import android.database.MatrixCursor;
 import android.util.Log;
+
+import com.j256.ormlite.dao.CloseableIterator;
+import com.j256.ormlite.stmt.QueryBuilder;
 
 public class MapperUtil {
   private static Map<Class<?>, Class<?>> primitiveToBoxed = new HashMap<Class<?>, Class<?>>();
@@ -18,6 +23,26 @@ public class MapperUtil {
     primitiveToBoxed.put(Short.TYPE, Short.class);
     primitiveToBoxed.put(Long.TYPE, Long.class);
     primitiveToBoxed.put(Boolean.TYPE, Boolean.class);
+  }
+
+  public static <E, I> Cursor loadQueryIntoCursor(final QueryBuilder<E, I> queryBuilder, final String[] projection,
+                                                  final Map<String, FieldReader<E>> fieldReaders) {
+
+    try {
+      final String[] columnNames = projection != null ? projection : fieldReaders.keySet().toArray(new String[0]);
+      final MatrixCursor cursor = new MatrixCursor(columnNames);
+      for (final CloseableIterator<E> i = queryBuilder.iterator(); i.hasNext();) {
+        final E entry = i.next();
+        final Object[] row = new Object[columnNames.length];
+        for (int j = 0; j < row.length; j++) {
+          row[j] = fieldReaders.get(columnNames[j]).getValue(entry);
+        }
+        cursor.addRow(row);
+      }
+      return cursor;
+    } catch (final SQLException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   public static <V> Map<String, FieldReader<V>> makeAnnotaedFieldReaders(final Class<V> type) {

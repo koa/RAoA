@@ -7,6 +7,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,6 +16,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -39,7 +42,6 @@ import android.util.Log;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.R;
-import ch.bergturbenthal.image.provider.map.EntityCursor;
 import ch.bergturbenthal.image.provider.map.FieldReader;
 import ch.bergturbenthal.image.provider.map.MapperUtil;
 import ch.bergturbenthal.image.provider.map.NumericFieldReader;
@@ -89,6 +91,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private File tempDir;
   private File thumbnailsDir;
   private DaoHolder daoHolder;
+
+  private final ConcurrentMap<String, ConcurrentMap<String, Integer>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, Integer>>();
 
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
@@ -247,7 +251,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
         final Map<String, FieldReader<AlbumEntryEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryEntity.class);
 
-        return new EntityCursor<AlbumEntryEntity, Integer>(queryBuilder, projection, fieldReaders);
+        return MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders);
       }
     });
   }
@@ -261,10 +265,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
         final QueryBuilder<AlbumEntity, Integer> queryBuilder = albumDao.queryBuilder();
 
+        queryBuilder.where().eq("synced", Boolean.TRUE).or().in("id", collectVisibleAlbums());
+
         final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
         fieldReaders.put(Client.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
           @Override
           public String getString(final AlbumEntity value) {
+            if (value == null || value.getArchive() == null)
+              return null;
             return value.getArchive().getName();
           }
         });
@@ -289,13 +297,22 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             }
           }
         });
-        return new EntityCursor<AlbumEntity, Integer>(queryBuilder, projection, fieldReaders);
+        return MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders);
       }
+
     });
   }
 
   private <V> V callInTransaction(final Callable<V> callable) {
     return daoHolder.callInTransaction(callable);
+  }
+
+  private Iterable<Integer> collectVisibleAlbums() {
+    final ArrayList<Integer> ret = new ArrayList<Integer>();
+    for (final ConcurrentMap<String, Integer> archive : visibleAlbums.values()) {
+      ret.addAll(archive.values());
+    }
+    return ret;
   }
 
   private List<AlbumEntity> findAlbumByArchiveAndName(final ArchiveEntity archiveEntity, final String name) {
@@ -370,6 +387,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     }
   }
 
+  private <K, V> V putIfNotExists(final ConcurrentMap<K, V> map, final K key, final V emptyValue) {
+    final V existingValue = map.putIfAbsent(key, emptyValue);
+    if (existingValue != null)
+      return existingValue;
+    return emptyValue;
+  }
+
   private synchronized void startPolling() {
     pollingFuture = executorService.scheduleWithFixedDelay(new Runnable() {
       @Override
@@ -393,8 +417,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
              .setAutoCancel(false);
       notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
 
+      // remove invisible archives
+      visibleAlbums.keySet().retainAll(connectionMap.get().keySet());
+
       for (final Entry<String, ArchiveConnection> archive : connectionMap.get().entrySet()) {
         final String archiveName = archive.getKey();
+
+        final ConcurrentMap<String, Integer> visibleAlbumsOfArchive =
+                                                                      putIfNotExists(visibleAlbums, archiveName,
+                                                                                     new ConcurrentHashMap<String, Integer>());
 
         callInTransaction(new Callable<Void>() {
           @Override
@@ -408,6 +439,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           }
         });
         final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
+        // remove invisible albums
+        visibleAlbumsOfArchive.keySet().retainAll(albums.keySet());
+
         int albumCounter = 0;
         builder.setContentText("Downloading from " + archiveName);
         for (final Entry<String, AlbumConnection> albumEntry : albums.entrySet()) {
@@ -442,6 +476,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
                   albumDao.update(albumEntity);
                 }
               }
+              visibleAlbumsOfArchive.put(albumName, Integer.valueOf(albumEntity.getId()));
 
               final Map<String, AlbumEntryEntity> existingEntries = new HashMap<String, AlbumEntryEntity>();
               final Collection<AlbumEntryEntity> entries = albumEntity.getEntries();
