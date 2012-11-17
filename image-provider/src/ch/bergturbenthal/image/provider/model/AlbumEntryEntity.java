@@ -2,6 +2,9 @@ package ch.bergturbenthal.image.provider.model;
 
 import java.util.Date;
 
+import ch.bergturbenthal.image.provider.Client;
+import ch.bergturbenthal.image.provider.map.CursorField;
+
 import com.j256.ormlite.field.DataType;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
@@ -37,18 +40,22 @@ public class AlbumEntryEntity {
     return album;
   }
 
+  @CursorField(Client.AlbumEntry.ID)
   public int getId() {
     return id;
   }
 
+  @CursorField(Client.AlbumEntry.LAST_MODIFIED)
   public Date getLastModified() {
     return lastModified;
   }
 
+  @CursorField(Client.AlbumEntry.NAME)
   public String getName() {
     return name;
   }
 
+  @CursorField(Client.AlbumEntry.ENTRY_TYPE)
   public AlbumEntryType getType() {
     return type;
   }

@@ -3,8 +3,6 @@ package ch.bergturbenthal.image.provider;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Callable;
 
 import android.content.ComponentName;
 import android.content.ContentProvider;
@@ -18,22 +16,11 @@ import android.net.Uri;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
-import ch.bergturbenthal.image.provider.map.EntityCursor;
-import ch.bergturbenthal.image.provider.map.FieldReader;
-import ch.bergturbenthal.image.provider.map.MapperUtil;
-import ch.bergturbenthal.image.provider.map.StringFieldReader;
-import ch.bergturbenthal.image.provider.model.AlbumEntity;
-import ch.bergturbenthal.image.provider.orm.DaoHolder;
-import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
 import ch.bergturbenthal.image.provider.service.SynchronisationService;
 import ch.bergturbenthal.image.provider.service.SynchronisationServiceImpl;
 import ch.bergturbenthal.image.provider.service.SynchronisationServiceImpl.LocalBinder;
 import ch.bergturbenthal.image.provider.util.EnumUriMatcher;
 import ch.bergturbenthal.image.provider.util.Path;
-
-import com.j256.ormlite.dao.RuntimeExceptionDao;
-import com.j256.ormlite.stmt.QueryBuilder;
-import com.j256.ormlite.support.ConnectionSource;
 
 public class ArchiveContentProvider extends ContentProvider {
   public static enum UriType {
@@ -52,16 +39,6 @@ public class ArchiveContentProvider extends ContentProvider {
   static final String TAG = "Content Provider";
 
   private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
-  private final ThreadLocal<DaoHolder> transactionManager = new ThreadLocal<DaoHolder>() {
-
-    @Override
-    protected DaoHolder initialValue() {
-      return new DaoHolder(connectionSource);
-    }
-  };
-  private ConnectionSource connectionSource;
-
-  private File tempDir;
 
   private SynchronisationService service = null;
   /** Defines callbacks for service binding, passed to bindService() */
@@ -114,8 +91,6 @@ public class ArchiveContentProvider extends ContentProvider {
 
     getContext().bindService(new Intent(getContext(), SynchronisationServiceImpl.class), serviceConnection, Context.BIND_AUTO_CREATE);
 
-    connectionSource = DatabaseHelper.makeConnectionSource(getContext());
-
     Log.i(TAG, "Content-Provider created");
     return true;
   }
@@ -149,25 +124,11 @@ public class ArchiveContentProvider extends ContentProvider {
       Log.i(TAG, "Query called: " + uri);
       switch (matcher.match(uri)) {
       case ALBUM_LIST:
-        return transactionManager.get().callInTransaction(new Callable<Cursor>() {
-
-          @Override
-          public Cursor call() throws Exception {
-            final RuntimeExceptionDao<AlbumEntity, String> albumDao = transactionManager.get().getDao(AlbumEntity.class);
-            final QueryBuilder<AlbumEntity, String> queryBuilder = albumDao.queryBuilder();
-
-            final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
-            fieldReaders.put(Client.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
-              @Override
-              public String getString(final AlbumEntity value) {
-                return value.getArchive().getName();
-              }
-            });
-
-            return new EntityCursor<AlbumEntity>(queryBuilder, projection, fieldReaders);
-          }
-        });
-
+        return service.readAlbumList(projection);
+      case ALBUM_ENTRY_LIST:
+        final List<String> segments = uri.getPathSegments();
+        final String album = segments.get(1);
+        return service.readAlbumEntryList(Integer.parseInt(album), projection);
       default:
         break;
       }
@@ -183,6 +144,10 @@ public class ArchiveContentProvider extends ContentProvider {
 
     // TODO Auto-generated method stub
     return 0;
+  }
+
+  private Cursor readAlbumList(final String[] projection) {
+    return service.readAlbumList(projection);
   }
 
 }

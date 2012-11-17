@@ -41,6 +41,34 @@ public class NetworkActivity extends Activity {
     });
   }
 
+  private void dumpCursor(final Cursor cursor) {
+    Log.i("Test", "Result: " + cursor);
+    while (cursor.moveToNext()) {
+      final int count = cursor.getColumnCount();
+      final StringBuilder builder = new StringBuilder();
+      for (int i = 0; i < count; i++) {
+        if (i > 0)
+          builder.append(", ");
+        builder.append(cursor.getColumnName(i));
+        builder.append(": ");
+        switch (cursor.getType(i)) {
+        case Cursor.FIELD_TYPE_BLOB:
+          builder.append("Blob");
+          break;
+        case Cursor.FIELD_TYPE_NULL:
+          builder.append("null");
+          break;
+        case Cursor.FIELD_TYPE_INTEGER:
+        case Cursor.FIELD_TYPE_FLOAT:
+        case Cursor.FIELD_TYPE_STRING:
+          builder.append(cursor.getString(i));
+          break;
+        }
+      }
+      Log.i("Test", "Row[" + cursor.getPosition() + "]: " + builder.toString());
+    }
+  }
+
   private void dumpThumbnails() {
     new AsyncTask<Void, Void, Void>() {
       @Override
@@ -76,36 +104,15 @@ public class NetworkActivity extends Activity {
 
   private void testReadContentProvider() {
     final ContentResolver resolver = getContentResolver();
-    final Cursor cursor = resolver.query(Client.ALBUM_URI, null, null, null, null);
-    Log.i("Test", "Result: " + cursor);
-    while (cursor.moveToNext()) {
-      final int count = cursor.getColumnCount();
-      final StringBuilder builder = new StringBuilder();
-      for (int i = 0; i < count; i++) {
-        if (i > 0)
-          builder.append(", ");
-        builder.append(cursor.getColumnName(i));
-        builder.append(": ");
-        switch (cursor.getType(i)) {
-        case Cursor.FIELD_TYPE_BLOB:
-          builder.append("Blob");
-          break;
-        case Cursor.FIELD_TYPE_FLOAT:
-          builder.append(cursor.getFloat(i));
-          break;
-        case Cursor.FIELD_TYPE_INTEGER:
-          builder.append(cursor.getInt(i));
-          break;
-        case Cursor.FIELD_TYPE_NULL:
-          builder.append("null");
-          break;
-        case Cursor.FIELD_TYPE_STRING:
-          builder.append(cursor.getString(i));
-          break;
-        }
-      }
-      Log.i("Test", "Row[" + cursor.getPosition() + "]: " + builder.toString());
-    }
-    cursor.close();
+    final Cursor albumCursor = resolver.query(Client.ALBUM_URI, null, null, null, null);
+    dumpCursor(albumCursor);
+    albumCursor.moveToPosition(1);
+    final int albumId = albumCursor.getInt(albumCursor.getColumnIndexOrThrow(Client.Album.ID));
+    albumCursor.close();
+
+    final Cursor entryCursor = resolver.query(Client.makeAlbumUri(albumId), null, null, null, null);
+    dumpCursor(entryCursor);
+    entryCursor.close();
+
   }
 }

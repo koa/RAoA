@@ -78,11 +78,36 @@ public class MapperUtil {
         ret.put(fieldName, new NumericFieldReader<V>(Cursor.FIELD_TYPE_INTEGER) {
           @Override
           public Number getNumber(final V value) {
+            final Date dateValue = readDateValue(method, value);
+            if (dateValue == null)
+              return null;
+            return Long.valueOf(dateValue.getTime());
+          }
+
+          @Override
+          public String getString(final V value) {
+            final Date dateValue = readDateValue(method, value);
+            if (dateValue == null)
+              return null;
+            return dateValue.toString();
+          }
+
+          private <V> Date readDateValue(final Method method, final V value) {
             try {
-              final Date dateValue = (Date) method.invoke(value);
-              if (dateValue == null)
-                return null;
-              return Long.valueOf(dateValue.getTime());
+              return (Date) method.invoke(value);
+            } catch (final Throwable e) {
+              throw new RuntimeException("cannot call method " + method, e);
+            }
+          }
+        });
+      } else if (returnType.isEnum()) {
+        ret.put(fieldName, new StringFieldReader<V>() {
+
+          @Override
+          public String getString(final V value) {
+            try {
+              final Enum<?> enumValue = (Enum<?>) method.invoke(value);
+              return enumValue.name();
             } catch (final Throwable e) {
               throw new RuntimeException("cannot call method " + method, e);
             }

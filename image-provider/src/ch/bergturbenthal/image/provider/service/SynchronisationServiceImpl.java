@@ -6,12 +6,14 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -29,12 +31,19 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.database.Cursor;
 import android.os.Binder;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import ch.bergturbenthal.image.data.model.PingResponse;
+import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.R;
+import ch.bergturbenthal.image.provider.map.EntityCursor;
+import ch.bergturbenthal.image.provider.map.FieldReader;
+import ch.bergturbenthal.image.provider.map.MapperUtil;
+import ch.bergturbenthal.image.provider.map.NumericFieldReader;
+import ch.bergturbenthal.image.provider.map.StringFieldReader;
 import ch.bergturbenthal.image.provider.model.AlbumEntity;
 import ch.bergturbenthal.image.provider.model.AlbumEntryEntity;
 import ch.bergturbenthal.image.provider.model.ArchiveEntity;
@@ -46,6 +55,7 @@ import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.image.provider.util.ExecutorServiceUtil;
 
 import com.j256.ormlite.dao.RuntimeExceptionDao;
+import com.j256.ormlite.stmt.QueryBuilder;
 import com.j256.ormlite.support.ConnectionSource;
 
 public class SynchronisationServiceImpl extends Service implements ResultListener, SynchronisationService {
@@ -224,6 +234,64 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         }
     }
     return START_STICKY;
+  }
+
+  @Override
+  public Cursor readAlbumEntryList(final int albumId, final String[] projection) {
+    return daoHolder.callInTransaction(new Callable<Cursor>() {
+
+      @Override
+      public Cursor call() throws Exception {
+        final QueryBuilder<AlbumEntryEntity, Integer> queryBuilder = getAlbumEntryDao().queryBuilder();
+        queryBuilder.where().eq("album_id", Integer.valueOf(albumId));
+
+        final Map<String, FieldReader<AlbumEntryEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryEntity.class);
+
+        return new EntityCursor<AlbumEntryEntity, Integer>(queryBuilder, projection, fieldReaders);
+      }
+    });
+  }
+
+  @Override
+  public Cursor readAlbumList(final String[] projection) {
+    return daoHolder.callInTransaction(new Callable<Cursor>() {
+
+      @Override
+      public Cursor call() throws Exception {
+        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+        final QueryBuilder<AlbumEntity, Integer> queryBuilder = albumDao.queryBuilder();
+
+        final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
+        fieldReaders.put(Client.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
+          @Override
+          public String getString(final AlbumEntity value) {
+            return value.getArchive().getName();
+          }
+        });
+        fieldReaders.put(Client.Album.ENTRY_COUNT, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
+
+          private final WeakHashMap<AlbumEntity, Integer> cachedCount = new WeakHashMap<AlbumEntity, Integer>();
+
+          @Override
+          public Number getNumber(final AlbumEntity value) {
+            final Integer cachedValue = cachedCount.get(value);
+            if (cachedValue != null)
+              return cachedValue;
+            try {
+              final QueryBuilder<AlbumEntryEntity, Integer> builder = getAlbumEntryDao().queryBuilder();
+              builder.where().eq("album_id", value);
+              builder.setCountOf(true);
+              final Integer result = Integer.valueOf(builder.queryRawFirst()[0]);
+              cachedCount.put(value, result);
+              return result;
+            } catch (final SQLException e) {
+              throw new RuntimeException("Cannot count entries of Album" + value, e);
+            }
+          }
+        });
+        return new EntityCursor<AlbumEntity, Integer>(queryBuilder, projection, fieldReaders);
+      }
+    });
   }
 
   private <V> V callInTransaction(final Callable<V> callable) {
