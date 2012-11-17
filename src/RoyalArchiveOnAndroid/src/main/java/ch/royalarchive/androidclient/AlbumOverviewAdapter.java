@@ -1,19 +1,15 @@
 package ch.royalarchive.androidclient;
 
+import ch.bergturbenthal.image.provider.Client;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.BaseAdapter;
-import android.widget.FrameLayout;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.AdapterView.OnItemClickListener;
 
 public class AlbumOverviewAdapter extends BaseAdapter {
 
@@ -57,20 +53,26 @@ public class AlbumOverviewAdapter extends BaseAdapter {
 		
 		ImageView imageView = (ImageView) v.findViewById(R.id.album_item_image);
 		imageView.setImageResource(thumbnailIds[position]);
-		OnClickListener clickListener = new OnClickListener() {
+		imageView.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
-				Toast.makeText(context, "" + "hier weiterdenken!", Toast.LENGTH_SHORT).show();
+				Toast.makeText(context, "" + "Zur Fotoübersicht!", Toast.LENGTH_SHORT).show();
 			}
-		};
-		imageView.setOnClickListener(clickListener);
+		});
 		
 		TextView albumName = (TextView)v.findViewById(R.id.album_item_name);
 		albumName.setText("Albumname");
 		TextView albumSize = (TextView)v.findViewById(R.id.album_item_size);
 		albumSize.setText("125");
+		
+		ImageView makeOfflineAvailable = (ImageView) v.findViewById(R.id.album_item_icon_offline);
+		makeOfflineAvailable.setOnClickListener(new OnClickListener() {
+			public void onClick(View v) {
+				Toast.makeText(context, "" + "Sorry, diese Funktion ist noch nicht implementiert!", Toast.LENGTH_SHORT).show();
+			}
+		});
 
 		return v;
 
 	}
-
+	
 }

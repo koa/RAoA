@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="hello">Hello RoyalArchiveOnAndroid!</string>
     <string name="app_name">RoyalArchiveOnAndroid</string>
-    <string name="next">next</string>
-    <string name="finished">finished!</string>
 </resources>

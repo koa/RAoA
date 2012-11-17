@@ -44,7 +44,8 @@
 	        android:layout_height="wrap_content"
 	        android:layout_alignParentRight="true"
 	        android:layout_alignParentBottom="true"
-	        android:src="@drawable/ic_menu_refresh" />
+	        android:src="@drawable/ic_menu_refresh" 
+	        android:clickable="true" />
 	    
     </RelativeLayout>
 

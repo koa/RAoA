@@ -25,6 +25,8 @@ public class AlbumOverviewActivity extends Activity {
 	            Toast.makeText(AlbumOverviewActivity.this, "" + position, Toast.LENGTH_SHORT).show();
 	        }
 	    });*/
+	    
+	    
 		
 	}
 
