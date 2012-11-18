@@ -1,6 +1,7 @@
 package ch.bergturbenthal.image.provider.service;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
@@ -12,12 +13,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -48,6 +51,7 @@ import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.R;
 import ch.bergturbenthal.image.provider.map.FieldReader;
 import ch.bergturbenthal.image.provider.map.MapperUtil;
+import ch.bergturbenthal.image.provider.map.NotifyableMatrixCursor;
 import ch.bergturbenthal.image.provider.map.NumericFieldReader;
 import ch.bergturbenthal.image.provider.map.StringFieldReader;
 import ch.bergturbenthal.image.provider.model.AlbumEntity;
@@ -97,6 +101,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private File tempDir;
   private File thumbnailsDir;
   private DaoHolder daoHolder;
+  private final Collection<WeakReference<NotifyableMatrixCursor>> openCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableMatrixCursor>>();
 
   private final ConcurrentMap<String, ConcurrentMap<String, Integer>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, Integer>>();
 
@@ -257,7 +262,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
         final Map<String, FieldReader<AlbumEntryEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryEntity.class);
 
-        return MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders);
+        final NotifyableMatrixCursor cursor = MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders);
+        openCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
+        return cursor;
       }
     });
   }
@@ -304,7 +311,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             }
           }
         });
-        return MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders);
+
+        final NotifyableMatrixCursor cursor = MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders);
+        openCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
+        return cursor;
       }
 
     });
@@ -495,6 +505,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
               return Integer.valueOf(albumEntity.getId());
             }
           });
+          for (final Iterator<WeakReference<NotifyableMatrixCursor>> cursorIterator = openCursors.iterator(); cursorIterator.hasNext();) {
+            final WeakReference<NotifyableMatrixCursor> ref = cursorIterator.next();
+            final NotifyableMatrixCursor cursor = ref.get();
+            if (cursor == null || cursor.isClosed()) {
+              cursorIterator.remove();
+              continue;
+            }
+            cursor.onChange(false);
+          }
 
           final AtomicLong dateSum = new AtomicLong(0);
           final AtomicInteger dateCount = new AtomicInteger(0);

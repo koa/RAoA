@@ -54,6 +54,16 @@ public class AlbumEntity {
     name = null;
   }
 
+  @CursorField(Client.Album.NAME)
+  public String evalLocalName() {
+    if (name == null)
+      return null;
+    final String[] parts = name.split("/");
+    if (parts.length < 1)
+      return null;
+    return parts[parts.length - 1];
+  }
+
   @CursorField(Client.Album.ALBUM_CAPTURE_DATE)
   public Date getAlbumCaptureDate() {
     return albumCaptureDate;
@@ -81,7 +91,7 @@ public class AlbumEntity {
     return interestingClients;
   }
 
-  @CursorField(Client.Album.NAME)
+  @CursorField(Client.Album.FULL_NAME)
   public String getName() {
     return name;
   }

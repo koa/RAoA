@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import android.database.Cursor;
-import android.database.MatrixCursor;
 import android.util.Log;
 
 import com.j256.ormlite.dao.CloseableIterator;
@@ -25,12 +24,12 @@ public class MapperUtil {
     primitiveToBoxed.put(Boolean.TYPE, Boolean.class);
   }
 
-  public static <E, I> Cursor loadQueryIntoCursor(final QueryBuilder<E, I> queryBuilder, final String[] projection,
-                                                  final Map<String, FieldReader<E>> fieldReaders) {
+  public static <E, I> NotifyableMatrixCursor loadQueryIntoCursor(final QueryBuilder<E, I> queryBuilder, final String[] projection,
+                                                                  final Map<String, FieldReader<E>> fieldReaders) {
 
     try {
       final String[] columnNames = projection != null ? projection : fieldReaders.keySet().toArray(new String[0]);
-      final MatrixCursor cursor = new MatrixCursor(columnNames);
+      final NotifyableMatrixCursor cursor = new NotifyableMatrixCursor(columnNames);
       for (final CloseableIterator<E> i = queryBuilder.iterator(); i.hasNext();) {
         final E entry = i.next();
         final Object[] row = new Object[columnNames.length];
