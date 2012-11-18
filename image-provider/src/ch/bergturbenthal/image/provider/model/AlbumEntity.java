@@ -40,6 +40,8 @@ public class AlbumEntity {
 
   @DatabaseField
   private boolean synced = false;
+  @DatabaseField
+  private Date albumCaptureDate;
 
   public AlbumEntity(final ArchiveEntity archive, final String name) {
     this.archive = archive;
@@ -50,6 +52,11 @@ public class AlbumEntity {
     id = -1;
     archive = null;
     name = null;
+  }
+
+  @CursorField(Client.Album.ALBUM_CAPTURE_DATE)
+  public Date getAlbumCaptureDate() {
+    return albumCaptureDate;
   }
 
   public ArchiveEntity getArchive() {
@@ -91,6 +98,10 @@ public class AlbumEntity {
   @CursorField(Client.Album.SYNCED)
   public boolean isSynced() {
     return synced;
+  }
+
+  public void setAlbumCaptureDate(final Date albumCaptureDate) {
+    this.albumCaptureDate = albumCaptureDate;
   }
 
   public void setAutoAddDate(final Date autoAddDate) {

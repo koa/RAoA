@@ -14,6 +14,7 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,6 +28,7 @@ import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
+import ch.bergturbenthal.image.data.model.AlbumImageEntryDetail;
 import ch.bergturbenthal.image.data.model.AlbumList;
 import ch.bergturbenthal.image.server.Album;
 import ch.bergturbenthal.image.server.AlbumAccess;
@@ -35,7 +37,7 @@ import ch.bergturbenthal.image.server.AlbumImage;
 @Controller
 @RequestMapping("/albums")
 public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
-
+  private static org.slf4j.Logger logger = LoggerFactory.getLogger(AlbumController.class);
   @Autowired
   private AlbumAccess albumAccess;
 
@@ -46,6 +48,22 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   public @ResponseBody
   String createAlbum(@RequestBody final String[] pathComps) {
     return albumAccess.createAlbum(pathComps);
+  }
+
+  @Override
+  @RequestMapping(value = "{albumId}/image/{imageId}/detail", method = RequestMethod.GET)
+  public @ResponseBody
+  AlbumImageEntryDetail getImageDetails(@PathVariable("albumId") final String albumid, @PathVariable("imageId") final String imageid) {
+    final AlbumImageEntryDetail ret = new AlbumImageEntryDetail();
+    final Album album = albumAccess.listAlbums().get(albumid);
+    final AlbumImage albumImage = album.getImage(imageid);
+    fillAlbumImageEntry(albumImage, ret);
+    try {
+      ret.setCaptureDate(albumImage.captureDate());
+    } catch (final Throwable t) {
+      logger.warn("Cannot read Capture-Date from " + album.getName() + ":" + albumImage.getName(), t);
+    }
+    return ret;
   }
 
   @RequestMapping(value = "import", method = RequestMethod.GET)
@@ -69,10 +87,8 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     for (final Entry<String, AlbumImage> albumImageEntry : images.entrySet()) {
       final AlbumImageEntry entry = new AlbumImageEntry();
       final AlbumImage albumImage = albumImageEntry.getValue();
-      entry.setName(albumImage.getName());
       entry.setId(albumImageEntry.getKey());
-      entry.setVideo(albumImage.isVideo());
-      entry.setLastModified(albumImage.lastModified());
+      fillAlbumImageEntry(albumImage, entry);
       ret.getImages().add(entry);
     }
     return ret;
@@ -204,6 +220,12 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   @RequestMapping(value = "{albumId}/unRegisterClient", method = RequestMethod.PUT)
   public void unRegisterClient(@PathVariable("albumId") final String albumId, @RequestBody final String clientId, final HttpServletResponse response) {
     unRegisterClient(albumId, clientId);
+  }
+
+  private void fillAlbumImageEntry(final AlbumImage albumImage, final AlbumImageEntry entry) {
+    entry.setName(albumImage.getName());
+    entry.setVideo(albumImage.isVideo());
+    entry.setLastModified(albumImage.lastModified());
   }
 
   private ImageResult makeImageResult(final File sourceFile, final AlbumImage image, final Date ifModifiedSince) {

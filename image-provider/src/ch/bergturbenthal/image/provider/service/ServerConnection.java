@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.SoftReference;
-import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -33,6 +32,7 @@ import android.util.Log;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
+import ch.bergturbenthal.image.data.model.AlbumImageEntryDetail;
 import ch.bergturbenthal.image.data.model.AlbumList;
 
 public class ServerConnection {
@@ -42,7 +42,7 @@ public class ServerConnection {
 
   private String instanceId;
   private final AtomicReference<Collection<URL>> connections = new AtomicReference<Collection<URL>>(Collections.<URL> emptyList());
-  private final AtomicReference<WeakReference<Map<String, String>>> albumIds = new AtomicReference<WeakReference<Map<String, String>>>();
+  private final AtomicReference<SoftReference<Map<String, String>>> albumIds = new AtomicReference<SoftReference<Map<String, String>>>();
   private final RestTemplate restTemplate = new RestTemplate(true);
   private final Map<String, SoftReference<AlbumDetail>> albumDetailCache = new HashMap<String, SoftReference<AlbumDetail>>();
 
@@ -72,6 +72,21 @@ public class ServerConnection {
     }
     albumDetailCache.put(albumName, new SoftReference<AlbumDetail>(albumDetail));
     return albumDetail;
+  }
+
+  public AlbumImageEntryDetail getImageDetail(final String albumName, final String file) {
+    final AlbumDetail albumDetail = getAlbumDetail(albumName);
+    final AlbumImageEntry albumEntry = findAlbumEntry(albumName, file);
+    if (albumEntry == null)
+      return null;
+    return callOne(new ConnectionCallable<AlbumImageEntryDetail>() {
+
+      @Override
+      public ResponseEntity<AlbumImageEntryDetail> call(final URL baseUrl) throws Exception {
+        return restTemplate.getForEntity(baseUrl.toExternalForm() + "/albums/{albumId}/image/{imageId}/detail.json", AlbumImageEntryDetail.class,
+                                         albumDetail.getId(), albumEntry.getId());
+      }
+    });
   }
 
   public String getInstanceId() {
@@ -186,7 +201,7 @@ public class ServerConnection {
   }
 
   private synchronized Map<String, String> collectAlbums() {
-    final WeakReference<Map<String, String>> reference = albumIds.get();
+    final SoftReference<Map<String, String>> reference = albumIds.get();
     if (reference != null) {
       final Map<String, String> cachedMap = reference.get();
       if (cachedMap != null)
@@ -203,7 +218,7 @@ public class ServerConnection {
     for (final AlbumEntry entry : albums.getAlbumNames()) {
       ret.put(entry.getName(), entry.getId());
     }
-    albumIds.set(new WeakReference<Map<String, String>>(ret));
+    albumIds.set(new SoftReference<Map<String, String>>(ret));
     return ret;
   }
 

@@ -12,7 +12,7 @@ public class Client {
     public static final String SHOULD_SYNC = "shouldSync";
     public static final String SYNCED = "synced";
     public static final String ENTRY_COUNT = "entryCount";
-    public static final String[] ALL_COLUMNS = new String[] { ARCHIVE_NAME, ID, NAME, AUTOADD_DATE, SHOULD_SYNC, SYNCED, ENTRY_COUNT };
+    public static final String ALBUM_CAPTURE_DATE = "albumCaptureDate";
   }
 
   public static class AlbumEntry {
@@ -20,6 +20,7 @@ public class Client {
     public static final String NAME = "fileName";
     public static final String LAST_MODIFIED = "lastModified";
     public static final String ENTRY_TYPE = "entryType";
+    public static final String CAPTURE_DATE = "captureDate";
   }
 
   public static final String AUTHORITY = "ch.bergturbenthal.image.provider";

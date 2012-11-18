@@ -19,9 +19,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
+import ch.bergturbenthal.image.data.model.AlbumImageEntryDetail;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.provider.model.AlbumEntryType;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
+import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDetailDto;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
 
 public class ArchiveConnection {
@@ -102,12 +104,27 @@ public class ArchiveConnection {
               if (entries.containsKey(name) && entries.get(name).getLastModified().getTime() > entry.getLastModified().getTime())
                 continue;
               final AlbumEntryDto dtoEntry = new AlbumEntryDto();
-              dtoEntry.setEntryType(entry.isVideo() ? AlbumEntryType.VIDEO : AlbumEntryType.IMAGE);
-              dtoEntry.setLastModified(entry.getLastModified());
+              fillDto(dtoEntry, entry);
               entries.put(name, dtoEntry);
             }
           }
           return ret;
+        }
+
+        @Override
+        public AlbumEntryDetailDto getAlbumEntryDetail(final String filename) {
+          for (final String serverId : servers) {
+            final ServerConnection serverConnection = serverConnections.get().get(serverId);
+            final AlbumImageEntryDetail imageDetail = serverConnection.getImageDetail(albumName, filename);
+            if (imageDetail == null)
+              continue;
+            final AlbumEntryDetailDto ret = new AlbumEntryDetailDto();
+            fillDto(ret, imageDetail);
+            if (imageDetail.getCaptureDate() != null)
+              ret.setCaptureDate(imageDetail.getCaptureDate());
+            return ret;
+          }
+          return null;
         }
 
         @Override
@@ -117,6 +134,11 @@ public class ArchiveConnection {
             if (serverConnection.readThumbnail(albumName, filename, tempFile, targetFile))
               return;
           }
+        }
+
+        private void fillDto(final AlbumEntryDto dtoEntry, final AlbumImageEntry entry) {
+          dtoEntry.setEntryType(entry.isVideo() ? AlbumEntryType.VIDEO : AlbumEntryType.IMAGE);
+          dtoEntry.setLastModified(entry.getLastModified());
         }
       });
     }

@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +22,10 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.http.HttpStatus.Series;
@@ -50,11 +54,13 @@ import ch.bergturbenthal.image.provider.model.AlbumEntity;
 import ch.bergturbenthal.image.provider.model.AlbumEntryEntity;
 import ch.bergturbenthal.image.provider.model.ArchiveEntity;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
+import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDetailDto;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
 import ch.bergturbenthal.image.provider.orm.DaoHolder;
 import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
 import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.image.provider.util.ExecutorServiceUtil;
+import ch.bergturbenthal.image.provider.util.PostJob;
 
 import com.j256.ormlite.dao.RuntimeExceptionDao;
 import com.j256.ormlite.stmt.QueryBuilder;
@@ -264,6 +270,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       public Cursor call() throws Exception {
         final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
         final QueryBuilder<AlbumEntity, Integer> queryBuilder = albumDao.queryBuilder();
+        queryBuilder.orderBy("albumCaptureDate", false);
 
         queryBuilder.where().eq("synced", Boolean.TRUE).or().in("id", collectVisibleAlbums());
 
@@ -315,18 +322,19 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return ret;
   }
 
+  private boolean dateEquals(final Date middleCaptureDate, final Date albumCaptureDate) {
+    if (middleCaptureDate == null)
+      return albumCaptureDate == null;
+    if (albumCaptureDate == null)
+      return false;
+    return middleCaptureDate.getTime() == albumCaptureDate.getTime();
+  }
+
   private List<AlbumEntity> findAlbumByArchiveAndName(final ArchiveEntity archiveEntity, final String name) {
     final Map<String, Object> valueMap = new HashMap<String, Object>();
     valueMap.put("archive_id", archiveEntity);
     valueMap.put("name", name);
     return getAlbumDao().queryForFieldValues(valueMap);
-  }
-
-  private List<AlbumEntryEntity> findAlbumEntryByAlbumAndName(final AlbumEntity albumEntity, final String name) {
-    final Map<String, Object> valueMap = new HashMap<String, Object>();
-    valueMap.put("album_id", albumEntity);
-    valueMap.put("name", name);
-    return getAlbumEntryDao().queryForFieldValues(valueMap);
   }
 
   private RuntimeExceptionDao<AlbumEntity, Integer> getAlbumDao() {
@@ -412,6 +420,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private synchronized void updateAlbumsOnDB() {
     try {
+      // enqueue maximum 100 requests in queue
+      final Semaphore sem = new Semaphore(100);
       final Notification.Builder builder = new Notification.Builder(getApplicationContext());
       builder.setContentTitle("DB Update").setSmallIcon(android.R.drawable.ic_dialog_info).setContentText("Download in progress")
              .setAutoCancel(false);
@@ -449,17 +459,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           builder.setContentText("Downloading " + lastPart(albumName.split("/")) + " from " + archiveName);
           builder.setProgress(albums.size(), albumCounter++, false);
           notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
+          final AlbumDto albumDto = albumEntry.getValue().getAlbumDetail();
+          final Map<String, AlbumEntryEntity> existingEntries = new HashMap<String, AlbumEntryEntity>();
 
-          callInTransaction(new Callable<Void>() {
+          final Integer albumId = callInTransaction(new Callable<Integer>() {
 
             @Override
-            public Void call() throws Exception {
+            public Integer call() throws Exception {
               final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
               final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-              final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
 
               final ArchiveEntity archiveEntity = archiveDao.queryForId(archiveName);
-              final AlbumDto albumDto = albumEntry.getValue().getAlbumDetail();
 
               final List<AlbumEntity> foundEntries = findAlbumByArchiveAndName(archiveEntity, albumName);
               final AlbumEntity albumEntity;
@@ -478,23 +488,82 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
               }
               visibleAlbumsOfArchive.put(albumName, Integer.valueOf(albumEntity.getId()));
 
-              final Map<String, AlbumEntryEntity> existingEntries = new HashMap<String, AlbumEntryEntity>();
               final Collection<AlbumEntryEntity> entries = albumEntity.getEntries();
               for (final AlbumEntryEntity albumEntryEntity : entries) {
                 existingEntries.put(albumEntryEntity.getName(), albumEntryEntity);
               }
+              return Integer.valueOf(albumEntity.getId());
+            }
+          });
 
-              for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
-                final AlbumEntryEntity existingEntry = existingEntries.get(albumImageEntry.getKey());
-                if (existingEntry == null) {
-                  final AlbumEntryEntity albumEntryEntity =
-                                                            new AlbumEntryEntity(albumEntity, albumImageEntry.getKey(),
-                                                                                 albumImageEntry.getValue().getEntryType(),
-                                                                                 albumImageEntry.getValue().getLastModified());
-                  albumEntryDao.create(albumEntryEntity);
+          final AtomicLong dateSum = new AtomicLong(0);
+          final AtomicInteger dateCount = new AtomicInteger(0);
+          final PostJob postJob = new PostJob(executorService);
+
+          for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
+            final AlbumEntryEntity existingEntry = existingEntries.get(albumImageEntry.getKey());
+            if (existingEntry == null) {
+              sem.acquire();
+              postJob.addTask(new Callable<Void>() {
+
+                @Override
+                public Void call() throws Exception {
+                  try {
+                    final AlbumEntryDetailDto entryDto = albumEntry.getValue().getAlbumEntryDetail(albumImageEntry.getKey());
+
+                    callInTransaction(new Callable<Void>() {
+
+                      @Override
+                      public Void call() throws Exception {
+                        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
+                        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+                        final AlbumEntity albumEntity = albumDao.queryForId(albumId);
+                        final AlbumEntryEntity albumEntryEntity =
+                                                                  new AlbumEntryEntity(albumEntity, albumImageEntry.getKey(),
+                                                                                       entryDto.getEntryType(), entryDto.getLastModified(),
+                                                                                       entryDto.getCaptureDate());
+                        albumEntryDao.create(albumEntryEntity);
+                        if (albumEntryEntity.getCaptureDate() != null) {
+                          dateCount.incrementAndGet();
+                          dateSum.addAndGet(albumEntryEntity.getCaptureDate().getTime());
+                        }
+                        return null;
+                      }
+                    });
+                    return null;
+                  } finally {
+                    sem.release();
+                  }
                 }
+              });
+
+            } else {
+              final Date captureDate = existingEntry.getCaptureDate();
+              if (captureDate != null) {
+                dateCount.incrementAndGet();
+                dateSum.addAndGet(captureDate.getTime());
               }
-              return null;
+            }
+          }
+          postJob.finishWith(new Callable<Void>() {
+
+            @Override
+            public Void call() throws Exception {
+              return callInTransaction(new Callable<Void>() {
+
+                @Override
+                public Void call() throws Exception {
+                  final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+                  final AlbumEntity albumEntity = albumDao.queryForId(albumId);
+
+                  final Date middleCaptureDate = dateCount.get() == 0 ? null : new Date(dateSum.longValue() / dateCount.longValue());
+                  if (!dateEquals(middleCaptureDate, albumEntity.getAlbumCaptureDate())) {
+                    albumEntity.setAlbumCaptureDate(middleCaptureDate);
+                    albumDao.update(albumEntity);
+                  }
+                  return null;
+                }
+              });
             }
           });
         }
