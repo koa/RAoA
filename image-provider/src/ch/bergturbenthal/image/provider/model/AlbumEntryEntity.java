@@ -14,7 +14,7 @@ public class AlbumEntryEntity {
   @DatabaseField(canBeNull = false, uniqueIndexName = "entry_name_index")
   private final String name;
   @DatabaseField(generatedId = true)
-  private final int id = -1;
+  private final int id;
   @DatabaseField(foreign = true, uniqueIndexName = "entry_name_index")
   private final AlbumEntity album;
   @DatabaseField(canBeNull = false, dataType = DataType.ENUM_STRING)
@@ -30,6 +30,7 @@ public class AlbumEntryEntity {
     this.type = type;
     this.lastModified = lastModified;
     this.captureDate = captureDate;
+    this.id = -1;
   }
 
   protected AlbumEntryEntity() {
@@ -37,6 +38,7 @@ public class AlbumEntryEntity {
     album = null;
     type = null;
     captureDate = null;
+    id = -1;
   }
 
   public AlbumEntity getAlbum() {

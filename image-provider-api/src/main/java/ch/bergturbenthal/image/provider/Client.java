@@ -22,6 +22,7 @@ public class Client {
     public static final String ID = "_ID";
     public static final String LAST_MODIFIED = "lastModified";
     public static final String NAME = "fileName";
+    public static final String THUMBNAIL = "thumbnail";
   }
 
   public static final String AUTHORITY = "ch.bergturbenthal.image.provider";

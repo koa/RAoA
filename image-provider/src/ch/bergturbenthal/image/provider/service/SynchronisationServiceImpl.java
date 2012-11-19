@@ -27,6 +27,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -87,6 +88,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private final IBinder binder = new LocalBinder();
   private final static String SERVICE_TAG = "Synchronisation Service";
   private static final String UPDATE_DB_NOTIFICATION = "UpdateDb";
+  private final AtomicBoolean running = new AtomicBoolean(false);
   private final AtomicReference<Map<String, ArchiveConnection>> connectionMap =
                                                                                 new AtomicReference<Map<String, ArchiveConnection>>(
                                                                                                                                     Collections.<String, ArchiveConnection> emptyMap());
@@ -104,6 +106,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private final Collection<WeakReference<NotifyableMatrixCursor>> openCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableMatrixCursor>>();
 
   private final ConcurrentMap<String, ConcurrentMap<String, Integer>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, Integer>>();
+
+  private final Object updateLock = new Object();
 
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
@@ -228,18 +232,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       if (command != null)
         switch (command) {
         case START:
-          Log.i(SERVICE_TAG, "Synchronisation started");
-          dnsListener.startListening();
-          final Notification notification =
-                                            new NotificationCompat.Builder(this).setContentTitle("Syncing")
-                                                                                .setSmallIcon(android.R.drawable.ic_dialog_info).getNotification();
-          notificationManager.notify(NOTIFICATION, notification);
-          startPolling();
+          startRunning();
           break;
         case STOP:
-          dnsListener.stopListening();
-          notificationManager.cancel(NOTIFICATION);
-          stopPolling();
+          stopRunning();
           break;
         case POLL:
           updateAlbumsOnDB();
@@ -261,6 +257,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         queryBuilder.where().eq("album_id", Integer.valueOf(albumId));
 
         final Map<String, FieldReader<AlbumEntryEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryEntity.class);
+
+        fieldReaders.put(Client.AlbumEntry.THUMBNAIL, new StringFieldReader<AlbumEntryEntity>() {
+
+          @Override
+          public String getString(final AlbumEntryEntity value) {
+            return Client.makeThumbnailUri(albumId, value.getId()).toString();
+          }
+        });
 
         final NotifyableMatrixCursor cursor = MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders);
         openCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
@@ -422,176 +426,204 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   }
 
+  private synchronized void startRunning() {
+    if (running.get())
+      return;
+    running.set(true);
+    Log.i(SERVICE_TAG, "Synchronisation started");
+    dnsListener.startListening();
+    final Notification notification =
+                                      new NotificationCompat.Builder(this).setContentTitle("Syncing").setSmallIcon(android.R.drawable.ic_dialog_info)
+                                                                          .getNotification();
+    notificationManager.notify(NOTIFICATION, notification);
+    startPolling();
+  }
+
   private synchronized void stopPolling() {
     if (pollingFuture != null)
       pollingFuture.cancel(false);
     pollingFuture = null;
   }
 
-  private synchronized void updateAlbumsOnDB() {
-    try {
-      // enqueue maximum 100 requests in queue
-      final Semaphore sem = new Semaphore(100);
-      final Notification.Builder builder = new Notification.Builder(getApplicationContext());
-      builder.setContentTitle("DB Update").setSmallIcon(android.R.drawable.ic_dialog_info).setContentText("Download in progress")
-             .setAutoCancel(false);
-      notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
+  private synchronized void stopRunning() {
+    dnsListener.stopListening();
+    notificationManager.cancel(NOTIFICATION);
+    stopPolling();
+    running.set(false);
+  }
 
-      // remove invisible archives
-      visibleAlbums.keySet().retainAll(connectionMap.get().keySet());
+  private void updateAlbumsOnDB() {
+    synchronized (updateLock) {
 
-      for (final Entry<String, ArchiveConnection> archive : connectionMap.get().entrySet()) {
-        final String archiveName = archive.getKey();
+      try {
+        // enqueue maximum 100 requests in queue
+        final Semaphore sem = new Semaphore(100);
+        final Notification.Builder builder = new Notification.Builder(getApplicationContext());
+        builder.setContentTitle("DB Update").setSmallIcon(android.R.drawable.ic_dialog_info).setContentText("Download in progress")
+               .setAutoCancel(false);
+        notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
 
-        final ConcurrentMap<String, Integer> visibleAlbumsOfArchive =
-                                                                      putIfNotExists(visibleAlbums, archiveName,
-                                                                                     new ConcurrentHashMap<String, Integer>());
+        // remove invisible archives
+        visibleAlbums.keySet().retainAll(connectionMap.get().keySet());
 
-        callInTransaction(new Callable<Void>() {
-          @Override
-          public Void call() throws Exception {
-            final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
-            final ArchiveEntity loadedArchive = archiveDao.queryForId(archiveName);
-            if (loadedArchive == null) {
-              archiveDao.create(new ArchiveEntity(archiveName));
-            }
-            return null;
-          }
-        });
-        final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
-        // remove invisible albums
-        visibleAlbumsOfArchive.keySet().retainAll(albums.keySet());
+        for (final Entry<String, ArchiveConnection> archive : connectionMap.get().entrySet()) {
+          if (!running.get())
+            break;
+          final String archiveName = archive.getKey();
 
-        int albumCounter = 0;
-        builder.setContentText("Downloading from " + archiveName);
-        for (final Entry<String, AlbumConnection> albumEntry : albums.entrySet()) {
-          final String albumName = albumEntry.getKey();
-          builder.setContentText("Downloading " + lastPart(albumName.split("/")) + " from " + archiveName);
-          builder.setProgress(albums.size(), albumCounter++, false);
-          notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
-          final AlbumDto albumDto = albumEntry.getValue().getAlbumDetail();
-          final Map<String, AlbumEntryEntity> existingEntries = new HashMap<String, AlbumEntryEntity>();
+          final ConcurrentMap<String, Integer> visibleAlbumsOfArchive =
+                                                                        putIfNotExists(visibleAlbums, archiveName,
+                                                                                       new ConcurrentHashMap<String, Integer>());
 
-          final Integer albumId = callInTransaction(new Callable<Integer>() {
-
-            @Override
-            public Integer call() throws Exception {
-              final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
-              final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-
-              final ArchiveEntity archiveEntity = archiveDao.queryForId(archiveName);
-
-              final List<AlbumEntity> foundEntries = findAlbumByArchiveAndName(archiveEntity, albumName);
-              final AlbumEntity albumEntity;
-              if (foundEntries.isEmpty()) {
-                albumEntity = new AlbumEntity(archiveEntity, albumName);
-                albumEntity.setAutoAddDate(albumDto.getAutoAddDate());
-                albumDao.create(albumEntity);
-              } else {
-                albumEntity = foundEntries.get(0);
-                if ((albumEntity.getAutoAddDate() != null && (albumDto.getAutoAddDate() == null || !albumEntity.getAutoAddDate()
-                                                                                                               .equals(albumDto.getAutoAddDate())))
-                    || (albumEntity.getAutoAddDate() == null && albumDto.getAutoAddDate() != null)) {
-                  albumEntity.setAutoAddDate(albumDto.getAutoAddDate());
-                  albumDao.update(albumEntity);
-                }
-              }
-              visibleAlbumsOfArchive.put(albumName, Integer.valueOf(albumEntity.getId()));
-
-              final Collection<AlbumEntryEntity> entries = albumEntity.getEntries();
-              for (final AlbumEntryEntity albumEntryEntity : entries) {
-                existingEntries.put(albumEntryEntity.getName(), albumEntryEntity);
-              }
-              return Integer.valueOf(albumEntity.getId());
-            }
-          });
-          for (final Iterator<WeakReference<NotifyableMatrixCursor>> cursorIterator = openCursors.iterator(); cursorIterator.hasNext();) {
-            final WeakReference<NotifyableMatrixCursor> ref = cursorIterator.next();
-            final NotifyableMatrixCursor cursor = ref.get();
-            if (cursor == null || cursor.isClosed()) {
-              cursorIterator.remove();
-              continue;
-            }
-            cursor.onChange(false);
-          }
-
-          final AtomicLong dateSum = new AtomicLong(0);
-          final AtomicInteger dateCount = new AtomicInteger(0);
-          final PostJob postJob = new PostJob(executorService);
-
-          for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
-            final AlbumEntryEntity existingEntry = existingEntries.get(albumImageEntry.getKey());
-            if (existingEntry == null) {
-              sem.acquire();
-              postJob.addTask(new Callable<Void>() {
-
-                @Override
-                public Void call() throws Exception {
-                  try {
-                    final AlbumEntryDetailDto entryDto = albumEntry.getValue().getAlbumEntryDetail(albumImageEntry.getKey());
-
-                    callInTransaction(new Callable<Void>() {
-
-                      @Override
-                      public Void call() throws Exception {
-                        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
-                        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-                        final AlbumEntity albumEntity = albumDao.queryForId(albumId);
-                        final AlbumEntryEntity albumEntryEntity =
-                                                                  new AlbumEntryEntity(albumEntity, albumImageEntry.getKey(),
-                                                                                       entryDto.getEntryType(), entryDto.getLastModified(),
-                                                                                       entryDto.getCaptureDate());
-                        albumEntryDao.create(albumEntryEntity);
-                        if (albumEntryEntity.getCaptureDate() != null) {
-                          dateCount.incrementAndGet();
-                          dateSum.addAndGet(albumEntryEntity.getCaptureDate().getTime());
-                        }
-                        return null;
-                      }
-                    });
-                    return null;
-                  } finally {
-                    sem.release();
-                  }
-                }
-              });
-
-            } else {
-              final Date captureDate = existingEntry.getCaptureDate();
-              if (captureDate != null) {
-                dateCount.incrementAndGet();
-                dateSum.addAndGet(captureDate.getTime());
-              }
-            }
-          }
-          postJob.finishWith(new Callable<Void>() {
-
+          callInTransaction(new Callable<Void>() {
             @Override
             public Void call() throws Exception {
-              return callInTransaction(new Callable<Void>() {
-
-                @Override
-                public Void call() throws Exception {
-                  final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-                  final AlbumEntity albumEntity = albumDao.queryForId(albumId);
-
-                  final Date middleCaptureDate = dateCount.get() == 0 ? null : new Date(dateSum.longValue() / dateCount.longValue());
-                  if (!dateEquals(middleCaptureDate, albumEntity.getAlbumCaptureDate())) {
-                    albumEntity.setAlbumCaptureDate(middleCaptureDate);
-                    albumDao.update(albumEntity);
-                  }
-                  return null;
-                }
-              });
+              final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
+              final ArchiveEntity loadedArchive = archiveDao.queryForId(archiveName);
+              if (loadedArchive == null) {
+                archiveDao.create(new ArchiveEntity(archiveName));
+              }
+              return null;
             }
           });
-        }
-      }
-    } catch (final Throwable t) {
-      Log.e(SERVICE_TAG, "Exception while updateing data", t);
-    } finally {
-      notificationManager.cancel(UPDATE_DB_NOTIFICATION, NOTIFICATION);
-    }
+          final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
+          // remove invisible albums
+          visibleAlbumsOfArchive.keySet().retainAll(albums.keySet());
 
+          int albumCounter = 0;
+          builder.setContentText("Downloading from " + archiveName);
+          for (final Entry<String, AlbumConnection> albumEntry : albums.entrySet()) {
+            if (!running.get())
+              break;
+            final String albumName = albumEntry.getKey();
+            builder.setContentText("Downloading " + lastPart(albumName.split("/")) + " from " + archiveName);
+            builder.setProgress(albums.size(), albumCounter++, false);
+            notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
+            final AlbumDto albumDto = albumEntry.getValue().getAlbumDetail();
+            final Map<String, AlbumEntryEntity> existingEntries = new HashMap<String, AlbumEntryEntity>();
+
+            final Integer albumId = callInTransaction(new Callable<Integer>() {
+
+              @Override
+              public Integer call() throws Exception {
+                final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
+                final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+
+                final ArchiveEntity archiveEntity = archiveDao.queryForId(archiveName);
+
+                final List<AlbumEntity> foundEntries = findAlbumByArchiveAndName(archiveEntity, albumName);
+                final AlbumEntity albumEntity;
+                if (foundEntries.isEmpty()) {
+                  albumEntity = new AlbumEntity(archiveEntity, albumName);
+                  albumEntity.setAutoAddDate(albumDto.getAutoAddDate());
+                  albumDao.create(albumEntity);
+                } else {
+                  albumEntity = foundEntries.get(0);
+                  if ((albumEntity.getAutoAddDate() != null && (albumDto.getAutoAddDate() == null || !albumEntity.getAutoAddDate()
+                                                                                                                 .equals(albumDto.getAutoAddDate())))
+                      || (albumEntity.getAutoAddDate() == null && albumDto.getAutoAddDate() != null)) {
+                    albumEntity.setAutoAddDate(albumDto.getAutoAddDate());
+                    albumDao.update(albumEntity);
+                  }
+                }
+                visibleAlbumsOfArchive.put(albumName, Integer.valueOf(albumEntity.getId()));
+
+                final Collection<AlbumEntryEntity> entries = albumEntity.getEntries();
+                for (final AlbumEntryEntity albumEntryEntity : entries) {
+                  existingEntries.put(albumEntryEntity.getName(), albumEntryEntity);
+                }
+                return Integer.valueOf(albumEntity.getId());
+              }
+            });
+            for (final Iterator<WeakReference<NotifyableMatrixCursor>> cursorIterator = openCursors.iterator(); cursorIterator.hasNext();) {
+              final WeakReference<NotifyableMatrixCursor> ref = cursorIterator.next();
+              final NotifyableMatrixCursor cursor = ref.get();
+              if (cursor == null || cursor.isClosed()) {
+                cursorIterator.remove();
+                continue;
+              }
+              cursor.onChange(false);
+            }
+
+            final AtomicLong dateSum = new AtomicLong(0);
+            final AtomicInteger dateCount = new AtomicInteger(0);
+            final PostJob postJob = new PostJob(executorService);
+
+            for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
+              final AlbumEntryEntity existingEntry = existingEntries.get(albumImageEntry.getKey());
+              if (existingEntry == null) {
+                sem.acquire();
+                postJob.addTask(new Callable<Void>() {
+
+                  @Override
+                  public Void call() throws Exception {
+                    try {
+                      if (!running.get())
+                        return null;
+                      final AlbumEntryDetailDto entryDto = albumEntry.getValue().getAlbumEntryDetail(albumImageEntry.getKey());
+
+                      callInTransaction(new Callable<Void>() {
+
+                        @Override
+                        public Void call() throws Exception {
+                          final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
+                          final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+                          final AlbumEntity albumEntity = albumDao.queryForId(albumId);
+                          final AlbumEntryEntity albumEntryEntity =
+                                                                    new AlbumEntryEntity(albumEntity, albumImageEntry.getKey(),
+                                                                                         entryDto.getEntryType(), entryDto.getLastModified(),
+                                                                                         entryDto.getCaptureDate());
+                          albumEntryDao.create(albumEntryEntity);
+                          if (albumEntryEntity.getCaptureDate() != null) {
+                            dateCount.incrementAndGet();
+                            dateSum.addAndGet(albumEntryEntity.getCaptureDate().getTime());
+                          }
+                          return null;
+                        }
+                      });
+                      return null;
+                    } finally {
+                      sem.release();
+                    }
+                  }
+                });
+
+              } else {
+                final Date captureDate = existingEntry.getCaptureDate();
+                if (captureDate != null) {
+                  dateCount.incrementAndGet();
+                  dateSum.addAndGet(captureDate.getTime());
+                }
+              }
+            }
+            postJob.finishWith(new Callable<Void>() {
+
+              @Override
+              public Void call() throws Exception {
+                return callInTransaction(new Callable<Void>() {
+
+                  @Override
+                  public Void call() throws Exception {
+                    final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+                    final AlbumEntity albumEntity = albumDao.queryForId(albumId);
+
+                    final Date middleCaptureDate = dateCount.get() == 0 ? null : new Date(dateSum.longValue() / dateCount.longValue());
+                    if (!dateEquals(middleCaptureDate, albumEntity.getAlbumCaptureDate())) {
+                      albumEntity.setAlbumCaptureDate(middleCaptureDate);
+                      albumDao.update(albumEntity);
+                    }
+                    return null;
+                  }
+                });
+              }
+            });
+          }
+        }
+      } catch (final Throwable t) {
+        Log.e(SERVICE_TAG, "Exception while updateing data", t);
+      } finally {
+        notificationManager.cancel(UPDATE_DB_NOTIFICATION, NOTIFICATION);
+      }
+    }
   }
 }
