@@ -315,6 +315,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             }
           }
         });
+        fieldReaders.put(Client.Album.THUMBNAIL, new StringFieldReader<AlbumEntity>() {
+
+          @Override
+          public String getString(final AlbumEntity value) {
+            if (value.getThumbnail() == null)
+              return null;
+            getAlbumEntryDao().refresh(value.getThumbnail());
+            return Client.makeThumbnailUri(value.getId(), value.getThumbnail().getId()).toString();
+          }
+        });
 
         final NotifyableMatrixCursor cursor = MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders);
         openCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
@@ -577,6 +587,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
                           if (albumEntryEntity.getCaptureDate() != null) {
                             dateCount.incrementAndGet();
                             dateSum.addAndGet(albumEntryEntity.getCaptureDate().getTime());
+                          }
+                          if (albumEntity.getThumbnail() == null) {
+                            albumEntity.setThumbnail(albumEntryEntity);
+                            albumDao.update(albumEntity);
                           }
                           return null;
                         }

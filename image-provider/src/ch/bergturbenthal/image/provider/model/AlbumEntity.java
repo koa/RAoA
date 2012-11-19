@@ -14,11 +14,17 @@ import com.j256.ormlite.table.DatabaseTable;
 @DatabaseTable(tableName = "albums")
 public class AlbumEntity {
 
+  @DatabaseField
+  private Date albumCaptureDate;
+
   @DatabaseField(foreign = true, uniqueIndexName = "name_index", canBeNull = false)
   private final ArchiveEntity archive;
 
-  @DatabaseField(canBeNull = false, uniqueIndexName = "name_index")
-  private final String name;
+  @DatabaseField
+  private Date autoAddDate;
+
+  @ForeignCollectionField(eager = false)
+  private final Collection<AlbumEntryEntity> entries = new ArrayList<AlbumEntryEntity>();
 
   @DatabaseField(generatedId = true)
   private int id;
@@ -26,22 +32,19 @@ public class AlbumEntity {
   @ForeignCollectionField(eager = true)
   private final Collection<ClientEntity> interestingClients = new ArrayList<ClientEntity>();
 
-  @DatabaseField
-  private Date autoAddDate;
-
-  @DatabaseField
-  private boolean syncThumbnails = false;
-
-  @ForeignCollectionField(eager = false)
-  private final Collection<AlbumEntryEntity> entries = new ArrayList<AlbumEntryEntity>();
+  @DatabaseField(canBeNull = false, uniqueIndexName = "name_index")
+  private final String name;
 
   @DatabaseField
   private boolean shouldSync = false;
 
   @DatabaseField
   private boolean synced = false;
+
   @DatabaseField
-  private Date albumCaptureDate;
+  private boolean syncThumbnails = false;
+  @DatabaseField(foreign = true)
+  private AlbumEntryEntity thumbnail;
 
   public AlbumEntity(final ArchiveEntity archive, final String name) {
     this.archive = archive;
@@ -100,6 +103,10 @@ public class AlbumEntity {
     return syncThumbnails;
   }
 
+  public AlbumEntryEntity getThumbnail() {
+    return thumbnail;
+  }
+
   @CursorField(Client.Album.SHOULD_SYNC)
   public boolean isShouldSync() {
     return shouldSync;
@@ -128,6 +135,10 @@ public class AlbumEntity {
 
   public void setSyncThumbnails(final boolean syncThumbnails) {
     this.syncThumbnails = syncThumbnails;
+  }
+
+  public void setThumbnail(AlbumEntryEntity thumbnail) {
+    this.thumbnail = thumbnail;
   }
 
 }

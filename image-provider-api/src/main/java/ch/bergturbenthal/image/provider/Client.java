@@ -14,6 +14,7 @@ public class Client {
     public static final String NAME = "name";
     public static final String SHOULD_SYNC = "shouldSync";
     public static final String SYNCED = "synced";
+    public static final String THUMBNAIL = "thumbnail";
   }
 
   public static class AlbumEntry {
