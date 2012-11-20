@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -34,7 +35,7 @@ public class DownloadService extends IntentService {
 
   private static final String TAG = "Service";
   private static final int PROGRESS_INDICATION = 1;
-  private final ExecutorService executorService = Executors.newFixedThreadPool(4);
+  private final ExecutorService executorService = Executors.newFixedThreadPool(1);
   private NotificationManager notificationManager;
 
   private long lastUpdate = System.currentTimeMillis();
@@ -57,6 +58,7 @@ public class DownloadService extends IntentService {
       public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
         prepareProgressBar();
         try {
+          final Collection<Runnable> downloadRunnables = new ArrayList<Runnable>();
           final AtomicInteger totalImageCount = new AtomicInteger(0);
           final AtomicInteger doneImageCount = new AtomicInteger(0);
           final Collection<String> addedFiles = new ConcurrentLinkedQueue<String>();
@@ -84,7 +86,7 @@ public class DownloadService extends IntentService {
               if (image.getLastModified().before(ifModifiedSince))
                 continue;
               totalImageCount.incrementAndGet();
-              executorService.submit(new Runnable() {
+              final Runnable downloadRunnable = new Runnable() {
                 @Override
                 public void run() {
                   final ImageResult imageResult = albumService.readImage(album.getId(), image.getId(), ifModifiedSince);
@@ -121,8 +123,13 @@ public class DownloadService extends IntentService {
                   }
                   updateProgress(doneImageCount.incrementAndGet(), totalImageCount.intValue(), imageFile);
                 }
-              });
+              };
+              downloadRunnables.add(downloadRunnable);
+              // executorService.submit(downloadRunnable);
             }
+          }
+          for (final Runnable runnable : downloadRunnables) {
+            runnable.run();
           }
           try {
             executorService.shutdown();
