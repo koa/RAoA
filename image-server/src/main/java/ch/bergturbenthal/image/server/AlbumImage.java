@@ -1,17 +1,24 @@
 package ch.bergturbenthal.image.server;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.lang.ref.SoftReference;
 import java.text.MessageFormat;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.WeakHashMap;
 
+import org.codehaus.jackson.map.ObjectMapper;
 import org.im4java.core.ConvertCmd;
 import org.im4java.core.IM4JavaException;
 import org.im4java.core.IMOperation;
@@ -38,31 +45,50 @@ public class AlbumImage {
 
   }
 
+  private static Map<File, Object> imageLocks = new WeakHashMap<File, Object>();
+  private static Map<File, SoftReference<AlbumImage>> loadedImages = new HashMap<File, SoftReference<AlbumImage>>();
+  private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
   private static final int THUMBNAIL_SIZE = 1600;
 
-  private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
-  private static Map<File, AlbumImage> loadedImages = new WeakHashMap<File, AlbumImage>();
+  private static ObjectMapper objectMapper = new ObjectMapper();
 
-  public static synchronized AlbumImage makeImage(final File file, final File cacheDir) {
-    final AlbumImage cachedImage = loadedImages.get(file);
-    if (cachedImage != null)
-      return cachedImage;
-    final AlbumImage newImage = new AlbumImage(file, cacheDir);
-    loadedImages.put(file, newImage);
-    return newImage;
+  public static AlbumImage makeImage(final File file, final File cacheDir) {
+    synchronized (lockFor(file)) {
+      final SoftReference<AlbumImage> softReference = loadedImages.get(file);
+      if (softReference != null) {
+        final AlbumImage cachedImage = softReference.get();
+        if (cachedImage != null)
+          return cachedImage;
+      }
+      final AlbumImage newImage = new AlbumImage(file, cacheDir);
+      loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
+      return newImage;
+    }
   }
 
-  private final File file;
+  private static synchronized Object lockFor(final File file) {
+    final Object existingLock = imageLocks.get(file);
+    if (existingLock != null)
+      return existingLock;
+    final Object newLock = new Object();
+    imageLocks.put(file, newLock);
+    return newLock;
+  }
+
   private final File cacheDir;
-  private Metadata metadata = null;
+
   private Date captureDate = null;
+
+  private final File file;
+
+  private Metadata metadata = null;
 
   public AlbumImage(final File file, final File cacheDir) {
     this.file = file;
     this.cacheDir = cacheDir;
   }
 
-  public Date captureDate() {
+  public synchronized Date captureDate() {
     if (captureDate == null)
       captureDate = readCaptureDateFromMetadata();
 
@@ -84,7 +110,7 @@ public class AlbumImage {
         if (isVideo())
           scaleVideoDown(cachedFile);
         else
-          scaleImageDown(THUMBNAIL_SIZE, THUMBNAIL_SIZE, false, cachedFile);
+          scaleImageDown(cachedFile);
       }
       return cachedFile;
     } catch (final IOException e) {
@@ -118,13 +144,41 @@ public class AlbumImage {
     return "AlbumImage [file=" + file.getName() + "]";
   }
 
-  private Metadata getMetadata() {
+  private synchronized Metadata getMetadata() {
     if (metadata != null)
       return metadata;
+    final File metdataCacheFile = makeMetdataCacheFile();
+    if (metdataCacheFile.exists() == metdataCacheFile.lastModified() >= file.lastModified()) {
+      try {
+        final ObjectInputStream is = new ObjectInputStream(new FileInputStream(metdataCacheFile));
+        try {
+          metadata = (Metadata) is.readObject();
+        } finally {
+          is.close();
+        }
+      } catch (final ClassNotFoundException e) {
+        logger.warn("Cannot read metadata-cache " + metdataCacheFile, e);
+      } catch (final IOException e) {
+        logger.warn("Cannot read metadata-cache " + metdataCacheFile, e);
+      }
+      if (metadata != null)
+        return metadata;
+    }
     try {
+      // final long startTime = System.currentTimeMillis();
       metadata = ImageMetadataReader.readMetadata(file);
+      // final long endTime = System.currentTimeMillis();
+      // logger.info("Metadata-Read: " + (endTime - startTime) + " ms");
+      final ObjectOutputStream objectOutputStream = new ObjectOutputStream(new FileOutputStream(metdataCacheFile));
+      try {
+        objectOutputStream.writeObject(metadata);
+      } finally {
+        objectOutputStream.close();
+      }
     } catch (final ImageProcessingException e) {
       throw new RuntimeException("Cannot read metadata from " + file, e);
+    } catch (final IOException e) {
+      logger.warn("Cannot save metadata-cache " + metdataCacheFile, e);
     }
     return metadata;
   }
@@ -135,6 +189,11 @@ public class AlbumImage {
       return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
     }
     return new File(cacheDir, name);
+  }
+
+  private File makeMetdataCacheFile() {
+    final String name = file.getName();
+    return new File(cacheDir, name + ".metadata");
   }
 
   private Date readCaptureDateFromMetadata() {
@@ -191,13 +250,11 @@ public class AlbumImage {
     }
   }
 
-  private synchronized void scaleImageDown(final int width, final int height, final boolean crop, final File cachedFile) throws IOException,
-                                                                                                                        InterruptedException,
-                                                                                                                        IM4JavaException {
+  private void scaleImageDown(final File cachedFile) throws IOException, InterruptedException, IM4JavaException {
     final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.jpg");
     if (tempFile.exists())
       tempFile.delete();
-    logger.debug("Convert " + file);
+    // logger.debug("Convert " + file);
     final ConvertCmd cmd = new ConvertCmd();
     final File secondStepInputFile;
     final boolean deleteInputFileAfter;
@@ -218,7 +275,7 @@ public class AlbumImage {
     final IMOperation secondOperation = new IMOperation();
     secondOperation.addImage(secondStepInputFile.getAbsolutePath());
     secondOperation.autoOrient();
-    secondOperation.resize(Integer.valueOf(width), Integer.valueOf(height));
+    secondOperation.resize(Integer.valueOf(THUMBNAIL_SIZE), Integer.valueOf(THUMBNAIL_SIZE));
     secondOperation.quality(Double.valueOf(70));
     secondOperation.addImage(tempFile.getAbsolutePath());
     // logger.debug("Start conversion: " + secondOperation);
@@ -256,6 +313,7 @@ public class AlbumImage {
       if (resultCode != 0)
         throw new RuntimeException("Cannot convert video " + file + ": RC-Code: " + resultCode + "\n" + errorMessage.toString());
       tempFile.renameTo(cachedFile);
+      logger.debug("End transcode " + file);
     } catch (final IOException e) {
       throw new RuntimeException("Cannot convert video " + file, e);
     } catch (final InterruptedException e) {

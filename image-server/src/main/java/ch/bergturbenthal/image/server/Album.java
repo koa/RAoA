@@ -29,6 +29,7 @@ import java.util.Set;
 
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
@@ -39,6 +40,8 @@ import ch.bergturbenthal.image.data.util.StringUtil;
 
 public class Album {
   private static class ImportEntry {
+    private static final ObjectMapper mapper = new ObjectMapper();
+
     static ImportEntry parseLine(final String line) {
       final String[] comps = line.split(";", 2);
       return new ImportEntry(comps[0], comps[1]);
@@ -72,6 +75,7 @@ public class Album {
   private static String CLIENT_FILE = ".clientlist";
   private static String AUTOADD_FILE = ".autoadd";
   private static String INDEX_FILE = ".index";
+  private static String IMAGE_CACHE_FILE = ".images-cache";
   private final File baseDir;
   private long cachedImages = 0;
   private Map<String, AlbumImage> images = null;

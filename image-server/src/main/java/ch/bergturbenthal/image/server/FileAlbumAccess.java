@@ -10,16 +10,20 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.PostConstruct;
 
+import org.joda.time.Duration;
+import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -143,7 +147,7 @@ public class FileAlbumAccess implements AlbumAccess {
     } catch (final IOException e) {
       throw new RuntimeException("Cannot import from " + importDir, e);
     } finally {
-      refreshThumbnails();
+      refreshCache();
     }
   }
 
@@ -191,7 +195,7 @@ public class FileAlbumAccess implements AlbumAccess {
       @Override
       public void run() {
         try {
-          refreshThumbnails();
+          refreshCache();
         } catch (final Throwable t) {
           logger.warn("Exception while refreshing thumbnails", t);
         }
@@ -258,17 +262,39 @@ public class FileAlbumAccess implements AlbumAccess {
     return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
   }
 
-  private void refreshThumbnails() {
-    for (final Album album : listAlbums().values()) {
-      for (final AlbumImage image : album.listImages().values()) {
-        executorService.submit(new Runnable() {
+  private void refreshCache() {
+    try {
+      // limit the queue size for take not too much memory
+      final Semaphore queueLimitSemaphore = new Semaphore(100);
+      final long startTime = System.currentTimeMillis();
+      for (final Album album : listAlbums().values()) {
+        for (final AlbumImage image : album.listImages().values()) {
+          queueLimitSemaphore.acquire();
+          executorService.submit(new Runnable() {
 
-          @Override
-          public void run() {
-            image.getThumbnail();
-          }
-        });
+            @Override
+            public void run() {
+              try {
+                // read Metadata
+                image.captureDate();
+                // read Thumbnail
+                image.getThumbnail();
+              } finally {
+                queueLimitSemaphore.release();
+              }
+            }
+          });
+        }
       }
+      // wait until the end
+      queueLimitSemaphore.acquire(100);
+      final long endTime = System.currentTimeMillis();
+      final Duration duration = new Duration(startTime, endTime);
+      final StringBuffer buf = new StringBuffer("Refresh-Time: ");
+      PeriodFormat.wordBased().getPrinter().printTo(buf, duration.toPeriod(), Locale.getDefault());
+      logger.info(buf.toString());
+    } catch (final InterruptedException e) {
+      logger.info("cache refresh interrupted");
     }
   }
 }
