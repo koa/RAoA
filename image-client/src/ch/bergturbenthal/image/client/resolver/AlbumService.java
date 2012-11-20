@@ -30,7 +30,6 @@ import ch.bergturbenthal.image.data.api.Album;
 import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
-import ch.bergturbenthal.image.data.model.AlbumImageEntryDetail;
 import ch.bergturbenthal.image.data.model.AlbumList;
 
 public class AlbumService implements Album {
@@ -74,17 +73,6 @@ public class AlbumService implements Album {
     if (response.hasBody())
       return response.getBody();
     throw new RuntimeException("Response without body. Status: " + response.getStatusCode());
-  }
-
-  @Override
-  public AlbumImageEntryDetail getImageDetails(final String albumid, final String imageid) {
-
-    final ResponseEntity<AlbumImageEntryDetail> response =
-                                                           restTemplate.getForEntity(baseUrl + "/{albumId}/image/{imageId}/detail",
-                                                                                     AlbumImageEntryDetail.class, albumid, imageid);
-    if (response.hasBody())
-      return response.getBody();
-    throw new RuntimeException("Response without body while calling " + baseUrl + " status: " + response.getStatusCode());
   }
 
   @Override

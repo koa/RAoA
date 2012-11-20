@@ -4,14 +4,11 @@ import java.io.IOException;
 import java.util.Date;
 
 import ch.bergturbenthal.image.data.model.AlbumDetail;
-import ch.bergturbenthal.image.data.model.AlbumImageEntryDetail;
 import ch.bergturbenthal.image.data.model.AlbumList;
 
 public interface Album {
 
   String createAlbum(String[] pathComps);
-
-  AlbumImageEntryDetail getImageDetails(String albumid, String imageid);
 
   AlbumDetail listAlbumContent(String albumid);
 

@@ -7,6 +7,11 @@ public class AlbumImageEntry {
   private String name;
   private boolean isVideo;
   private Date lastModified;
+  private Date captureDate;
+
+  public Date getCaptureDate() {
+    return captureDate;
+  }
 
   public String getId() {
     return id;
@@ -22,6 +27,10 @@ public class AlbumImageEntry {
 
   public boolean isVideo() {
     return isVideo;
+  }
+
+  public void setCaptureDate(final Date captureDate) {
+    this.captureDate = captureDate;
   }
 
   public void setId(final String id) {

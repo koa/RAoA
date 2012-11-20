@@ -25,7 +25,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,13 +58,11 @@ import ch.bergturbenthal.image.provider.model.AlbumEntity;
 import ch.bergturbenthal.image.provider.model.AlbumEntryEntity;
 import ch.bergturbenthal.image.provider.model.ArchiveEntity;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
-import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDetailDto;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
 import ch.bergturbenthal.image.provider.orm.DaoHolder;
 import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
 import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.image.provider.util.ExecutorServiceUtil;
-import ch.bergturbenthal.image.provider.util.PostJob;
 
 import com.j256.ormlite.dao.RuntimeExceptionDao;
 import com.j256.ormlite.stmt.QueryBuilder;
@@ -466,8 +463,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     synchronized (updateLock) {
 
       try {
-        // enqueue maximum 100 requests in queue
-        final Semaphore sem = new Semaphore(100);
         final Notification.Builder builder = new Notification.Builder(getApplicationContext());
         builder.setContentTitle("DB Update").setSmallIcon(android.R.drawable.ic_dialog_info).setContentText("Download in progress")
                .setAutoCancel(false);
@@ -555,80 +550,52 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
               cursor.onChange(false);
             }
 
-            final AtomicLong dateSum = new AtomicLong(0);
-            final AtomicInteger dateCount = new AtomicInteger(0);
-            final PostJob postJob = new PostJob(executorService);
-
-            for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
-              final AlbumEntryEntity existingEntry = existingEntries.get(albumImageEntry.getKey());
-              if (existingEntry == null) {
-                sem.acquire();
-                postJob.addTask(new Callable<Void>() {
-
-                  @Override
-                  public Void call() throws Exception {
-                    try {
-                      if (!running.get())
-                        return null;
-                      final AlbumEntryDetailDto entryDto = albumEntry.getValue().getAlbumEntryDetail(albumImageEntry.getKey());
-
-                      callInTransaction(new Callable<Void>() {
-
-                        @Override
-                        public Void call() throws Exception {
-                          final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
-                          final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-                          final AlbumEntity albumEntity = albumDao.queryForId(albumId);
-                          final AlbumEntryEntity albumEntryEntity =
-                                                                    new AlbumEntryEntity(albumEntity, albumImageEntry.getKey(),
-                                                                                         entryDto.getEntryType(), entryDto.getLastModified(),
-                                                                                         entryDto.getCaptureDate());
-                          albumEntryDao.create(albumEntryEntity);
-                          if (albumEntryEntity.getCaptureDate() != null) {
-                            dateCount.incrementAndGet();
-                            dateSum.addAndGet(albumEntryEntity.getCaptureDate().getTime());
-                          }
-                          if (albumEntity.getThumbnail() == null) {
-                            albumEntity.setThumbnail(albumEntryEntity);
-                            albumDao.update(albumEntity);
-                          }
-                          return null;
-                        }
-                      });
-                      return null;
-                    } finally {
-                      sem.release();
-                    }
-                  }
-                });
-
-              } else {
-                final Date captureDate = existingEntry.getCaptureDate();
-                if (captureDate != null) {
-                  dateCount.incrementAndGet();
-                  dateSum.addAndGet(captureDate.getTime());
-                }
-              }
-            }
-            postJob.finishWith(new Callable<Void>() {
+            callInTransaction(new Callable<Void>() {
 
               @Override
               public Void call() throws Exception {
-                return callInTransaction(new Callable<Void>() {
+                final AtomicLong dateSum = new AtomicLong(0);
+                final AtomicInteger dateCount = new AtomicInteger(0);
 
-                  @Override
-                  public Void call() throws Exception {
+                for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
+                  final AlbumEntryEntity existingEntry = existingEntries.get(albumImageEntry.getKey());
+                  if (existingEntry == null) {
+
+                    final AlbumEntryDto entryDto = albumImageEntry.getValue();
+
+                    final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
                     final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
                     final AlbumEntity albumEntity = albumDao.queryForId(albumId);
-
-                    final Date middleCaptureDate = dateCount.get() == 0 ? null : new Date(dateSum.longValue() / dateCount.longValue());
-                    if (!dateEquals(middleCaptureDate, albumEntity.getAlbumCaptureDate())) {
-                      albumEntity.setAlbumCaptureDate(middleCaptureDate);
+                    final AlbumEntryEntity albumEntryEntity =
+                                                              new AlbumEntryEntity(albumEntity, albumImageEntry.getKey(), entryDto.getEntryType(),
+                                                                                   entryDto.getLastModified(), entryDto.getCaptureDate());
+                    albumEntryDao.create(albumEntryEntity);
+                    if (albumEntryEntity.getCaptureDate() != null) {
+                      dateCount.incrementAndGet();
+                      dateSum.addAndGet(albumEntryEntity.getCaptureDate().getTime());
+                    }
+                    if (albumEntity.getThumbnail() == null) {
+                      albumEntity.setThumbnail(albumEntryEntity);
                       albumDao.update(albumEntity);
                     }
-                    return null;
+
+                  } else {
+                    final Date captureDate = existingEntry.getCaptureDate();
+                    if (captureDate != null) {
+                      dateCount.incrementAndGet();
+                      dateSum.addAndGet(captureDate.getTime());
+                    }
                   }
-                });
+                }
+                final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+                final AlbumEntity albumEntity = albumDao.queryForId(albumId);
+
+                final Date middleCaptureDate = dateCount.get() == 0 ? null : new Date(dateSum.longValue() / dateCount.longValue());
+                if (!dateEquals(middleCaptureDate, albumEntity.getAlbumCaptureDate())) {
+                  albumEntity.setAlbumCaptureDate(middleCaptureDate);
+                  albumDao.update(albumEntity);
+                }
+                return null;
               }
             });
           }

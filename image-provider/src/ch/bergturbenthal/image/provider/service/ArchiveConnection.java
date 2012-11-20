@@ -19,11 +19,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
-import ch.bergturbenthal.image.data.model.AlbumImageEntryDetail;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.provider.model.AlbumEntryType;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
-import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDetailDto;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
 
 public class ArchiveConnection {
@@ -109,22 +107,6 @@ public class ArchiveConnection {
             }
           }
           return ret;
-        }
-
-        @Override
-        public AlbumEntryDetailDto getAlbumEntryDetail(final String filename) {
-          for (final String serverId : servers) {
-            final ServerConnection serverConnection = serverConnections.get().get(serverId);
-            final AlbumImageEntryDetail imageDetail = serverConnection.getImageDetail(albumName, filename);
-            if (imageDetail == null)
-              continue;
-            final AlbumEntryDetailDto ret = new AlbumEntryDetailDto();
-            fillDto(ret, imageDetail);
-            if (imageDetail.getCaptureDate() != null)
-              ret.setCaptureDate(imageDetail.getCaptureDate());
-            return ret;
-          }
-          return null;
         }
 
         @Override

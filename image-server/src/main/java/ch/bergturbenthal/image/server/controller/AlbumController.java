@@ -28,7 +28,6 @@ import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
-import ch.bergturbenthal.image.data.model.AlbumImageEntryDetail;
 import ch.bergturbenthal.image.data.model.AlbumList;
 import ch.bergturbenthal.image.server.Album;
 import ch.bergturbenthal.image.server.AlbumAccess;
@@ -48,22 +47,6 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   public @ResponseBody
   String createAlbum(@RequestBody final String[] pathComps) {
     return albumAccess.createAlbum(pathComps);
-  }
-
-  @Override
-  @RequestMapping(value = "{albumId}/image/{imageId}/detail", method = RequestMethod.GET)
-  public @ResponseBody
-  AlbumImageEntryDetail getImageDetails(@PathVariable("albumId") final String albumid, @PathVariable("imageId") final String imageid) {
-    final AlbumImageEntryDetail ret = new AlbumImageEntryDetail();
-    final Album album = albumAccess.listAlbums().get(albumid);
-    final AlbumImage albumImage = album.getImage(imageid);
-    fillAlbumImageEntry(albumImage, ret);
-    try {
-      ret.setCaptureDate(albumImage.captureDate());
-    } catch (final Throwable t) {
-      logger.warn("Cannot read Capture-Date from " + album.getName() + ":" + albumImage.getName(), t);
-    }
-    return ret;
   }
 
   @RequestMapping(value = "import", method = RequestMethod.GET)
@@ -226,6 +209,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     entry.setName(albumImage.getName());
     entry.setVideo(albumImage.isVideo());
     entry.setLastModified(albumImage.lastModified());
+    entry.setCaptureDate(albumImage.captureDate());
   }
 
   private ImageResult makeImageResult(final File sourceFile, final AlbumImage image, final Date ifModifiedSince) {

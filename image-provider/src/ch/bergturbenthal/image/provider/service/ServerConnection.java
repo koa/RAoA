@@ -32,7 +32,6 @@ import android.util.Log;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
-import ch.bergturbenthal.image.data.model.AlbumImageEntryDetail;
 import ch.bergturbenthal.image.data.model.AlbumList;
 
 public class ServerConnection {
@@ -72,21 +71,6 @@ public class ServerConnection {
     }
     albumDetailCache.put(albumName, new SoftReference<AlbumDetail>(albumDetail));
     return albumDetail;
-  }
-
-  public AlbumImageEntryDetail getImageDetail(final String albumName, final String file) {
-    final AlbumDetail albumDetail = getAlbumDetail(albumName);
-    final AlbumImageEntry albumEntry = findAlbumEntry(albumName, file);
-    if (albumEntry == null)
-      return null;
-    return callOne(new ConnectionCallable<AlbumImageEntryDetail>() {
-
-      @Override
-      public ResponseEntity<AlbumImageEntryDetail> call(final URL baseUrl) throws Exception {
-        return restTemplate.getForEntity(baseUrl.toExternalForm() + "/albums/{albumId}/image/{imageId}/detail.json", AlbumImageEntryDetail.class,
-                                         albumDetail.getId(), albumEntry.getId());
-      }
-    });
   }
 
   public String getInstanceId() {
