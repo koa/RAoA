@@ -148,7 +148,7 @@ public class AlbumImage {
     if (metadata != null)
       return metadata;
     final File metdataCacheFile = makeMetdataCacheFile();
-    if (metdataCacheFile.exists() == metdataCacheFile.lastModified() >= file.lastModified()) {
+    if (metdataCacheFile.exists() && metdataCacheFile.lastModified() >= file.lastModified()) {
       try {
         final ObjectInputStream is = new ObjectInputStream(new FileInputStream(metdataCacheFile));
         try {

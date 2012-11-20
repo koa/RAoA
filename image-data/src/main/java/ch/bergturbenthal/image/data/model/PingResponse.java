@@ -4,9 +4,19 @@ public class PingResponse {
   private String version = "1";
   private String serverId;
   private String archiveId;
+  private int gitPort;
 
   public String getArchiveId() {
     return archiveId;
+  }
+
+  /**
+   * Returns the gitPort.
+   * 
+   * @return the gitPort
+   */
+  public int getGitPort() {
+    return gitPort;
   }
 
   public String getServerId() {
@@ -19,6 +29,16 @@ public class PingResponse {
 
   public void setArchiveId(final String collectionId) {
     this.archiveId = collectionId;
+  }
+
+  /**
+   * Sets the gitPort.
+   * 
+   * @param gitPort
+   *          the gitPort to set
+   */
+  public void setGitPort(final int gitPort) {
+    this.gitPort = gitPort;
   }
 
   public void setServerId(final String serverId) {

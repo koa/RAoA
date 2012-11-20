@@ -30,6 +30,13 @@ public interface AlbumAccess {
   String getCollectionId();
 
   /**
+   * Unique ID of this running instance (Server)
+   * 
+   * @return instance-id
+   */
+  String getInstanceId();
+
+  /**
    * import files of given directory into the albums.
    * 
    * @param importBaseDir

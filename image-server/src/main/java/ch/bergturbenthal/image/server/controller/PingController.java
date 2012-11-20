@@ -1,7 +1,11 @@
 package ch.bergturbenthal.image.server.controller;
 
-import java.util.UUID;
+import java.io.IOException;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+
+import org.eclipse.jgit.transport.Daemon;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,16 +18,28 @@ import ch.bergturbenthal.image.server.AlbumAccess;
 @Controller
 @RequestMapping("/ping")
 public class PingController {
-  private final String instanceId = UUID.randomUUID().toString();
   @Autowired
   private AlbumAccess dataAccess;
+  @Autowired
+  private Daemon gitDaemon;
 
   @RequestMapping(method = RequestMethod.GET)
   public @ResponseBody
   PingResponse ping() {
     final PingResponse response = new PingResponse();
-    response.setServerId(instanceId);
+    response.setServerId(dataAccess.getInstanceId());
     response.setArchiveId(dataAccess.getCollectionId());
+    response.setGitPort(gitDaemon.getAddress().getPort());
     return response;
+  }
+
+  @PostConstruct
+  public void startDaemon() throws IOException {
+    gitDaemon.start();
+  }
+
+  @PreDestroy
+  public void stopDaemon() {
+    gitDaemon.stop();
   }
 }

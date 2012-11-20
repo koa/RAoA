@@ -15,6 +15,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -22,6 +24,17 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.PostConstruct;
 
+import org.codehaus.jackson.JsonGenerationException;
+import org.codehaus.jackson.map.JsonMappingException;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.ConcurrentRefUpdateException;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.NoFilepatternException;
+import org.eclipse.jgit.api.errors.NoHeadException;
+import org.eclipse.jgit.api.errors.NoMessageException;
+import org.eclipse.jgit.api.errors.WrongRepositoryStateException;
+import org.eclipse.jgit.errors.UnmergedPathException;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
@@ -29,11 +42,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 
+import ch.bergturbenthal.image.server.model.ArchiveData;
+
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
 
 public class FileAlbumAccess implements AlbumAccess {
+  private static final String META_REPOSITORY = ".meta";
+  private final String instanceId = UUID.randomUUID().toString();
   private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
   private Resource baseDir;
   private Resource importBaseDir;
@@ -41,6 +58,10 @@ public class FileAlbumAccess implements AlbumAccess {
   private final AtomicLong lastLoadedDate = new AtomicLong(0);
   @Autowired
   private ScheduledExecutorService executorService;
+
+  private final ObjectMapper mapper = new ObjectMapper();
+  private ArchiveData archiveData;
+  private Git metaGit;
 
   @Override
   public synchronized String createAlbum(final String[] pathNames) {
@@ -86,12 +107,16 @@ public class FileAlbumAccess implements AlbumAccess {
 
   @Override
   public String getCollectionId() {
-    // TODO read from repository-metadata
-    return "Development";
+    return archiveData.getArchiveName();
   }
 
   public Resource getImportBaseDir() {
     return importBaseDir;
+  }
+
+  @Override
+  public String getInstanceId() {
+    return instanceId;
   }
 
   @Override
@@ -258,6 +283,58 @@ public class FileAlbumAccess implements AlbumAccess {
     }
   }
 
+  private File getConfigFile() {
+    return new File(getMetaDir(), "config.json");
+  }
+
+  private File getMetaDir() {
+    final File metaDir = new File(getBasePath(), META_REPOSITORY);
+    if (!metaDir.exists())
+      metaDir.mkdirs();
+    return metaDir;
+  }
+
+  @PostConstruct
+  private void initMetaRepository() {
+    final File metaDir = getMetaDir();
+
+    if (new File(metaDir, ".git").exists()) {
+      try {
+        metaGit = Git.open(metaDir);
+      } catch (final IOException e) {
+        throw new RuntimeException("Cannot access to git-repository of " + baseDir, e);
+      }
+    } else {
+      metaGit = Git.init().setDirectory(metaDir).call();
+    }
+    final File configFile = new File(metaDir, "config.json");
+    try {
+      if (!configFile.exists()) {
+        archiveData = new ArchiveData();
+        final Map<String, Collection<String>> albumPerStorage = archiveData.getAlbumPerStorage();
+        archiveData.setArchiveName(UUID.randomUUID().toString());
+        for (final Album album : listAlbums().values()) {
+          for (final String client : album.listClients()) {
+            if (albumPerStorage.containsKey(client)) {
+              albumPerStorage.get(client).add(album.getName());
+            } else {
+              final TreeSet<String> albums = new TreeSet<String>();
+              albums.add(album.getName());
+              albumPerStorage.put(client, albums);
+            }
+          }
+        }
+        updateMeta("config.json built");
+      } else {
+        archiveData = mapper.readValue(configFile, ArchiveData.class);
+      }
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot write config to " + configFile, e);
+    } catch (final GitAPIException e) {
+      throw new RuntimeException("Commit config", e);
+    }
+  }
+
   private boolean needToLoadAlbumList() {
     return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
   }
@@ -296,5 +373,13 @@ public class FileAlbumAccess implements AlbumAccess {
     } catch (final InterruptedException e) {
       logger.info("cache refresh interrupted");
     }
+  }
+
+  private void updateMeta(final String message) throws IOException, JsonGenerationException, JsonMappingException, NoFilepatternException,
+                                               NoHeadException, NoMessageException, UnmergedPathException, ConcurrentRefUpdateException,
+                                               WrongRepositoryStateException {
+    mapper.writerWithDefaultPrettyPrinter().writeValue(getConfigFile(), archiveData);
+    metaGit.add().addFilepattern(".").call();
+    metaGit.commit().setMessage(message).call();
   }
 }

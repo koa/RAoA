@@ -29,18 +29,17 @@ import java.util.Set;
 
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.errors.UnmergedPathException;
+import org.eclipse.jgit.lib.Repository;
 import org.joda.time.format.ISODateTimeFormat;
 
 import ch.bergturbenthal.image.data.util.StringUtil;
 
 public class Album {
   private static class ImportEntry {
-    private static final ObjectMapper mapper = new ObjectMapper();
 
     static ImportEntry parseLine(final String line) {
       final String[] comps = line.split(";", 2);
@@ -101,7 +100,7 @@ public class Album {
     final boolean modified = prepareGitignore();
     cacheDir = new File(baseDir, CACHE_DIR);
     if (!cacheDir.exists())
-      cacheDir.mkdir();
+      cacheDir.mkdirs();
     if (autoaddFile().exists()) {
       loadImportEntries();
     }
@@ -166,6 +165,10 @@ public class Album {
 
   public List<String> getNameComps() {
     return Collections.unmodifiableList(Arrays.asList(nameComps));
+  }
+
+  public Repository getRepository() {
+    return git.getRepository();
   }
 
   public boolean importImage(final File imageFile, final Date createDate) {
