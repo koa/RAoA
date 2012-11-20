@@ -1,28 +1,26 @@
 package ch.bergturbenthal.image.provider;
 
+import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.Map;
+import java.util.List;
 
+import android.content.ComponentName;
 import android.content.ContentProvider;
 import android.content.ContentValues;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.database.SQLException;
 import android.net.Uri;
+import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
-import ch.bergturbenthal.image.provider.map.EntityCursor;
-import ch.bergturbenthal.image.provider.map.FieldReader;
-import ch.bergturbenthal.image.provider.map.MapperUtil;
-import ch.bergturbenthal.image.provider.map.StringFieldReader;
-import ch.bergturbenthal.image.provider.model.AlbumEntity;
-import ch.bergturbenthal.image.provider.orm.DaoHolder;
-import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
+import ch.bergturbenthal.image.provider.service.SynchronisationService;
+import ch.bergturbenthal.image.provider.service.SynchronisationServiceImpl;
+import ch.bergturbenthal.image.provider.service.SynchronisationServiceImpl.LocalBinder;
 import ch.bergturbenthal.image.provider.util.EnumUriMatcher;
 import ch.bergturbenthal.image.provider.util.Path;
-
-import com.j256.ormlite.dao.RuntimeExceptionDao;
-import com.j256.ormlite.stmt.QueryBuilder;
-import com.j256.ormlite.support.ConnectionSource;
 
 public class ArchiveContentProvider extends ContentProvider {
   public static enum UriType {
@@ -41,14 +39,24 @@ public class ArchiveContentProvider extends ContentProvider {
   static final String TAG = "Content Provider";
 
   private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
-  private final ThreadLocal<DaoHolder> transactionManager = new ThreadLocal<DaoHolder>() {
+
+  private SynchronisationService service = null;
+  /** Defines callbacks for service binding, passed to bindService() */
+  private final ServiceConnection serviceConnection = new ServiceConnection() {
 
     @Override
-    protected DaoHolder initialValue() {
-      return new DaoHolder(connectionSource);
+    public void onServiceConnected(final ComponentName className, final IBinder service) {
+      // We've bound to LocalService, cast the IBinder and get LocalService
+      // instance
+      final LocalBinder binder = (LocalBinder) service;
+      ArchiveContentProvider.this.service = binder.getService();
+    }
+
+    @Override
+    public void onServiceDisconnected(final ComponentName arg0) {
+      service = null;
     }
   };
-  private ConnectionSource connectionSource;
 
   @Override
   public int delete(final Uri uri, final String selection, final String[] selectionArgs) {
@@ -80,13 +88,32 @@ public class ArchiveContentProvider extends ContentProvider {
 
   @Override
   public boolean onCreate() {
-    connectionSource = DatabaseHelper.makeConnectionSource(getContext());
+
+    getContext().bindService(new Intent(getContext(), SynchronisationServiceImpl.class), serviceConnection, Context.BIND_AUTO_CREATE);
+
     Log.i(TAG, "Content-Provider created");
     return true;
   }
 
   @Override
   public ParcelFileDescriptor openFile(final Uri uri, final String mode) throws FileNotFoundException {
+    Log.i(TAG, "Open called for " + uri);
+    final UriType match = matcher.match(uri);
+    if (match == null)
+      return super.openFile(uri, mode);
+    switch (match) {
+    case ALBUM_ENTRY_THUMBNAIL:
+      final List<String> segments = uri.getPathSegments();
+      final String album = segments.get(1);
+      final String image = segments.get(3);
+      Log.i(TAG, "Selected Entry: " + album + ":" + image);
+      final File thumbnail = service.getLoadedThumbnail(Integer.parseInt(image));
+      if (thumbnail == null)
+        throw new FileNotFoundException("Thumbnail-Image " + uri + " not found");
+      return ParcelFileDescriptor.open(thumbnail, ParcelFileDescriptor.MODE_READ_ONLY);
+    default:
+      break;
+    }
     // TODO Auto-generated method stub
     return super.openFile(uri, mode);
   }
@@ -95,37 +122,32 @@ public class ArchiveContentProvider extends ContentProvider {
   public Cursor query(final Uri uri, final String[] projection, final String selection, final String[] selectionArgs, final String sortOrder) {
     try {
       Log.i(TAG, "Query called: " + uri);
-      final UriType type = matcher.match(uri);
-      Log.i(TAG, "Type: " + type);
-      switch (type) {
+      switch (matcher.match(uri)) {
       case ALBUM_LIST:
-        final RuntimeExceptionDao<AlbumEntity, String> albumDao = transactionManager.get().getDao(AlbumEntity.class);
-        final QueryBuilder<AlbumEntity, String> queryBuilder = albumDao.queryBuilder();
-
-        final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
-        fieldReaders.put(Client.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
-          @Override
-          public String getString(final AlbumEntity value) {
-            return value.getArchive().getName();
-          }
-        });
-
-        return new EntityCursor<AlbumEntity>(queryBuilder, projection, fieldReaders);
-
+        return service.readAlbumList(projection);
+      case ALBUM_ENTRY_LIST:
+        final List<String> segments = uri.getPathSegments();
+        final String album = segments.get(1);
+        return service.readAlbumEntryList(Integer.parseInt(album), projection);
       default:
         break;
       }
       // TODO Auto-generated method stub
       return null;
-    } catch (final java.sql.SQLException e) {
+    } catch (final Throwable e) {
       throw new RuntimeException("Cannot query for " + uri, e);
     }
   }
 
   @Override
   public int update(final Uri uri, final ContentValues values, final String selection, final String[] selectionArgs) {
+
     // TODO Auto-generated method stub
     return 0;
+  }
+
+  private Cursor readAlbumList(final String[] projection) {
+    return service.readAlbumList(projection);
   }
 
 }

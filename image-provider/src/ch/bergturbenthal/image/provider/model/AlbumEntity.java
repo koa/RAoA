@@ -14,11 +14,17 @@ import com.j256.ormlite.table.DatabaseTable;
 @DatabaseTable(tableName = "albums")
 public class AlbumEntity {
 
-  @DatabaseField(foreign = true, uniqueIndexName = "name_index")
+  @DatabaseField
+  private Date albumCaptureDate;
+
+  @DatabaseField(foreign = true, uniqueIndexName = "name_index", canBeNull = false)
   private final ArchiveEntity archive;
 
-  @DatabaseField(canBeNull = false, uniqueIndexName = "name_index")
-  private final String name;
+  @DatabaseField
+  private Date autoAddDate;
+
+  @ForeignCollectionField(eager = false)
+  private final Collection<AlbumEntryEntity> entries = new ArrayList<AlbumEntryEntity>();
 
   @DatabaseField(generatedId = true)
   private int id;
@@ -26,20 +32,19 @@ public class AlbumEntity {
   @ForeignCollectionField(eager = true)
   private final Collection<ClientEntity> interestingClients = new ArrayList<ClientEntity>();
 
-  @DatabaseField
-  private Date autoAddDate;
-
-  @DatabaseField
-  private boolean syncThumbnails = false;
-
-  @ForeignCollectionField(eager = false)
-  private final Collection<AlbumEntryEntity> entries = new ArrayList<AlbumEntryEntity>();
+  @DatabaseField(canBeNull = false, uniqueIndexName = "name_index")
+  private final String name;
 
   @DatabaseField
   private boolean shouldSync = false;
 
   @DatabaseField
   private boolean synced = false;
+
+  @DatabaseField
+  private boolean syncThumbnails = false;
+  @DatabaseField(foreign = true)
+  private AlbumEntryEntity thumbnail;
 
   public AlbumEntity(final ArchiveEntity archive, final String name) {
     this.archive = archive;
@@ -50,6 +55,21 @@ public class AlbumEntity {
     id = -1;
     archive = null;
     name = null;
+  }
+
+  @CursorField(Client.Album.NAME)
+  public String evalLocalName() {
+    if (name == null)
+      return null;
+    final String[] parts = name.split("/");
+    if (parts.length < 1)
+      return null;
+    return parts[parts.length - 1];
+  }
+
+  @CursorField(Client.Album.ALBUM_CAPTURE_DATE)
+  public Date getAlbumCaptureDate() {
+    return albumCaptureDate;
   }
 
   public ArchiveEntity getArchive() {
@@ -74,13 +94,17 @@ public class AlbumEntity {
     return interestingClients;
   }
 
-  @CursorField(Client.Album.NAME)
+  @CursorField(Client.Album.FULL_NAME)
   public String getName() {
     return name;
   }
 
   public boolean getSyncThumbnails() {
     return syncThumbnails;
+  }
+
+  public AlbumEntryEntity getThumbnail() {
+    return thumbnail;
   }
 
   @CursorField(Client.Album.SHOULD_SYNC)
@@ -91,6 +115,10 @@ public class AlbumEntity {
   @CursorField(Client.Album.SYNCED)
   public boolean isSynced() {
     return synced;
+  }
+
+  public void setAlbumCaptureDate(final Date albumCaptureDate) {
+    this.albumCaptureDate = albumCaptureDate;
   }
 
   public void setAutoAddDate(final Date autoAddDate) {
@@ -107,6 +135,10 @@ public class AlbumEntity {
 
   public void setSyncThumbnails(final boolean syncThumbnails) {
     this.syncThumbnails = syncThumbnails;
+  }
+
+  public void setThumbnail(AlbumEntryEntity thumbnail) {
+    this.thumbnail = thumbnail;
   }
 
 }

@@ -1,5 +1,10 @@
 package ch.bergturbenthal.image.provider.model;
 
+import java.util.Date;
+
+import ch.bergturbenthal.image.provider.Client;
+import ch.bergturbenthal.image.provider.map.CursorField;
+
 import com.j256.ormlite.field.DataType;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
@@ -9,38 +14,64 @@ public class AlbumEntryEntity {
   @DatabaseField(canBeNull = false, uniqueIndexName = "entry_name_index")
   private final String name;
   @DatabaseField(generatedId = true)
-  private final int id = -1;
+  private final int id;
   @DatabaseField(foreign = true, uniqueIndexName = "entry_name_index")
   private final AlbumEntity album;
   @DatabaseField(canBeNull = false, dataType = DataType.ENUM_STRING)
   private final AlbumEntryType type;
+  @DatabaseField(canBeNull = false)
+  private Date lastModified;
+  @DatabaseField
+  private final Date captureDate;
 
-  public AlbumEntryEntity(final AlbumEntity album, final String name, final AlbumEntryType type) {
+  public AlbumEntryEntity(final AlbumEntity album, final String name, final AlbumEntryType type, final Date lastModified, final Date captureDate) {
     this.album = album;
     this.name = name;
     this.type = type;
+    this.lastModified = lastModified;
+    this.captureDate = captureDate;
+    this.id = -1;
   }
 
   protected AlbumEntryEntity() {
     name = null;
     album = null;
     type = null;
+    captureDate = null;
+    id = -1;
   }
 
   public AlbumEntity getAlbum() {
     return album;
   }
 
+  @CursorField(Client.AlbumEntry.CAPTURE_DATE)
+  public Date getCaptureDate() {
+    return captureDate;
+  }
+
+  @CursorField(Client.AlbumEntry.ID)
   public int getId() {
     return id;
   }
 
+  @CursorField(Client.AlbumEntry.LAST_MODIFIED)
+  public Date getLastModified() {
+    return lastModified;
+  }
+
+  @CursorField(Client.AlbumEntry.NAME)
   public String getName() {
     return name;
   }
 
+  @CursorField(Client.AlbumEntry.ENTRY_TYPE)
   public AlbumEntryType getType() {
     return type;
+  }
+
+  public void setLastModified(final Date lastModified) {
+    this.lastModified = lastModified;
   }
 
 }

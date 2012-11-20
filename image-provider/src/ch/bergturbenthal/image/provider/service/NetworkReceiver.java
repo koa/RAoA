@@ -26,7 +26,7 @@ public class NetworkReceiver extends BroadcastReceiver {
       Log.i(NETWORK_RECEIVER_TAG, "Wifi disconnected");
       command = ServiceCommand.STOP;
     }
-    final Intent intent2 = new Intent(context, SynchronisationService.class);
+    final Intent intent2 = new Intent(context, SynchronisationServiceImpl.class);
     intent2.putExtra("command", (Parcelable) command);
     final ComponentName componentName = context.startService(intent2);
     Log.i(NETWORK_RECEIVER_TAG, "Service startet: " + componentName);

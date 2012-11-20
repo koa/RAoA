@@ -14,7 +14,6 @@
     <java-version>1.6</java-version>
     <android-version>4.0.1.2</android-version>
     <!-- Available Android versions: 1.5_r3, 1.5_r4, 1.6_r2, 2.1.2, 2.1_r1, 2.2.1, 2.3.1, 2.3.3, 4.0.1.2 -->
-    <spring-android-version>1.0.0.RELEASE</spring-android-version>
   </properties>
   <build>
     <finalName>${project.artifactId}</finalName>
@@ -130,7 +129,6 @@
     <dependency>
       <groupId>org.springframework.android</groupId>
       <artifactId>spring-android-rest-template</artifactId>
-      <version>1.0.1.BUILD-KOA</version>
     </dependency>
     <dependency>
       <groupId>ch.bergturbenthal.image</groupId>

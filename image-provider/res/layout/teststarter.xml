@@ -28,4 +28,10 @@
         android:layout_height="wrap_content"
         android:text="List Albums" />
 
+    <Button
+        android:id="@+id/dump_thumbnails"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Dump 10 Thumbnails" />
+
 </LinearLayout>

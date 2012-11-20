@@ -12,16 +12,16 @@ import android.util.Log;
 import com.j256.ormlite.dao.CloseableIterator;
 import com.j256.ormlite.stmt.QueryBuilder;
 
-public class EntityCursor<V> extends AbstractCursor {
+public class EntityCursor<V, P> extends AbstractCursor {
   private static final String TAG = "EntityCursor";
   private final String[] queryingProjection;
-  private final QueryBuilder<V, String> queryBuilder;
+  private final QueryBuilder<V, P> queryBuilder;
   private final FieldReader<V>[] fieldReaders;
   private final CloseableIterator<V> dataIterator;
   private V currentEntry = null;
   private int calculatedCount = -1;
 
-  public EntityCursor(final QueryBuilder<V, String> queryBuilder, final String[] queryingProjection, final Map<String, FieldReader<V>> fieldReaders)
+  public EntityCursor(final QueryBuilder<V, P> queryBuilder, final String[] queryingProjection, final Map<String, FieldReader<V>> fieldReaders)
 
   throws java.sql.SQLException {
 
@@ -37,10 +37,12 @@ public class EntityCursor<V> extends AbstractCursor {
       fieldReaderList.add(fieldReader);
       queryingProjectionList.add(columnName);
     }
+
     this.queryingProjection = queryingProjectionList.toArray(new String[queryingProjectionList.size()]);
     this.fieldReaders = fieldReaderList.toArray(new FieldReader[fieldReaderList.size()]);
     this.queryBuilder = queryBuilder;
     this.dataIterator = queryBuilder.iterator();
+    currentEntry = dataIterator.current();
   }
 
   @Override

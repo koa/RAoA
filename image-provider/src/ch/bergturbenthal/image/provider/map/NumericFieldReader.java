@@ -1,6 +1,5 @@
 package ch.bergturbenthal.image.provider.map;
 
-
 public abstract class NumericFieldReader<V> implements FieldReader<V> {
   final int type;
 
@@ -16,6 +15,11 @@ public abstract class NumericFieldReader<V> implements FieldReader<V> {
   @Override
   public int getType() {
     return type;
+  }
+
+  @Override
+  public Object getValue(final V value) {
+    return getNumber(value);
   }
 
   @Override

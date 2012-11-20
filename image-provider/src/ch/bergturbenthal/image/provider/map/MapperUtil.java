@@ -2,12 +2,16 @@ package ch.bergturbenthal.image.provider.map;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
 import android.database.Cursor;
 import android.util.Log;
+
+import com.j256.ormlite.dao.CloseableIterator;
+import com.j256.ormlite.stmt.QueryBuilder;
 
 public class MapperUtil {
   private static Map<Class<?>, Class<?>> primitiveToBoxed = new HashMap<Class<?>, Class<?>>();
@@ -18,6 +22,26 @@ public class MapperUtil {
     primitiveToBoxed.put(Short.TYPE, Short.class);
     primitiveToBoxed.put(Long.TYPE, Long.class);
     primitiveToBoxed.put(Boolean.TYPE, Boolean.class);
+  }
+
+  public static <E, I> NotifyableMatrixCursor loadQueryIntoCursor(final QueryBuilder<E, I> queryBuilder, final String[] projection,
+                                                                  final Map<String, FieldReader<E>> fieldReaders) {
+
+    try {
+      final String[] columnNames = projection != null ? projection : fieldReaders.keySet().toArray(new String[0]);
+      final NotifyableMatrixCursor cursor = new NotifyableMatrixCursor(columnNames);
+      for (final CloseableIterator<E> i = queryBuilder.iterator(); i.hasNext();) {
+        final E entry = i.next();
+        final Object[] row = new Object[columnNames.length];
+        for (int j = 0; j < row.length; j++) {
+          row[j] = fieldReaders.get(columnNames[j]).getValue(entry);
+        }
+        cursor.addRow(row);
+      }
+      return cursor;
+    } catch (final SQLException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   public static <V> Map<String, FieldReader<V>> makeAnnotaedFieldReaders(final Class<V> type) {
@@ -78,11 +102,36 @@ public class MapperUtil {
         ret.put(fieldName, new NumericFieldReader<V>(Cursor.FIELD_TYPE_INTEGER) {
           @Override
           public Number getNumber(final V value) {
+            final Date dateValue = readDateValue(method, value);
+            if (dateValue == null)
+              return null;
+            return Long.valueOf(dateValue.getTime());
+          }
+
+          @Override
+          public String getString(final V value) {
+            final Date dateValue = readDateValue(method, value);
+            if (dateValue == null)
+              return null;
+            return dateValue.toString();
+          }
+
+          private <V> Date readDateValue(final Method method, final V value) {
             try {
-              final Date dateValue = (Date) method.invoke(value);
-              if (dateValue == null)
-                return null;
-              return Long.valueOf(dateValue.getTime());
+              return (Date) method.invoke(value);
+            } catch (final Throwable e) {
+              throw new RuntimeException("cannot call method " + method, e);
+            }
+          }
+        });
+      } else if (returnType.isEnum()) {
+        ret.put(fieldName, new StringFieldReader<V>() {
+
+          @Override
+          public String getString(final V value) {
+            try {
+              final Enum<?> enumValue = (Enum<?>) method.invoke(value);
+              return enumValue.name();
             } catch (final Throwable e) {
               throw new RuntimeException("cannot call method " + method, e);
             }
