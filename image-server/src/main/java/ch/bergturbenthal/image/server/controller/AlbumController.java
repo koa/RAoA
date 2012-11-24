@@ -209,7 +209,11 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     entry.setName(albumImage.getName());
     entry.setVideo(albumImage.isVideo());
     entry.setLastModified(albumImage.lastModified());
-    entry.setCaptureDate(albumImage.captureDate());
+    try {
+      entry.setCaptureDate(albumImage.captureDate());
+    } catch (final RuntimeException ex) {
+      logger.warn("cannot read Datum from image " + albumImage.getName(), ex);
+    }
   }
 
   private ImageResult makeImageResult(final File sourceFile, final AlbumImage image, final Date ifModifiedSince) {
