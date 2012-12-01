@@ -237,7 +237,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           stopRunning();
           break;
         case POLL:
-          updateAlbumsOnDB();
+          pollServers();
           break;
         default:
           break;
@@ -427,6 +427,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     }
   }
 
+  private void pollServers() {
+    final MDnsListener listener = dnsListener;
+    if (listener != null) {
+      listener.pollForServices();
+    }
+  }
+
   private <K, V> V putIfNotExists(final ConcurrentMap<K, V> map, final K key, final V emptyValue) {
     final V existingValue = map.putIfAbsent(key, emptyValue);
     if (existingValue != null)
@@ -527,7 +534,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     pollingFuture = executorService.scheduleWithFixedDelay(new Runnable() {
       @Override
       public void run() {
-        updateAlbumsOnDB();
+        pollServers();
       }
     }, 10, 20, TimeUnit.MINUTES);
 
