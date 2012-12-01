@@ -29,6 +29,9 @@ public class AlbumEntity {
   @DatabaseField(generatedId = true)
   private int id;
 
+  @DatabaseField
+  private final String commId;
+
   @ForeignCollectionField(eager = true)
   private final Collection<ClientEntity> interestingClients = new ArrayList<ClientEntity>();
 
@@ -46,15 +49,17 @@ public class AlbumEntity {
   @DatabaseField(foreign = true)
   private AlbumEntryEntity thumbnail;
 
-  public AlbumEntity(final ArchiveEntity archive, final String name) {
+  public AlbumEntity(final ArchiveEntity archive, final String name, final String commId) {
     this.archive = archive;
     this.name = name;
+    this.commId = commId;
   }
 
   AlbumEntity() {
     id = -1;
     archive = null;
     name = null;
+    commId = null;
   }
 
   @CursorField(Client.Album.NAME)
@@ -79,6 +84,10 @@ public class AlbumEntity {
   @CursorField(Client.Album.AUTOADD_DATE)
   public Date getAutoAddDate() {
     return autoAddDate;
+  }
+
+  public String getCommId() {
+    return commId;
   }
 
   public Collection<AlbumEntryEntity> getEntries() {
@@ -137,7 +146,7 @@ public class AlbumEntity {
     this.syncThumbnails = syncThumbnails;
   }
 
-  public void setThumbnail(AlbumEntryEntity thumbnail) {
+  public void setThumbnail(final AlbumEntryEntity thumbnail) {
     this.thumbnail = thumbnail;
   }
 

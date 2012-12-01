@@ -10,5 +10,7 @@ public interface AlbumConnection {
 
   AlbumDto getAlbumDetail();
 
-  void readThumbnail(String filename, File tempFile, File targetFile);
+  String getCommId();
+
+  void readThumbnail(String fileId, File tempFile, File targetFile);
 }

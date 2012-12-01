@@ -52,23 +52,26 @@ public class ArchiveConnection {
   }
 
   public Map<String, AlbumConnection> listAlbums() {
-    final Map<String, Future<Collection<String>>> results = new HashMap<String, Future<Collection<String>>>();
+    final Map<String, Future<Map<String, String>>> results = new HashMap<String, Future<Map<String, String>>>();
     // submit all queries
     for (final Entry<String, ServerConnection> connectionEntry : serverConnections.get().entrySet()) {
-      results.put(connectionEntry.getKey(), executorService.submit(new Callable<Collection<String>>() {
+      results.put(connectionEntry.getKey(), executorService.submit(new Callable<Map<String, String>>() {
         @Override
-        public Collection<String> call() throws Exception {
+        public Map<String, String> call() throws Exception {
           return connectionEntry.getValue().listAlbums();
         }
       }));
     }
     // collect all results
-    final Map<String, Collection<String>> collectedResults = collect(results);
+    final Map<String, Map<String, String>> collectedResults = collect(results);
     // reorder results per album
     final Map<String, Set<String>> serverPerAlbum = new HashMap<String, Set<String>>();
-    for (final Entry<String, Collection<String>> serverEntry : collectedResults.entrySet()) {
+    final Map<String, String> idPerAlbum = new HashMap<String, String>();
+    for (final Entry<String, Map<String, String>> serverEntry : collectedResults.entrySet()) {
       final String serverId = serverEntry.getKey();
-      for (final String albumName : serverEntry.getValue()) {
+      for (final Entry<String, String> albumEntry : serverEntry.getValue().entrySet()) {
+        final String albumName = albumEntry.getKey();
+        idPerAlbum.put(albumName, albumEntry.getValue());
         if (serverPerAlbum.containsKey(albumName)) {
           serverPerAlbum.get(albumName).add(serverId);
         } else
@@ -80,6 +83,7 @@ public class ArchiveConnection {
     // and make Album-Connections
     for (final Entry<String, Set<String>> perAlbumEntry : serverPerAlbum.entrySet()) {
       final String albumName = perAlbumEntry.getKey();
+      final String albumId = idPerAlbum.get(albumName);
       final Set<String> servers = new HashSet<String>(perAlbumEntry.getValue());
       albumConnections.put(perAlbumEntry.getKey(), new AlbumConnection() {
 
@@ -110,10 +114,15 @@ public class ArchiveConnection {
         }
 
         @Override
-        public void readThumbnail(final String filename, final File tempFile, final File targetFile) {
+        public String getCommId() {
+          return albumId;
+        }
+
+        @Override
+        public void readThumbnail(final String fileId, final File tempFile, final File targetFile) {
           for (final String serverId : servers) {
             final ServerConnection serverConnection = serverConnections.get().get(serverId);
-            if (serverConnection.readThumbnail(albumName, filename, tempFile, targetFile))
+            if (serverConnection.readThumbnail(albumName, fileId, tempFile, targetFile))
               return;
           }
         }
@@ -121,6 +130,8 @@ public class ArchiveConnection {
         private void fillDto(final AlbumEntryDto dtoEntry, final AlbumImageEntry entry) {
           dtoEntry.setEntryType(entry.isVideo() ? AlbumEntryType.VIDEO : AlbumEntryType.IMAGE);
           dtoEntry.setLastModified(entry.getLastModified());
+          dtoEntry.setCaptureDate(entry.getCaptureDate());
+          dtoEntry.setCommId(entry.getId());
         }
       });
     }

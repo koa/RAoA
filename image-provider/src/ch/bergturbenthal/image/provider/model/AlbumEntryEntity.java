@@ -15,6 +15,8 @@ public class AlbumEntryEntity {
   private final String name;
   @DatabaseField(generatedId = true)
   private final int id;
+  @DatabaseField
+  private final String commId;
   @DatabaseField(foreign = true, uniqueIndexName = "entry_name_index")
   private final AlbumEntity album;
   @DatabaseField(canBeNull = false, dataType = DataType.ENUM_STRING)
@@ -22,11 +24,13 @@ public class AlbumEntryEntity {
   @DatabaseField(canBeNull = false)
   private Date lastModified;
   @DatabaseField
-  private final Date captureDate;
+  private Date captureDate;
 
-  public AlbumEntryEntity(final AlbumEntity album, final String name, final AlbumEntryType type, final Date lastModified, final Date captureDate) {
+  public AlbumEntryEntity(final AlbumEntity album, final String name, final String commId, final AlbumEntryType type, final Date lastModified,
+                          final Date captureDate) {
     this.album = album;
     this.name = name;
+    this.commId = commId;
     this.type = type;
     this.lastModified = lastModified;
     this.captureDate = captureDate;
@@ -37,7 +41,7 @@ public class AlbumEntryEntity {
     name = null;
     album = null;
     type = null;
-    captureDate = null;
+    commId = null;
     id = -1;
   }
 
@@ -48,6 +52,10 @@ public class AlbumEntryEntity {
   @CursorField(Client.AlbumEntry.CAPTURE_DATE)
   public Date getCaptureDate() {
     return captureDate;
+  }
+
+  public String getCommId() {
+    return commId;
   }
 
   @CursorField(Client.AlbumEntry.ID)
@@ -68,6 +76,10 @@ public class AlbumEntryEntity {
   @CursorField(Client.AlbumEntry.ENTRY_TYPE)
   public AlbumEntryType getType() {
     return type;
+  }
+
+  public void setCaptureDate(final Date captureDate) {
+    this.captureDate = captureDate;
   }
 
   public void setLastModified(final Date lastModified) {

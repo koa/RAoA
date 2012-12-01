@@ -39,7 +39,7 @@ public class StorageTest extends AndroidTestCase {
       public Void call() throws Exception {
         final ArchiveEntity archive = new ArchiveEntity("dummy-archive");
         archiveDao.create(archive);
-        final AlbumEntity album = new AlbumEntity(archive, UUID.randomUUID().toString());
+        final AlbumEntity album = new AlbumEntity(archive, UUID.randomUUID().toString(), UUID.randomUUID().toString());
         final ClientEntity client = new ClientEntity(album, "test-client");
         album.getInterestingClients().add(client);
         albumDao.create(album);

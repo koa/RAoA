@@ -77,19 +77,17 @@ public class ServerConnection {
     return instanceId;
   }
 
-  public Collection<String> listAlbums() {
-    return collectAlbums().keySet();
+  /**
+   * Album-Keys by album-names
+   * 
+   * @return
+   */
+  public Map<String, String> listAlbums() {
+    return collectAlbums();
   }
 
-  public boolean readThumbnail(final String albumName, final String file, final File tempFile, final File targetFile) {
+  public boolean readThumbnail(final String albumName, final String fileId, final File tempFile, final File targetFile) {
     final String albumId = resolveAlbumName(albumName);
-    final AlbumImageEntry foundEntry = findAlbumEntry(albumName, file);
-    if (foundEntry == null)
-      return false;
-    final Date lastModifiedOnServer = foundEntry.getLastModified();
-    if (targetFile.exists() && targetFile.lastModified() > lastModifiedOnServer.getTime())
-      // already loaded
-      return true;
     return callOne(new ConnectionCallable<Boolean>() {
 
       @Override
@@ -150,7 +148,7 @@ public class ServerConnection {
 
             return new ResponseEntity<Boolean>(Boolean.TRUE, response.getStatusCode());
           }
-        }, albumId, foundEntry.getId());
+        }, albumId, fileId);
       }
     }).booleanValue();
 

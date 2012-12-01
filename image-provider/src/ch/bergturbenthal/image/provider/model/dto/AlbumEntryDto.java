@@ -8,6 +8,7 @@ public class AlbumEntryDto {
   private Date lastModified;
   private AlbumEntryType entryType;
   private Date captureDate;
+  private String commId;
 
   /**
    * Returns the captureDate.
@@ -16,6 +17,10 @@ public class AlbumEntryDto {
    */
   public Date getCaptureDate() {
     return captureDate;
+  }
+
+  public String getCommId() {
+    return commId;
   }
 
   public AlbumEntryType getEntryType() {
@@ -34,6 +39,10 @@ public class AlbumEntryDto {
    */
   public void setCaptureDate(final Date captureDate) {
     this.captureDate = captureDate;
+  }
+
+  public void setCommId(final String commId) {
+    this.commId = commId;
   }
 
   public void setEntryType(final AlbumEntryType entryType) {
