@@ -47,9 +47,12 @@ public class ConnectionAdapter implements ConnectionUrlListener {
 
         @Override
         public void run() {
-          progressDialog =
-                           ProgressDialog.show(context, "ConnectionAdapter.start",
-                                               context.getResources().getString(R.string.wait_for_server_message), true);
+          if (progressDialog == null)
+            progressDialog =
+                             ProgressDialog.show(context, "ConnectionAdapter.start",
+                                                 context.getResources().getString(R.string.wait_for_server_message), true);
+          else
+            progressDialog.show();
         }
       });
     }

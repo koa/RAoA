@@ -18,7 +18,7 @@
   </bean>
 
   <bean id="executorService" class="java.util.concurrent.Executors" factory-method="newScheduledThreadPool">
-    <constructor-arg value="4" />
+    <constructor-arg value="10" />
     
   </bean>
   

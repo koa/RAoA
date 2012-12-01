@@ -11,6 +11,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
+import java.lang.ref.SoftReference;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.DateFormat;
@@ -31,9 +32,12 @@ import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
+import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.errors.UnmergedPathException;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevCommit;
 import org.joda.time.format.ISODateTimeFormat;
 
 import ch.bergturbenthal.image.data.util.StringUtil;
@@ -74,10 +78,9 @@ public class Album {
   private static String CLIENT_FILE = ".clientlist";
   private static String AUTOADD_FILE = ".autoadd";
   private static String INDEX_FILE = ".index";
-  private static String IMAGE_CACHE_FILE = ".images-cache";
   private final File baseDir;
   private long cachedImages = 0;
-  private Map<String, AlbumImage> images = null;
+  private SoftReference<Map<String, AlbumImage>> images = null;
   private final File cacheDir;
   private Collection<ImportEntry> importEntries = null;
   private final String[] nameComps;
@@ -222,6 +225,16 @@ public class Album {
     }
   }
 
+  public long lastModified() {
+    long lastModified = 0;
+    for (final File imageFile : listImageFiles()) {
+      final long currentLastModified = imageFile.lastModified();
+      if (currentLastModified > lastModified)
+        lastModified = currentLastModified;
+    }
+    return lastModified;
+  }
+
   public synchronized Collection<String> listClients() {
     final File file = new File(baseDir, CLIENT_FILE);
     if (file.exists() && file.canRead()) {
@@ -282,6 +295,25 @@ public class Album {
     return size;
   }
 
+  /**
+   * evaluates current version of album
+   * 
+   * @return version, null if there is no commit
+   */
+  public String version() {
+    try {
+      for (final RevCommit revCommit : git.log().call()) {
+        return revCommit.getName();
+      }
+      return null;
+    } catch (final NoHeadException e) {
+      return null;
+    } catch (final JGitInternalException e) {
+      throw new RuntimeException("Cannot read log", e);
+    }
+
+  }
+
   private void appendImportEntry(final ImportEntry newEntry) {
     if (importEntries == null)
       loadImportEntries();
@@ -334,10 +366,7 @@ public class Album {
     return file;
   }
 
-  private synchronized Map<String, AlbumImage> loadImages() {
-    final long lastModifiedBaseDir = baseDir.lastModified();
-    if (lastModifiedBaseDir == cachedImages)
-      return images;
+  private File[] listImageFiles() {
     final File[] foundFiles = baseDir.listFiles(new FileFilter() {
       @Override
       public boolean accept(final File file) {
@@ -347,12 +376,26 @@ public class Album {
         return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".jpeg") || lowerFilename.endsWith(".nef") || lowerFilename.endsWith(".mkv");
       }
     });
-    images = new HashMap<String, AlbumImage>();
-    for (final File file : foundFiles) {
-      images.put(Util.sha1(file.getAbsolutePath()), AlbumImage.makeImage(file, cacheDir));
+    return foundFiles;
+  }
+
+  private synchronized Map<String, AlbumImage> loadImages() {
+    final long dirLastModified = baseDir.lastModified();
+    if (images != null) {
+      final Map<String, AlbumImage> cachedImageMap = images.get();
+      if (cachedImageMap != null) {
+        if (dirLastModified == cachedImages)
+          return cachedImageMap;
+      }
     }
-    cachedImages = lastModifiedBaseDir;
-    return images;
+
+    final Map<String, AlbumImage> ret = new HashMap<String, AlbumImage>();
+    for (final File file : listImageFiles()) {
+      ret.put(Util.encodeStringForUrl(file.getName()), AlbumImage.makeImage(file, cacheDir));
+    }
+    cachedImages = dirLastModified;
+    images = new SoftReference<Map<String, AlbumImage>>(ret);
+    return ret;
   }
 
   private synchronized void loadImportEntries() {

@@ -20,10 +20,12 @@ import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.PostConstruct;
 
+import org.apache.commons.lang.StringUtils;
 import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -49,6 +51,7 @@ import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
 
 public class FileAlbumAccess implements AlbumAccess {
+  private static final String META_CACHE = "cache";
   private static final String META_REPOSITORY = ".meta";
   private final String instanceId = UUID.randomUUID().toString();
   private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
@@ -189,7 +192,9 @@ public class FileAlbumAccess implements AlbumAccess {
             for (final File albumDir : findAlbums(basePath)) {
               logger.debug("Load Repository " + albumDir);
               final String[] nameComps = albumDir.getAbsolutePath().substring(basePathLength + 1).split(File.pathSeparator);
-              ret.put(Util.sha1(albumDir.getAbsolutePath()), new Album(albumDir, nameComps));
+              if (Arrays.equals(nameComps, new String[] { META_REPOSITORY }))
+                continue;
+              ret.put(Util.encodeStringForUrl(StringUtils.join(nameComps, "/")), new Album(albumDir, nameComps));
             }
             lastLoadedDate.set(System.currentTimeMillis());
             loadedAlbums = ret;
@@ -295,6 +300,7 @@ public class FileAlbumAccess implements AlbumAccess {
   }
 
   @PostConstruct
+  @SuppressWarnings("unused")
   private void initMetaRepository() {
     final File metaDir = getMetaDir();
 
@@ -307,6 +313,9 @@ public class FileAlbumAccess implements AlbumAccess {
     } else {
       metaGit = Git.init().setDirectory(metaDir).call();
     }
+    final File cacheDir = new File(metaDir, META_CACHE);
+    if (!cacheDir.exists())
+      cacheDir.mkdirs();
     final File configFile = new File(metaDir, "config.json");
     try {
       if (!configFile.exists()) {
@@ -341,6 +350,7 @@ public class FileAlbumAccess implements AlbumAccess {
 
   private void refreshCache() {
     try {
+      final AtomicInteger imageCount = new AtomicInteger();
       // limit the queue size for take not too much memory
       final Semaphore queueLimitSemaphore = new Semaphore(100);
       final long startTime = System.currentTimeMillis();
@@ -357,6 +367,7 @@ public class FileAlbumAccess implements AlbumAccess {
                 // read Thumbnail
                 image.getThumbnail();
               } finally {
+                imageCount.incrementAndGet();
                 queueLimitSemaphore.release();
               }
             }
@@ -369,6 +380,9 @@ public class FileAlbumAccess implements AlbumAccess {
       final Duration duration = new Duration(startTime, endTime);
       final StringBuffer buf = new StringBuffer("Refresh-Time: ");
       PeriodFormat.wordBased().getPrinter().printTo(buf, duration.toPeriod(), Locale.getDefault());
+      buf.append(", ");
+      buf.append(imageCount.intValue());
+      buf.append(" Images");
       logger.info(buf.toString());
     } catch (final InterruptedException e) {
       logger.info("cache refresh interrupted");

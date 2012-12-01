@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.WeakHashMap;
+import java.util.concurrent.Semaphore;
 
 import org.codehaus.jackson.map.ObjectMapper;
 import org.im4java.core.ConvertCmd;
@@ -51,6 +52,8 @@ public class AlbumImage {
   private static final int THUMBNAIL_SIZE = 1600;
 
   private static ObjectMapper objectMapper = new ObjectMapper();
+
+  private static Semaphore limitConcurrentScaleSemaphore = new Semaphore(4);
 
   public static AlbumImage makeImage(final File file, final File cacheDir) {
     synchronized (lockFor(file)) {
@@ -107,10 +110,15 @@ public class AlbumImage {
       synchronized (this) {
         if (cachedFile.exists() && cachedFile.lastModified() >= file.lastModified())
           return cachedFile;
-        if (isVideo())
-          scaleVideoDown(cachedFile);
-        else
-          scaleImageDown(cachedFile);
+        limitConcurrentScaleSemaphore.acquire();
+        try {
+          if (isVideo())
+            scaleVideoDown(cachedFile);
+          else
+            scaleImageDown(cachedFile);
+        } finally {
+          limitConcurrentScaleSemaphore.release();
+        }
       }
       return cachedFile;
     } catch (final IOException e) {
