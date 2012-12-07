@@ -9,7 +9,6 @@
 
 	<beans:bean
 		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
-		<beans:property name="location" value="${images_properties}"/>
 	</beans:bean>
 
 	<!-- DispatcherServlet Context: defines this servlet's request-processing 

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<installation version="1.0"
+	xmlns="http://izpack.org/schema/installation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://izpack.org/schema/installation http://izpack.org/schema/5.0/izpack-installation-5.0.xsd ">
+	<info>
+		<appname>${project.name}</appname>
+		<appversion>${project.version}</appversion>
+	</info>
+	<guiprefs height="600" width="640" resizable="yes"></guiprefs>
+	<locale>
+		<langpack iso3="eng" />
+		<langpack iso3="deu" />
+	</locale>
+	<resources>
+		<res id="HTMLInfoPanel.welcome" src="welcome.html" />
+	</resources>
+	<variables>
+		<variable name="InstallerFrame.logfilePath" value="Default" />
+		<variable name="WELCOME_TEXT" value="${project.name}" />
+		<variable name="WELCOME_VERSION" value="Version: ${project.version}" />
+	</variables>
+
+	<panels>
+		<panel classname="HTMLInfoPanel" id="welcome" />
+		<panel classname="TargetPanel" id="install_dir" />
+		<panel classname="InstallPanel" id="install" />
+		<panel classname="FinishPanel" id="finish" />
+	</panels>
+	<packs>
+		<pack name="Image Server" required="yes">
+			<description>The core files needed for the application</description>
+			<fileset
+				dir="${project.build.directory}/generated-resources/appassembler/jsw/image-server/"
+				targetdir="${INSTALL_PATH}" override="true" />
+			<executable stage="never" targetfile="bin/image-server" failure="ignore"/>
+			<executable stage="never" targetfile="bin/wrapper-linux-x86-32" failure="ignore"/>
+			<executable stage="never" targetfile="bin/wrapper-linux-x86-64" failure="ignore"/>
+			<executable stage="never" targetfile="bin/wrapper-macosx-universal-32" failure="ignore"/>
+		</pack>
+	</packs>
+</installation>

@@ -35,9 +35,9 @@ public class TestAlbumAccess {
     }
 
     @Bean
-    public AlbumAccess albumAccess() {
+    public AlbumAccess albumAccess() throws IOException {
       final FileAlbumAccess fileAlbumAccess = new FileAlbumAccess();
-      fileAlbumAccess.setBaseDir(resource);
+      fileAlbumAccess.setBaseDir(resource.getFile());
       return fileAlbumAccess;
     }
 

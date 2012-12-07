@@ -22,6 +22,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.prefs.BackingStoreException;
+import java.util.prefs.Preferences;
 
 import javax.annotation.PostConstruct;
 
@@ -42,7 +44,6 @@ import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.Resource;
 
 import ch.bergturbenthal.image.server.model.ArchiveData;
 
@@ -51,12 +52,14 @@ import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
 
 public class FileAlbumAccess implements AlbumAccess {
+  private static final String IMPORT_BASE_PATH_REFERENCE = "import_base_path";
+  private static final String ALBUM_PATH_PREFERENCE = "album_path";
   private static final String META_CACHE = "cache";
   private static final String META_REPOSITORY = ".meta";
   private final String instanceId = UUID.randomUUID().toString();
   private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
-  private Resource baseDir;
-  private Resource importBaseDir;
+  private File baseDir;
+  private File importBaseDir;
   private Map<String, Album> loadedAlbums = null;
   private final AtomicLong lastLoadedDate = new AtomicLong(0);
   @Autowired
@@ -65,6 +68,7 @@ public class FileAlbumAccess implements AlbumAccess {
   private final ObjectMapper mapper = new ObjectMapper();
   private ArchiveData archiveData;
   private Git metaGit;
+  private Preferences preferences = null;
 
   @Override
   public synchronized String createAlbum(final String[] pathNames) {
@@ -104,7 +108,7 @@ public class FileAlbumAccess implements AlbumAccess {
     return listAlbums().get(albumId);
   }
 
-  public Resource getBaseDir() {
+  public File getBaseDir() {
     return baseDir;
   }
 
@@ -113,7 +117,7 @@ public class FileAlbumAccess implements AlbumAccess {
     return archiveData.getArchiveName();
   }
 
-  public Resource getImportBaseDir() {
+  public File getImportBaseDir() {
     return importBaseDir;
   }
 
@@ -126,7 +130,7 @@ public class FileAlbumAccess implements AlbumAccess {
   public void importFiles(final File importDir) {
 
     try {
-      if (!importDir.getAbsolutePath().startsWith(importBaseDir.getFile().getAbsolutePath())) {
+      if (!importDir.getAbsolutePath().startsWith(importBaseDir.getAbsolutePath())) {
         logger.error("Secutity-Error: Not allowed to read Images from " + importDir + " (Import-Path is " + importBaseDir + ")");
         return;
       }
@@ -172,8 +176,6 @@ public class FileAlbumAccess implements AlbumAccess {
         if (!deleted)
           logger.error("Cannot delete File " + file);
       }
-    } catch (final IOException e) {
-      throw new RuntimeException("Cannot import from " + importDir, e);
     } finally {
       refreshCache();
     }
@@ -206,13 +208,38 @@ public class FileAlbumAccess implements AlbumAccess {
     return loadedAlbums;
   }
 
-  public synchronized void setBaseDir(final Resource baseDir) {
+  public synchronized void setBaseDir(final File baseDir) {
     this.baseDir = baseDir;
     loadedAlbums = null;
+    if (preferences != null) {
+      preferences.put(ALBUM_PATH_PREFERENCE, baseDir.getAbsolutePath());
+      try {
+        preferences.flush();
+      } catch (final BackingStoreException e) {
+        logger.warn("Cannot persist config", e);
+      }
+    }
   }
 
-  public void setImportBaseDir(final Resource importBaseDir) {
+  public void setImportBaseDir(final File importBaseDir) {
     this.importBaseDir = importBaseDir;
+    if (preferences != null) {
+      preferences.put(IMPORT_BASE_PATH_REFERENCE, baseDir.getAbsolutePath());
+      try {
+        preferences.flush();
+      } catch (final BackingStoreException e) {
+        logger.warn("Cannot persist config", e);
+      }
+    }
+  }
+
+  @PostConstruct
+  protected void configureFromPreferences() {
+    if (baseDir == null) {
+      preferences = Preferences.userNodeForPackage(FileAlbumAccess.class);
+      setBaseDir(new File(preferences.get(ALBUM_PATH_PREFERENCE, new File(System.getProperty("user.home"), "images").getAbsolutePath())));
+      setImportBaseDir(importBaseDir = new File(preferences.get(IMPORT_BASE_PATH_REFERENCE, "nowhere")));
+    }
   }
 
   /**
@@ -281,11 +308,7 @@ public class FileAlbumAccess implements AlbumAccess {
   }
 
   private File getBasePath() {
-    try {
-      return baseDir.getFile().getAbsoluteFile();
-    } catch (final IOException e) {
-      throw new RuntimeException("Cannot read base-path from " + baseDir, e);
-    }
+    return baseDir.getAbsoluteFile();
   }
 
   private File getConfigFile() {
@@ -363,7 +386,7 @@ public class FileAlbumAccess implements AlbumAccess {
             public void run() {
               try {
                 // read Metadata
-                image.captureDate();
+                // image.captureDate();
                 // read Thumbnail
                 image.getThumbnail();
               } finally {
