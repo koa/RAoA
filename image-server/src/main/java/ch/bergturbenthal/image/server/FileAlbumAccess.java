@@ -3,6 +3,8 @@ package ch.bergturbenthal.image.server;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -23,22 +25,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.prefs.BackingStoreException;
+import java.util.prefs.PreferenceChangeEvent;
+import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
 
 import javax.annotation.PostConstruct;
 
+import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
-import org.codehaus.jackson.JsonGenerationException;
-import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.ConcurrentRefUpdateException;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.api.errors.NoFilepatternException;
-import org.eclipse.jgit.api.errors.NoHeadException;
-import org.eclipse.jgit.api.errors.NoMessageException;
-import org.eclipse.jgit.api.errors.WrongRepositoryStateException;
-import org.eclipse.jgit.errors.UnmergedPathException;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
@@ -51,24 +48,26 @@ import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
 
-public class FileAlbumAccess implements AlbumAccess {
-  private static final String IMPORT_BASE_PATH_REFERENCE = "import_base_path";
+public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveConfiguration {
+  private static final String INSTANCE_NAME_PREFERENCE = "instanceName";
   private static final String ALBUM_PATH_PREFERENCE = "album_path";
+  private static final String IMPORT_BASE_PATH_REFERENCE = "import_base_path";
   private static final String META_CACHE = "cache";
   private static final String META_REPOSITORY = ".meta";
-  private final String instanceId = UUID.randomUUID().toString();
-  private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
+  private ArchiveData archiveData;
   private File baseDir;
-  private File importBaseDir;
-  private Map<String, Album> loadedAlbums = null;
-  private final AtomicLong lastLoadedDate = new AtomicLong(0);
   @Autowired
   private ScheduledExecutorService executorService;
+  private File importBaseDir;
+  private final String instanceId = UUID.randomUUID().toString();
+  private final AtomicLong lastLoadedDate = new AtomicLong(0);
+  private Map<String, Album> loadedAlbums = null;
 
+  private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
   private final ObjectMapper mapper = new ObjectMapper();
-  private ArchiveData archiveData;
   private Git metaGit;
   private Preferences preferences = null;
+  private String instanceName;
 
   @Override
   public synchronized String createAlbum(final String[] pathNames) {
@@ -108,6 +107,17 @@ public class FileAlbumAccess implements AlbumAccess {
     return listAlbums().get(albumId);
   }
 
+  @Override
+  public String getArchiveName() {
+    return archiveData.getArchiveName();
+  }
+
+  /*
+   * (non-Javadoc)
+   * 
+   * @see ch.bergturbenthal.image.server.FileConfiguration#getBaseDir()
+   */
+  @Override
   public File getBaseDir() {
     return baseDir;
   }
@@ -117,6 +127,7 @@ public class FileAlbumAccess implements AlbumAccess {
     return archiveData.getArchiveName();
   }
 
+  @Override
   public File getImportBaseDir() {
     return importBaseDir;
   }
@@ -124,6 +135,11 @@ public class FileAlbumAccess implements AlbumAccess {
   @Override
   public String getInstanceId() {
     return instanceId;
+  }
+
+  @Override
+  public String getInstanceName() {
+    return instanceName;
   }
 
   @Override
@@ -208,37 +224,51 @@ public class FileAlbumAccess implements AlbumAccess {
     return loadedAlbums;
   }
 
+  @Override
+  public void setArchiveName(final String archiveName) {
+    archiveData.setArchiveName(archiveName);
+    updateMeta("ArchiveName upated");
+  }
+
+  @Override
   public synchronized void setBaseDir(final File baseDir) {
+    if (ObjectUtils.equals(this.baseDir, baseDir))
+      return;
     this.baseDir = baseDir;
     loadedAlbums = null;
     if (preferences != null) {
       preferences.put(ALBUM_PATH_PREFERENCE, baseDir.getAbsolutePath());
-      try {
-        preferences.flush();
-      } catch (final BackingStoreException e) {
-        logger.warn("Cannot persist config", e);
-      }
+      flushPreferences();
     }
+    initMetaRepository();
+    executorService.submit(new Runnable() {
+
+      @Override
+      public void run() {
+        refreshCache();
+      }
+    });
   }
 
+  @Override
   public void setImportBaseDir(final File importBaseDir) {
+    if (ObjectUtils.equals(this.importBaseDir, importBaseDir))
+      return;
     this.importBaseDir = importBaseDir;
     if (preferences != null) {
-      preferences.put(IMPORT_BASE_PATH_REFERENCE, baseDir.getAbsolutePath());
-      try {
-        preferences.flush();
-      } catch (final BackingStoreException e) {
-        logger.warn("Cannot persist config", e);
-      }
+      preferences.put(IMPORT_BASE_PATH_REFERENCE, importBaseDir.getAbsolutePath());
+      flushPreferences();
     }
   }
 
-  @PostConstruct
-  protected void configureFromPreferences() {
-    if (baseDir == null) {
-      preferences = Preferences.userNodeForPackage(FileAlbumAccess.class);
-      setBaseDir(new File(preferences.get(ALBUM_PATH_PREFERENCE, new File(System.getProperty("user.home"), "images").getAbsolutePath())));
-      setImportBaseDir(importBaseDir = new File(preferences.get(IMPORT_BASE_PATH_REFERENCE, "nowhere")));
+  @Override
+  public void setInstanceName(final String instanceName) {
+    if (ObjectUtils.equals(this.instanceName, instanceName))
+      return;
+    this.instanceName = instanceName;
+    if (preferences != null) {
+      preferences.put(INSTANCE_NAME_PREFERENCE, instanceName);
+      flushPreferences();
     }
   }
 
@@ -257,7 +287,7 @@ public class FileAlbumAccess implements AlbumAccess {
           logger.warn("Exception while refreshing thumbnails", t);
         }
       }
-    }, 5, 2 * 60 * 60, TimeUnit.SECONDS);
+    }, 60, 2 * 60, TimeUnit.MINUTES);
   }
 
   private Collection<File> collectImportFiles(final File importDir) {
@@ -286,6 +316,19 @@ public class FileAlbumAccess implements AlbumAccess {
     return ret;
   }
 
+  private void configureFromPreferences() {
+    if (baseDir == null) {
+      preferences = Preferences.userNodeForPackage(FileAlbumAccess.class);
+      readLocalSettingsFromPreferences();
+      preferences.addPreferenceChangeListener(new PreferenceChangeListener() {
+        @Override
+        public void preferenceChange(final PreferenceChangeEvent arg0) {
+          readLocalSettingsFromPreferences();
+        }
+      });
+    }
+  }
+
   private Collection<File> findAlbums(final File dir) {
     final File gitSubDir = new File(dir, ".git");
     if (gitSubDir.exists() && gitSubDir.isDirectory()) {
@@ -307,6 +350,14 @@ public class FileAlbumAccess implements AlbumAccess {
     return ret;
   }
 
+  private void flushPreferences() {
+    try {
+      preferences.flush();
+    } catch (final BackingStoreException e) {
+      logger.warn("Cannot persist config", e);
+    }
+  }
+
   private File getBasePath() {
     return baseDir.getAbsoluteFile();
   }
@@ -322,8 +373,12 @@ public class FileAlbumAccess implements AlbumAccess {
     return metaDir;
   }
 
-  @PostConstruct
   @SuppressWarnings("unused")
+  @PostConstruct
+  private void init() {
+    configureFromPreferences();
+  }
+
   private void initMetaRepository() {
     final File metaDir = getMetaDir();
 
@@ -362,13 +417,25 @@ public class FileAlbumAccess implements AlbumAccess {
       }
     } catch (final IOException e) {
       throw new RuntimeException("Cannot write config to " + configFile, e);
-    } catch (final GitAPIException e) {
-      throw new RuntimeException("Commit config", e);
+    }
+  }
+
+  private String makeDefaultInstanceName() {
+    try {
+      return InetAddress.getLocalHost().getHostName();
+    } catch (final UnknownHostException e) {
+      return UUID.randomUUID().toString();
     }
   }
 
   private boolean needToLoadAlbumList() {
     return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
+  }
+
+  private void readLocalSettingsFromPreferences() {
+    setBaseDir(new File(preferences.get(ALBUM_PATH_PREFERENCE, new File(System.getProperty("user.home"), "images").getAbsolutePath())));
+    setImportBaseDir(new File(preferences.get(IMPORT_BASE_PATH_REFERENCE, "nowhere")));
+    setInstanceName(preferences.get(INSTANCE_NAME_PREFERENCE, makeDefaultInstanceName()));
   }
 
   private void refreshCache() {
@@ -412,11 +479,15 @@ public class FileAlbumAccess implements AlbumAccess {
     }
   }
 
-  private void updateMeta(final String message) throws IOException, JsonGenerationException, JsonMappingException, NoFilepatternException,
-                                               NoHeadException, NoMessageException, UnmergedPathException, ConcurrentRefUpdateException,
-                                               WrongRepositoryStateException {
-    mapper.writerWithDefaultPrettyPrinter().writeValue(getConfigFile(), archiveData);
-    metaGit.add().addFilepattern(".").call();
-    metaGit.commit().setMessage(message).call();
+  private synchronized void updateMeta(final String message) {
+    try {
+      mapper.writerWithDefaultPrettyPrinter().writeValue(getConfigFile(), archiveData);
+      metaGit.add().addFilepattern(".").call();
+      metaGit.commit().setMessage(message).call();
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot update Metadata", e);
+    } catch (final GitAPIException e) {
+      throw new RuntimeException("Cannot update Metadata", e);
+    }
   }
 }

@@ -29,15 +29,18 @@
 		<beans:property name="mediaTypes">
 			<beans:map>
 				<beans:entry key="json" value="application/json" />
+				<beans:entry key="html" value="text/html" />
 			</beans:map>
 		</beans:property>
 		<beans:property name="viewResolvers">
-
 			<beans:list>
 				<beans:bean
 					class="org.springframework.web.servlet.view.BeanNameViewResolver" />
 				<beans:bean
-					class="org.springframework.web.servlet.view.InternalResourceViewResolver" />
+					class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+					<beans:property name="prefix" value="/WEB-INF/jsp/"/>
+					<beans:property name="suffix" value=".jsp"/>
+				</beans:bean>
 			</beans:list>
 		</beans:property>
 		<beans:property name="defaultViews">
