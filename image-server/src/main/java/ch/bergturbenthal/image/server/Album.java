@@ -35,8 +35,8 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.api.errors.NoHeadException;
-import org.eclipse.jgit.errors.UnmergedPathException;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.joda.time.format.ISODateTimeFormat;
 
@@ -97,7 +97,11 @@ public class Album {
         throw new RuntimeException("Cannot access to git-repository of " + baseDir, e);
       }
     } else {
-      git = Git.init().setDirectory(baseDir).call();
+      try {
+        git = Git.init().setDirectory(baseDir).call();
+      } catch (final GitAPIException e) {
+        throw new RuntimeException("Cannot create Album", e);
+      }
     }
 
     final boolean modified = prepareGitignore();
@@ -106,6 +110,11 @@ public class Album {
       cacheDir.mkdirs();
     if (autoaddFile().exists()) {
       loadImportEntries();
+    }
+    try {
+      checkLocalConfiguration();
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot update config", e);
     }
     if (modified)
       commit("initialized repository for image-server");
@@ -122,10 +131,6 @@ public class Album {
       if (!git.status().call().isClean())
         git.commit().setMessage(message).call();
     } catch (final GitAPIException e) {
-      throw new RuntimeException("Cannot execute commit on " + getName(), e);
-    } catch (final UnmergedPathException e) {
-      throw new RuntimeException("Cannot execute commit on " + getName(), e);
-    } catch (final IOException e) {
       throw new RuntimeException("Cannot execute commit on " + getName(), e);
     } catch (final RuntimeException e) {
       throw new RuntimeException("Cannot execute commit on " + getName(), e);
@@ -215,6 +220,8 @@ public class Album {
           } catch (final IOException ex) {
             throw new RuntimeException("Cannot copy file " + imageFile, ex);
           } catch (final NoFilepatternException e) {
+            throw new RuntimeException("Cannot add File to git-repository", e);
+          } catch (final GitAPIException e) {
             throw new RuntimeException("Cannot add File to git-repository", e);
           } finally {
             // clear cache
@@ -310,6 +317,8 @@ public class Album {
       return null;
     } catch (final JGitInternalException e) {
       throw new RuntimeException("Cannot read log", e);
+    } catch (final GitAPIException e) {
+      throw new RuntimeException("Cannot read log", e);
     }
 
   }
@@ -337,6 +346,21 @@ public class Album {
   private BufferedReader bufferedReader(final File file) throws UnsupportedEncodingException, FileNotFoundException {
     final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "utf-8"));
     return reader;
+  }
+
+  /**
+   * Checks the configuration of this repository and disables deltacompression
+   * if not elsewhere set
+   * 
+   * @throws IOException
+   */
+  private void checkLocalConfiguration() throws IOException {
+    final StoredConfig config = git.getRepository().getConfig();
+    final Set<String> packConfigs = config.getNames("pack");
+    if (!packConfigs.contains("deltacompression")) {
+      config.setBoolean("pack", null, "deltacompression", false);
+      config.save();
+    }
   }
 
   private synchronized ImportEntry findExistingImportEntry(final String sha1OfFile) {
@@ -482,6 +506,8 @@ public class Album {
     } catch (final IOException e) {
       throw new RuntimeException("Cannot prepare .gitignore-file", e);
     } catch (final NoFilepatternException e) {
+      throw new RuntimeException("Error while executing git-command", e);
+    } catch (final GitAPIException e) {
       throw new RuntimeException("Error while executing git-command", e);
     }
     return true;

@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,24 +26,42 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.PreferenceChangeEvent;
 import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import javax.jmdns.JmmDNS;
+import javax.jmdns.NetworkTopologyEvent;
+import javax.jmdns.NetworkTopologyListener;
+import javax.jmdns.ServiceEvent;
+import javax.jmdns.ServiceInfo;
+import javax.jmdns.ServiceListener;
 
 import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.transport.FetchResult;
+import org.eclipse.jgit.transport.RefSpec;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus.Series;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
 
+import ch.bergturbenthal.image.data.model.AlbumEntry;
+import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.server.model.ArchiveData;
 
 import com.drew.imaging.ImageMetadataReader;
@@ -49,6 +69,7 @@ import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
 
 public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveConfiguration {
+  private static final String SERVICE_TYPE = "_images._tcp.local.";
   private static final String INSTANCE_NAME_PREFERENCE = "instanceName";
   private static final String ALBUM_PATH_PREFERENCE = "album_path";
   private static final String IMPORT_BASE_PATH_REFERENCE = "import_base_path";
@@ -56,6 +77,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private static final String META_REPOSITORY = ".meta";
   private ArchiveData archiveData;
   private File baseDir;
+  private final AtomicReference<Collection<URI>> peerServers = new AtomicReference<Collection<URI>>(Collections.<URI> emptyList());
   @Autowired
   private ScheduledExecutorService executorService;
   private File importBaseDir;
@@ -68,6 +90,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private Git metaGit;
   private Preferences preferences = null;
   private String instanceName;
+  private JmmDNS jmmDNS;
+  private final RestTemplate restTemplate = new RestTemplate();;
 
   @Override
   public synchronized String createAlbum(final String[] pathNames) {
@@ -226,8 +250,17 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
 
   @Override
   public void setArchiveName(final String archiveName) {
+    if (StringUtils.equals(archiveData.getArchiveName(), archiveName))
+      return;
     archiveData.setArchiveName(archiveName);
     updateMeta("ArchiveName upated");
+    executorService.submit(new Runnable() {
+
+      @Override
+      public void run() {
+        pollCurrentKnownPeers();
+      }
+    });
   }
 
   @Override
@@ -389,7 +422,11 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
         throw new RuntimeException("Cannot access to git-repository of " + baseDir, e);
       }
     } else {
-      metaGit = Git.init().setDirectory(metaDir).call();
+      try {
+        metaGit = Git.init().setDirectory(metaDir).call();
+      } catch (final GitAPIException e) {
+        throw new RuntimeException("Cannot create meta repository", e);
+      }
     }
     final File cacheDir = new File(metaDir, META_CACHE);
     if (!cacheDir.exists())
@@ -420,6 +457,43 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }
   }
 
+  @PostConstruct
+  @SuppressWarnings("unused")
+  private void listenPeers() {
+    if (jmmDNS != null)
+      return;
+    jmmDNS = JmmDNS.Factory.getInstance();
+    final ServiceListener serviceListener = new ServiceListener() {
+
+      @Override
+      public void serviceAdded(final ServiceEvent event) {
+        event.getDNS().requestServiceInfo(event.getType(), event.getName());
+      }
+
+      @Override
+      public void serviceRemoved(final ServiceEvent event) {
+        pollCurrentKnownPeers();
+      }
+
+      @Override
+      public void serviceResolved(final ServiceEvent event) {
+        pollCurrentKnownPeers();
+      }
+    };
+    jmmDNS.addNetworkTopologyListener(new NetworkTopologyListener() {
+
+      @Override
+      public void inetAddressAdded(final NetworkTopologyEvent event) {
+        event.getDNS().addServiceListener(SERVICE_TYPE, serviceListener);
+      }
+
+      @Override
+      public void inetAddressRemoved(final NetworkTopologyEvent event) {
+        pollCurrentKnownPeers();
+      }
+    });
+  }
+
   private String makeDefaultInstanceName() {
     try {
       return InetAddress.getLocalHost().getHostName();
@@ -430,6 +504,49 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
 
   private boolean needToLoadAlbumList() {
     return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
+  }
+
+  private ResponseEntity<PingResponse> ping(final URI uri) {
+    return restTemplate.getForEntity(uri.resolve("ping.json"), PingResponse.class);
+  }
+
+  private synchronized void pollCurrentKnownPeers() {
+    processFoundServices(jmmDNS.list(SERVICE_TYPE));
+  }
+
+  private void processFoundServices(final ServiceInfo[] services) {
+    final Map<String, URI> foundPeers = new HashMap<String, URI>();
+    for (final ServiceInfo serviceInfo : services) {
+      final int peerPort = serviceInfo.getPort();
+      final InetAddress[] addresses = serviceInfo.getInetAddresses();
+      for (final InetAddress inetAddress : addresses) {
+        try {
+          final URI candidateUri = new URI("http", null, inetAddress.getHostAddress(), peerPort, "/rest/", null, null);
+          final ResponseEntity<PingResponse> responseEntity = ping(candidateUri);
+          if (!responseEntity.hasBody() || responseEntity.getStatusCode().series() != Series.SUCCESSFUL) {
+            continue;
+          }
+          final PingResponse pingResponse = responseEntity.getBody();
+          if (!pingResponse.getArchiveId().equals(getArchiveName()))
+            continue;
+          if (pingResponse.getServerId().equals(getInstanceId()))
+            continue;
+          foundPeers.put(pingResponse.getServerId(), candidateUri);
+        } catch (final URISyntaxException e) {
+          logger.warn("Cannot build URL for " + serviceInfo);
+        }
+      }
+    }
+    logger.info("Found peers: ");
+    for (final Entry<String, URI> peerEntry : foundPeers.entrySet()) {
+      logger.info(" - " + peerEntry.getKey() + ": " + peerEntry.getValue());
+    }
+    final Collection<URI> currentActiveServers = new HashSet<URI>(foundPeers.values());
+    final Collection<URI> alreadyKnownServers = peerServers.get();
+    if (!ObjectUtils.equals(currentActiveServers, alreadyKnownServers)) {
+      peerServers.set(foundPeers.values());
+      updateAllRepositories();
+    }
   }
 
   private void readLocalSettingsFromPreferences() {
@@ -476,6 +593,55 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       logger.info(buf.toString());
     } catch (final InterruptedException e) {
       logger.info("cache refresh interrupted");
+    }
+  }
+
+  @PreDestroy
+  private void shutdownDnsListener() throws IOException {
+    if (jmmDNS != null) {
+      jmmDNS.close();
+      jmmDNS = null;
+    }
+  }
+
+  private void updateAllRepositories() {
+    for (final URI peerServerUri : peerServers.get()) {
+      final ResponseEntity<PingResponse> responseEntity = ping(peerServerUri);
+      if (!responseEntity.hasBody())
+        continue;
+      final PingResponse pingResponse = responseEntity.getBody();
+      final String remoteHost = peerServerUri.getHost();
+      final int remotePort = pingResponse.getGitPort();
+      final ResponseEntity<AlbumList> albumListEntity = restTemplate.getForEntity(peerServerUri.resolve("albums.json"), AlbumList.class);
+      if (!albumListEntity.hasBody())
+        continue;
+      final AlbumList remoteAlbumList = albumListEntity.getBody();
+      final Map<String, Album> localAlbums = listAlbums();
+      for (final AlbumEntry album : remoteAlbumList.getAlbumNames()) {
+        try {
+          final Album localAlbumForRemote = localAlbums.get(album.getId());
+          final File localDir = new File(getBaseDir(), album.getName());
+          final String remoteUri = new URI("git", null, remoteHost, remotePort, "/" + album.getId(), null, null).toASCIIString();
+          if (!localDir.exists()) {
+            Git.cloneRepository().setDirectory(localDir).setURI(remoteUri).call();
+          } else {
+            final Git repo;
+            if (localAlbumForRemote != null)
+              repo = Git.wrap(localAlbumForRemote.getRepository());
+            else if (new File(localDir, ".git").exists())
+              repo = Git.open(localDir);
+            else
+              repo = Git.init().setDirectory(localDir).call();
+            final FetchResult fetchResult = repo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("HEAD")).call();
+            final Ref fetchHead = repo.getRepository().getRef("FETCH_HEAD");
+            // Ref ref;
+            final MergeResult mergeResult = repo.merge().include(fetchHead).call();
+            mergeResult.getConflicts();
+          }
+        } catch (final Throwable e) {
+          logger.error("Cannot sync with " + remoteHost, e);
+        }
+      }
     }
   }
 

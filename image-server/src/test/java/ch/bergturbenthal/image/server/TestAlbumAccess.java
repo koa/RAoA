@@ -10,6 +10,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,8 @@ public class TestAlbumAccess {
         final File dir = resource.getFile();
         Git.init().setDirectory(new File(dir, "testalbum")).call();
       } catch (final IOException e) {
+        throw new RuntimeException("Cannot initialize Test", e);
+      } catch (final GitAPIException e) {
         throw new RuntimeException("Cannot initialize Test", e);
       }
     }
