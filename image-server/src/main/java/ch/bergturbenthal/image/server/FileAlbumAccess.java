@@ -81,17 +81,18 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   @Autowired
   private ScheduledExecutorService executorService;
   private File importBaseDir;
+
   private final String instanceId = UUID.randomUUID().toString();
   private final AtomicLong lastLoadedDate = new AtomicLong(0);
   private Map<String, Album> loadedAlbums = null;
-
   private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
+
   private final ObjectMapper mapper = new ObjectMapper();
   private Git metaGit;
   private Preferences preferences = null;
   private String instanceName;
   private JmmDNS jmmDNS;
-  private final RestTemplate restTemplate = new RestTemplate();;
+  private final RestTemplate restTemplate = new RestTemplate();
 
   @Override
   public synchronized String createAlbum(final String[] pathNames) {
@@ -124,7 +125,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     final String albumKey = Util.sha1(newAlbumPath.getAbsolutePath());
     loadedAlbums.put(albumKey, newAlbum);
     return albumKey;
-  }
+  };
 
   @Override
   public Album getAlbum(final String albumId) {
@@ -274,13 +275,18 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       flushPreferences();
     }
     initMetaRepository();
-    executorService.submit(new Runnable() {
+    if (executorService != null)
+      executorService.submit(new Runnable() {
 
-      @Override
-      public void run() {
-        refreshCache();
-      }
-    });
+        @Override
+        public void run() {
+          refreshCache();
+        }
+      });
+  }
+
+  public void setExecutorService(final ScheduledExecutorService executorService) {
+    this.executorService = executorService;
   }
 
   @Override
