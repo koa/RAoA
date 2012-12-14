@@ -46,11 +46,14 @@ import org.apache.commons.lang.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeResult;
+import org.eclipse.jgit.api.MergeResult.MergeStatus;
+import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.transport.FetchResult;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.RefSpec;
 import org.joda.time.Duration;
+import org.joda.time.format.ISODateTimeFormat;
 import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -638,11 +641,27 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
               repo = Git.open(localDir);
             else
               repo = Git.init().setDirectory(localDir).call();
-            final FetchResult fetchResult = repo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("HEAD")).call();
-            final Ref fetchHead = repo.getRepository().getRef("FETCH_HEAD");
+            repo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("HEAD")).call();
+            final Repository repository = repo.getRepository();
+            final Ref fetchHead = repository.getRef("FETCH_HEAD");
+            final Ref headBefore = repository.getRef("HEAD");
             // Ref ref;
             final MergeResult mergeResult = repo.merge().include(fetchHead).call();
-            mergeResult.getConflicts();
+            final MergeStatus mergeStatus = mergeResult.getMergeStatus();
+            if (!mergeStatus.isSuccessful()) {
+              // reset master to old state
+              repo.reset().setRef(headBefore.getObjectId().getName()).setMode(ResetType.HARD).call();
+              boolean alreadyBranch = false;
+              for (final Entry<String, Ref> refEntry : repository.getAllRefs().entrySet()) {
+                if (refEntry.getValue().getObjectId().equals(fetchHead.getObjectId())) {
+                  alreadyBranch = true;
+                }
+              }
+              if (!alreadyBranch)
+                // make a conflict branch with taken version
+                repo.branchCreate().setStartPoint(fetchHead.getObjectId().getName())
+                    .setName("conflict/" + ISODateTimeFormat.basicDateTime().print(System.currentTimeMillis())).call();
+            }
           }
         } catch (final Throwable e) {
           logger.error("Cannot sync with " + remoteHost, e);
