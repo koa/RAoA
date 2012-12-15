@@ -109,7 +109,7 @@ public class Album {
       }
     }
 
-    final boolean modified = prepareGitignore();
+    final boolean modified = checkup();
     cacheDir = new File(baseDir, CACHE_DIR);
     if (!cacheDir.exists())
       cacheDir.mkdirs();
@@ -118,7 +118,6 @@ public class Album {
     }
     if (modified)
       commit("initialized repository for image-server");
-    checkup();
   }
 
   public synchronized void addClient(final String client) {
@@ -355,7 +354,9 @@ public class Album {
    * 
    * @throws IOException
    */
-  private void checkup() {
+  private boolean checkup() {
+    boolean modified = false;
+    modified |= prepareGitignore();
     // disables delta-compression by config for speedup synchronisation
     final StoredConfig config = git.getRepository().getConfig();
     final Set<String> packConfigs = config.getNames("pack");
@@ -386,14 +387,11 @@ public class Album {
     // commit changes from outside the server
     try {
       final Status status = git.status().call();
-      if (!status.isClean()) {
-        git.add().addFilepattern(".").call();
-        git.commit().setMessage("changes from outside the server").call();
-      }
+      modified |= !status.isClean();
     } catch (final GitAPIException e) {
       throw new RuntimeException("Cannot make initial commit", e);
     }
-
+    return modified;
   }
 
   private synchronized ImportEntry findExistingImportEntry(final String sha1OfFile) {
@@ -511,7 +509,7 @@ public class Album {
   private boolean prepareGitignore() {
     try {
       final File gitignore = new File(baseDir, ".gitignore");
-      final Set<String> ignoreEntries = new HashSet<String>(Arrays.asList(CACHE_DIR, AUTOADD_FILE));
+      final Set<String> ignoreEntries = new HashSet<String>(Arrays.asList(CACHE_DIR));
       if (gitignore.exists()) {
         final BufferedReader reader = bufferedReader(gitignore);
         try {
