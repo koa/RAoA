@@ -46,6 +46,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.joda.time.format.ISODateTimeFormat;
 
 import ch.bergturbenthal.image.data.util.StringUtil;
+import ch.bergturbenthal.image.server.util.RepositoryUtil;
 
 public class Album {
   private static class ImportEntry {
@@ -92,6 +93,10 @@ public class Album {
   private final Git git;
 
   public Album(final File baseDir, final String[] nameComps) {
+    this(baseDir, nameComps, null);
+  }
+
+  public Album(final File baseDir, final String[] nameComps, final String remoteUri) {
     this.baseDir = baseDir;
     this.nameComps = nameComps;
 
@@ -108,6 +113,8 @@ public class Album {
         throw new RuntimeException("Cannot create Album", e);
       }
     }
+    if (remoteUri != null)
+      pull(remoteUri);
 
     final boolean modified = checkup();
     cacheDir = new File(baseDir, CACHE_DIR);
@@ -267,6 +274,10 @@ public class Album {
 
   public synchronized Map<String, AlbumImage> listImages() {
     return loadImages();
+  }
+
+  public synchronized void pull(final String remoteUri) {
+    RepositoryUtil.pull(git, remoteUri);
   }
 
   public synchronized void removeClient(final String client) {

@@ -21,6 +21,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -45,21 +47,15 @@ import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.MergeResult;
-import org.eclipse.jgit.api.MergeResult.MergeStatus;
-import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.transport.RefSpec;
 import org.joda.time.Duration;
-import org.joda.time.format.ISODateTimeFormat;
 import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus.Series;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import ch.bergturbenthal.image.data.model.AlbumEntry;
@@ -78,24 +74,28 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private static final String IMPORT_BASE_PATH_REFERENCE = "import_base_path";
   private static final String META_CACHE = "cache";
   private static final String META_REPOSITORY = ".meta";
+
   private ArchiveData archiveData;
   private File baseDir;
   private final AtomicReference<Collection<URI>> peerServers = new AtomicReference<Collection<URI>>(Collections.<URI> emptyList());
   @Autowired
   private ScheduledExecutorService executorService;
-  private File importBaseDir;
 
+  private File importBaseDir;
   private final String instanceId = UUID.randomUUID().toString();
   private final AtomicLong lastLoadedDate = new AtomicLong(0);
   private Map<String, Album> loadedAlbums = null;
-  private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
 
+  private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
   private final ObjectMapper mapper = new ObjectMapper();
   private Git metaGit;
   private Preferences preferences = null;
   private String instanceName;
   private JmmDNS jmmDNS;
-  private final RestTemplate restTemplate = new RestTemplate();
+
+  private final RestTemplate restTemplate = new RestTemplate();;
+
+  private final ConcurrentMap<String, Object> createAlbumLocks = new ConcurrentHashMap<String, Object>();
 
   @Override
   public synchronized String createAlbum(final String[] pathNames) {
@@ -123,12 +123,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
         throw new RuntimeException("Cannot create Directory " + newAlbumPath);
     }
 
-    final String[] nameComps = newAlbumPath.getAbsolutePath().substring(getBasePath().getAbsolutePath().length() + 1).split(File.pathSeparator);
-    final Album newAlbum = new Album(newAlbumPath, nameComps);
-    final String albumKey = Util.sha1(newAlbumPath.getAbsolutePath());
-    loadedAlbums.put(albumKey, newAlbum);
-    return albumKey;
-  };
+    return appendAlbum(loadedAlbums, newAlbumPath, null);
+  }
 
   @Override
   public Album getAlbum(final String albumId) {
@@ -140,11 +136,6 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     return archiveData.getArchiveName();
   }
 
-  /*
-   * (non-Javadoc)
-   * 
-   * @see ch.bergturbenthal.image.server.FileConfiguration#getBaseDir()
-   */
   @Override
   public File getBaseDir() {
     return baseDir;
@@ -231,16 +222,16 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       synchronized (this) {
         if (needToLoadAlbumList())
           try {
-            final Map<String, Album> ret = new HashMap<String, Album>();
+            final Map<String, Album> ret = new ConcurrentHashMap<String, Album>();
             final File basePath = getBasePath();
             logger.debug("Load Repositories from: " + basePath);
             final int basePathLength = basePath.getAbsolutePath().length();
             for (final File albumDir : findAlbums(basePath)) {
               logger.debug("Load Repository " + albumDir);
-              final String[] nameComps = albumDir.getAbsolutePath().substring(basePathLength + 1).split(File.pathSeparator);
-              if (Arrays.equals(nameComps, new String[] { META_REPOSITORY }))
+              final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
+              if (relativePath.equals(META_REPOSITORY))
                 continue;
-              ret.put(Util.encodeStringForUrl(StringUtils.join(nameComps, "/")), new Album(albumDir, nameComps));
+              appendAlbum(ret, albumDir, null);
             }
             lastLoadedDate.set(System.currentTimeMillis());
             loadedAlbums = ret;
@@ -332,6 +323,16 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }, 60, 2 * 60, TimeUnit.MINUTES);
   }
 
+  private String appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri) {
+    final String[] nameComps = albumDir.getAbsolutePath().substring(getBasePath().getAbsolutePath().length() + 1).split(File.pathSeparator);
+    final String albumId = Util.encodeStringForUrl(StringUtils.join(nameComps, "/"));
+    synchronized (getAlbumLock(albumDir)) {
+      if (!albumMap.containsKey(albumId))
+        albumMap.put(albumId, new Album(albumDir, nameComps, remoteUri));
+    }
+    return albumId;
+  }
+
   private Collection<File> collectImportFiles(final File importDir) {
     if (!importDir.isDirectory())
       return Collections.emptyList();
@@ -398,6 +399,15 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     } catch (final BackingStoreException e) {
       logger.warn("Cannot persist config", e);
     }
+  }
+
+  private Object getAlbumLock(final File albumFile) {
+    final String key = albumFile.getAbsolutePath();
+    if (createAlbumLocks.containsKey(key))
+      return createAlbumLocks.get(key);
+    createAlbumLocks.putIfAbsent(key, new Object());
+    return createAlbumLocks.get(key);
+
   }
 
   private File getBasePath() {
@@ -542,7 +552,9 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
             continue;
           foundPeers.put(pingResponse.getServerId(), candidateUri);
         } catch (final URISyntaxException e) {
-          logger.warn("Cannot build URL for " + serviceInfo);
+          logger.warn("Cannot build URL for " + serviceInfo, e);
+        } catch (final RestClientException e) {
+          logger.warn("ping " + serviceInfo, e);
         }
       }
     }
@@ -606,6 +618,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   }
 
   @PreDestroy
+  @SuppressWarnings("unused")
   private void shutdownDnsListener() throws IOException {
     if (jmmDNS != null) {
       jmmDNS.close();
@@ -629,40 +642,11 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       for (final AlbumEntry album : remoteAlbumList.getAlbumNames()) {
         try {
           final Album localAlbumForRemote = localAlbums.get(album.getId());
-          final File localDir = new File(getBaseDir(), album.getName());
           final String remoteUri = new URI("git", null, remoteHost, remotePort, "/" + album.getId(), null, null).toASCIIString();
-          if (!localDir.exists()) {
-            Git.cloneRepository().setDirectory(localDir).setURI(remoteUri).call();
-          } else {
-            final Git repo;
-            if (localAlbumForRemote != null)
-              repo = Git.wrap(localAlbumForRemote.getRepository());
-            else if (new File(localDir, ".git").exists())
-              repo = Git.open(localDir);
-            else
-              repo = Git.init().setDirectory(localDir).call();
-            repo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("HEAD")).call();
-            final Repository repository = repo.getRepository();
-            final Ref fetchHead = repository.getRef("FETCH_HEAD");
-            final Ref headBefore = repository.getRef("HEAD");
-            // Ref ref;
-            final MergeResult mergeResult = repo.merge().include(fetchHead).call();
-            final MergeStatus mergeStatus = mergeResult.getMergeStatus();
-            if (!mergeStatus.isSuccessful()) {
-              // reset master to old state
-              repo.reset().setRef(headBefore.getObjectId().getName()).setMode(ResetType.HARD).call();
-              boolean alreadyBranch = false;
-              for (final Entry<String, Ref> refEntry : repository.getAllRefs().entrySet()) {
-                if (refEntry.getValue().getObjectId().equals(fetchHead.getObjectId())) {
-                  alreadyBranch = true;
-                }
-              }
-              if (!alreadyBranch)
-                // make a conflict branch with taken version
-                repo.branchCreate().setStartPoint(fetchHead.getObjectId().getName())
-                    .setName("conflict/" + ISODateTimeFormat.basicDateTime().print(System.currentTimeMillis())).call();
-            }
-          }
+          if (localAlbumForRemote == null)
+            appendAlbum(loadedAlbums, new File(getBaseDir(), album.getName()), remoteUri);
+          else
+            localAlbumForRemote.pull(remoteUri);
         } catch (final Throwable e) {
           logger.error("Cannot sync with " + remoteHost, e);
         }
