@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
-<installation version="1.0"
+<installation version="5.0"
 	xmlns="http://izpack.org/schema/installation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://izpack.org/schema/installation http://izpack.org/schema/5.0/izpack-installation-5.0.xsd ">
 	<info>
@@ -29,13 +29,18 @@
 	<packs>
 		<pack name="Image Server" required="yes">
 			<description>The core files needed for the application</description>
+			<fileset targetdir="${INSTALL_PATH}" dir="${project.build.directory}/install"></fileset>
 			<fileset
 				dir="${project.build.directory}/generated-resources/appassembler/jsw/image-server/"
 				targetdir="${INSTALL_PATH}" override="true" />
-			<executable stage="never" targetfile="bin/image-server" failure="ignore"/>
-			<executable stage="never" targetfile="bin/wrapper-linux-x86-32" failure="ignore"/>
-			<executable stage="never" targetfile="bin/wrapper-linux-x86-64" failure="ignore"/>
-			<executable stage="never" targetfile="bin/wrapper-macosx-universal-32" failure="ignore"/>
+			<executable stage="never" targetfile="$INSTALL_PATH/bin/image-server"
+				failure="ignore" />
+			<executable stage="never" targetfile="$INSTALL_PATH/bin/wrapper-linux-x86-32"
+				failure="ignore" />
+			<executable stage="never" targetfile="$INSTALL_PATH/bin/wrapper-linux-x86-64"
+				failure="ignore" />
+			<executable stage="never"
+				targetfile="$INSTALL_PATH/bin/wrapper-macosx-universal-32" failure="ignore" />
 		</pack>
 	</packs>
 </installation>

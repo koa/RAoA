@@ -13,6 +13,7 @@
 		<!-- <module>image-provider-test</module> -->
 		<module>image-provider-api</module>
 		<module>image-server-standalone</module>
+		<module>image-server-war</module>
 	</modules>
 	<parent>
 		<groupId>ch.berg-turbenthal.parent</groupId>
@@ -102,6 +103,61 @@
 				<groupId>org.slf4j</groupId>
 				<artifactId>slf4j-api</artifactId>
 				<version>${org.slf4j-version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.im4java</groupId>
+				<artifactId>im4java</artifactId>
+				<version>1.2.0</version>
+			</dependency>
+			<dependency>
+				<groupId>javax.servlet</groupId>
+				<artifactId>servlet-api</artifactId>
+				<version>2.5</version>
+			</dependency>
+			<dependency>
+				<groupId>javax.servlet.jsp</groupId>
+				<artifactId>jsp-api</artifactId>
+				<version>2.1</version>
+			</dependency>
+			<dependency>
+				<groupId>javax.servlet</groupId>
+				<artifactId>jstl</artifactId>
+				<version>1.2</version>
+			</dependency>
+			<dependency>
+				<groupId>commons-io</groupId>
+				<artifactId>commons-io</artifactId>
+				<version>1.4</version>
+			</dependency>
+			<dependency>
+				<groupId>junit</groupId>
+				<artifactId>junit</artifactId>
+				<version>4.7</version>
+			</dependency>
+			<dependency>
+				<groupId>org.springframework</groupId>
+				<artifactId>spring-test</artifactId>
+				<version>${org.springframework-version}</version>
+			</dependency>
+			<dependency>
+				<groupId>ch.qos.logback</groupId>
+				<artifactId>logback-classic</artifactId>
+				<version>1.0.0</version>
+			</dependency>
+			<dependency>
+				<groupId>org.slf4j</groupId>
+				<artifactId>jcl-over-slf4j</artifactId>
+				<version>1.6.4</version>
+			</dependency>
+			<dependency>
+				<groupId>commons-codec</groupId>
+				<artifactId>commons-codec</artifactId>
+				<version>1.6</version>
+			</dependency>
+			<dependency>
+				<groupId>com.drewnoakes</groupId>
+				<artifactId>metadata-extractor</artifactId>
+				<version>2.4.0-beta-1</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

@@ -10,5 +10,4 @@
 	<!-- Scans within the base package of the application for @Components to configure as beans -->
 	<context:component-scan base-package="ch.bergturbenthal.image.server" />
 	
-	<bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver" />	 
 </beans>
