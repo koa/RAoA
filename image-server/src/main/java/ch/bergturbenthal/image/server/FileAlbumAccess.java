@@ -48,6 +48,7 @@ import org.apache.commons.lang.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.Repository;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
@@ -62,6 +63,7 @@ import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.server.model.ArchiveData;
+import ch.bergturbenthal.image.server.util.RepositoryUtil;
 
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
@@ -159,6 +161,11 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   @Override
   public String getInstanceName() {
     return instanceName;
+  }
+
+  @Override
+  public Repository getMetaRepository() {
+    return metaGit.getRepository();
   }
 
   @Override
@@ -637,6 +644,11 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       final ResponseEntity<AlbumList> albumListEntity = restTemplate.getForEntity(peerServerUri.resolve("albums.json"), AlbumList.class);
       if (!albumListEntity.hasBody())
         continue;
+      try {
+        RepositoryUtil.pull(metaGit, new URI("git", null, remoteHost, remotePort, "/.meta", null, null).toASCIIString());
+      } catch (final Throwable e) {
+        logger.error("Cannot pull remote repository from " + remoteHost, e);
+      }
       final AlbumList remoteAlbumList = albumListEntity.getBody();
       final Map<String, Album> localAlbums = listAlbums();
       for (final AlbumEntry album : remoteAlbumList.getAlbumNames()) {

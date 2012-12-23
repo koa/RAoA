@@ -10,7 +10,9 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.MergeResult.MergeStatus;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
+import org.eclipse.jgit.api.errors.CannotDeleteCurrentBranchException;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.NotMergedException;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.RefSpec;
@@ -20,6 +22,29 @@ public class RepositoryUtil {
   private static Set<MergeStatus> modifiedMergeStates = new HashSet<MergeStatus>(Arrays.asList(MergeStatus.FAST_FORWARD,
                                                                                                MergeStatus.FAST_FORWARD_SQUASHED, MergeStatus.MERGED,
                                                                                                MergeStatus.MERGED_SQUASHED));
+
+  /**
+   * checks all conflict-branches and removes all obsolete
+   * 
+   * @param git
+   *          repository to cleanup
+   */
+  public static void cleanOldConflicts(final Git git) {
+    // remove all fully-merged conflict-branches
+    for (final Entry<String, Ref> refEntry : git.getRepository().getAllRefs().entrySet()) {
+      if (refEntry.getKey().startsWith("refs/heads/conflict/")) {
+        try {
+          git.branchDelete().setBranchNames(refEntry.getKey()).call();
+        } catch (final NotMergedException ex) {
+          // skips branch that is not fully merged
+        } catch (final CannotDeleteCurrentBranchException e) {
+          // skips current branch
+        } catch (final GitAPIException e) {
+          throw new RuntimeException("Error cleaning up conflict-branches", e);
+        }
+      }
+    }
+  }
 
   /**
    * implements pull with a simple conflict-handling
@@ -52,6 +77,7 @@ public class RepositoryUtil {
           localRepo.branchCreate().setStartPoint(fetchHead.getObjectId().getName())
                    .setName("conflict/" + ISODateTimeFormat.basicDateTime().print(System.currentTimeMillis())).call();
       }
+      cleanOldConflicts(localRepo);
       return modifiedMergeStates.contains(mergeStatus);
     } catch (final GitAPIException e) {
       throw new RuntimeException("Cannot sync local repo " + localRepo.getRepository().toString() + " with " + remoteUri, e);

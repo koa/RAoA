@@ -3,6 +3,8 @@ package ch.bergturbenthal.image.server;
 import java.io.File;
 import java.util.Map;
 
+import org.eclipse.jgit.lib.Repository;
+
 public interface AlbumAccess {
   /**
    * create a new Album
@@ -35,6 +37,8 @@ public interface AlbumAccess {
    * @return instance-id
    */
   String getInstanceId();
+
+  Repository getMetaRepository();
 
   /**
    * import files of given directory into the albums.

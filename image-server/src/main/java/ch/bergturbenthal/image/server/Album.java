@@ -26,20 +26,16 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
-import org.eclipse.jgit.api.errors.CannotDeleteCurrentBranchException;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.api.errors.NoHeadException;
-import org.eclipse.jgit.api.errors.NotMergedException;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -380,20 +376,7 @@ public class Album {
       }
     }
 
-    // remove all fully-merged conflict-branches
-    for (final Entry<String, Ref> refEntry : git.getRepository().getAllRefs().entrySet()) {
-      if (refEntry.getKey().startsWith("refs/heads/conflict/")) {
-        try {
-          git.branchDelete().setBranchNames(refEntry.getKey()).call();
-        } catch (final NotMergedException ex) {
-          // skips branch that is not fully merged
-        } catch (final CannotDeleteCurrentBranchException e) {
-          // skips current branch
-        } catch (final GitAPIException e) {
-          throw new RuntimeException("Error cleaning up conflict-branches", e);
-        }
-      }
-    }
+    RepositoryUtil.cleanOldConflicts(git);
 
     // commit changes from outside the server
     try {
