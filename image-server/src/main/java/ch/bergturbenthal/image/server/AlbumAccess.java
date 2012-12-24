@@ -1,6 +1,7 @@
 package ch.bergturbenthal.image.server;
 
 import java.io.File;
+import java.util.Collection;
 import java.util.Map;
 
 import org.eclipse.jgit.lib.Repository;
@@ -13,7 +14,7 @@ public interface AlbumAccess {
    *          whished path-components
    * @return id of created album
    */
-  String createAlbum(String[] pathNames);
+  String createAlbum(final String[] pathNames);
 
   /**
    * read a found album
@@ -22,7 +23,7 @@ public interface AlbumAccess {
    *          id of the album
    * @return
    */
-  Album getAlbum(String albumId);
+  Album getAlbum(final String albumId);
 
   /**
    * Unique ID of this Collection
@@ -45,7 +46,13 @@ public interface AlbumAccess {
    * 
    * @param importBaseDir
    */
-  void importFiles(File importBaseDir);
+  void importFiles(final File importBaseDir);
 
   Map<String, Album> listAlbums();
+
+  Collection<String> clientsPerAlbum(final String albumId);
+
+  void registerClient(final String albumId, final String clientId);
+
+  void unRegisterClient(final String albumId, final String clientId);
 }

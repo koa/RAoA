@@ -89,7 +89,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private Map<String, Album> loadedAlbums = null;
 
   private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
-  private final ObjectMapper mapper = new ObjectMapper();
+  private static final ObjectMapper mapper = new ObjectMapper();
   private Git metaGit;
   private Preferences preferences = null;
   private String instanceName;
@@ -98,6 +98,17 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private final RestTemplate restTemplate = new RestTemplate();;
 
   private final ConcurrentMap<String, Object> createAlbumLocks = new ConcurrentHashMap<String, Object>();
+
+  @Override
+  public Collection<String> clientsPerAlbum(final String albumId) {
+    final String albumName = Util.decodeStringOfUrl(albumId);
+    final HashSet<String> ret = new HashSet<String>();
+    for (final Entry<String, Collection<String>> albumEntry : archiveData.getAlbumPerStorage().entrySet()) {
+      if (albumEntry.getValue().contains(albumName))
+        ret.add(albumEntry.getKey());
+    }
+    return ret;
+  }
 
   @Override
   public synchronized String createAlbum(final String[] pathNames) {
@@ -125,7 +136,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
         throw new RuntimeException("Cannot create Directory " + newAlbumPath);
     }
 
-    return appendAlbum(loadedAlbums, newAlbumPath, null);
+    return appendAlbum(loadedAlbums, newAlbumPath, null, null);
   }
 
   @Override
@@ -238,7 +249,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
               final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
               if (relativePath.equals(META_REPOSITORY))
                 continue;
-              appendAlbum(ret, albumDir, null);
+              appendAlbum(ret, albumDir, null, null);
             }
             lastLoadedDate.set(System.currentTimeMillis());
             loadedAlbums = ret;
@@ -248,6 +259,24 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       }
     }
     return loadedAlbums;
+  }
+
+  @Override
+  public synchronized void registerClient(final String albumId, final String clientId) {
+    final String albumPath = Util.decodeStringOfUrl(albumId);
+    final Map<String, Collection<String>> albumPerStorage = archiveData.getAlbumPerStorage();
+
+    final Collection<String> albumCollection;
+    if (albumPerStorage.containsKey(clientId))
+      albumCollection = albumPerStorage.get(clientId);
+    else {
+      albumCollection = new TreeSet<String>();
+      albumPerStorage.put(clientId, albumCollection);
+    }
+    if (!albumCollection.contains(albumPath)) {
+      albumCollection.add(albumPath);
+      updateMeta("added " + albumPath + " to client " + clientId);
+    }
   }
 
   @Override
@@ -312,6 +341,21 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }
   }
 
+  @Override
+  public void unRegisterClient(final String albumId, final String clientId) {
+    final String albumPath = Util.decodeStringOfUrl(albumId);
+    final Map<String, Collection<String>> albumPerStorage = archiveData.getAlbumPerStorage();
+
+    if (!albumPerStorage.containsKey(clientId)) {
+      return;
+    }
+    final Collection<String> albumCollection = albumPerStorage.get(clientId);
+    if (albumCollection.contains(albumPath)) {
+      albumCollection.remove(albumPath);
+      updateMeta("added " + albumPath + " to client " + clientId);
+    }
+  }
+
   /**
    * Start scheduling automatically after initializing
    */
@@ -330,12 +374,12 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }, 60, 2 * 60, TimeUnit.MINUTES);
   }
 
-  private String appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri) {
+  private String appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri, final String serverName) {
     final String[] nameComps = albumDir.getAbsolutePath().substring(getBasePath().getAbsolutePath().length() + 1).split(File.pathSeparator);
     final String albumId = Util.encodeStringForUrl(StringUtils.join(nameComps, "/"));
     synchronized (getAlbumLock(albumDir)) {
       if (!albumMap.containsKey(albumId))
-        albumMap.put(albumId, new Album(albumDir, nameComps, remoteUri));
+        albumMap.put(albumId, new Album(albumDir, nameComps, remoteUri, serverName));
     }
     return albumId;
   }
@@ -461,19 +505,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     try {
       if (!configFile.exists()) {
         archiveData = new ArchiveData();
-        final Map<String, Collection<String>> albumPerStorage = archiveData.getAlbumPerStorage();
         archiveData.setArchiveName(UUID.randomUUID().toString());
-        for (final Album album : listAlbums().values()) {
-          for (final String client : album.listClients()) {
-            if (albumPerStorage.containsKey(client)) {
-              albumPerStorage.get(client).add(album.getName());
-            } else {
-              final TreeSet<String> albums = new TreeSet<String>();
-              albums.add(album.getName());
-              albumPerStorage.put(client, albums);
-            }
-          }
-        }
         updateMeta("config.json built");
       } else {
         archiveData = mapper.readValue(configFile, ArchiveData.class);
@@ -645,7 +677,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       if (!albumListEntity.hasBody())
         continue;
       try {
-        RepositoryUtil.pull(metaGit, new URI("git", null, remoteHost, remotePort, "/.meta", null, null).toASCIIString());
+        RepositoryUtil.pull(metaGit, new URI("git", null, remoteHost, remotePort, "/.meta", null, null).toASCIIString(), pingResponse.getServerName());
       } catch (final Throwable e) {
         logger.error("Cannot pull remote repository from " + remoteHost, e);
       }
@@ -656,9 +688,9 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
           final Album localAlbumForRemote = localAlbums.get(album.getId());
           final String remoteUri = new URI("git", null, remoteHost, remotePort, "/" + album.getId(), null, null).toASCIIString();
           if (localAlbumForRemote == null)
-            appendAlbum(loadedAlbums, new File(getBaseDir(), album.getName()), remoteUri);
+            appendAlbum(loadedAlbums, new File(getBaseDir(), album.getName()), remoteUri, pingResponse.getServerName());
           else
-            localAlbumForRemote.pull(remoteUri);
+            localAlbumForRemote.pull(remoteUri, pingResponse.getServerName());
         } catch (final Throwable e) {
           logger.error("Cannot sync with " + remoteHost, e);
         }

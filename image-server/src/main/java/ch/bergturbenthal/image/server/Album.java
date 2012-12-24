@@ -14,9 +14,7 @@ import java.io.UnsupportedEncodingException;
 import java.lang.ref.SoftReference;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.text.DateFormat;
 import java.text.MessageFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,7 +39,6 @@ import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.joda.time.format.ISODateTimeFormat;
 
-import ch.bergturbenthal.image.data.util.StringUtil;
 import ch.bergturbenthal.image.server.util.RepositoryUtil;
 
 public class Album {
@@ -75,9 +72,7 @@ public class Album {
 
   }
 
-  private static final DateFormat DATE_ONLY_PATTERN = new SimpleDateFormat("yyyy-MM-dd");
   private static String CACHE_DIR = ".servercache";
-  private static String CLIENT_FILE = ".clientlist";
   private static String AUTOADD_FILE = ".autoadd";
   private static String INDEX_FILE = ".index";
   private final File baseDir;
@@ -89,10 +84,10 @@ public class Album {
   private final Git git;
 
   public Album(final File baseDir, final String[] nameComps) {
-    this(baseDir, nameComps, null);
+    this(baseDir, nameComps, null, null);
   }
 
-  public Album(final File baseDir, final String[] nameComps, final String remoteUri) {
+  public Album(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
     this.baseDir = baseDir;
     this.nameComps = nameComps;
 
@@ -110,7 +105,7 @@ public class Album {
       }
     }
     if (remoteUri != null)
-      pull(remoteUri);
+      pull(remoteUri, serverName);
 
     final boolean modified = checkup();
     cacheDir = new File(baseDir, CACHE_DIR);
@@ -123,16 +118,12 @@ public class Album {
       commit("initialized repository for image-server");
   }
 
-  public synchronized void addClient(final String client) {
-    final Collection<String> clients = listClients();
-    clients.add(client);
-    saveClientList(clients);
-  }
-
   public synchronized void commit(final String message) {
     try {
-      if (!git.status().call().isClean())
+      final Status status = git.status().call();
+      if (!status.isClean()) {
         git.commit().setMessage(message).call();
+      }
     } catch (final GitAPIException e) {
       throw new RuntimeException("Cannot execute commit on " + getName(), e);
     } catch (final RuntimeException e) {
@@ -245,41 +236,12 @@ public class Album {
     return lastModified;
   }
 
-  public synchronized Collection<String> listClients() {
-    final File file = new File(baseDir, CLIENT_FILE);
-    if (file.exists() && file.canRead()) {
-      try {
-        final Collection<String> clients = new HashSet<String>();
-        final BufferedReader reader = bufferedReader(file);
-        try {
-          while (true) {
-            final String line = reader.readLine();
-            if (line == null)
-              return clients;
-            clients.add(line);
-          }
-        } finally {
-          reader.close();
-        }
-      } catch (final IOException e) {
-        throw new RuntimeException("Cannot read client-list: " + file, e);
-      }
-    } else
-      return new HashSet<String>();
-  }
-
   public synchronized Map<String, AlbumImage> listImages() {
     return loadImages();
   }
 
-  public synchronized void pull(final String remoteUri) {
-    RepositoryUtil.pull(git, remoteUri);
-  }
-
-  public synchronized void removeClient(final String client) {
-    final Collection<String> clients = listClients();
-    clients.remove(client);
-    saveClientList(clients);
+  public synchronized void pull(final String remoteUri, final String serverName) {
+    RepositoryUtil.pull(git, remoteUri, serverName);
   }
 
   public synchronized void setAutoAddBeginDate(final Date date) {
@@ -381,7 +343,10 @@ public class Album {
     // commit changes from outside the server
     try {
       final Status status = git.status().call();
-      modified |= !status.isClean();
+      if (!status.isClean()) {
+        git.add().addFilepattern(".").call();
+        modified = true;
+      }
     } catch (final GitAPIException e) {
       throw new RuntimeException("Cannot make initial commit", e);
     }
@@ -538,19 +503,4 @@ public class Album {
     return true;
   }
 
-  private void saveClientList(final Collection<String> clients) {
-    final File file = new File(baseDir, CLIENT_FILE);
-    try {
-      final PrintWriter writer = new PrintWriter(file, "utf-8");
-      try {
-        for (final String clientId : clients) {
-          writer.println(StringUtil.filterClientIdString(clientId));
-        }
-      } finally {
-        writer.close();
-      }
-    } catch (final IOException e) {
-      throw new RuntimeException("Cannot write client-list to " + file, e);
-    }
-  }
 }

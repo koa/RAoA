@@ -65,7 +65,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     final AlbumDetail ret = new AlbumDetail();
     ret.setId(albumid);
     ret.setName(album.getName());
-    ret.getClients().addAll(album.listClients());
+    ret.getClients().addAll(albumAccess.clientsPerAlbum(albumid));
     ret.setAutoAddDate(album.getAutoAddBeginDate());
     final Map<String, AlbumImage> images = album.listImages();
     for (final Entry<String, AlbumImage> albumImageEntry : images.entrySet()) {
@@ -96,7 +96,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     for (final Entry<String, Album> entry : albumAccess.listAlbums().entrySet()) {
       final Album album = entry.getValue();
       final AlbumEntry albumEntry = new AlbumEntry(entry.getKey(), album.getName());
-      albumEntry.getClients().addAll(album.listClients());
+      albumEntry.getClients().addAll(albumAccess.clientsPerAlbum(entry.getKey()));
       albumNames.add(albumEntry);
     }
     return albumList;
@@ -169,10 +169,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
 
   @Override
   public void registerClient(final String albumId, final String clientId) {
-    final Album album = albumAccess.getAlbum(albumId);
-    if (album == null)
-      return;
-    album.addClient(clientId);
+    albumAccess.registerClient(albumId, clientId);
   }
 
   @RequestMapping(value = "{albumId}/registerClient", method = RequestMethod.PUT)
@@ -195,10 +192,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
 
   @Override
   public void unRegisterClient(final String albumId, final String clientId) {
-    final Album album = albumAccess.getAlbum(albumId);
-    if (album == null)
-      return;
-    album.removeClient(clientId);
+    albumAccess.unRegisterClient(albumId, clientId);
   }
 
   @RequestMapping(value = "{albumId}/unRegisterClient", method = RequestMethod.PUT)

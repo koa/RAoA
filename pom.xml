@@ -159,6 +159,12 @@
 				<artifactId>metadata-extractor</artifactId>
 				<version>2.4.0-beta-1</version>
 			</dependency>
+			<dependency>
+				<groupId>org.projectlombok</groupId>
+				<artifactId>lombok</artifactId>
+				<version>0.11.6</version>
+				<scope>provided</scope>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 	<build>
@@ -204,4 +210,10 @@
 			<url>http://www.berg-turbenthal.ch/nexus/content/repositories/thirdparty/</url>
 		</repository>
 	</repositories>
+	<dependencies>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+		</dependency>
+	</dependencies>
 </project>

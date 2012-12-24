@@ -8,6 +8,14 @@ import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.codec.binary.Base64;
 
 public class Util {
+  public static String decodeStringOfUrl(final String string) {
+    try {
+      return new String(Base64.decodeBase64(string), "utf-8");
+    } catch (final UnsupportedEncodingException e) {
+      throw new RuntimeException("Strange: this java cannot encode/decode utf-8", e);
+    }
+  }
+
   public static String encodeStringForUrl(final String string) {
     try {
       return new String(Base64.encodeBase64(string.getBytes("utf-8"), false, true), "utf-8");

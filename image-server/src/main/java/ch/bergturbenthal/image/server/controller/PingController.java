@@ -14,12 +14,15 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.server.AlbumAccess;
+import ch.bergturbenthal.image.server.ArchiveConfiguration;
 
 @Controller
 @RequestMapping("/ping")
 public class PingController {
   @Autowired
   private AlbumAccess dataAccess;
+  @Autowired
+  private ArchiveConfiguration archiveConfiguration;
   @Autowired
   private Daemon gitDaemon;
 
@@ -28,7 +31,8 @@ public class PingController {
   PingResponse ping() {
     final PingResponse response = new PingResponse();
     response.setServerId(dataAccess.getInstanceId());
-    response.setArchiveId(dataAccess.getCollectionId());
+    response.setServerName(archiveConfiguration.getInstanceName());
+    response.setArchiveId(archiveConfiguration.getArchiveName());
     response.setGitPort(gitDaemon.getAddress().getPort());
     return response;
   }
