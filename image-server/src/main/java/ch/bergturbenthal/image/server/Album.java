@@ -39,7 +39,7 @@ import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.joda.time.format.ISODateTimeFormat;
 
-import ch.bergturbenthal.image.server.util.RepositoryUtil;
+import ch.bergturbenthal.image.server.util.RepositoryService;
 
 public class Album {
   private static class ImportEntry {
@@ -83,13 +83,17 @@ public class Album {
   private final String[] nameComps;
   private final Git git;
 
-  public Album(final File baseDir, final String[] nameComps) {
-    this(baseDir, nameComps, null, null);
+  private final RepositoryService repositoryService;
+
+  public Album(final File baseDir, final String[] nameComps, final RepositoryService repositoryService) {
+    this(baseDir, nameComps, repositoryService, null, null);
   }
 
-  public Album(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
+  public Album(final File baseDir, final String[] nameComps, final RepositoryService repositoryService, final String remoteUri,
+               final String serverName) {
     this.baseDir = baseDir;
     this.nameComps = nameComps;
+    this.repositoryService = repositoryService;
 
     if (new File(baseDir, ".git").exists()) {
       try {
@@ -241,7 +245,7 @@ public class Album {
   }
 
   public synchronized void pull(final String remoteUri, final String serverName) {
-    RepositoryUtil.pull(git, remoteUri, serverName);
+    repositoryService.pull(git, remoteUri, serverName);
   }
 
   public synchronized void setAutoAddBeginDate(final Date date) {
@@ -338,7 +342,7 @@ public class Album {
       }
     }
 
-    RepositoryUtil.cleanOldConflicts(git);
+    repositoryService.cleanOldConflicts(git);
 
     // commit changes from outside the server
     try {

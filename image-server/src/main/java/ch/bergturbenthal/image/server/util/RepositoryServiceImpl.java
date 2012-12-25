@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import lombok.Cleanup;
+
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.eclipse.jgit.api.Git;
@@ -38,8 +40,12 @@ import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
-public class RepositoryUtil {
+import ch.bergturbenthal.image.server.state.CloseableProgressMonitor;
+import ch.bergturbenthal.image.server.state.StateManager;
+
+public class RepositoryServiceImpl implements RepositoryService {
   private static final class InfiniteCountIterator implements Iterator<String> {
     private int i = 0;
 
@@ -58,22 +64,27 @@ public class RepositoryUtil {
     }
   }
 
+  @Autowired
+  private StateManager stateManager;
+
   private static final String NOTES_CONFLICT_PREFIX = "refs/notes/conflicts";
   private static final String CONFLICT_BRANCH_PREFIX = "refs/heads/conflict/";
-  private static Set<MergeStatus> modifiedMergeStates = new HashSet<MergeStatus>(Arrays.asList(MergeStatus.FAST_FORWARD,
-                                                                                               MergeStatus.FAST_FORWARD_SQUASHED, MergeStatus.MERGED,
-                                                                                               MergeStatus.MERGED_SQUASHED));
-  private static Logger logger = LoggerFactory.getLogger(RepositoryUtil.class);
+  private final Set<MergeStatus> modifiedMergeStates = new HashSet<MergeStatus>(Arrays.asList(MergeStatus.FAST_FORWARD,
+                                                                                              MergeStatus.FAST_FORWARD_SQUASHED, MergeStatus.MERGED,
+                                                                                              MergeStatus.MERGED_SQUASHED));
+  private static Logger logger = LoggerFactory.getLogger(RepositoryServiceImpl.class);
 
-  private static final ObjectMapper mapper = new ObjectMapper();
+  private final ObjectMapper mapper = new ObjectMapper();
 
-  /**
-   * checks all conflict-branches and removes all obsolete
+  /*
+   * (non-Javadoc)
    * 
-   * @param git
-   *          repository to cleanup
+   * @see
+   * ch.bergturbenthal.image.server.util.RepositoryService#cleanOldConflicts
+   * (org.eclipse.jgit.api.Git)
    */
-  public static void cleanOldConflicts(final Git git) {
+  @Override
+  public void cleanOldConflicts(final Git git) {
     // remove all fully-merged conflict-branches
     for (final Entry<String, Ref> refEntry : collectConflictBranches(git)) {
       try {
@@ -95,7 +106,15 @@ public class RepositoryUtil {
     }
   }
 
-  public static Collection<ConflictEntry> describeConflicts(final Git git) {
+  /*
+   * (non-Javadoc)
+   * 
+   * @see
+   * ch.bergturbenthal.image.server.util.RepositoryService#describeConflicts
+   * (org.eclipse.jgit.api.Git)
+   */
+  @Override
+  public Collection<ConflictEntry> describeConflicts(final Git git) {
     final Map<AnyObjectId, ObjectId> notes = new HashMap<AnyObjectId, ObjectId>();
     try {
       final List<Note> foundNotes = git.notesList().setNotesRef(NOTES_CONFLICT_PREFIX).call();
@@ -146,20 +165,19 @@ public class RepositoryUtil {
     return ret;
   }
 
-  /**
-   * implements pull with a simple conflict-handling
+  /*
+   * (non-Javadoc)
    * 
-   * @param localRepo
-   *          locale repository to pull into
-   * @param remoteUri
-   *          remote repository to take master from
-   * @param serverName
-   *          name of the polling server
-   * @return true master was modified
+   * @see
+   * ch.bergturbenthal.image.server.util.RepositoryService#pull(org.eclipse.
+   * jgit.api.Git, java.lang.String, java.lang.String)
    */
-  public static boolean pull(final Git localRepo, final String remoteUri, final String serverName) {
+  @Override
+  public boolean pull(final Git localRepo, final String remoteUri, final String serverName) {
     try {
-      localRepo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("HEAD")).call();
+      @Cleanup
+      final CloseableProgressMonitor monitor = stateManager.makeProgressMonitor();
+      localRepo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("HEAD")).setProgressMonitor(monitor).call();
       final Repository repository = localRepo.getRepository();
       final Ref fetchHead = repository.getRef("FETCH_HEAD");
       final Ref headBefore = repository.getRef("HEAD");
@@ -203,7 +221,7 @@ public class RepositoryUtil {
     }
   }
 
-  private static Collection<Entry<String, Ref>> collectConflictBranches(final Git git) {
+  private Collection<Entry<String, Ref>> collectConflictBranches(final Git git) {
     final Collection<Entry<String, Ref>> foundConflicts = new ArrayList<Entry<String, Ref>>();
     for (final Entry<String, Ref> refEntry : git.getRepository().getAllRefs().entrySet()) {
       if (refEntry.getKey().startsWith(CONFLICT_BRANCH_PREFIX)) {
@@ -213,7 +231,7 @@ public class RepositoryUtil {
     return foundConflicts;
   }
 
-  private static String findNextFreeConflictBranch(final Git localRepo, final String serverName, final Iterator<String> iterator) {
+  private String findNextFreeConflictBranch(final Git localRepo, final String serverName, final Iterator<String> iterator) {
     final Collection<String> existingConfictBranches = new HashSet<String>();
     for (final Entry<String, Ref> entry : collectConflictBranches(localRepo)) {
       existingConfictBranches.add(entry.getKey().substring(CONFLICT_BRANCH_PREFIX.length()));

@@ -43,6 +43,8 @@ import javax.jmdns.ServiceEvent;
 import javax.jmdns.ServiceInfo;
 import javax.jmdns.ServiceListener;
 
+import lombok.Cleanup;
+
 import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -62,8 +64,11 @@ import org.springframework.web.client.RestTemplate;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
 import ch.bergturbenthal.image.data.model.PingResponse;
+import ch.bergturbenthal.image.data.model.state.ProgressType;
 import ch.bergturbenthal.image.server.model.ArchiveData;
-import ch.bergturbenthal.image.server.util.RepositoryUtil;
+import ch.bergturbenthal.image.server.state.ProgressHandler;
+import ch.bergturbenthal.image.server.state.StateManager;
+import ch.bergturbenthal.image.server.util.RepositoryService;
 
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
@@ -82,6 +87,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private final AtomicReference<Collection<URI>> peerServers = new AtomicReference<Collection<URI>>(Collections.<URI> emptyList());
   @Autowired
   private ScheduledExecutorService executorService;
+  @Autowired
+  private RepositoryService repositoryService;
 
   private File importBaseDir;
   private final String instanceId = UUID.randomUUID().toString();
@@ -98,6 +105,9 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private final RestTemplate restTemplate = new RestTemplate();;
 
   private final ConcurrentMap<String, Object> createAlbumLocks = new ConcurrentHashMap<String, Object>();
+
+  @Autowired
+  private StateManager stateManager;
 
   @Override
   public Collection<String> clientsPerAlbum(final String albumId) {
@@ -379,7 +389,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     final String albumId = Util.encodeStringForUrl(StringUtils.join(nameComps, "/"));
     synchronized (getAlbumLock(albumDir)) {
       if (!albumMap.containsKey(albumId))
-        albumMap.put(albumId, new Album(albumDir, nameComps, remoteUri, serverName));
+        albumMap.put(albumId, new Album(albumDir, nameComps, repositoryService, remoteUri, serverName));
     }
     return albumId;
   }
@@ -666,26 +676,39 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   }
 
   private void updateAllRepositories() {
-    for (final URI peerServerUri : peerServers.get()) {
+    final Collection<URI> collection = peerServers.get();
+    @Cleanup
+    final ProgressHandler peerServerProgressHandler =
+                                                      stateManager.newProgress(collection.size(), ProgressType.ITERATE_OVER_SERVERS,
+                                                                               "Polling remote Servers");
+    for (final URI peerServerUri : collection) {
       final ResponseEntity<PingResponse> responseEntity = ping(peerServerUri);
       if (!responseEntity.hasBody())
         continue;
       final PingResponse pingResponse = responseEntity.getBody();
       final String remoteHost = peerServerUri.getHost();
+      peerServerProgressHandler.notfiyProgress(pingResponse.getServerName());
       final int remotePort = pingResponse.getGitPort();
       final ResponseEntity<AlbumList> albumListEntity = restTemplate.getForEntity(peerServerUri.resolve("albums.json"), AlbumList.class);
       if (!albumListEntity.hasBody())
         continue;
       try {
-        RepositoryUtil.pull(metaGit, new URI("git", null, remoteHost, remotePort, "/.meta", null, null).toASCIIString(), pingResponse.getServerName());
+        repositoryService.pull(metaGit, new URI("git", null, remoteHost, remotePort, "/.meta", null, null).toASCIIString(),
+                               pingResponse.getServerName());
       } catch (final Throwable e) {
         logger.error("Cannot pull remote repository from " + remoteHost, e);
       }
       final AlbumList remoteAlbumList = albumListEntity.getBody();
       final Map<String, Album> localAlbums = listAlbums();
-      for (final AlbumEntry album : remoteAlbumList.getAlbumNames()) {
+      final Collection<AlbumEntry> albumNames = remoteAlbumList.getAlbumNames();
+      @Cleanup
+      final ProgressHandler albumProgress =
+                                            stateManager.newProgress(albumNames.size(), ProgressType.ITERATE_OVER_ALBUMS,
+                                                                     pingResponse.getServerName());
+      for (final AlbumEntry album : albumNames) {
         try {
           final Album localAlbumForRemote = localAlbums.get(album.getId());
+          albumProgress.notfiyProgress(album.getName());
           final String remoteUri = new URI("git", null, remoteHost, remotePort, "/" + album.getId(), null, null).toASCIIString();
           if (localAlbumForRemote == null)
             appendAlbum(loadedAlbums, new File(getBaseDir(), album.getName()), remoteUri, pingResponse.getServerName());

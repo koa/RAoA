@@ -4,6 +4,10 @@ import java.util.Date;
 
 import lombok.Data;
 
+/**
+ * Metadata about a conflict which will be as notes at a conflict branch
+ * 
+ */
 @Data
 public class ConflictMeta {
   private String remoteUri;

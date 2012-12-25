@@ -20,6 +20,11 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import ch.bergturbenthal.image.server.state.StateManager;
+import ch.bergturbenthal.image.server.state.StateManagerImpl;
+import ch.bergturbenthal.image.server.util.RepositoryService;
+import ch.bergturbenthal.image.server.util.RepositoryServiceImpl;
+
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration
 public class TestAlbumAccess {
@@ -47,6 +52,16 @@ public class TestAlbumAccess {
     @Bean
     public ScheduledExecutorService executorService() {
       return Executors.newScheduledThreadPool(4);
+    }
+
+    @Bean
+    public RepositoryService repositoryService() {
+      return new RepositoryServiceImpl();
+    }
+
+    @Bean
+    public StateManager stateManager() {
+      return new StateManagerImpl();
     }
   }
 

@@ -19,6 +19,11 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import ch.bergturbenthal.image.server.state.StateManager;
+import ch.bergturbenthal.image.server.state.StateManagerImpl;
+import ch.bergturbenthal.image.server.util.RepositoryService;
+import ch.bergturbenthal.image.server.util.RepositoryServiceImpl;
+
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration
 public class TestAlbumImport {
@@ -58,6 +63,16 @@ public class TestAlbumImport {
     @Bean
     public File importBaseDir() throws IOException {
       return resource.getFile();
+    }
+
+    @Bean
+    public RepositoryService repositoryService() {
+      return new RepositoryServiceImpl();
+    }
+
+    @Bean
+    public StateManager stateManager() {
+      return new StateManagerImpl();
     }
   }
 

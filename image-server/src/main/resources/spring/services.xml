@@ -12,6 +12,8 @@
     </bean>
 
     <bean class="ch.bergturbenthal.image.server.FileAlbumAccess" />
+    <bean class="ch.bergturbenthal.image.server.state.StateManagerImpl" />    
+    <bean class="ch.bergturbenthal.image.server.util.RepositoryServiceImpl" />
 
     <bean
         id="executorService"
