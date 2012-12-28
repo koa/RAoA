@@ -9,4 +9,6 @@ public interface ProgressHandler extends Closeable {
   void notfiyProgress(final int counter, final String stateDescription);
 
   void notfiyProgress(final String stateDescription);
+
+  void finishProgress();
 }

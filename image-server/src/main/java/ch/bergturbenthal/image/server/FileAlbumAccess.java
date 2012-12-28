@@ -580,6 +580,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
 
   private synchronized void pollCurrentKnownPeers() {
     processFoundServices(jmmDNS.list(SERVICE_TYPE));
+    refreshCache();
   }
 
   private void processFoundServices(final ServiceInfo[] services) {
@@ -631,14 +632,21 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       // limit the queue size for take not too much memory
       final Semaphore queueLimitSemaphore = new Semaphore(100);
       final long startTime = System.currentTimeMillis();
-      for (final Album album : listAlbums().values()) {
-        for (final AlbumImage image : album.listImages().values()) {
+      final Collection<Album> albums = listAlbums().values();
+      @Cleanup
+      final ProgressHandler albumProgress = stateManager.newProgress(albums.size(), ProgressType.REFRESH_ALBUM, instanceName);
+      for (final Album album : albums) {
+        albumProgress.notfiyProgress(album.getName());
+        final Collection<AlbumImage> images = album.listImages().values();
+        final ProgressHandler thumbnailProgress = stateManager.newProgress(images.size(), ProgressType.REFRESH_THUMBNAIL, album.getName());
+        for (final AlbumImage image : images) {
           queueLimitSemaphore.acquire();
           executorService.submit(new Runnable() {
 
             @Override
             public void run() {
               try {
+                thumbnailProgress.notfiyProgress(image.getName());
                 // read Metadata
                 // image.captureDate();
                 // read Thumbnail
@@ -646,6 +654,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
               } finally {
                 imageCount.incrementAndGet();
                 queueLimitSemaphore.release();
+                thumbnailProgress.finishProgress();
               }
             }
           });

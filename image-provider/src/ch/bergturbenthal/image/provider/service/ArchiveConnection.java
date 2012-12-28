@@ -17,16 +17,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
+import android.util.Log;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.provider.model.AlbumEntryType;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
+import ch.bergturbenthal.image.provider.model.dto.ServerStateDto;
 
 public class ArchiveConnection {
   private static interface ServerConnectionCallable<V> {
-    V callServer(ServerConnection connection, String albumId);
+    V callServer(final ServerConnection connection, final String albumId);
   }
 
   /**
@@ -42,6 +44,18 @@ public class ArchiveConnection {
   public ArchiveConnection(final String archiveId, final ExecutorService executorService) {
     this.archiveId = archiveId;
     this.executorService = executorService;
+  }
+
+  public Collection<ServerStateDto> collectServerStates() {
+    final ArrayList<ServerStateDto> ret = new ArrayList<ServerStateDto>();
+    for (final ServerConnection connection : serverConnections.get().values()) {
+      try {
+        ret.add(new ServerStateDto(connection.getServerName(), connection.getServerState()));
+      } catch (final Throwable t) {
+        Log.w("ARCHIVE_CONNECTION", "Cannot query state from " + connection.getServerName(), t);
+      }
+    }
+    return ret;
   }
 
   public Map<String, AlbumConnection> getAlbums() {
@@ -98,6 +112,8 @@ public class ArchiveConnection {
           final Map<String, AlbumEntryDto> entries = ret.getEntries();
           for (final String serverId : servers) {
             final ServerConnection serverConnection = serverConnections.get().get(serverId);
+            if (serverConnection == null)
+              continue;
             final AlbumDetail albumDetail = serverConnection.getAlbumDetail(albumName);
             if (albumDetail.getAutoAddDate() != null)
               ret.setAutoAddDate(albumDetail.getAutoAddDate());
@@ -156,6 +172,16 @@ public class ArchiveConnection {
       final String serverId = connectionEntry.getKey();
       final ServerConnection connection = oldConnections.containsKey(serverId) ? oldConnections.get(serverId) : new ServerConnection();
       connection.updateServerConnections(connectionEntry.getValue());
+      for (final URL serverUrl : connectionEntry.getValue()) {
+        final PingResponse pingResponse = connections.get(serverUrl);
+        if (pingResponse == null)
+          continue;
+        final String serverName = pingResponse.getServerName();
+        if (serverName == null)
+          continue;
+        connection.setServerName(serverName);
+        break;
+      }
       newConnections.put(serverId, connection);
     }
     serverConnections.set(Collections.unmodifiableMap(newConnections));

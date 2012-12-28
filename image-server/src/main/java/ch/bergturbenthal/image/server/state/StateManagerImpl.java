@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.eclipse.jgit.lib.BatchingProgressMonitor;
 
@@ -36,13 +37,23 @@ public class StateManagerImpl implements StateManager {
 
     @Override
     protected void onUpdate(final String taskName, final int workCurr) {
-      runningProgress.put(progressId, new Progress(progressId, 0, 0, taskName, null, ProgressType.GIT));
+      final Progress progress = new Progress();
+      progress.setProgressId(progressId);
+      progress.setProgressDescription(taskName);
+      progress.setType(ProgressType.GIT);
+      runningProgress.put(progressId, progress);
       pushUpdates();
     }
 
     @Override
     protected void onUpdate(final String taskName, final int workCurr, final int workTotal, final int percentDone) {
-      runningProgress.put(progressId, new Progress(progressId, workTotal, workCurr, taskName, null, ProgressType.GIT));
+      final Progress progress = new Progress();
+      progress.setProgressId(progressId);
+      progress.setProgressDescription(taskName);
+      progress.setType(ProgressType.GIT);
+      progress.setStepCount(workTotal);
+      progress.setCurrentStepNr(workCurr);
+      runningProgress.put(progressId, progress);
       pushUpdates();
     }
   }
@@ -66,38 +77,57 @@ public class StateManagerImpl implements StateManager {
   public ProgressHandler newProgress(final int totalCount, final ProgressType type, final String progressDescription) {
     final String progressId = UUID.randomUUID().toString();
     return new ProgressHandler() {
-      int lastCounter = 0;
+      private final AtomicInteger lastCounter = new AtomicInteger(0);
+      private final AtomicInteger doneCounter = new AtomicInteger(0);
+      private boolean closed = false;
 
       @Override
       public void close() {
+        closed = true;
         runningProgress.remove(progressId);
         pushUpdates();
       }
 
       @Override
+      public void finishProgress() {
+        if (doneCounter.incrementAndGet() >= totalCount) {
+          close();
+        }
+      }
+
+      @Override
       public void notfiyProgress(final int counter, final String stateDescription) {
-        lastCounter = counter;
+        lastCounter.set(counter);
         updateState(counter, stateDescription);
       }
 
       @Override
       public void notfiyProgress(final String description) {
-        updateState(++lastCounter, description);
+        updateState(lastCounter.incrementAndGet(), description);
       }
 
       private void updateState(final int counter, final String description) {
-        runningProgress.put(progressId, new Progress(progressId, totalCount, counter, progressDescription, description, type));
+        if (closed)
+          return;
+        final Progress progress = new Progress();
+        progress.setProgressId(progressId);
+        progress.setStepCount(totalCount);
+        progress.setCurrentStepNr(counter);
+        progress.setProgressDescription(progressDescription);
+        progress.setCurrentStepDescription(description);
+        progress.setType(type);
+        runningProgress.put(progressId, progress);
         pushUpdates();
       }
     };
   }
 
   private void pushUpdates() {
-    System.out.println("------------------------------------------");
-    for (final Progress progress : runningProgress.values()) {
-      System.out.println(progress);
-    }
-    System.out.println("------------------------------------------");
+    // System.out.println("------------------------------------------");
+    // for (final Progress progress : runningProgress.values()) {
+    // System.out.println(progress);
+    // }
+    // System.out.println("------------------------------------------");
   }
 
 }

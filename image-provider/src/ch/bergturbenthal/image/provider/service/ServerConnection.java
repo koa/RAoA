@@ -33,10 +33,11 @@ import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.state.ServerState;
 
 public class ServerConnection {
   private static interface ConnectionCallable<V> {
-    ResponseEntity<V> call(URL baseUrl) throws Exception;
+    ResponseEntity<V> call(final URL baseUrl) throws Exception;
   }
 
   private String instanceId;
@@ -49,6 +50,7 @@ public class ServerConnection {
                                                              "EEE MMM dd HH:mm:ss yyyy" };
 
   private static TimeZone GMT = TimeZone.getTimeZone("GMT");
+  private String serverName;
 
   public AlbumDetail getAlbumDetail(final String albumName) {
     final SoftReference<AlbumDetail> cachedValue = albumDetailCache.get(albumName);
@@ -75,6 +77,19 @@ public class ServerConnection {
 
   public String getInstanceId() {
     return instanceId;
+  }
+
+  public String getServerName() {
+    return serverName;
+  }
+
+  public ServerState getServerState() {
+    return callOne(new ConnectionCallable<ServerState>() {
+      @Override
+      public ResponseEntity<ServerState> call(final URL baseUrl) throws Exception {
+        return restTemplate.getForEntity(baseUrl.toExternalForm() + "/state.json", ServerState.class);
+      }
+    });
   }
 
   /**
@@ -158,6 +173,10 @@ public class ServerConnection {
     this.instanceId = instanceId;
   }
 
+  public void setServerName(final String serverName) {
+    this.serverName = serverName;
+  }
+
   public void updateServerConnections(final Collection<URL> value) {
     connections.set(value);
   }
@@ -172,7 +191,7 @@ public class ServerConnection {
           return response.getBody();
       } catch (final Throwable ex) {
         if (t != null)
-          Log.w("Server-connection", "Exception while calling server " + instanceId, t);
+          Log.w("Server-connection", "Exception while calling server " + serverName, t);
         t = ex;
       }
     }

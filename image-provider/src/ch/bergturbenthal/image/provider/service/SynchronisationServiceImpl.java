@@ -41,6 +41,7 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.Cursor;
 import android.os.Binder;
 import android.os.IBinder;
@@ -95,7 +96,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private final int NOTIFICATION = R.string.synchronisation_service_started;
 
   private NotificationManager notificationManager;
-  private ScheduledFuture<?> pollingFuture = null;
+  private ScheduledFuture<?> updatePollingFuture = null;
   private ExecutorService wrappedExecutorService;
   private File tempDir;
   private File thumbnailsDir;
@@ -107,6 +108,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private final Object updateLock = new Object();
 
   private final ThreadLocal<Boolean> albumListChanged = new ThreadLocal<Boolean>();
+  private ProgressNotification progressNotification = null;
 
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
@@ -191,10 +193,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   @Override
   public void onCreate() {
     super.onCreate();
+
+    registerScreenOnOff();
     notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
     executorService = new ScheduledThreadPoolExecutor(2);
     wrappedExecutorService = ExecutorServiceUtil.wrap(executorService);
+
+    progressNotification = new ProgressNotification(connectionMap, this, executorService);
 
     final ConnectionSource connectionSource = DatabaseHelper.makeConnectionSource(getApplicationContext());
     daoHolder = new DaoHolder(connectionSource);
@@ -221,6 +227,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     executorService.shutdownNow();
     notificationManager.cancel(NOTIFICATION);
     dnsListener.stopListening();
+    progressNotification.close();
     stopPolling();
   }
 
@@ -238,6 +245,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           break;
         case POLL:
           pollServers();
+          break;
+        case SCREEN_ON:
+          progressNotification.startPolling();
+          break;
+        case SCREEN_OFF:
+          progressNotification.stopPolling();
           break;
         default:
           break;
@@ -518,6 +531,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     });
   }
 
+  private void registerScreenOnOff() {
+    final IntentFilter intentFilter = new IntentFilter(Intent.ACTION_SCREEN_ON);
+    intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
+    registerReceiver(new PowerStateReceiver(), intentFilter);
+  }
+
   private void sendUpateOnCursors() {
     for (final Iterator<WeakReference<NotifyableMatrixCursor>> cursorIterator = openCursors.iterator(); cursorIterator.hasNext();) {
       final WeakReference<NotifyableMatrixCursor> ref = cursorIterator.next();
@@ -531,12 +550,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private synchronized void startPolling() {
-    pollingFuture = executorService.scheduleWithFixedDelay(new Runnable() {
-      @Override
-      public void run() {
-        pollServers();
-      }
-    }, 10, 20, TimeUnit.MINUTES);
+    if (updatePollingFuture == null || updatePollingFuture.isCancelled())
+      updatePollingFuture = executorService.scheduleWithFixedDelay(new Runnable() {
+        @Override
+        public void run() {
+          pollServers();
+        }
+      }, 10, 20, TimeUnit.MINUTES);
 
   }
 
@@ -554,15 +574,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private synchronized void stopPolling() {
-    if (pollingFuture != null)
-      pollingFuture.cancel(false);
-    pollingFuture = null;
+    if (updatePollingFuture != null)
+      updatePollingFuture.cancel(false);
+    updatePollingFuture = null;
   }
 
   private synchronized void stopRunning() {
     dnsListener.stopListening();
     notificationManager.cancel(NOTIFICATION);
     stopPolling();
+    progressNotification.close();
     running.set(false);
   }
 

@@ -28,7 +28,13 @@
                 <action android:name="android.net.wifi.WIFI_STATE_CHANGED" />
             </intent-filter>
         </receiver>
-
+        <receiver android:name=".service.PowerStateReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.SCREEN_ON"/>
+                <action android:name="android.intent.action.SCREEN_OFF"/>
+            </intent-filter>
+        </receiver>
+        
         <service
             android:name=".service.SynchronisationServiceImpl"
             android:enabled="true" >

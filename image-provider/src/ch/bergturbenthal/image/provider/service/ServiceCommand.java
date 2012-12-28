@@ -8,6 +8,8 @@ public enum ServiceCommand
                           Parcelable {
   START,
   STOP,
+  SCREEN_ON,
+  SCREEN_OFF,
   POLL;
 
   public static final Creator<ServiceCommand> CREATOR = new Creator<ServiceCommand>() {
