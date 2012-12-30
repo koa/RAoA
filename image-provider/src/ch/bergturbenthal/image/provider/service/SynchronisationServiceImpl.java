@@ -274,7 +274,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       @Override
       public Cursor call() throws Exception {
         final QueryBuilder<AlbumEntryEntity, Integer> queryBuilder = getAlbumEntryDao().queryBuilder();
-        queryBuilder.where().eq("album_id", Integer.valueOf(albumId));
+        queryBuilder.where().eq("album_id", getAlbumDao().queryForId(Integer.valueOf(albumId)));
 
         final Map<String, FieldReader<AlbumEntryEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryEntity.class);
 
