@@ -90,6 +90,8 @@ public class Album {
   private final RepositoryService repositoryService;
 
   private static Logger logger = LoggerFactory.getLogger(Album.class);
+  private final long baseLastCleanCheckModified = -1;
+  private boolean lastCleanState;
 
   public Album(final File baseDir, final String[] nameComps, final RepositoryService repositoryService) {
     this(baseDir, nameComps, repositoryService, null, null);
@@ -165,7 +167,22 @@ public class Album {
   }
 
   public Date getLastModified() {
-    return getLastModified(null);
+    try {
+      if (!isMaster())
+        return new Date(1);
+      final LogCommand log = git.log().setMaxCount(1);
+      final Iterable<RevCommit> commitIterable = log.call();
+      final Iterator<RevCommit> iterator = commitIterable.iterator();
+      if (iterator.hasNext()) {
+        final RevCommit lastCommit = iterator.next();
+        return new Date(lastCommit.getCommitTime() * 1000l);
+      }
+    } catch (final NoHeadException e) {
+      // no head -> return zero date
+    } catch (final GitAPIException e) {
+      logger.warn("Cannot query log from " + git.getRepository(), e);
+    }
+    return new Date(0);
   }
 
   public String getName() {
@@ -250,7 +267,7 @@ public class Album {
     return lastModified;
   }
 
-  public synchronized Map<String, AlbumImage> listImages() {
+  public Map<String, AlbumImage> listImages() {
     return loadImages();
   }
 
@@ -389,27 +406,16 @@ public class Album {
     return newEntry;
   }
 
-  private Date getLastModified(final String path) {
-    try {
-      final LogCommand log = git.log().setMaxCount(1);
-      if (path != null)
-        log.addPath(path);
-      final Iterable<RevCommit> commitIterable = log.call();
-      final Iterator<RevCommit> iterator = commitIterable.iterator();
-      if (iterator.hasNext()) {
-        final RevCommit lastCommit = iterator.next();
-        return new Date(lastCommit.getCommitTime() * 1000l);
-      }
-    } catch (final NoHeadException e) {
-      // no head -> return zero date
-    } catch (final GitAPIException e) {
-      logger.warn("Cannot query log from " + git.getRepository(), e);
-    }
-    return new Date(0);
-  }
-
   private File indexFile() {
     return new File(cacheDir, INDEX_FILE);
+  }
+
+  private synchronized boolean isMaster() throws GitAPIException {
+    try {
+      return git.getRepository().getBranch().equals("master");
+    } catch (final IOException e) {
+      return false;
+    }
   }
 
   private File[] listImageFiles() {
@@ -426,7 +432,8 @@ public class Album {
   }
 
   private synchronized Map<String, AlbumImage> loadImages() {
-    final long dirLastModified = getLastModified().getTime();
+    final Date lastModified = getLastModified();
+    final long dirLastModified = lastModified.getTime();
     if (images != null) {
       final Map<String, AlbumImage> cachedImageMap = images.get();
       if (cachedImageMap != null) {
@@ -437,8 +444,7 @@ public class Album {
 
     final Map<String, AlbumImage> ret = new HashMap<String, AlbumImage>();
     for (final File file : listImageFiles()) {
-      final String relativePath = file.getAbsolutePath().substring(baseDir.getAbsolutePath().length() + 1);
-      ret.put(Util.encodeStringForUrl(file.getName()), AlbumImage.makeImage(file, cacheDir, getLastModified(relativePath)));
+      ret.put(Util.encodeStringForUrl(file.getName()), AlbumImage.makeImage(file, cacheDir, lastModified));
     }
     cachedImages = dirLastModified;
     images = new SoftReference<Map<String, AlbumImage>>(ret);

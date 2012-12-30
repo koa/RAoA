@@ -97,13 +97,13 @@ public class RepositoryServiceImpl implements RepositoryService {
         throw new RuntimeException("Error cleaning up conflict-branches", e);
       }
     }
-    final Collection<ConflictEntry> conflicts = describeConflicts(git);
-    if (conflicts.isEmpty())
-      return;
-    logger.info("Conflicts for " + git.getRepository());
-    for (final ConflictEntry conflictEntry : conflicts) {
-      logger.info("  - " + conflictEntry);
-    }
+    // final Collection<ConflictEntry> conflicts = describeConflicts(git);
+    // if (conflicts.isEmpty())
+    // return;
+    // logger.info("Conflicts for " + git.getRepository());
+    // for (final ConflictEntry conflictEntry : conflicts) {
+    // logger.info("  - " + conflictEntry);
+    // }
   }
 
   /*
