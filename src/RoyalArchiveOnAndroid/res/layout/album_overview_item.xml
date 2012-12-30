@@ -6,9 +6,8 @@
     <ImageView
         android:id="@+id/album_item_image"
         android:layout_width="@dimen/image_width"
-        android:layout_height="@dimen/image_width" 
-        android:scaleType="centerCrop" 
-        android:src="@drawable/bild4" />
+        android:layout_height="@dimen/image_width"
+        android:scaleType="centerCrop" />
 
     <RelativeLayout
         android:id="@+id/album_item_statusbar"
