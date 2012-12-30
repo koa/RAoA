@@ -12,8 +12,7 @@ import android.util.Log;
 public class NetworkReceiver extends BroadcastReceiver {
   private static final String NETWORK_RECEIVER_TAG = "NetworkReceiver";
 
-  @Override
-  public void onReceive(final Context context, final Intent intent) {
+  public static void notifyNetworkState(final Context context) {
     final ConnectivityManager conn = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
     final NetworkInfo networkInfo = conn.getActiveNetworkInfo();
     ServiceCommand command;
@@ -30,6 +29,11 @@ public class NetworkReceiver extends BroadcastReceiver {
     intent2.putExtra("command", (Parcelable) command);
     final ComponentName componentName = context.startService(intent2);
     Log.i(NETWORK_RECEIVER_TAG, "Service startet: " + componentName);
+  }
+
+  @Override
+  public void onReceive(final Context context, final Intent intent) {
+    notifyNetworkState(context);
   }
 
 }

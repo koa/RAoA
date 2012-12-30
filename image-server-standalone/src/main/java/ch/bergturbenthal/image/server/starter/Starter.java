@@ -1,6 +1,7 @@
 package ch.bergturbenthal.image.server.starter;
 
 import java.io.IOException;
+import java.net.InetAddress;
 
 import javax.jmdns.JmmDNS;
 import javax.jmdns.NetworkTopologyEvent;
@@ -63,7 +64,9 @@ public class Starter {
       @Override
       public void inetAddressAdded(final NetworkTopologyEvent event) {
         try {
-          event.getDNS().registerService(ServiceInfo.create("_images._tcp.local", "Standalone", localPort, ""));
+          final InetAddress inetAddress = event.getInetAddress();
+          if (!inetAddress.isLinkLocalAddress())
+            event.getDNS().registerService(ServiceInfo.create("_images._tcp.local", "Standalone", localPort, ""));
         } catch (final IOException e) {
           logger.error("Cannot register service", e);
         }

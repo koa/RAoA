@@ -23,7 +23,7 @@ import android.net.wifi.WifiManager.MulticastLock;
 
 public class MDnsListener {
   public static interface ResultListener {
-    void notifyServices(Collection<InetSocketAddress> knownServiceEndpoints);
+    void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints, final boolean withProgressUpdate);
   }
 
   private JmmDNS jmmDNS = null;
@@ -41,7 +41,7 @@ public class MDnsListener {
     this.executorService = executorService;
   }
 
-  public synchronized void pollForServices() {
+  public synchronized void pollForServices(final boolean withProgressUpdate) {
     if (jmmDNS == null)
       return;
     if (pendingFuture != null) {
@@ -59,7 +59,7 @@ public class MDnsListener {
               foundEndpoints.add(new InetSocketAddress(hostAddress, serviceInfo.getPort()));
             }
           }
-          resultListener.notifyServices(foundEndpoints);
+          resultListener.notifyServices(foundEndpoints, withProgressUpdate);
         }
       }
     }, 2, TimeUnit.SECONDS);
@@ -76,12 +76,12 @@ public class MDnsListener {
 
       @Override
       public void serviceRemoved(final ServiceEvent event) {
-        pollForServices();
+        pollForServices(false);
       }
 
       @Override
       public void serviceResolved(final ServiceEvent event) {
-        pollForServices();
+        pollForServices(true);
       }
     };
 
@@ -96,7 +96,7 @@ public class MDnsListener {
 
       @Override
       public void inetAddressRemoved(final NetworkTopologyEvent event) {
-        pollForServices();
+        pollForServices(false);
       }
     });
   }

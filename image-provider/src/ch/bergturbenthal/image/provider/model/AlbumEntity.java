@@ -48,11 +48,14 @@ public class AlbumEntity {
   private boolean syncThumbnails = false;
   @DatabaseField(foreign = true)
   private AlbumEntryEntity thumbnail;
+  @DatabaseField
+  private Date lastModified;
 
-  public AlbumEntity(final ArchiveEntity archive, final String name, final String commId) {
+  public AlbumEntity(final ArchiveEntity archive, final String name, final String commId, final Date lastModified) {
     this.archive = archive;
     this.name = name;
     this.commId = commId;
+    this.lastModified = lastModified;
   }
 
   AlbumEntity() {
@@ -103,6 +106,10 @@ public class AlbumEntity {
     return interestingClients;
   }
 
+  public Date getLastModified() {
+    return lastModified;
+  }
+
   @CursorField(Client.Album.FULL_NAME)
   public String getName() {
     return name;
@@ -132,6 +139,10 @@ public class AlbumEntity {
 
   public void setAutoAddDate(final Date autoAddDate) {
     this.autoAddDate = autoAddDate;
+  }
+
+  public void setLastModified(final Date lastModified) {
+    this.lastModified = lastModified;
   }
 
   public void setShouldSync(final boolean shouldSync) {

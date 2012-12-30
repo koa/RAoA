@@ -578,17 +578,19 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     return restTemplate.getForEntity(uri.resolve("ping.json"), PingResponse.class);
   }
 
-  private synchronized void pollCurrentKnownPeers() {
+  private void pollCurrentKnownPeers() {
     processFoundServices(jmmDNS.list(SERVICE_TYPE));
     refreshCache();
   }
 
-  private void processFoundServices(final ServiceInfo[] services) {
+  private synchronized void processFoundServices(final ServiceInfo[] services) {
     final Map<String, URI> foundPeers = new HashMap<String, URI>();
     for (final ServiceInfo serviceInfo : services) {
       final int peerPort = serviceInfo.getPort();
       final InetAddress[] addresses = serviceInfo.getInetAddresses();
       for (final InetAddress inetAddress : addresses) {
+        if (inetAddress.isLinkLocalAddress())
+          continue;
         try {
           final URI candidateUri = new URI("http", null, inetAddress.getHostAddress(), peerPort, "/rest/", null, null);
           final ResponseEntity<PingResponse> responseEntity = ping(candidateUri);

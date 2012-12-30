@@ -6,6 +6,7 @@ import java.util.Map;
 
 public class AlbumDto {
   private Date autoAddDate;
+  private Date lastModified;
   private final Map<String, AlbumEntryDto> entries = new HashMap<String, AlbumEntryDto>();
 
   public Date getAutoAddDate() {
@@ -16,8 +17,16 @@ public class AlbumDto {
     return entries;
   }
 
+  public Date getLastModified() {
+    return lastModified;
+  }
+
   public void setAutoAddDate(final Date autoAddDate) {
     this.autoAddDate = autoAddDate;
+  }
+
+  public void setLastModified(final Date lastModified) {
+    this.lastModified = lastModified;
   }
 
 }

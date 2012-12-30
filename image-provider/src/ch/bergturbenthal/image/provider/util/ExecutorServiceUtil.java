@@ -31,7 +31,17 @@ public class ExecutorServiceUtil {
 
     @Override
     public <T> List<Future<T>> invokeAll(final Collection<? extends Callable<T>> tasks) throws InterruptedException {
-      return wrapAll(service.invokeAll(tasks));
+      final ArrayList<Future<T>> ret = new ArrayList<Future<T>>();
+      for (final Callable<T> task : tasks) {
+        ret.add(wrap(service.submit(task)));
+      }
+      for (final Future<T> future : ret) {
+        try {
+          future.get();
+        } catch (final ExecutionException e) {
+        }
+      }
+      return ret;
     }
 
     @Override

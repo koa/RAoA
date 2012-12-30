@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +30,7 @@ import java.util.Set;
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.LogCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
@@ -38,6 +40,8 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.joda.time.format.ISODateTimeFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ch.bergturbenthal.image.server.util.RepositoryService;
 
@@ -84,6 +88,8 @@ public class Album {
   private final Git git;
 
   private final RepositoryService repositoryService;
+
+  private static Logger logger = LoggerFactory.getLogger(Album.class);
 
   public Album(final File baseDir, final String[] nameComps, final RepositoryService repositoryService) {
     this(baseDir, nameComps, repositoryService, null, null);
@@ -156,6 +162,10 @@ public class Album {
 
   public AlbumImage getImage(final String imageId) {
     return loadImages().get(imageId);
+  }
+
+  public Date getLastModified() {
+    return getLastModified(null);
   }
 
   public String getName() {
@@ -379,9 +389,27 @@ public class Album {
     return newEntry;
   }
 
+  private Date getLastModified(final String path) {
+    try {
+      final LogCommand log = git.log().setMaxCount(1);
+      if (path != null)
+        log.addPath(path);
+      final Iterable<RevCommit> commitIterable = log.call();
+      final Iterator<RevCommit> iterator = commitIterable.iterator();
+      if (iterator.hasNext()) {
+        final RevCommit lastCommit = iterator.next();
+        return new Date(lastCommit.getCommitTime() * 1000l);
+      }
+    } catch (final NoHeadException e) {
+      // no head -> return zero date
+    } catch (final GitAPIException e) {
+      logger.warn("Cannot query log from " + git.getRepository(), e);
+    }
+    return new Date(0);
+  }
+
   private File indexFile() {
-    final File file = new File(cacheDir, INDEX_FILE);
-    return file;
+    return new File(cacheDir, INDEX_FILE);
   }
 
   private File[] listImageFiles() {
@@ -398,7 +426,7 @@ public class Album {
   }
 
   private synchronized Map<String, AlbumImage> loadImages() {
-    final long dirLastModified = baseDir.lastModified();
+    final long dirLastModified = getLastModified().getTime();
     if (images != null) {
       final Map<String, AlbumImage> cachedImageMap = images.get();
       if (cachedImageMap != null) {
@@ -409,7 +437,8 @@ public class Album {
 
     final Map<String, AlbumImage> ret = new HashMap<String, AlbumImage>();
     for (final File file : listImageFiles()) {
-      ret.put(Util.encodeStringForUrl(file.getName()), AlbumImage.makeImage(file, cacheDir));
+      final String relativePath = file.getAbsolutePath().substring(baseDir.getAbsolutePath().length() + 1);
+      ret.put(Util.encodeStringForUrl(file.getName()), AlbumImage.makeImage(file, cacheDir, getLastModified(relativePath)));
     }
     cachedImages = dirLastModified;
     images = new SoftReference<Map<String, AlbumImage>>(ret);

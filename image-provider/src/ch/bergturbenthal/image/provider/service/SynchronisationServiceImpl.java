@@ -96,7 +96,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private final int NOTIFICATION = R.string.synchronisation_service_started;
 
   private NotificationManager notificationManager;
-  private ScheduledFuture<?> updatePollingFuture = null;
+  private ScheduledFuture<?> slowUpdatePollingFuture = null;
   private ExecutorService wrappedExecutorService;
   private File tempDir;
   private File thumbnailsDir;
@@ -109,6 +109,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private final ThreadLocal<Boolean> albumListChanged = new ThreadLocal<Boolean>();
   private ProgressNotification progressNotification = null;
+  private ScheduledFuture<?> fastUpdatePollingFuture;
 
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
@@ -148,7 +149,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   @Override
-  public void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints) {
+  public void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints, final boolean withProgressUpdate) {
     for (final InetSocketAddress inetSocketAddress : knownServiceEndpoints) {
       Log.i(SERVICE_TAG, "Addr: " + inetSocketAddress);
     }
@@ -181,6 +182,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       newConnectionMap.put(archiveId, connection);
     }
     connectionMap.set(newConnectionMap);
+    progressNotification.pollServerStates(newConnectionMap);
     updateAlbumsOnDB();
     Log.i(SERVICE_TAG, pingResponses.toString());
   }
@@ -193,14 +195,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   @Override
   public void onCreate() {
     super.onCreate();
+    executorService = new ScheduledThreadPoolExecutor(2);
 
     registerScreenOnOff();
     notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
-    executorService = new ScheduledThreadPoolExecutor(2);
     wrappedExecutorService = ExecutorServiceUtil.wrap(executorService);
 
-    progressNotification = new ProgressNotification(connectionMap, this, executorService);
+    progressNotification = new ProgressNotification(this);
 
     final ConnectionSource connectionSource = DatabaseHelper.makeConnectionSource(getApplicationContext());
     daoHolder = new DaoHolder(connectionSource);
@@ -220,6 +222,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     if (!thumbnailsDir.exists())
       thumbnailsDir.mkdirs();
 
+    executorService.schedule(new Runnable() {
+
+      @Override
+      public void run() {
+        NetworkReceiver.notifyNetworkState(getApplicationContext());
+      }
+    }, 2, TimeUnit.SECONDS);
   }
 
   @Override
@@ -227,8 +236,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     executorService.shutdownNow();
     notificationManager.cancel(NOTIFICATION);
     dnsListener.stopListening();
-    progressNotification.close();
-    stopPolling();
+    stopSlowPolling();
   }
 
   @Override
@@ -247,10 +255,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           pollServers();
           break;
         case SCREEN_ON:
-          progressNotification.startPolling();
+          startFastPolling();
           break;
         case SCREEN_OFF:
-          progressNotification.stopPolling();
+          stopFastPolling();
           break;
         default:
           break;
@@ -363,12 +371,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return ret;
   }
 
-  private boolean dateEquals(final Date middleCaptureDate, final Date albumCaptureDate) {
-    if (middleCaptureDate == null)
-      return albumCaptureDate == null;
-    if (albumCaptureDate == null)
+  private boolean dateEquals(final Date date1, final Date date2) {
+    if (date1 == null)
+      return date2 == null;
+    if (date2 == null)
       return false;
-    return middleCaptureDate.getTime() == albumCaptureDate.getTime();
+    return date1.getTime() == date2.getTime();
   }
 
   private List<AlbumEntity> findAlbumByArchiveAndName(final ArchiveEntity archiveEntity, final String name) {
@@ -443,7 +451,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private void pollServers() {
     final MDnsListener listener = dnsListener;
     if (listener != null) {
-      listener.pollForServices();
+      listener.pollForServices(true);
     }
   }
 
@@ -470,10 +478,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
         final AlbumEntity albumEntity = albumDao.queryForId(albumId);
 
-        if ((albumEntity.getAutoAddDate() != null && (albumDto.getAutoAddDate() == null || !albumEntity.getAutoAddDate()
-                                                                                                       .equals(albumDto.getAutoAddDate())))
-            || (albumEntity.getAutoAddDate() == null && albumDto.getAutoAddDate() != null)) {
+        if (!dateEquals(albumEntity.getAutoAddDate(), albumDto.getAutoAddDate())
+            || !dateEquals(albumEntity.getLastModified(), albumDto.getLastModified())) {
           albumEntity.setAutoAddDate(albumDto.getAutoAddDate());
+          albumEntity.setLastModified(albumDto.getLastModified());
           albumDao.update(albumEntity);
           notifyAlbumListChanged();
         }
@@ -535,6 +543,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     final IntentFilter intentFilter = new IntentFilter(Intent.ACTION_SCREEN_ON);
     intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
     registerReceiver(new PowerStateReceiver(), intentFilter);
+    executorService.schedule(new Runnable() {
+
+      @Override
+      public void run() {
+        PowerStateReceiver.notifyPowerState(getApplicationContext());
+      }
+    }, 5, TimeUnit.SECONDS);
   }
 
   private void sendUpateOnCursors() {
@@ -549,14 +564,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     }
   }
 
-  private synchronized void startPolling() {
-    if (updatePollingFuture == null || updatePollingFuture.isCancelled())
-      updatePollingFuture = executorService.scheduleWithFixedDelay(new Runnable() {
+  private synchronized void startFastPolling() {
+    if (fastUpdatePollingFuture == null || fastUpdatePollingFuture.isCancelled())
+      fastUpdatePollingFuture = executorService.scheduleWithFixedDelay(new Runnable() {
+
         @Override
         public void run() {
           pollServers();
         }
-      }, 10, 20, TimeUnit.MINUTES);
+      }, 2, 3, TimeUnit.SECONDS);
 
   }
 
@@ -570,21 +586,36 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
                                       new NotificationCompat.Builder(this).setContentTitle("Syncing").setSmallIcon(android.R.drawable.ic_dialog_info)
                                                                           .getNotification();
     notificationManager.notify(NOTIFICATION, notification);
-    startPolling();
+    startSlowPolling();
   }
 
-  private synchronized void stopPolling() {
-    if (updatePollingFuture != null)
-      updatePollingFuture.cancel(false);
-    updatePollingFuture = null;
+  private synchronized void startSlowPolling() {
+    if (slowUpdatePollingFuture == null || slowUpdatePollingFuture.isCancelled())
+      slowUpdatePollingFuture = executorService.scheduleWithFixedDelay(new Runnable() {
+        @Override
+        public void run() {
+          pollServers();
+        }
+      }, 10, 20, TimeUnit.MINUTES);
+
+  }
+
+  private synchronized void stopFastPolling() {
+    if (fastUpdatePollingFuture != null)
+      fastUpdatePollingFuture.cancel(false);
   }
 
   private synchronized void stopRunning() {
     dnsListener.stopListening();
     notificationManager.cancel(NOTIFICATION);
-    stopPolling();
-    progressNotification.close();
+    stopSlowPolling();
+    stopFastPolling();
     running.set(false);
+  }
+
+  private synchronized void stopSlowPolling() {
+    if (slowUpdatePollingFuture != null)
+      slowUpdatePollingFuture.cancel(false);
   }
 
   private void updateAlbumDetail(final String archiveName, final String albumName, final AlbumConnection albumConnection, final int totalAlbumCount,
@@ -609,24 +640,28 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
         final List<AlbumEntity> foundEntries = findAlbumByArchiveAndName(archiveEntity, albumName);
         final AlbumEntity albumEntity;
+        final boolean needToUpdate;
         if (foundEntries.isEmpty()) {
-          albumEntity = new AlbumEntity(archiveEntity, albumName, albumConnection.getCommId());
+          albumEntity = new AlbumEntity(archiveEntity, albumName, albumConnection.getCommId(), albumConnection.lastModified());
           albumDao.create(albumEntity);
           notifyAlbumListChanged();
+          needToUpdate = true;
         } else {
           albumEntity = foundEntries.get(0);
+          needToUpdate = !dateEquals(albumEntity.getLastModified(), albumConnection.lastModified());
         }
         visibleAlbumsOfArchive.put(albumName, Integer.valueOf(albumEntity.getId()));
 
-        return Integer.valueOf(albumEntity.getId());
+        return needToUpdate ? Integer.valueOf(albumEntity.getId()) : null;
       }
     });
-    executorService.schedule(new Runnable() {
-      @Override
-      public void run() {
-        refreshAlbumDetail(albumConnection, albumId);
-      }
-    }, 20, TimeUnit.SECONDS);
+    if (albumId != null)
+      executorService.schedule(new Runnable() {
+        @Override
+        public void run() {
+          refreshAlbumDetail(albumConnection, albumId);
+        }
+      }, 20, TimeUnit.SECONDS);
   }
 
   private void updateAlbumsOnDB() {
@@ -679,7 +714,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             });
           }
         }
-        executorService.invokeAll(updateDetailRunnables);
+        wrappedExecutorService.invokeAll(updateDetailRunnables);
       } catch (final Throwable t) {
         Log.e(SERVICE_TAG, "Exception while updateing data", t);
       } finally {

@@ -2,6 +2,7 @@ package ch.bergturbenthal.image.provider.service;
 
 import java.io.File;
 import java.util.Collection;
+import java.util.Date;
 
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
 
@@ -12,5 +13,7 @@ public interface AlbumConnection {
 
   String getCommId();
 
-  void readThumbnail(String fileId, File tempFile, File targetFile);
+  void readThumbnail(final String fileId, final File tempFile, final File targetFile);
+
+  Date lastModified();
 }

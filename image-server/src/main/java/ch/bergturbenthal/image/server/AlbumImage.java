@@ -19,7 +19,6 @@ import java.util.TimeZone;
 import java.util.WeakHashMap;
 import java.util.concurrent.Semaphore;
 
-import org.codehaus.jackson.map.ObjectMapper;
 import org.im4java.core.ConvertCmd;
 import org.im4java.core.IM4JavaException;
 import org.im4java.core.IMOperation;
@@ -51,19 +50,17 @@ public class AlbumImage {
   private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
   private static final int THUMBNAIL_SIZE = 1600;
 
-  private static ObjectMapper objectMapper = new ObjectMapper();
-
   private static Semaphore limitConcurrentScaleSemaphore = new Semaphore(4);
 
-  public static AlbumImage makeImage(final File file, final File cacheDir) {
+  public static AlbumImage makeImage(final File file, final File cacheDir, final Date lastModified) {
     synchronized (lockFor(file)) {
       final SoftReference<AlbumImage> softReference = loadedImages.get(file);
       if (softReference != null) {
         final AlbumImage cachedImage = softReference.get();
-        if (cachedImage != null)
+        if (cachedImage != null && cachedImage.lastModified.equals(lastModified))
           return cachedImage;
       }
-      final AlbumImage newImage = new AlbumImage(file, cacheDir);
+      final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified);
       loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
       return newImage;
     }
@@ -85,10 +82,12 @@ public class AlbumImage {
   private final File file;
 
   private Metadata metadata = null;
+  private final Date lastModified;
 
-  public AlbumImage(final File file, final File cacheDir) {
+  public AlbumImage(final File file, final File cacheDir, final Date lastModified) {
     this.file = file;
     this.cacheDir = cacheDir;
+    this.lastModified = lastModified;
   }
 
   public synchronized Date captureDate() {
@@ -140,7 +139,7 @@ public class AlbumImage {
   }
 
   public Date lastModified() {
-    return new Date(file.lastModified());
+    return lastModified;
   }
 
   public long readSize() {

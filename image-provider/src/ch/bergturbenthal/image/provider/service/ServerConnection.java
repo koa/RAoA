@@ -42,7 +42,7 @@ public class ServerConnection {
 
   private String instanceId;
   private final AtomicReference<Collection<URL>> connections = new AtomicReference<Collection<URL>>(Collections.<URL> emptyList());
-  private final AtomicReference<SoftReference<Map<String, String>>> albumIds = new AtomicReference<SoftReference<Map<String, String>>>();
+  private final AtomicReference<SoftReference<AlbumList>> albumIds = new AtomicReference<SoftReference<AlbumList>>();
   private final RestTemplate restTemplate = new RestTemplate(true);
   private final Map<String, SoftReference<AlbumDetail>> albumDetailCache = new HashMap<String, SoftReference<AlbumDetail>>();
 
@@ -52,14 +52,13 @@ public class ServerConnection {
   private static TimeZone GMT = TimeZone.getTimeZone("GMT");
   private String serverName;
 
-  public AlbumDetail getAlbumDetail(final String albumName) {
-    final SoftReference<AlbumDetail> cachedValue = albumDetailCache.get(albumName);
+  public AlbumDetail getAlbumDetail(final String albumId) {
+    final SoftReference<AlbumDetail> cachedValue = albumDetailCache.get(albumId);
     if (cachedValue != null) {
       final AlbumDetail albumDetail = cachedValue.get();
       if (albumDetail != null)
         return albumDetail;
     }
-    final String albumId = resolveAlbumName(albumName);
     final AlbumDetail albumDetail = callOne(new ConnectionCallable<AlbumDetail>() {
 
       @Override
@@ -71,7 +70,7 @@ public class ServerConnection {
     for (final AlbumImageEntry entry : albumDetail.getImages()) {
       entryIdMap.put(entry.getName(), entry.getId());
     }
-    albumDetailCache.put(albumName, new SoftReference<AlbumDetail>(albumDetail));
+    albumDetailCache.put(albumId, new SoftReference<AlbumDetail>(albumDetail));
     return albumDetail;
   }
 
@@ -97,12 +96,11 @@ public class ServerConnection {
    * 
    * @return
    */
-  public Map<String, String> listAlbums() {
-    return collectAlbums();
+  public AlbumList listAlbums() {
+    return readAlbumList();
   }
 
-  public boolean readThumbnail(final String albumName, final String fileId, final File tempFile, final File targetFile) {
-    final String albumId = resolveAlbumName(albumName);
+  public boolean readThumbnail(final String albumId, final String fileId, final File tempFile, final File targetFile) {
     return callOne(new ConnectionCallable<Boolean>() {
 
       @Override
@@ -185,8 +183,12 @@ public class ServerConnection {
     Throwable t = null;
     for (final URL connection : connections.get()) {
       try {
-        final ResponseEntity<V> response;
-        response = callable.call(connection);
+        // Log.d("CONNECTION", "Start connect to " + connection);
+        // final long startTime = System.currentTimeMillis();
+        final ResponseEntity<V> response = callable.call(connection);
+        // final long endTime = System.currentTimeMillis();
+        // Log.i("CONNECTION", "connected to " + connection + ", time: " +
+        // (endTime - startTime) + " ms");
         if (response != null && response.hasBody())
           return response.getBody();
       } catch (final Throwable ex) {
@@ -202,13 +204,17 @@ public class ServerConnection {
   }
 
   private synchronized Map<String, String> collectAlbums() {
-    final SoftReference<Map<String, String>> reference = albumIds.get();
-    if (reference != null) {
-      final Map<String, String> cachedMap = reference.get();
-      if (cachedMap != null)
-        return cachedMap;
-    }
     final Map<String, String> ret = new HashMap<String, String>();
+
+    final AlbumList albums = readAlbumList();
+    for (final AlbumEntry entry : albums.getAlbumNames()) {
+      ret.put(entry.getName(), entry.getId());
+    }
+    return ret;
+  }
+
+  private AlbumList readAlbumList() {
+
     final AlbumList albums = callOne(new ConnectionCallable<AlbumList>() {
 
       @Override
@@ -216,26 +222,7 @@ public class ServerConnection {
         return restTemplate.getForEntity(baseUrl.toExternalForm() + "/albums.json", AlbumList.class);
       }
     });
-    for (final AlbumEntry entry : albums.getAlbumNames()) {
-      ret.put(entry.getName(), entry.getId());
-    }
-    albumIds.set(new SoftReference<Map<String, String>>(ret));
-    return ret;
-  }
-
-  private AlbumImageEntry findAlbumEntry(final String albumName, final String file) {
-    AlbumImageEntry foundEntry = null;
-    final AlbumDetail albumDetail = getAlbumDetail(albumName);
-    for (final AlbumImageEntry albumImageEntry : albumDetail.getImages()) {
-      if (albumImageEntry.getName().equals(file)) {
-        foundEntry = albumImageEntry;
-        break;
-      }
-    }
-    return foundEntry;
-  }
-
-  private String resolveAlbumName(final String albumName) {
-    return collectAlbums().get(albumName);
+    albumIds.set(new SoftReference<AlbumList>(albums));
+    return albums;
   }
 }
