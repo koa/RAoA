@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="@dimen/image_width"
+    android:layout_height="@dimen/image_width" >
+
+    <ImageView
+        android:id="@+id/photo_item_image"
+        android:layout_width="@dimen/image_width"
+        android:layout_height="@dimen/image_width" 
+        android:scaleType="centerCrop" />
+
+    <RelativeLayout
+        android:id="@+id/photo_item_statusbar"
+        android:layout_width="@dimen/image_width"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom"
+        android:background="#88000000" >
+    </RelativeLayout>
+
+</FrameLayout>
