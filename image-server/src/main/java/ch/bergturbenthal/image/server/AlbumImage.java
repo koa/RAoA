@@ -151,7 +151,7 @@ public class AlbumImage {
     return "AlbumImage [file=" + file.getName() + "]";
   }
 
-  private synchronized Metadata getMetadata() {
+  private synchronized Metadata getMetadata() throws ImageProcessingException {
     if (metadata != null)
       return metadata;
     final File metdataCacheFile = makeMetdataCacheFile();
@@ -182,8 +182,6 @@ public class AlbumImage {
       } finally {
         objectOutputStream.close();
       }
-    } catch (final ImageProcessingException e) {
-      throw new RuntimeException("Cannot read metadata from " + file, e);
     } catch (final IOException e) {
       logger.warn("Cannot save metadata-cache " + metdataCacheFile, e);
     }
@@ -230,10 +228,12 @@ public class AlbumImage {
             throw new RuntimeException("Cannot read " + directory.getName() + ":" + directory2.getDescription(tag) + " from " + file, e);
           }
       }
-      return null;
     } catch (final MetadataException e) {
-      throw new RuntimeException("Cannot read " + directory.getName() + ":" + tag + " from " + file, e);
+      logger.warn("Cannot read " + directory.getName() + ":" + tag + " from " + file, e);
+    } catch (final ImageProcessingException e) {
+      logger.warn("Cannot read " + directory.getName() + ":" + tag + " from " + file, e);
     }
+    return null;
   }
 
   private Date readGpsDate() {
@@ -251,10 +251,13 @@ public class AlbumImage {
       calendar.set(((Number) values[0]).intValue(), ((Number) values[1]).intValue() - 1, ((Number) values[2]).intValue(), time[0], time[1], time[2]);
       return calendar.getTime();
     } catch (final MetadataException e) {
-      throw new RuntimeException("Cannot read Gps-Date from " + file, e);
+      logger.warn("Cannot read Gps-Date from " + file, e);
     } catch (final ParseException e) {
-      throw new RuntimeException("Cannot read Gps-Date from " + file, e);
+      logger.warn("Cannot read Gps-Date from " + file, e);
+    } catch (final ImageProcessingException e) {
+      logger.warn("Cannot read Gps-Date from " + file, e);
     }
+    return null;
   }
 
   private void scaleImageDown(final File cachedFile) throws IOException, InterruptedException, IM4JavaException {

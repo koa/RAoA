@@ -30,7 +30,6 @@ import org.springframework.web.client.RestTemplate;
 
 import android.util.Log;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
-import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
 import ch.bergturbenthal.image.data.model.state.ServerState;
@@ -198,19 +197,9 @@ public class ServerConnection {
       }
     }
     if (t != null)
-      throw new RuntimeException("Cannot connect to server " + instanceId, t);
+      throw new RuntimeException("Cannot connect to server " + serverName, t);
     else
-      throw new RuntimeException("Cannot connect to server " + instanceId + ", no valid connection found");
-  }
-
-  private synchronized Map<String, String> collectAlbums() {
-    final Map<String, String> ret = new HashMap<String, String>();
-
-    final AlbumList albums = readAlbumList();
-    for (final AlbumEntry entry : albums.getAlbumNames()) {
-      ret.put(entry.getName(), entry.getId());
-    }
-    return ret;
+      throw new RuntimeException("Cannot connect to server " + serverName + ", no valid connection found");
   }
 
   private AlbumList readAlbumList() {
