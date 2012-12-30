@@ -20,10 +20,12 @@ public class DaoHolder {
   }
 
   public <V> V callInTransaction(final Callable<V> callable) {
-    try {
-      return transactionManager.callInTransaction(callable);
-    } catch (final SQLException e) {
-      throw new RuntimeException(e);
+    synchronized (transactionManager) {
+      try {
+        return transactionManager.callInTransaction(callable);
+      } catch (final SQLException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 

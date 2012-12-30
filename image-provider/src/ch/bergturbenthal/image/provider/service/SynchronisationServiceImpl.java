@@ -113,39 +113,37 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
-    return callInTransaction(new Callable<File>() {
+    final AlbumEntryEntity albumEntryEntity = callInTransaction(new Callable<AlbumEntryEntity>() {
 
       @Override
-      public File call() throws Exception {
+      public AlbumEntryEntity call() throws Exception {
         final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
         final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
         final AlbumEntryEntity albumEntryEntity = albumEntryDao.queryForId(Integer.valueOf(thumbnailId));
         if (albumEntryEntity == null)
           return null;
-        final AlbumEntity album = albumEntryEntity.getAlbum();
-        albumDao.refresh(album);
-        final File targetFile = new File(thumbnailsDir, thumbnailId + ".thumbnail");
-        if (targetFile.exists() && targetFile.lastModified() >= albumEntryEntity.getLastModified().getTime()) {
-          return targetFile;
-        }
-        final Map<String, ArchiveConnection> archive = connectionMap.get();
-        if (archive == null)
-          return ifExsists(targetFile);
-        final ArchiveConnection archiveConnection = archive.get(album.getArchive().getName());
-        if (archiveConnection == null)
-          return ifExsists(targetFile);
-        final AlbumConnection albumConnection = archiveConnection.getAlbums().get(album.getName());
-        if (albumConnection == null)
-          return ifExsists(targetFile);
-        final File tempFile = new File(tempDir, thumbnailId + ".thumbnail-temp");
-        albumConnection.readThumbnail(albumEntryEntity.getCommId(), tempFile, targetFile);
-        return ifExsists(targetFile);
+        albumDao.refresh(albumEntryEntity.getAlbum());
+        return albumEntryEntity;
       }
 
-      private File ifExsists(final File file) {
-        return file.exists() ? file : null;
-      }
     });
+    final File targetFile = new File(thumbnailsDir, thumbnailId + ".thumbnail");
+    if (targetFile.exists() && targetFile.lastModified() >= albumEntryEntity.getLastModified().getTime()) {
+      return targetFile;
+    }
+    final Map<String, ArchiveConnection> archive = connectionMap.get();
+    if (archive == null)
+      return ifExsists(targetFile);
+    final ArchiveConnection archiveConnection = archive.get(albumEntryEntity.getAlbum().getArchive().getName());
+    if (archiveConnection == null)
+      return ifExsists(targetFile);
+    final AlbumConnection albumConnection = archiveConnection.getAlbums().get(albumEntryEntity.getAlbum().getName());
+    if (albumConnection == null)
+      return ifExsists(targetFile);
+    final File tempFile = new File(tempDir, thumbnailId + ".thumbnail-temp");
+    albumConnection.readThumbnail(albumEntryEntity.getCommId(), tempFile, targetFile);
+    return ifExsists(targetFile);
+
   }
 
   @Override
@@ -396,6 +394,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private RuntimeExceptionDao<ArchiveEntity, String> getArchiveDao() {
     return daoHolder.getDao(ArchiveEntity.class);
+  }
+
+  private File ifExsists(final File file) {
+    return file.exists() ? file : null;
   }
 
   private String lastPart(final String[] split) {
