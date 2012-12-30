@@ -6,16 +6,20 @@ import android.content.CursorLoader;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import android.widget.SimpleCursorAdapter;
+import android.widget.Toast;
 import ch.bergturbenthal.image.provider.Client;
 import ch.royalarchive.androidclient.R;
 
-public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<Cursor>{
-	
+public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<Cursor> {
+
 	private SimpleCursorAdapter cursorAdapter;
 	private int albumId;
-	
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -24,21 +28,26 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		albumId = bundle.getInt("album_id");
 		setContentView(R.layout.photo_overview);
 	}
-	
+
 	@Override
 	protected void onResume() {
 		super.onResume();
 
 		// Create an empty adapter we will use to display the loaded data.
-		cursorAdapter = new SimpleCursorAdapter(this, R.layout.photo_overview_item, null, 
-				new String[] { 
-					Client.AlbumEntry.THUMBNAIL }, 
-				new int[] { 
-					R.id.photo_item_image }, 0);
-		cursorAdapter.setViewBinder(new PhotoOverviewViewBinder());
+		cursorAdapter = new PhotoOverviewAdapter(this, R.layout.photo_overview_item);
 
 		GridView gridview = (GridView) findViewById(R.id.photo_overview);
 		gridview.setAdapter(cursorAdapter);
+
+		// Handle click on photo
+		gridview.setOnItemClickListener(new OnItemClickListener() {
+			public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
+				Toast.makeText(PhotoOverviewActivity.this, "pos: " + position + " id: " + id, Toast.LENGTH_SHORT).show();
+//				Intent intent = new Intent(PhotoOverviewActivity.this, PhotoOverviewActivity.class);
+//				intent.putExtra("album_id", (Integer) (v.getTag()));
+//				startActivity(intent);
+			}
+		});
 
 		// Prepare the loader. Either re-connect with an existing one,
 		// or start a new one.
@@ -59,5 +68,5 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 	public void onLoaderReset(Loader<Cursor> loader) {
 		cursorAdapter.swapCursor(null);
 	}
-	
+
 }

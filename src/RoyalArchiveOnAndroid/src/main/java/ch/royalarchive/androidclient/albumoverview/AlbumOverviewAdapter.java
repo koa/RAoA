@@ -1,11 +1,11 @@
 package ch.royalarchive.androidclient.albumoverview;
 
 import android.content.Context;
-import android.database.Cursor;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.SimpleCursorAdapter;
 import ch.bergturbenthal.image.provider.Client;
+import ch.royalarchive.androidclient.OverviewBinder;
 import ch.royalarchive.androidclient.R;
 
 public class AlbumOverviewAdapter extends SimpleCursorAdapter {
@@ -20,11 +20,11 @@ public class AlbumOverviewAdapter extends SimpleCursorAdapter {
 		R.id.album_item_size, 
 		R.id.album_item_image };
 
-	public AlbumOverviewAdapter(Context context, int layout, Cursor cursor) {
-		super(context, layout, cursor, FROM, TO, 0);
+	public AlbumOverviewAdapter(Context context, int layout) {
+		super(context, layout, null, FROM, TO, 0);
 
 		// set album overview view binder
-		setViewBinder(new AlbumOverviewViewBinder());
+		setViewBinder(new OverviewBinder());
 	}
 
 	@Override

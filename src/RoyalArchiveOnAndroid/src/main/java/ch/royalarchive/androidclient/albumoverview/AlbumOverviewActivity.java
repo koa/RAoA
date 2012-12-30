@@ -33,7 +33,7 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		super.onResume();
 		
 		// Create the album overview adapter we will use to display the loaded data
-		cursorAdapter = new AlbumOverviewAdapter(this, R.layout.album_overview_item, null);
+		cursorAdapter = new AlbumOverviewAdapter(this, R.layout.album_overview_item);
 
 		GridView gridview = (GridView) findViewById(R.id.album_overview);
 		gridview.setAdapter(cursorAdapter);
@@ -41,7 +41,6 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		// Handle clicks on album image
 		gridview.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
-				Toast.makeText(AlbumOverviewActivity.this, "pos: " + position + " id: " + id, Toast.LENGTH_SHORT).show();
 				Intent intent = new Intent(AlbumOverviewActivity.this, PhotoOverviewActivity.class);
 				intent.putExtra("album_id", (Integer)(v.getTag()));
 				startActivity(intent);
@@ -51,7 +50,6 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		// Prepare the loader. Either re-connect with an existing one,
 		// or start a new one.
 		getLoaderManager().initLoader(0, null, this);
-
 	}
 
 	@Override
