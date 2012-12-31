@@ -75,21 +75,23 @@ public class OverviewBinder implements ViewBinder {
 						bitmap = Bitmap.createScaledBitmap(fullBitmap, (int) Math.round(fullBitmap.getWidth() * scale),
 								(int) Math.round(fullBitmap.getHeight() * scale), true);
 						bitmapCache.put(thumbnailUriString, new SoftReference<Bitmap>(bitmap));
-						return null;
 					} finally {
 						if(imageStream != null) {
 							imageStream.close();
 						}
 					}
 				} catch (Throwable t) {
-					Log.i(TAG, "Cannot load image");
-					return null;
+					Log.i(TAG, "Cannot load image", t);
+					bitmap = null;
 				}
+				return null;
 			}
 
 			@Override
 			protected void onPostExecute(Void result) {
-				imageView.setImageBitmap(bitmap);
+				if (bitmap != null) {
+					imageView.setImageBitmap(bitmap);
+				}
 				runningBgTasks.remove(imageView);
 			}
 		};

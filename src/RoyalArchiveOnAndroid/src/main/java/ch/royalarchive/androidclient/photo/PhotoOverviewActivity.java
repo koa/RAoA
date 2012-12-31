@@ -27,11 +27,6 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		Bundle bundle = getIntent().getExtras();
 		albumId = bundle.getInt("album_id");
 		setContentView(R.layout.photo_overview);
-	}
-
-	@Override
-	protected void onResume() {
-		super.onResume();
 
 		// Create an empty adapter we will use to display the loaded data.
 		cursorAdapter = new PhotoOverviewAdapter(this, R.layout.photo_overview_item);
@@ -43,9 +38,9 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		gridview.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
 				Toast.makeText(PhotoOverviewActivity.this, "pos: " + position + " id: " + id, Toast.LENGTH_SHORT).show();
-//				Intent intent = new Intent(PhotoOverviewActivity.this, PhotoOverviewActivity.class);
-//				intent.putExtra("album_id", (Integer) (v.getTag()));
-//				startActivity(intent);
+				// Intent intent = new Intent(PhotoOverviewActivity.this, PhotoOverviewActivity.class);
+				// intent.putExtra("album_id", (Integer) (v.getTag()));
+				// startActivity(intent);
 			}
 		});
 

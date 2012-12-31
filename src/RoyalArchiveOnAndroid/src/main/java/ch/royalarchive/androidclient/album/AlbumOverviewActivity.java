@@ -26,15 +26,10 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.album_overview);
-	}
 
-	@Override
-	protected void onResume() {
-		super.onResume();
-		
 		// Create the album overview adapter we will use to display the loaded data
 		cursorAdapter = new AlbumOverviewAdapter(this, R.layout.album_overview_item);
-
+		
 		GridView gridview = (GridView) findViewById(R.id.album_overview);
 		gridview.setAdapter(cursorAdapter);
 
@@ -42,11 +37,11 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		gridview.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
 				Intent intent = new Intent(AlbumOverviewActivity.this, PhotoOverviewActivity.class);
-				intent.putExtra("album_id", (Integer)(v.getTag()));
+				intent.putExtra("album_id", (Integer) (v.getTag()));
 				startActivity(intent);
 			}
 		});
-
+		
 		// Prepare the loader. Either re-connect with an existing one,
 		// or start a new one.
 		getLoaderManager().initLoader(0, null, this);
