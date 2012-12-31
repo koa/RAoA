@@ -16,7 +16,7 @@ import android.widget.CursorAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 import ch.bergturbenthal.image.provider.Client;
-import ch.royalarchive.androidclient.albumoverview.AlbumOverviewActivity;
+import ch.royalarchive.androidclient.album.AlbumOverviewActivity;
 
 public class HelloAndroidActivity extends ListActivity {
 

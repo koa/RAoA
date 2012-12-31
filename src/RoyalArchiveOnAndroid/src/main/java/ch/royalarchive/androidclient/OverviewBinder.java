@@ -1,6 +1,5 @@
 package ch.royalarchive.androidclient;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.SoftReference;
 import java.util.Map;
@@ -12,12 +11,14 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.SimpleCursorAdapter.ViewBinder;
-import ch.royalarchive.androidclient.R;
 
 public class OverviewBinder implements ViewBinder {
+	
+	private static String TAG = OverviewBinder.class.getSimpleName();
 	
 	private Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
 	private Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
@@ -80,8 +81,9 @@ public class OverviewBinder implements ViewBinder {
 							imageStream.close();
 						}
 					}
-				} catch (IOException e) {
-					throw new RuntimeException("Cannot load image", e);
+				} catch (Throwable t) {
+					Log.i(TAG, "Cannot load image");
+					return null;
 				}
 			}
 

@@ -21,8 +21,8 @@
             </intent-filter>
         </activity>
         <activity android:name=".GalleryActivity" />
-        <activity android:name=".albumoverview.AlbumOverviewActivity" />
-        <activity android:name=".photooverview.PhotoOverviewActivity" />
+        <activity android:name=".album.AlbumOverviewActivity" />
+        <activity android:name=".photo.PhotoOverviewActivity" />
     </application>
 
 </manifest>

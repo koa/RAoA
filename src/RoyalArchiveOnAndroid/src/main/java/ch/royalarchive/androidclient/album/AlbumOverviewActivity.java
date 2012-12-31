@@ -1,4 +1,4 @@
-package ch.royalarchive.androidclient.albumoverview;
+package ch.royalarchive.androidclient.album;
 
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
@@ -15,7 +15,7 @@ import android.widget.SimpleCursorAdapter;
 import android.widget.Toast;
 import ch.bergturbenthal.image.provider.Client;
 import ch.royalarchive.androidclient.R;
-import ch.royalarchive.androidclient.photooverview.PhotoOverviewActivity;
+import ch.royalarchive.androidclient.photo.PhotoOverviewActivity;
 
 public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<Cursor> {
 

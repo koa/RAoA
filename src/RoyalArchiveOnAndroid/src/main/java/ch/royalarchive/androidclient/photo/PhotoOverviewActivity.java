@@ -1,4 +1,4 @@
-package ch.royalarchive.androidclient.photooverview;
+package ch.royalarchive.androidclient.photo;
 
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;

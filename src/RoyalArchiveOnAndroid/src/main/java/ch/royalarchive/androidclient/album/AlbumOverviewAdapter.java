@@ -1,4 +1,4 @@
-package ch.royalarchive.androidclient.albumoverview;
+package ch.royalarchive.androidclient.album;
 
 import android.content.Context;
 import android.view.View;

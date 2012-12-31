@@ -1,4 +1,4 @@
-package ch.royalarchive.androidclient.photooverview;
+package ch.royalarchive.androidclient.photo;
 
 import android.content.Context;
 import android.widget.SimpleCursorAdapter;
