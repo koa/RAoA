@@ -52,6 +52,8 @@ public class ArchiveConnection {
   public Collection<ServerStateDto> collectServerStates() {
     final ArrayList<ServerStateDto> ret = new ArrayList<ServerStateDto>();
     for (final ServerConnection connection : serverConnections.get().values()) {
+      if (connection == null)
+        continue;
       try {
         ret.add(new ServerStateDto(connection.getServerName(), connection.getServerState()));
       } catch (final Throwable t) {
@@ -72,10 +74,13 @@ public class ArchiveConnection {
     final Map<String, Future<AlbumList>> results = new HashMap<String, Future<AlbumList>>();
     // submit all queries
     for (final Entry<String, ServerConnection> connectionEntry : serverConnections.get().entrySet()) {
+      final ServerConnection connection = connectionEntry.getValue();
+      if (connection == null)
+        continue;
       results.put(connectionEntry.getKey(), executorService.submit(new Callable<AlbumList>() {
         @Override
         public AlbumList call() throws Exception {
-          return connectionEntry.getValue().listAlbums();
+          return connection.listAlbums();
         }
       }));
     }
@@ -154,6 +159,8 @@ public class ArchiveConnection {
         public void readThumbnail(final String fileId, final File tempFile, final File targetFile) {
           for (final String serverId : servers) {
             final ServerConnection serverConnection = serverConnections.get().get(serverId);
+            if (serverConnection == null)
+              continue;
             if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile))
               return;
           }
