@@ -84,7 +84,8 @@ public class TestAlbumImport {
   private File importBaseDir;
 
   @Test
-  public void testImport() {
+  public void testImport() throws InterruptedException {
     albumAccess.importFiles(importBaseDir);
   }
+
 }

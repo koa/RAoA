@@ -100,7 +100,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private File importBaseDir;
   private final String instanceId = UUID.randomUUID().toString();
   private final AtomicLong lastLoadedDate = new AtomicLong(0);
-  private Map<String, Album> loadedAlbums = null;
+  private Map<String, Album> loadedAlbums = Collections.emptyMap();
 
   private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
   private static final ObjectMapper mapper = new ObjectMapper();
@@ -117,6 +117,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private StateManager stateManager;
   private FileWatcher fileWatcher = null;
 
+  private final Semaphore updateAlbumListSemaphore = new Semaphore(1);
+
   @Override
   public Collection<String> clientsPerAlbum(final String albumId) {
     final String albumName = Util.decodeStringOfUrl(albumId);
@@ -130,7 +132,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
 
   @Override
   public synchronized String createAlbum(final String[] pathNames) {
-    final Map<String, Album> albums = listAlbums();
+    final Map<String, Album> albums = loadAlbums(true);
     final File basePath = getBasePath();
     File newAlbumPath = basePath;
     for (final String pathComp : pathNames) {
@@ -218,7 +220,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       }
       final HashSet<Album> modifiedAlbums = new HashSet<Album>();
       final SortedMap<Date, Album> importAlbums = new TreeMap<Date, Album>();
-      for (final Album album : listAlbums().values()) {
+      for (final Album album : loadAlbums(true).values()) {
         final Date beginDate = album.getAutoAddBeginDate();
         if (beginDate != null)
           importAlbums.put(beginDate, album);
@@ -265,29 +267,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
 
   @Override
   public Map<String, Album> listAlbums() {
-    if (needToLoadAlbumList()) {
-      synchronized (this) {
-        if (needToLoadAlbumList())
-          try {
-            final Map<String, Album> ret = new ConcurrentHashMap<String, Album>();
-            final File basePath = getBasePath();
-            logger.debug("Load Repositories from: " + basePath);
-            final int basePathLength = basePath.getAbsolutePath().length();
-            for (final File albumDir : findAlbums(basePath, false)) {
-              logger.debug("Load Repository " + albumDir);
-              final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
-              if (relativePath.equals(META_REPOSITORY))
-                continue;
-              appendAlbum(ret, albumDir, null, null);
-            }
-            lastLoadedDate.set(System.currentTimeMillis());
-            loadedAlbums = ret;
-          } catch (final Throwable e) {
-            throw new RuntimeException("Troubles while accessing resource " + baseDir, e);
-          }
-      }
-    }
-    return loadedAlbums;
+    return loadAlbums(false);
   }
 
   public ArchiveData loadMetaConfigFile(final File configFile) {
@@ -362,7 +342,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     if (ObjectUtils.equals(this.baseDir, baseDir))
       return;
     this.baseDir = baseDir;
-    loadedAlbums = null;
+    loadedAlbums = Collections.emptyMap();
+    lastLoadedDate.set(0);
     if (preferences != null) {
       preferences.put(ALBUM_PATH_PREFERENCE, baseDir.getAbsolutePath());
       flushPreferences();
@@ -423,6 +404,11 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       albumCollection.remove(albumPath);
       updateMeta("added " + albumPath + " to client " + clientId);
     }
+  }
+
+  @Override
+  public void waitForAlbums() {
+    loadAlbums(true);
   }
 
   /**
@@ -498,6 +484,43 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
           readLocalSettingsFromPreferences();
         }
       });
+    }
+  }
+
+  private void doLoadAlbums(final boolean forceWait) {
+    if (forceWait)
+      try {
+        updateAlbumListSemaphore.acquire();
+      } catch (final InterruptedException e) {
+        // interrupted
+        return;
+      }
+    else {
+      final boolean hasLock = updateAlbumListSemaphore.tryAcquire();
+      if (!hasLock)
+        return;
+    }
+    try {
+      if (needToLoadAlbumList())
+        try {
+          final Map<String, Album> ret = new ConcurrentHashMap<String, Album>();
+          final File basePath = getBasePath();
+          logger.debug("Load Repositories from: " + basePath);
+          final int basePathLength = basePath.getAbsolutePath().length();
+          for (final File albumDir : findAlbums(basePath, false)) {
+            logger.debug("Load Repository " + albumDir);
+            final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
+            if (relativePath.equals(META_REPOSITORY))
+              continue;
+            appendAlbum(ret, albumDir, null, null);
+          }
+          lastLoadedDate.set(System.currentTimeMillis());
+          loadedAlbums = ret;
+        } catch (final Throwable e) {
+          logger.error("Troubles while accessing resource " + baseDir, e);
+        }
+    } finally {
+      updateAlbumListSemaphore.release();
     }
   }
 
@@ -594,6 +617,21 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
         pollCurrentKnownPeers();
       }
     });
+  }
+
+  private Map<String, Album> loadAlbums(final boolean wait) {
+    if (needToLoadAlbumList()) {
+      if (wait)
+        doLoadAlbums(true);
+      else
+        executorService.submit(new Runnable() {
+          @Override
+          public void run() {
+            doLoadAlbums(false);
+          }
+        });
+    }
+    return loadedAlbums;
   }
 
   private void loadMetaConfig() {
@@ -703,7 +741,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       // limit the queue size for take not too much memory
       final Semaphore queueLimitSemaphore = new Semaphore(100);
       final long startTime = System.currentTimeMillis();
-      final Collection<Album> albums = listAlbums().values();
+      final Collection<Album> albums = loadAlbums(true).values();
       @Cleanup
       final ProgressHandler albumProgress = stateManager.newProgress(albums.size(), ProgressType.REFRESH_ALBUM, instanceName);
       for (final Album album : albums) {

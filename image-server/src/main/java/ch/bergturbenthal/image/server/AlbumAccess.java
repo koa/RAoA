@@ -50,6 +50,8 @@ public interface AlbumAccess {
 
   Map<String, Album> listAlbums();
 
+  void waitForAlbums();
+
   Collection<String> clientsPerAlbum(final String albumId);
 
   void registerClient(final String albumId, final String clientId);
