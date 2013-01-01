@@ -22,6 +22,8 @@ public class ProgressNotification {
   private final Collection<String> visibleProgress = new HashSet<String>();
   private final NotificationManager notificationManager;
   private final Context context;
+  private final Map<String, Integer> currentVisibleNotifications = new HashMap<String, Integer>();
+  private int nextId = 0;
 
   public ProgressNotification(final Context context) {
     this.context = context;
@@ -64,10 +66,20 @@ public class ProgressNotification {
           final Collection<String> notificationsToRemove = new HashSet<String>(visibleProgress);
           notificationsToRemove.removeAll(newBuilders.keySet());
           for (final String removeKey : notificationsToRemove) {
-            notificationManager.cancel(removeKey, 0);
+            final Integer removedId = currentVisibleNotifications.remove(removeKey);
+            if (removedId != null)
+              notificationManager.cancel(removedId.intValue());
           }
           for (final Entry<String, Builder> builderEntry : newBuilders.entrySet()) {
-            notificationManager.notify(builderEntry.getKey(), 0, builderEntry.getValue().getNotification());
+            final String key = builderEntry.getKey();
+            final Integer savedId;
+            if (currentVisibleNotifications.containsKey(key))
+              savedId = currentVisibleNotifications.get(key);
+            else {
+              savedId = Integer.valueOf(nextId++);
+              currentVisibleNotifications.put(key, savedId);
+            }
+            notificationManager.notify(savedId.intValue(), builderEntry.getValue().getNotification());
           }
           visibleProgress.clear();
           visibleProgress.addAll(newBuilders.keySet());
