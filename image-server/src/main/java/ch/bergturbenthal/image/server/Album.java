@@ -90,8 +90,6 @@ public class Album {
   private final RepositoryService repositoryService;
 
   private static Logger logger = LoggerFactory.getLogger(Album.class);
-  private final long baseLastCleanCheckModified = -1;
-  private boolean lastCleanState;
 
   public Album(final File baseDir, final String[] nameComps, final RepositoryService repositoryService) {
     this(baseDir, nameComps, repositoryService, null, null);
@@ -287,6 +285,10 @@ public class Album {
     } catch (final IOException ex) {
       throw new RuntimeException("Cannot write new date to " + file, ex);
     }
+  }
+
+  public synchronized void sync(final File remoteDir, final String localName, final String remoteName, final boolean bare) {
+    repositoryService.sync(git, remoteDir, localName, remoteName, bare);
   }
 
   @Override

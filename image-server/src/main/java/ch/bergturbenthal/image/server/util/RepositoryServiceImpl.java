@@ -1,5 +1,6 @@
 package ch.bergturbenthal.image.server.util;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,12 +33,19 @@ import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.RepositoryBuilder;
+import org.eclipse.jgit.lib.RepositoryCache;
+import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.notes.Note;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
+import org.eclipse.jgit.transport.RemoteRefUpdate;
+import org.eclipse.jgit.transport.RemoteRefUpdate.Status;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.util.FS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -165,13 +173,23 @@ public class RepositoryServiceImpl implements RepositoryService {
     return ret;
   }
 
-  /*
-   * (non-Javadoc)
-   * 
-   * @see
-   * ch.bergturbenthal.image.server.util.RepositoryService#pull(org.eclipse.
-   * jgit.api.Git, java.lang.String, java.lang.String)
-   */
+  @Override
+  public boolean isRepository(final File directory, final boolean bare) {
+
+    try {
+      final FS fs = FS.DETECTED;
+
+      final RepositoryCache.FileKey key = RepositoryCache.FileKey.lenient(directory, fs);
+      Repository repository;
+      repository = new RepositoryBuilder().setFS(fs).setGitDir(key.getFile()).setMustExist(false).build();
+
+      return repository.getObjectDatabase().exists() && repository.isBare() == bare;
+    } catch (final IOException e) {
+      logger.debug("Cannot find repository at " + directory, e);
+      return false;
+    }
+  }
+
   @Override
   public boolean pull(final Git localRepo, final String remoteUri, final String serverName) {
     try {
@@ -218,6 +236,57 @@ public class RepositoryServiceImpl implements RepositoryService {
       throw new RuntimeException("Cannot sync local repo " + localRepo.getRepository().toString() + " with " + remoteUri, e);
     } catch (final IOException e) {
       throw new RuntimeException("Cannot sync local repo " + localRepo.getRepository().toString() + " with " + remoteUri, e);
+    }
+  }
+
+  @Override
+  public boolean sync(final Git localRepository, final File externalDir, final String localName, final String remoteName, final boolean bare) {
+    try {
+      final Git externalRepository;
+      if (!externalDir.exists()) {
+        externalRepository = Git.init().setBare(bare).setDirectory(externalDir).call();
+        final StoredConfig config = externalRepository.getRepository().getConfig();
+        config.setBoolean("pack", null, "deltacompression", false);
+        config.save();
+      } else {
+        externalRepository = Git.open(externalDir);
+      }
+      if (!localRepository.status().call().isClean()) {
+        localRepository.add().addFilepattern(".").call();
+        localRepository.commit().setMessage("Commit for Synchronisation").call();
+      }
+      if (!bare && !externalRepository.status().call().isClean()) {
+        externalRepository.add().addFilepattern(".").call();
+        externalRepository.commit().setMessage("Commit for Synchronisation").call();
+      }
+      final boolean remoteHasHead = externalRepository.getRepository().resolve("HEAD") != null;
+      final boolean localModified = remoteHasHead ? pull(localRepository, externalDir.toURI().toString(), remoteName) : false;
+      final String remoteUri = localRepository.getRepository().getWorkTree().toURI().toString();
+      if (bare) {
+        final Iterable<PushResult> pushResults =
+                                                 localRepository.push().setRemote(remoteUri)
+                                                                .setRefSpecs(new RefSpec("refs/heads/master:refs/heads/master")).call();
+        boolean pushOk = true;
+        for (final PushResult pushResult : pushResults) {
+          for (final RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
+            final Status status = update.getStatus();
+            pushOk &= (status == Status.OK || status == Status.UP_TO_DATE);
+          }
+        }
+        if (!pushOk) {
+          final String conflictBranchName = findNextFreeConflictBranch(externalRepository, localName, new InfiniteCountIterator());
+          localRepository.push().setRemote(remoteUri)
+                         .setRefSpecs(new RefSpec("refs/heads/master:refs/heads/conflict/" + localName + "/" + conflictBranchName)).call();
+        }
+      } else {
+        pull(externalRepository, remoteUri, localName);
+      }
+
+      return localModified;
+    } catch (final GitAPIException e) {
+      throw new RuntimeException("Cannot sync " + localRepository.getRepository() + " to " + externalDir, e);
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot sync " + localRepository.getRepository() + " to " + externalDir, e);
     }
   }
 

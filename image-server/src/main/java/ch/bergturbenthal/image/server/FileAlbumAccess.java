@@ -2,6 +2,8 @@ package ch.bergturbenthal.image.server;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
@@ -14,9 +16,11 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -45,6 +49,7 @@ import javax.jmdns.ServiceListener;
 
 import lombok.Cleanup;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -69,12 +74,14 @@ import ch.bergturbenthal.image.server.model.ArchiveData;
 import ch.bergturbenthal.image.server.state.ProgressHandler;
 import ch.bergturbenthal.image.server.state.StateManager;
 import ch.bergturbenthal.image.server.util.RepositoryService;
+import ch.bergturbenthal.image.server.watcher.FileNotification;
+import ch.bergturbenthal.image.server.watcher.FileWatcher;
 
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
 
-public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveConfiguration {
+public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveConfiguration, FileNotification {
   private static final String SERVICE_TYPE = "_images._tcp.local.";
   private static final String INSTANCE_NAME_PREFERENCE = "instanceName";
   private static final String ALBUM_PATH_PREFERENCE = "album_path";
@@ -108,6 +115,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
 
   @Autowired
   private StateManager stateManager;
+  private FileWatcher fileWatcher = null;
 
   @Override
   public Collection<String> clientsPerAlbum(final String albumId) {
@@ -147,6 +155,17 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }
 
     return appendAlbum(loadedAlbums, newAlbumPath, null, null);
+  }
+
+  public Collection<String> evaluateRepositoriesToSync(final String instanceName, final Set<String> existingRepositories, final ArchiveData config) {
+    final Collection<String> ret = new HashSet<>(existingRepositories);
+    if (config != null && config.getAlbumPerStorage() != null) {
+      final Collection<String> configuredToFetch = config.getAlbumPerStorage().get(instanceName);
+      if (configuredToFetch != null) {
+        ret.retainAll(configuredToFetch);
+      }
+    }
+    return ret;
   }
 
   @Override
@@ -254,7 +273,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
             final File basePath = getBasePath();
             logger.debug("Load Repositories from: " + basePath);
             final int basePathLength = basePath.getAbsolutePath().length();
-            for (final File albumDir : findAlbums(basePath)) {
+            for (final File albumDir : findAlbums(basePath, false)) {
               logger.debug("Load Repository " + albumDir);
               final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
               if (relativePath.equals(META_REPOSITORY))
@@ -269,6 +288,40 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       }
     }
     return loadedAlbums;
+  }
+
+  public ArchiveData loadMetaConfigFile(final File configFile) {
+    try {
+      return mapper.readValue(configFile, ArchiveData.class);
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot read meta-config from " + configFile, e);
+    }
+  }
+
+  @Override
+  public void notifyCameraStorePlugged(final File path) {
+    importFiles(path);
+  }
+
+  @Override
+  public void notifySyncBareDiskPlugged(final File path) {
+    syncExternal(path, true);
+  }
+
+  @Override
+  public void notifySyncDiskPlugged(final File path) {
+    syncExternal(path, false);
+  }
+
+  public String readClientId(final File path, final boolean bare) throws IOException, FileNotFoundException {
+    String remoteName = null;
+    @SuppressWarnings("unchecked")
+    final List<String> clientIdLines = IOUtils.readLines(new FileInputStream(new File(path, bare ? ".bareid" : ".clientid")), "utf-8");
+    for (final String line : clientIdLines) {
+      if (!line.trim().isEmpty())
+        remoteName = line.trim();
+    }
+    return remoteName;
   }
 
   @Override
@@ -314,7 +367,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       preferences.put(ALBUM_PATH_PREFERENCE, baseDir.getAbsolutePath());
       flushPreferences();
     }
-    initMetaRepository();
+    loadMetaConfig();
     if (executorService != null)
       executorService.submit(new Runnable() {
 
@@ -334,6 +387,10 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     if (ObjectUtils.equals(this.importBaseDir, importBaseDir))
       return;
     this.importBaseDir = importBaseDir;
+    if (fileWatcher != null) {
+      fileWatcher.close();
+    }
+    fileWatcher = new FileWatcher(importBaseDir, executorService, this);
     if (preferences != null) {
       preferences.put(IMPORT_BASE_PATH_REFERENCE, importBaseDir.getAbsolutePath());
       flushPreferences();
@@ -394,6 +451,15 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     return albumId;
   }
 
+  private String cleanAlbumName(final boolean bare, final String relativeDirectoryName) {
+    if (bare) {
+      if (!relativeDirectoryName.endsWith(".git"))
+        throw new RuntimeException(relativeDirectoryName + " not ends with .git");
+      return relativeDirectoryName.substring(0, relativeDirectoryName.length() - 4);
+    }
+    return relativeDirectoryName;
+  }
+
   private Collection<File> collectImportFiles(final File importDir) {
     if (!importDir.isDirectory())
       return Collections.emptyList();
@@ -433,9 +499,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }
   }
 
-  private Collection<File> findAlbums(final File dir) {
-    final File gitSubDir = new File(dir, ".git");
-    if (gitSubDir.exists() && gitSubDir.isDirectory()) {
+  private Collection<File> findAlbums(final File dir, final boolean pure) {
+    if (repositoryService.isRepository(dir, pure)) {
       return Collections.singleton(dir);
     }
     final File[] foundFiles = dir.listFiles(new FileFilter() {
@@ -448,7 +513,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     if (foundFiles != null) {
       Arrays.sort(foundFiles);
       for (final File subDir : foundFiles) {
-        ret.addAll(findAlbums(subDir));
+        ret.addAll(findAlbums(subDir, pure));
       }
     }
     return ret;
@@ -486,47 +551,12 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     return metaDir;
   }
 
-  @SuppressWarnings("unused")
   @PostConstruct
   private void init() {
     configureFromPreferences();
   }
 
-  private void initMetaRepository() {
-    final File metaDir = getMetaDir();
-
-    if (new File(metaDir, ".git").exists()) {
-      try {
-        metaGit = Git.open(metaDir);
-      } catch (final IOException e) {
-        throw new RuntimeException("Cannot access to git-repository of " + baseDir, e);
-      }
-    } else {
-      try {
-        metaGit = Git.init().setDirectory(metaDir).call();
-      } catch (final GitAPIException e) {
-        throw new RuntimeException("Cannot create meta repository", e);
-      }
-    }
-    final File cacheDir = new File(metaDir, META_CACHE);
-    if (!cacheDir.exists())
-      cacheDir.mkdirs();
-    final File configFile = new File(metaDir, "config.json");
-    try {
-      if (!configFile.exists()) {
-        archiveData = new ArchiveData();
-        archiveData.setArchiveName(UUID.randomUUID().toString());
-        updateMeta("config.json built");
-      } else {
-        archiveData = mapper.readValue(configFile, ArchiveData.class);
-      }
-    } catch (final IOException e) {
-      throw new RuntimeException("Cannot write config to " + configFile, e);
-    }
-  }
-
   @PostConstruct
-  @SuppressWarnings("unused")
   private void listenPeers() {
     if (jmmDNS != null)
       return;
@@ -562,12 +592,47 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     });
   }
 
+  private void loadMetaConfig() {
+    final File metaDir = getMetaDir();
+
+    if (new File(metaDir, ".git").exists()) {
+      try {
+        metaGit = Git.open(metaDir);
+      } catch (final IOException e) {
+        throw new RuntimeException("Cannot access to git-repository of " + baseDir, e);
+      }
+    } else {
+      try {
+        metaGit = Git.init().setDirectory(metaDir).call();
+      } catch (final GitAPIException e) {
+        throw new RuntimeException("Cannot create meta repository", e);
+      }
+    }
+    final File cacheDir = new File(metaDir, META_CACHE);
+    if (!cacheDir.exists())
+      cacheDir.mkdirs();
+    final File configFile = new File(metaDir, "config.json");
+    if (!configFile.exists()) {
+      archiveData = new ArchiveData();
+      archiveData.setArchiveName(UUID.randomUUID().toString());
+      updateMeta("config.json built");
+    } else {
+      archiveData = loadMetaConfigFile(configFile);
+    }
+  }
+
   private String makeDefaultInstanceName() {
     try {
       return InetAddress.getLocalHost().getHostName();
     } catch (final UnknownHostException e) {
       return UUID.randomUUID().toString();
     }
+  }
+
+  private String makeRepositoryDirectoryName(final boolean pure, final String baseName) {
+    if (pure)
+      return baseName + ".git";
+    return baseName;
   }
 
   private boolean needToLoadAlbumList() {
@@ -678,11 +743,62 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   }
 
   @PreDestroy
-  @SuppressWarnings("unused")
   private void shutdownDnsListener() throws IOException {
     if (jmmDNS != null) {
       jmmDNS.close();
       jmmDNS = null;
+    }
+  }
+
+  @PreDestroy
+  private void shutdownFileWatcher() {
+    if (fileWatcher != null)
+      fileWatcher.close();
+  }
+
+  private void syncExternal(final File path, final boolean bare) {
+    try {
+      final String localName = getInstanceName();
+      final String remoteName = readClientId(path, bare);
+      if (remoteName == null) {
+        logger.warn("No valid client-id at " + path);
+        return;
+      }
+      final File remoteMetaDir = new File(path, makeRepositoryDirectoryName(bare, META_REPOSITORY));
+      final boolean metaModified = repositoryService.sync(metaGit, remoteMetaDir, localName, remoteName, bare);
+      if (metaModified)
+        loadMetaConfig();
+      final ArchiveData remoteConfig = loadMetaConfigFile(new File(remoteMetaDir, "config.json"));
+      final Collection<File> existingAlbumsOnExternalDisk = findAlbums(path, bare);
+      final Map<String, File> existingRemoteDirectories = new HashMap<>();
+      final int basePathLength = path.getAbsolutePath().length() + 1;
+      for (final File file : existingAlbumsOnExternalDisk) {
+        final String relativeName = cleanAlbumName(bare, file.getAbsolutePath().substring(basePathLength));
+        if (relativeName.equals(META_REPOSITORY))
+          continue;
+        existingRemoteDirectories.put(relativeName, file);
+      }
+      final Map<String, Album> existingLocalAlbums = new HashMap<>();
+      for (final Album album : listAlbums().values()) {
+        existingLocalAlbums.put(album.getName(), album);
+      }
+      final Collection<String> albumsToSync = evaluateRepositoriesToSync(localName, existingRemoteDirectories.keySet(), archiveData);
+      albumsToSync.addAll(evaluateRepositoriesToSync(remoteName, existingLocalAlbums.keySet(), remoteConfig));
+      @Cleanup
+      final ProgressHandler progress = stateManager.newProgress(albumsToSync.size(), ProgressType.ITERATE_OVER_ALBUMS, remoteName);
+      for (final String albumName : albumsToSync) {
+        progress.notfiyProgress(albumName);
+        final Album localAlbumForRemote = existingLocalAlbums.get(albumName);
+        final File remoteDir = existingRemoteDirectories.get(albumName);
+        if (localAlbumForRemote == null) {
+          if (remoteDir != null)
+            appendAlbum(loadedAlbums, new File(getBaseDir(), albumName), remoteDir.toURI().toString(), remoteName);
+        } else {
+          localAlbumForRemote.sync(new File(path, makeRepositoryDirectoryName(bare, albumName)), localName, remoteName, bare);
+        }
+      }
+    } catch (final Throwable t) {
+      logger.warn("Cannot sync with " + path, t);
     }
   }
 
@@ -704,8 +820,12 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       if (!albumListEntity.hasBody())
         continue;
       try {
-        repositoryService.pull(metaGit, new URI("git", null, remoteHost, remotePort, "/.meta", null, null).toASCIIString(),
-                               pingResponse.getServerName());
+        final boolean metaUpdated =
+                                    repositoryService.pull(metaGit,
+                                                           new URI("git", null, remoteHost, remotePort, "/.meta", null, null).toASCIIString(),
+                                                           pingResponse.getServerName());
+        if (metaUpdated)
+          loadMetaConfig();
       } catch (final Throwable e) {
         logger.error("Cannot pull remote repository from " + remoteHost, e);
       }
