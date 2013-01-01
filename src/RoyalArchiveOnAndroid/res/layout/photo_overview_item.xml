@@ -4,13 +4,13 @@
     android:layout_height="@dimen/image_width" >
 
     <ImageView
-        android:id="@+id/photo_item_image"
+        android:id="@+id/photos_item_image"
         android:layout_width="@dimen/image_width"
         android:layout_height="@dimen/image_width" 
         android:scaleType="centerCrop" />
 
     <RelativeLayout
-        android:id="@+id/photo_item_statusbar"
+        android:id="@+id/photos_item_statusbar"
         android:layout_width="@dimen/image_width"
         android:layout_height="48dp"
         android:layout_gravity="bottom"
