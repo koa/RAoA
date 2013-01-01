@@ -100,7 +100,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private File importBaseDir;
   private final String instanceId = UUID.randomUUID().toString();
   private final AtomicLong lastLoadedDate = new AtomicLong(0);
-  private Map<String, Album> loadedAlbums = Collections.emptyMap();
+  private Map<String, Album> loadedAlbums = new HashMap<>();
 
   private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
   private static final ObjectMapper mapper = new ObjectMapper();
@@ -342,7 +342,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     if (ObjectUtils.equals(this.baseDir, baseDir))
       return;
     this.baseDir = baseDir;
-    loadedAlbums = Collections.emptyMap();
+    loadedAlbums = new HashMap<>();
     lastLoadedDate.set(0);
     if (preferences != null) {
       preferences.put(ALBUM_PATH_PREFERENCE, baseDir.getAbsolutePath());
