@@ -387,10 +387,12 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     if (ObjectUtils.equals(this.importBaseDir, importBaseDir))
       return;
     this.importBaseDir = importBaseDir;
-    if (fileWatcher != null) {
-      fileWatcher.close();
+    if (importBaseDir != null && executorService != null) {
+      if (fileWatcher != null) {
+        fileWatcher.close();
+        fileWatcher = new FileWatcher(importBaseDir, executorService, this);
+      }
     }
-    fileWatcher = new FileWatcher(importBaseDir, executorService, this);
     if (preferences != null) {
       preferences.put(IMPORT_BASE_PATH_REFERENCE, importBaseDir.getAbsolutePath());
       flushPreferences();
@@ -554,6 +556,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   @PostConstruct
   private void init() {
     configureFromPreferences();
+    if (importBaseDir != null && executorService != null)
+      fileWatcher = new FileWatcher(importBaseDir, executorService, this);
   }
 
   @PostConstruct
