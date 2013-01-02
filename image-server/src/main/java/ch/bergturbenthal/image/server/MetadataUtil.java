@@ -12,8 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
-import com.drew.metadata.MetadataException;
-import com.drew.metadata.exif.ExifDirectory;
+import com.drew.metadata.exif.ExifIFD0Directory;
 import com.drew.metadata.exif.GpsDirectory;
 
 public class MetadataUtil {
@@ -33,14 +32,14 @@ public class MetadataUtil {
   public static Date readCreateDate(final Metadata metadata) {
     final Date gpsDate = readGpsDate(metadata);
     if (gpsDate != null) {
-      logger.info("GPS-Date: " + gpsDate);
+      // logger.info("GPS-Date: " + gpsDate);
       return gpsDate;
     }
-    for (final TagId index : Arrays.asList(new TagId(ExifDirectory.class, ExifDirectory.TAG_DATETIME_ORIGINAL), new TagId(ExifDirectory.class,
-                                                                                                                          ExifDirectory.TAG_DATETIME))) {
+    for (final TagId index : Arrays.asList(new TagId(ExifIFD0Directory.class, ExifIFD0Directory.TAG_DATETIME))) {
       final Date date = readDate(metadata, index.directory, index.tagId);
       if (date != null) {
-        logger.info(index.directory.getSimpleName() + ":" + index.tagId + ": " + date);
+        // logger.info(index.directory.getSimpleName() + ":" + index.tagId +
+        // ": " + date);
         return date;
       }
     }
@@ -49,20 +48,12 @@ public class MetadataUtil {
   }
 
   private static Date readDate(final Metadata metadata, final Class<? extends Directory> directory, final int tag) {
-    try {
-      if (metadata.containsDirectory(directory)) {
-        final Directory directory2 = metadata.getDirectory(directory);
-        if (directory2.containsTag(tag))
-          try {
-            return directory2.getDate(tag);
-          } catch (final MetadataException e) {
-            throw new RuntimeException("Cannot read " + directory.getName() + ":" + directory2.getDescription(tag), e);
-          }
-      }
-      return null;
-    } catch (final MetadataException e) {
-      throw new RuntimeException("Cannot read " + directory.getName() + ":" + tag, e);
+    if (metadata.containsDirectory(directory)) {
+      final Directory directory2 = metadata.getDirectory(directory);
+      if (directory2.containsTag(tag))
+        return directory2.getDate(tag);
     }
+    return null;
   }
 
   private static Date readGpsDate(final Metadata metadata) {
@@ -78,10 +69,9 @@ public class MetadataUtil {
       final GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
       calendar.set(((Number) values[0]).intValue(), ((Number) values[1]).intValue() - 1, ((Number) values[2]).intValue(), time[0], time[1], time[2]);
       return calendar.getTime();
-    } catch (final MetadataException e) {
-      throw new RuntimeException("Cannot read Gps-Date", e);
     } catch (final ParseException e) {
-      throw new RuntimeException("Cannot read Gps-Date", e);
+      logger.warn("Cannot read Gps-Date", e);
+      return null;
     }
   }
 

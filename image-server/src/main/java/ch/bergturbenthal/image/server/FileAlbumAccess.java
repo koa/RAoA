@@ -250,6 +250,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
           }
         } catch (final ImageProcessingException e) {
           throw new RuntimeException("Cannot import file " + file, e);
+        } catch (final IOException e) {
+          throw new RuntimeException("Cannot import file " + file, e);
         }
       }
       for (final Album album : modifiedAlbums) {
@@ -757,7 +759,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
               try {
                 thumbnailProgress.notfiyProgress(image.getName());
                 // read Metadata
-                // image.captureDate();
+                image.captureDate();
                 // read Thumbnail
                 image.getThumbnail();
               } finally {

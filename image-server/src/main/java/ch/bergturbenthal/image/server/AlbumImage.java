@@ -1,21 +1,12 @@
 package ch.bergturbenthal.image.server;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.lang.ref.SoftReference;
-import java.text.MessageFormat;
-import java.text.ParseException;
-import java.util.Arrays;
 import java.util.Date;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.WeakHashMap;
 import java.util.concurrent.Semaphore;
 
@@ -25,25 +16,14 @@ import org.im4java.core.IMOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ch.bergturbenthal.image.server.cache.AlbumEntryCacheManager;
+import ch.bergturbenthal.image.server.model.AlbumEntryData;
+
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
-import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
-import com.drew.metadata.MetadataException;
-import com.drew.metadata.exif.ExifDirectory;
-import com.drew.metadata.exif.GpsDirectory;
 
 public class AlbumImage {
-  private static class TagId {
-    private final Class<? extends Directory> directory;
-    private final int tagId;
-
-    public TagId(final Class<? extends Directory> directory, final int tagId) {
-      this.directory = directory;
-      this.tagId = tagId;
-    }
-
-  }
 
   private static Map<File, Object> imageLocks = new WeakHashMap<File, Object>();
   private static Map<File, SoftReference<AlbumImage>> loadedImages = new HashMap<File, SoftReference<AlbumImage>>();
@@ -52,7 +32,7 @@ public class AlbumImage {
 
   private static Semaphore limitConcurrentScaleSemaphore = new Semaphore(4);
 
-  public static AlbumImage makeImage(final File file, final File cacheDir, final Date lastModified) {
+  public static AlbumImage makeImage(final File file, final File cacheDir, final Date lastModified, final AlbumEntryCacheManager cacheManager) {
     synchronized (lockFor(file)) {
       final SoftReference<AlbumImage> softReference = loadedImages.get(file);
       if (softReference != null) {
@@ -60,7 +40,7 @@ public class AlbumImage {
         if (cachedImage != null && cachedImage.lastModified.equals(lastModified))
           return cachedImage;
       }
-      final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified);
+      final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified, cacheManager);
       loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
       return newImage;
     }
@@ -77,24 +57,21 @@ public class AlbumImage {
 
   private final File cacheDir;
 
-  private Date captureDate = null;
-
   private final File file;
 
-  private Metadata metadata = null;
   private final Date lastModified;
 
-  public AlbumImage(final File file, final File cacheDir, final Date lastModified) {
+  private final AlbumEntryCacheManager cacheManager;
+
+  public AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumEntryCacheManager cacheManager) {
     this.file = file;
     this.cacheDir = cacheDir;
     this.lastModified = lastModified;
+    this.cacheManager = cacheManager;
   }
 
-  public synchronized Date captureDate() {
-    if (captureDate == null)
-      captureDate = readCaptureDateFromMetadata();
-
-    return captureDate;
+  public Date captureDate() {
+    return getAlbumEntryData().getCreationDate();
   }
 
   public String getName() {
@@ -151,41 +128,35 @@ public class AlbumImage {
     return "AlbumImage [file=" + file.getName() + "]";
   }
 
-  private synchronized Metadata getMetadata() throws ImageProcessingException {
-    if (metadata != null)
-      return metadata;
-    final File metdataCacheFile = makeMetdataCacheFile();
-    if (metdataCacheFile.exists() && metdataCacheFile.lastModified() >= file.lastModified()) {
-      try {
-        final ObjectInputStream is = new ObjectInputStream(new FileInputStream(metdataCacheFile));
-        try {
-          metadata = (Metadata) is.readObject();
-        } finally {
-          is.close();
-        }
-      } catch (final ClassNotFoundException e) {
-        logger.warn("Cannot read metadata-cache " + metdataCacheFile, e);
-      } catch (final IOException e) {
-        logger.warn("Cannot read metadata-cache " + metdataCacheFile, e);
-      }
-      if (metadata != null)
-        return metadata;
+  private synchronized AlbumEntryData getAlbumEntryData() {
+    AlbumEntryData loadedMetaData = cacheManager.getCachedData();
+    if (loadedMetaData != null)
+      return loadedMetaData;
+
+    loadedMetaData = new AlbumEntryData();
+    final Metadata metadata = getExifMetadata();
+    if (metadata != null) {
+      loadedMetaData.setCreationDate(MetadataUtil.readCreateDate(metadata));
     }
+
+    cacheManager.updateCache(loadedMetaData);
+    return loadedMetaData;
+  }
+
+  private Metadata getExifMetadata() {
     try {
-      // final long startTime = System.currentTimeMillis();
-      metadata = ImageMetadataReader.readMetadata(file);
-      // final long endTime = System.currentTimeMillis();
-      // logger.info("Metadata-Read: " + (endTime - startTime) + " ms");
-      final ObjectOutputStream objectOutputStream = new ObjectOutputStream(new FileOutputStream(metdataCacheFile));
-      try {
-        objectOutputStream.writeObject(metadata);
-      } finally {
-        objectOutputStream.close();
-      }
+      Metadata exifMetadata;
+      final long startTime = System.currentTimeMillis();
+      exifMetadata = ImageMetadataReader.readMetadata(file);
+      final long endTime = System.currentTimeMillis();
+      logger.info("Metadata-Read: " + (endTime - startTime) + " ms");
+      return exifMetadata;
     } catch (final IOException e) {
-      logger.warn("Cannot save metadata-cache " + metdataCacheFile, e);
+      logger.warn("Cannot reade metadata from " + file, e);
+    } catch (final ImageProcessingException e) {
+      logger.warn("Cannot reade metadata from " + file, e);
     }
-    return metadata;
+    return null;
   }
 
   private File makeCachedFile() {
@@ -199,65 +170,6 @@ public class AlbumImage {
   private File makeMetdataCacheFile() {
     final String name = file.getName();
     return new File(cacheDir, name + ".metadata");
-  }
-
-  private Date readCaptureDateFromMetadata() {
-    if (isVideo())
-      return null;
-    final Date gpsDate = readGpsDate();
-    if (gpsDate != null)
-      return gpsDate;
-    for (final TagId index : Arrays.asList(new TagId(ExifDirectory.class, ExifDirectory.TAG_DATETIME_ORIGINAL), new TagId(ExifDirectory.class,
-                                                                                                                          ExifDirectory.TAG_DATETIME))) {
-      final Date date = readDate(index.directory, index.tagId);
-      if (date != null)
-        return date;
-    }
-    return null;
-  }
-
-  private Date readDate(final Class<? extends Directory> directory, final int tag) {
-    try {
-      final Metadata metadata = getMetadata();
-      if (metadata.containsDirectory(directory)) {
-        final Directory directory2 = metadata.getDirectory(directory);
-        if (directory2.containsTag(tag))
-          try {
-            return directory2.getDate(tag);
-          } catch (final MetadataException e) {
-            throw new RuntimeException("Cannot read " + directory.getName() + ":" + directory2.getDescription(tag) + " from " + file, e);
-          }
-      }
-    } catch (final MetadataException e) {
-      logger.warn("Cannot read " + directory.getName() + ":" + tag + " from " + file, e);
-    } catch (final ImageProcessingException e) {
-      logger.warn("Cannot read " + directory.getName() + ":" + tag + " from " + file, e);
-    }
-    return null;
-  }
-
-  private Date readGpsDate() {
-    try {
-      final Metadata metadata = getMetadata();
-      if (!metadata.containsDirectory(GpsDirectory.class))
-        return null;
-      final Directory directory = metadata.getDirectory(GpsDirectory.class);
-      if (!directory.containsTag(GpsDirectory.TAG_GPS_TIME_STAMP))
-        return null;
-      final int[] time = directory.getIntArray(7);
-      final String date = directory.getString(29);
-      final Object[] values = new MessageFormat("{0,number}:{1,number}:{2,number}").parse(date);
-      final GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-      calendar.set(((Number) values[0]).intValue(), ((Number) values[1]).intValue() - 1, ((Number) values[2]).intValue(), time[0], time[1], time[2]);
-      return calendar.getTime();
-    } catch (final MetadataException e) {
-      logger.warn("Cannot read Gps-Date from " + file, e);
-    } catch (final ParseException e) {
-      logger.warn("Cannot read Gps-Date from " + file, e);
-    } catch (final ImageProcessingException e) {
-      logger.warn("Cannot read Gps-Date from " + file, e);
-    }
-    return null;
   }
 
   private void scaleImageDown(final File cachedFile) throws IOException, InterruptedException, IM4JavaException {

@@ -26,9 +26,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.map.ObjectReader;
+import org.codehaus.jackson.map.type.MapType;
+import org.codehaus.jackson.map.type.SimpleType;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.LogCommand;
 import org.eclipse.jgit.api.Status;
@@ -43,6 +51,8 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ch.bergturbenthal.image.server.cache.AlbumEntryCacheManager;
+import ch.bergturbenthal.image.server.model.AlbumEntryData;
 import ch.bergturbenthal.image.server.util.RepositoryService;
 
 public class Album {
@@ -91,6 +101,13 @@ public class Album {
 
   private static Logger logger = LoggerFactory.getLogger(Album.class);
 
+  private final ConcurrentMap<String, AlbumEntryData> albumMetadataCache = new ConcurrentHashMap<String, AlbumEntryData>();
+  private final AtomicBoolean metadataModified = new AtomicBoolean(false);
+
+  private static ObjectMapper mapper = new ObjectMapper();
+
+  private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
+
   public Album(final File baseDir, final String[] nameComps, final RepositoryService repositoryService) {
     this(baseDir, nameComps, repositoryService, null, null);
   }
@@ -124,6 +141,8 @@ public class Album {
     if (autoaddFile().exists()) {
       loadImportEntries();
     }
+    if (metadataCacheFile().exists())
+      loadMetadataCache();
     if (modified)
       commit("initialized repository for image-server");
   }
@@ -446,7 +465,19 @@ public class Album {
 
     final Map<String, AlbumImage> ret = new HashMap<String, AlbumImage>();
     for (final File file : listImageFiles()) {
-      ret.put(Util.encodeStringForUrl(file.getName()), AlbumImage.makeImage(file, cacheDir, lastModified));
+      final String filename = file.getName();
+      ret.put(Util.encodeStringForUrl(filename), AlbumImage.makeImage(file, cacheDir, lastModified, new AlbumEntryCacheManager() {
+
+        @Override
+        public AlbumEntryData getCachedData() {
+          return readAlbumEntryDataFromCache(filename);
+        }
+
+        @Override
+        public void updateCache(final AlbumEntryData entryData) {
+          updateAlbumEntryInCache(filename, entryData);
+        }
+      }));
     }
     cachedImages = dirLastModified;
     images = new SoftReference<Map<String, AlbumImage>>(ret);
@@ -472,6 +503,20 @@ public class Album {
       } catch (final IOException e) {
         throw new RuntimeException("Cannot read " + file, e);
       }
+    }
+  }
+
+  private void loadMetadataCache() {
+    albumMetadataCache.clear();
+    final ObjectReader reader =
+                                mapper.reader(MapType.construct(Map.class, SimpleType.construct(String.class),
+                                                                SimpleType.construct(AlbumEntryData.class)));
+    final File metadataCacheFile = metadataCacheFile();
+    try {
+      albumMetadataCache.putAll(reader.<Map<String, AlbumEntryData>> readValue(metadataCacheFile));
+    } catch (final IOException e) {
+      logger.warn("Cannot read " + metadataCacheFile, e);
+      metadataCacheFile.delete();
     }
   }
 
@@ -504,6 +549,10 @@ public class Album {
     } catch (final IOException e) {
       throw new RuntimeException("Cannot make sha1 of " + file, e);
     }
+  }
+
+  private File metadataCacheFile() {
+    return new File(cacheDir, "metadata.json");
   }
 
   private boolean prepareGitignore() {
@@ -542,6 +591,30 @@ public class Album {
       throw new RuntimeException("Error while executing git-command", e);
     }
     return true;
+  }
+
+  private AlbumEntryData readAlbumEntryDataFromCache(final String filename) {
+    return albumMetadataCache.get(filename);
+  }
+
+  private void updateAlbumEntryInCache(final String filename, final AlbumEntryData entryData) {
+    final AlbumEntryData oldValue = albumMetadataCache.putIfAbsent(filename, entryData);
+    if (entryData.equals(oldValue))
+      return;
+    metadataModified.set(true);
+    final boolean hasLock = writeAlbumEntryCacheSemaphore.tryAcquire();
+    if (hasLock) {
+      try {
+        while (metadataModified.getAndSet(false))
+          try {
+            mapper.writerWithDefaultPrettyPrinter().writeValue(metadataCacheFile(), albumMetadataCache);
+          } catch (final IOException e) {
+            logger.warn("Cannot write to " + metadataCacheFile(), e);
+          }
+      } finally {
+        writeAlbumEntryCacheSemaphore.release();
+      }
+    }
   }
 
 }
