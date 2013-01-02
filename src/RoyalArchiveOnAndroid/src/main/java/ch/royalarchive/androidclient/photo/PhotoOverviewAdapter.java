@@ -20,7 +20,7 @@ public class PhotoOverviewAdapter extends SimpleCursorAdapter {
 		super(context, layout, null, FROM, TO, 0);
 		
 		// set photo overview view binder
-		setViewBinder(new OverviewBinder());
+		setViewBinder(new OverviewBinder(false));
 	}
 	
 	@Override

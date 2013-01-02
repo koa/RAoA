@@ -38,9 +38,9 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		// Handle click on photo
 		gridview.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
-				Toast.makeText(PhotoOverviewActivity.this, "pos: " + position + " id: " + id, Toast.LENGTH_SHORT).show();
 				Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailviewActivity.class);
 				intent.putExtra("album_id", albumId);
+				intent.putExtra("actPos", position);
 				startActivity(intent);
 			}
 		});

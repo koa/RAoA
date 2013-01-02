@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
     <dimen name="image_width">245dp</dimen>
-    <item name="colum_count" type="integer" format="integer">5</item>
-    
+
+    <item name="colum_count" format="integer" type="integer">5</item>
+
+    <dimen name="image_detail_width">1100dp</dimen>
+
 </resources>

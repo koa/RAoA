@@ -18,7 +18,7 @@ public class PhotoDetailviewAdapter extends SimpleCursorAdapter {
 		super(context, layout, null, FROM, TO, 0);
 		
 		// set photo overview view binder
-		setViewBinder(new OverviewBinder());
+		setViewBinder(new OverviewBinder(true));
 	}
 
 

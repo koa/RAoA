@@ -23,6 +23,12 @@ public class OverviewBinder implements ViewBinder {
 	private Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
 	private Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
 	
+	private boolean isDetailView = false;
+	
+	public OverviewBinder(boolean isDetailView) {
+		this.isDetailView = isDetailView;
+	}
+	
 	@Override
 	public boolean setViewValue(final View view, Cursor cursor, int columnIndex) {
 		
@@ -65,7 +71,11 @@ public class OverviewBinder implements ViewBinder {
 					// get the real image
 					InputStream imageStream = view.getContext().getContentResolver().openInputStream(uri);
 					try {
-						int imageLength = view.getContext().getResources().getDimensionPixelSize(R.dimen.image_width);
+						int dimen_width = R.dimen.image_width;
+						if (isDetailView) {
+							dimen_width = R.dimen.image_detail_width;
+						}
+						int imageLength = view.getContext().getResources().getDimensionPixelSize(dimen_width);
 
 						Bitmap fullBitmap = BitmapFactory.decodeStream(imageStream);
 						double scaleX = 1.0 * imageLength / fullBitmap.getWidth();
