@@ -1,4 +1,4 @@
-package ch.bergturbenthal.image.provider.util;
+package ch.bergturbenthal.image.data.util;
 
 import java.util.ArrayList;
 import java.util.Collection;

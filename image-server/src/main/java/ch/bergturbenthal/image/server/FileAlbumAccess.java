@@ -27,6 +27,8 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -70,6 +72,7 @@ import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.data.model.state.ProgressType;
+import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.image.server.model.ArchiveData;
 import ch.bergturbenthal.image.server.state.ProgressHandler;
 import ch.bergturbenthal.image.server.state.StateManager;
@@ -96,6 +99,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private ScheduledExecutorService executorService;
   @Autowired
   private RepositoryService repositoryService;
+  private ExecutorService safeExecutorService;
 
   private File importBaseDir;
   private final String instanceId = UUID.randomUUID().toString();
@@ -265,6 +269,11 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     } finally {
       refreshCache();
     }
+  }
+
+  @PostConstruct
+  public void initExecutorService() {
+    safeExecutorService = ExecutorServiceUtil.wrap(executorService);
   }
 
   @Override
@@ -509,12 +518,23 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
           final File basePath = getBasePath();
           logger.debug("Load Repositories from: " + basePath);
           final int basePathLength = basePath.getAbsolutePath().length();
+          final Collection<Future<?>> futures = new ArrayList<>();
           for (final File albumDir : findAlbums(basePath, false)) {
-            logger.debug("Load Repository " + albumDir);
-            final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
-            if (relativePath.equals(META_REPOSITORY))
-              continue;
-            appendAlbum(ret, albumDir, null, null);
+            futures.add(safeExecutorService.submit(new Runnable() {
+
+              @Override
+              public void run() {
+                logger.debug("Load Repository " + albumDir);
+                final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
+                if (relativePath.equals(META_REPOSITORY))
+                  return;
+                appendAlbum(ret, albumDir, null, null);
+
+              }
+            }));
+          }
+          for (final Future<?> future : futures) {
+            future.get();
           }
           lastLoadedDate.set(System.currentTimeMillis());
           loadedAlbums = ret;
