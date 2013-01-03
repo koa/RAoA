@@ -643,19 +643,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
         final List<AlbumEntity> foundEntries = findAlbumByArchiveAndName(archiveEntity, albumName);
         final AlbumEntity albumEntity;
-        final boolean needToUpdate;
         if (foundEntries.isEmpty()) {
-          albumEntity = new AlbumEntity(archiveEntity, albumName, albumConnection.getCommId(), albumConnection.lastModified());
+          albumEntity = new AlbumEntity(archiveEntity, albumName, albumConnection.getCommId());
           albumDao.create(albumEntity);
           notifyAlbumListChanged();
-          needToUpdate = true;
         } else {
           albumEntity = foundEntries.get(0);
-          needToUpdate = !dateEquals(albumEntity.getLastModified(), albumConnection.lastModified());
         }
         visibleAlbumsOfArchive.put(albumName, Integer.valueOf(albumEntity.getId()));
 
-        return needToUpdate ? Integer.valueOf(albumEntity.getId()) : null;
+        return dateEquals(albumEntity.getLastModified(), albumConnection.lastModified()) ? null : Integer.valueOf(albumEntity.getId());
       }
     });
     if (albumId != null)

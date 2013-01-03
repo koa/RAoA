@@ -51,11 +51,10 @@ public class AlbumEntity {
   @DatabaseField
   private Date lastModified;
 
-  public AlbumEntity(final ArchiveEntity archive, final String name, final String commId, final Date lastModified) {
+  public AlbumEntity(final ArchiveEntity archive, final String name, final String commId) {
     this.archive = archive;
     this.name = name;
     this.commId = commId;
-    this.lastModified = lastModified;
   }
 
   AlbumEntity() {
