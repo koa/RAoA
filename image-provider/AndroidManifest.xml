@@ -20,7 +20,7 @@
         android:hardwareAccelerated="true"
         android:label="RoyalArchive Provider" >
         <receiver
-            android:name=".service.NetworkReceiver"
+            android:name="ch.bergturbenthal.image.provider.service.NetworkReceiver"
             android:enabled="true" >
             <intent-filter>
                 <action android:name="android.net.wifi.STATE_CHANGE" />
@@ -28,19 +28,19 @@
                 <action android:name="android.net.wifi.WIFI_STATE_CHANGED" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".service.PowerStateReceiver">
+        <receiver android:name="ch.bergturbenthal.image.provider.service.PowerStateReceiver" >
             <intent-filter>
-                <action android:name="android.intent.action.SCREEN_ON"/>
-                <action android:name="android.intent.action.SCREEN_OFF"/>
+                <action android:name="android.intent.action.SCREEN_ON" />
+                <action android:name="android.intent.action.SCREEN_OFF" />
             </intent-filter>
         </receiver>
-        
+
         <service
-            android:name=".service.SynchronisationServiceImpl"
+            android:name="ch.bergturbenthal.image.provider.service.SynchronisationServiceImpl"
             android:enabled="true" >
         </service>
 
-        <activity android:name=".service.NetworkActivity" >
+        <activity android:name="ch.bergturbenthal.image.provider.service.NetworkActivity" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -49,9 +49,24 @@
         </activity>
 
         <provider
-            android:name=".ArchiveContentProvider"
-            android:authorities="ch.bergturbenthal.image.provider" android:enabled="true" android:exported="true"
-            android:label="RoyalArchiveContentProvider" android:multiprocess="false"/>
+            android:name="ch.bergturbenthal.image.provider.ArchiveContentProvider"
+            android:authorities="ch.bergturbenthal.image.provider"
+            android:enabled="true"
+            android:exported="true"
+            android:label="RoyalArchiveContentProvider"
+            android:multiprocess="false" />
+
+        <activity
+            android:name=".state.ServerListActivity"
+            android:label="@string/title_server_list" >
+        </activity>
+        <activity
+            android:name=".state.ServerDetailActivity"
+            android:label="@string/title_server_detail" >
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".ServerListActivity" />
+        </activity>
     </application>
 
 </manifest>

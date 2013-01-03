@@ -178,6 +178,10 @@ public class ArchiveConnection {
     return albumConnections;
   }
 
+  public Map<String, ServerConnection> listServers() {
+    return serverConnections.get();
+  }
+
   public void updateServerConnections(final Map<URL, PingResponse> connections) {
     final Map<String, Collection<URL>> connectionsByServer = new HashMap<String, Collection<URL>>();
     for (final Entry<URL, PingResponse> connectionEntry : connections.entrySet()) {
@@ -193,7 +197,7 @@ public class ArchiveConnection {
     final Map<String, ServerConnection> oldConnections = serverConnections.get();
     for (final Entry<String, Collection<URL>> connectionEntry : connectionsByServer.entrySet()) {
       final String serverId = connectionEntry.getKey();
-      final ServerConnection connection = oldConnections.containsKey(serverId) ? oldConnections.get(serverId) : new ServerConnection();
+      final ServerConnection connection = oldConnections.containsKey(serverId) ? oldConnections.get(serverId) : new ServerConnection(serverId);
       connection.updateServerConnections(connectionEntry.getValue());
       for (final URL serverUrl : connectionEntry.getValue()) {
         final PingResponse pingResponse = connections.get(serverUrl);

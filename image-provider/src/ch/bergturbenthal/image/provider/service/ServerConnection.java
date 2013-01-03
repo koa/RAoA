@@ -39,7 +39,7 @@ public class ServerConnection {
     ResponseEntity<V> call(final URL baseUrl) throws Exception;
   }
 
-  private String instanceId;
+  private final String instanceId;
   private final AtomicReference<Collection<URL>> connections = new AtomicReference<Collection<URL>>(Collections.<URL> emptyList());
   private final AtomicReference<SoftReference<AlbumList>> albumIds = new AtomicReference<SoftReference<AlbumList>>();
   private final RestTemplate restTemplate = new RestTemplate(true);
@@ -50,6 +50,10 @@ public class ServerConnection {
 
   private static TimeZone GMT = TimeZone.getTimeZone("GMT");
   private String serverName;
+
+  public ServerConnection(final String instanceId) {
+    this.instanceId = instanceId;
+  }
 
   public AlbumDetail getAlbumDetail(final String albumId) {
     final SoftReference<AlbumDetail> cachedValue = albumDetailCache.get(albumId);
@@ -164,10 +168,6 @@ public class ServerConnection {
       }
     }).booleanValue();
 
-  }
-
-  public void setInstanceId(final String instanceId) {
-    this.instanceId = instanceId;
   }
 
   public void setServerName(final String serverName) {

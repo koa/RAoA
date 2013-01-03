@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
     <string name="synchronisation_service_started">Syncing</string>
-    
+    <string name="title_server_detail">Server Detail</string>
+    <string name="title_server_list">Servers</string>
+    <string name="server_progress">Current Progress</string>
+
 </resources>

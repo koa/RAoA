@@ -20,7 +20,7 @@
         class="java.util.concurrent.Executors"
         factory-method="newScheduledThreadPool" >
 
-        <constructor-arg value="10" />
+        <constructor-arg value="20" />
     </bean>
 
 </beans>

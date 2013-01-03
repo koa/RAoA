@@ -33,7 +33,12 @@ public class ArchiveContentProvider extends ContentProvider {
     @Path("albums/#/entries/#")
     ALBUM_ENTRY,
     @Path("albums/#/entries/#/thumbnail")
-    ALBUM_ENTRY_THUMBNAIL
+    ALBUM_ENTRY_THUMBNAIL,
+    @Path("servers")
+    SERVER_LIST,
+    @Path("servers/#/progress")
+    SERVER_PROGRESS_LIST
+
   }
 
   static final String TAG = "Content Provider";
@@ -77,6 +82,10 @@ public class ArchiveContentProvider extends ContentProvider {
       return "vnd.android.cursor.item/vnd." + Client.AUTHORITY + "/album/entry";
     case ALBUM_ENTRY_THUMBNAIL:
       return "image/jpeg";
+    case SERVER_LIST:
+      return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server";
+    case SERVER_PROGRESS_LIST:
+      return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server/progress";
     }
     throw new SQLException("Unknown Uri: " + uri);
   }
@@ -122,13 +131,16 @@ public class ArchiveContentProvider extends ContentProvider {
   public Cursor query(final Uri uri, final String[] projection, final String selection, final String[] selectionArgs, final String sortOrder) {
     try {
       Log.i(TAG, "Query called: " + uri);
+      final List<String> segments = uri.getPathSegments();
       switch (matcher.match(uri)) {
       case ALBUM_LIST:
         return service.readAlbumList(projection);
       case ALBUM_ENTRY_LIST:
-        final List<String> segments = uri.getPathSegments();
-        final String album = segments.get(1);
-        return service.readAlbumEntryList(Integer.parseInt(album), projection);
+        return service.readAlbumEntryList(Integer.parseInt(segments.get(1)), projection);
+      case SERVER_LIST:
+        return service.readServerList(projection);
+      case SERVER_PROGRESS_LIST:
+        return service.readServerProgresList(segments.get(1), projection);
       default:
         break;
       }

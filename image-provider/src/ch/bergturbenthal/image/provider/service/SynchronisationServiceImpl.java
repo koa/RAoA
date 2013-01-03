@@ -17,6 +17,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,15 +40,17 @@ import org.springframework.web.client.RestTemplate;
 
 import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
 import android.os.Binder;
 import android.os.IBinder;
-import android.support.v4.app.NotificationCompat;
 import android.util.Log;
+import android.util.Pair;
 import ch.bergturbenthal.image.data.model.PingResponse;
+import ch.bergturbenthal.image.data.model.state.Progress;
 import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.R;
@@ -64,6 +67,7 @@ import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
 import ch.bergturbenthal.image.provider.orm.DaoHolder;
 import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
 import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
+import ch.bergturbenthal.image.provider.state.ServerListActivity;
 
 import com.j256.ormlite.dao.RuntimeExceptionDao;
 import com.j256.ormlite.stmt.QueryBuilder;
@@ -87,6 +91,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private final static String SERVICE_TAG = "Synchronisation Service";
   private static final String UPDATE_DB_NOTIFICATION = "UpdateDb";
   private final AtomicBoolean running = new AtomicBoolean(false);
+  private final Collection<WeakReference<NotifyableMatrixCursor>> serverCursors =
+                                                                                  Collections.synchronizedList(new ArrayList<WeakReference<NotifyableMatrixCursor>>());
   private final AtomicReference<Map<String, ArchiveConnection>> connectionMap =
                                                                                 new AtomicReference<Map<String, ArchiveConnection>>(
                                                                                                                                     Collections.<String, ArchiveConnection> emptyMap());
@@ -183,6 +189,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     progressNotification.pollServerStates(newConnectionMap);
     updateAlbumsOnDB();
     Log.i(SERVICE_TAG, pingResponses.toString());
+    updateServerCursors();
   }
 
   @Override
@@ -353,6 +360,81 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     });
   }
 
+  @Override
+  public Cursor readServerList(final String[] projection) {
+    final Map<String, ArchiveConnection> archives = connectionMap.get();
+
+    final Collection<Pair<String, ServerConnection>> connections = new ArrayList<Pair<String, ServerConnection>>();
+    for (final Entry<String, ArchiveConnection> archiveEntry : archives.entrySet()) {
+      for (final ServerConnection server : archiveEntry.getValue().listServers().values()) {
+        connections.add(new Pair<String, ServerConnection>(archiveEntry.getKey(), server));
+      }
+    }
+
+    final Map<String, FieldReader<Pair<String, ServerConnection>>> fieldReaders = new HashMap<String, FieldReader<Pair<String, ServerConnection>>>();
+    fieldReaders.put(Client.ServerEntry.ARCHIVE_NAME, new StringFieldReader<Pair<String, ServerConnection>>() {
+      @Override
+      public String getString(final Pair<String, ServerConnection> value) {
+        return value.first;
+      }
+    });
+    fieldReaders.put(Client.ServerEntry.SERVER_ID, new StringFieldReader<Pair<String, ServerConnection>>() {
+
+      @Override
+      public String getString(final Pair<String, ServerConnection> value) {
+        return value.second.getInstanceId();
+      }
+    });
+    fieldReaders.put(Client.ServerEntry.SERVER_NAME, new StringFieldReader<Pair<String, ServerConnection>>() {
+
+      @Override
+      public String getString(final Pair<String, ServerConnection> value) {
+        return value.second.getServerName();
+      }
+    });
+    fieldReaders.put(Client.ServerEntry.ID, new NumericFieldReader<Pair<String, ServerConnection>>(Cursor.FIELD_TYPE_INTEGER) {
+
+      @Override
+      public Number getNumber(final Pair<String, ServerConnection> value) {
+        return Long.valueOf(makeLongId(value.second.getInstanceId()));
+      }
+    });
+
+    final NotifyableMatrixCursor cursor = MapperUtil.loadCollectionIntoCursor(connections, projection, fieldReaders);
+    serverCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
+    return cursor;
+
+  }
+
+  @Override
+  public Cursor readServerProgresList(final String serverId, final String[] projection) {
+    final Map<String, ArchiveConnection> archives = connectionMap.get();
+
+    ServerConnection serverConnection = null;
+    for (final Entry<String, ArchiveConnection> archiveEntry : archives.entrySet()) {
+      for (final ServerConnection server : archiveEntry.getValue().listServers().values()) {
+        if (server.getInstanceId().equals(serverId))
+          serverConnection = server;
+      }
+    }
+    final Collection<Progress> progressValues =
+                                                serverConnection == null ? Collections.<Progress> emptyList() : serverConnection.getServerState()
+                                                                                                                                .getProgress();
+
+    final Map<String, String> mappedFields = new HashMap<String, String>();
+    mappedFields.put(Client.ProgressEntry.ID, "progressId");
+    mappedFields.put(Client.ProgressEntry.STEP_COUNT, "stepCount");
+    mappedFields.put(Client.ProgressEntry.CURRENT_STEP_NR, "currentStepNr");
+    mappedFields.put(Client.ProgressEntry.PROGRESS_DESCRIPTION, "progressDescription");
+    mappedFields.put(Client.ProgressEntry.CURRENT_STATE_DESCRIPTION, "currentStepDescription");
+    mappedFields.put(Client.ProgressEntry.PROGRESS_TYPE, "type");
+    final Map<String, FieldReader<Progress>> fieldReaders = MapperUtil.makeNamedFieldReaders(Progress.class, mappedFields);
+
+    final NotifyableMatrixCursor cursor = MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders);
+    serverCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
+    return cursor;
+  }
+
   private <V> V callInTransaction(final Callable<V> callable) {
     albumListChanged.set(Boolean.FALSE);
     final V ret = daoHolder.callInTransaction(callable);
@@ -405,6 +487,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     if (split == null || split.length == 0)
       return null;
     return split[split.length - 1];
+  }
+
+  private long makeLongId(final String stringId) {
+    final UUID uuid = UUID.fromString(stringId);
+    final long longId = uuid.getLeastSignificantBits() ^ uuid.getMostSignificantBits();
+    return longId;
   }
 
   private URL makeUrl(final InetSocketAddress inetSocketAddress) {
@@ -585,9 +673,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     running.set(true);
     Log.i(SERVICE_TAG, "Synchronisation started");
     dnsListener.startListening();
+    final PendingIntent intent =
+                                 PendingIntent.getActivity(getApplicationContext(), 0, new Intent(getApplicationContext(), ServerListActivity.class),
+                                                           0);
     final Notification notification =
-                                      new NotificationCompat.Builder(this).setContentTitle("Syncing").setSmallIcon(android.R.drawable.ic_dialog_info)
-                                                                          .getNotification();
+                                      new Notification.Builder(this).setContentTitle("Syncing").setSmallIcon(android.R.drawable.ic_dialog_info)
+                                                                    .setContentIntent(intent).getNotification();
     notificationManager.notify(NOTIFICATION, notification);
     startSlowPolling();
   }
@@ -720,6 +811,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       } finally {
         notificationManager.cancel(UPDATE_DB_NOTIFICATION, NOTIFICATION);
       }
+    }
+  }
+
+  private void updateServerCursors() {
+    for (final Iterator<WeakReference<NotifyableMatrixCursor>> i = serverCursors.iterator(); i.hasNext();) {
+      final WeakReference<NotifyableMatrixCursor> reference = i.next();
+      final NotifyableMatrixCursor cursor = reference.get();
+      if (cursor != null)
+        cursor.onChange(false);
+      else
+        i.remove();
     }
   }
 }

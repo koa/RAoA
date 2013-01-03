@@ -167,11 +167,6 @@ public class AlbumImage {
     return new File(cacheDir, name);
   }
 
-  private File makeMetdataCacheFile() {
-    final String name = file.getName();
-    return new File(cacheDir, name + ".metadata");
-  }
-
   private void scaleImageDown(final File cachedFile) throws IOException, InterruptedException, IM4JavaException {
     final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.jpg");
     if (tempFile.exists())

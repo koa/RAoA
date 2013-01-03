@@ -26,13 +26,38 @@ public class Client {
     public static final String THUMBNAIL = "thumbnail";
   }
 
+  public static class ProgressEntry {
+    public static final String ID = "_id";
+    public static final String PROGRESS_ID = "progressId";
+    public static final String STEP_COUNT = "stepCount";
+    public static final String CURRENT_STEP_NR = "currentStepNr";
+    public static final String PROGRESS_DESCRIPTION = "progressDescription";
+    public static final String CURRENT_STATE_DESCRIPTION = "currentStateDescription";
+    public static final String PROGRESS_TYPE = "progressType";
+  }
+
+  public static class ServerEntry {
+    public static final String ID = "_id";
+    public static final String SERVER_ID = "serverId";
+    public static final String ARCHIVE_NAME = "archiveName";
+    public static final String SERVER_NAME = "serverName";
+  }
+
   public static final String AUTHORITY = "ch.bergturbenthal.image.provider";
   public static final Uri ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
+  public static final Uri SERVER_URI = Uri.parse("content://" + AUTHORITY + "/servers");
 
   public static Uri makeAlbumUri(final int albumId) {
     final Builder builder = ALBUM_URI.buildUpon();
     builder.appendPath(Integer.toString(albumId));
     builder.appendPath("entries");
+    return builder.build();
+  }
+
+  public static Uri makeServerProgressUri(final String serverId) {
+    final Builder builder = SERVER_URI.buildUpon();
+    builder.appendPath(serverId);
+    builder.appendPath("progress");
     return builder.build();
   }
 

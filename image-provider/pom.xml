@@ -1,4 +1,5 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>ch.bergturbenthal.image</groupId>
@@ -12,7 +13,8 @@
     <maven-compiler-plugin-version>2.3.2</maven-compiler-plugin-version>
     <java-version>1.6</java-version>
     <android-version>4.0.1.2</android-version>
-    <!-- Available Android versions: 1.5_r3, 1.5_r4, 1.6_r2, 2.1.2, 2.1_r1, 2.2.1, 2.3.1, 2.3.3, 4.0.1.2 -->
+    <!-- Available Android versions: 1.5_r3, 1.5_r4, 1.6_r2, 2.1.2, 2.1_r1, 
+      2.2.1, 2.3.1, 2.3.3, 4.0.1.2 -->
   </properties>
   <build>
     <finalName>${project.artifactId}</finalName>
@@ -47,29 +49,16 @@
           <downloadJavadocs>true</downloadJavadocs>
         </configuration>
       </plugin>
-    <!--   <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>exec-maven-plugin</artifactId>
-        <version>1.2.1</version>
-        <executions>
-          <execution>
-            <phase>process-classes</phase>
-            <goals>
-              <goal>java</goal>
-            </goals>
-            <configuration>
-              <mainClass>com.j256.ormlite.android.apptools.OrmLiteConfigUtil</mainClass>
-              <arguments>
-                <argument>ormlite_config.txt</argument>
-              </arguments>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin> -->
+      <!-- <plugin> <groupId>org.codehaus.mojo</groupId> <artifactId>exec-maven-plugin</artifactId> 
+        <version>1.2.1</version> <executions> <execution> <phase>process-classes</phase> 
+        <goals> <goal>java</goal> </goals> <configuration> <mainClass>com.j256.ormlite.android.apptools.OrmLiteConfigUtil</mainClass> 
+        <arguments> <argument>ormlite_config.txt</argument> </arguments> </configuration> 
+        </execution> </executions> </plugin> -->
     </plugins>
     <pluginManagement>
       <plugins>
-        <!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself. -->
+        <!--This plugin's configuration is used to store Eclipse m2e settings 
+          only. It has no influence on the Maven build itself. -->
         <plugin>
           <groupId>org.eclipse.m2e</groupId>
           <artifactId>lifecycle-mapping</artifactId>
@@ -117,10 +106,6 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>com.google.android</groupId>
-      <artifactId>support-v4</artifactId>
-    </dependency>
-    <dependency>
       <groupId>javax.jmdns</groupId>
       <artifactId>jmdns</artifactId>
     </dependency>
@@ -142,9 +127,9 @@
       <artifactId>ormlite-android</artifactId>
     </dependency>
     <dependency>
-    	<groupId>ch.bergturbenthal.image</groupId>
-    	<artifactId>image-provider-api</artifactId>
-    	<version>0.0.1-SNAPSHOT</version>
+      <groupId>ch.bergturbenthal.image</groupId>
+      <artifactId>image-provider-api</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
     </dependency>
   </dependencies>
   <packaging>apk</packaging>
