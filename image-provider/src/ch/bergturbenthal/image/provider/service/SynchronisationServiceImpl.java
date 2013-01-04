@@ -327,7 +327,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
               return cachedValue;
             try {
               final QueryBuilder<AlbumEntryEntity, Integer> builder = getAlbumEntryDao().queryBuilder();
-              builder.where().eq("album_id", value);
+              builder.where().eq("album_id", value).and().eq("deleted", Boolean.FALSE);
               builder.setCountOf(true);
               final Integer result = Integer.valueOf(builder.queryRawFirst()[0]);
               cachedCount.put(value, result);
@@ -604,7 +604,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         }
 
         for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
-          final AlbumEntryEntity existingEntry = existingEntries.get(albumImageEntry.getKey());
+          final AlbumEntryEntity existingEntry = existingEntries.remove(albumImageEntry.getKey());
           final AlbumEntryDto entryDto = albumImageEntry.getValue();
 
           if (existingEntry == null) {
@@ -624,8 +624,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             }
             notifyAlbumChanged(albumEntity.getId());
           } else {
-            if (!dateEquals(existingEntry.getCaptureDate(), entryDto.getCaptureDate()) && entryDto.getCaptureDate() != null) {
+            if (!dateEquals(existingEntry.getCaptureDate(), entryDto.getCaptureDate()) && entryDto.getCaptureDate() != null
+                || existingEntry.isDeleted()) {
               existingEntry.setCaptureDate(entryDto.getCaptureDate());
+              existingEntry.setDeleted(false);
               albumEntryDao.update(existingEntry);
               notifyAlbumChanged(albumEntity.getId());
             }
@@ -634,6 +636,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
               dateCount.incrementAndGet();
               dateSum.addAndGet(captureDate.getTime());
             }
+          }
+        }
+        // set remaining entries to deleted
+        for (final AlbumEntryEntity remainingEntry : existingEntries.values()) {
+          if (!remainingEntry.isDeleted()) {
+            remainingEntry.setDeleted(true);
+            albumEntryDao.update(remainingEntry);
+            notifyAlbumChanged(albumEntity.getId());
           }
         }
         final Date middleCaptureDate = dateCount.get() == 0 ? null : new Date(dateSum.longValue() / dateCount.longValue());

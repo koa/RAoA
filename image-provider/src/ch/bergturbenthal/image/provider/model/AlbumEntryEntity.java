@@ -25,6 +25,8 @@ public class AlbumEntryEntity {
   private Date lastModified;
   @DatabaseField
   private Date captureDate;
+  @DatabaseField
+  private boolean deleted;
 
   public AlbumEntryEntity(final AlbumEntity album, final String name, final String commId, final AlbumEntryType type, final Date lastModified,
                           final Date captureDate) {
@@ -34,6 +36,7 @@ public class AlbumEntryEntity {
     this.type = type;
     this.lastModified = lastModified;
     this.captureDate = captureDate;
+    deleted = false;
     this.id = -1;
   }
 
@@ -78,8 +81,16 @@ public class AlbumEntryEntity {
     return type;
   }
 
+  public boolean isDeleted() {
+    return deleted;
+  }
+
   public void setCaptureDate(final Date captureDate) {
     this.captureDate = captureDate;
+  }
+
+  public void setDeleted(final boolean deleted) {
+    this.deleted = deleted;
   }
 
   public void setLastModified(final Date lastModified) {
