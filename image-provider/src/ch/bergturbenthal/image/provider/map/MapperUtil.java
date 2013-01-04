@@ -83,7 +83,7 @@ public class MapperUtil {
     for (final Entry<String, String> entry : mappedFields.entrySet()) {
       final String objectFieldName = entry.getValue();
       final String targetFieldName = entry.getKey();
-      final String getterName = "get" + Character.toUpperCase(objectFieldName.charAt(0)) + objectFieldName.substring(0);
+      final String getterName = "get" + Character.toUpperCase(objectFieldName.charAt(0)) + objectFieldName.substring(1);
       try {
         final Method method = type.getMethod(getterName);
         appendMethodReader(ret, targetFieldName, method);
