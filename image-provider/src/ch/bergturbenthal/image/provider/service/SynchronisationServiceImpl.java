@@ -51,6 +51,7 @@ import android.util.Log;
 import android.util.Pair;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.data.model.state.Progress;
+import ch.bergturbenthal.image.data.model.state.ProgressType;
 import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.R;
@@ -417,19 +418,35 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           serverConnection = server;
       }
     }
+    if (serverConnection == null)
+      return null;
     final Collection<Progress> progressValues =
-                                                serverConnection == null ? Collections.<Progress> emptyList() : serverConnection.getServerState()
-                                                                                                                                .getProgress();
+                                                new ArrayList<Progress>(serverConnection == null ? Collections.<Progress> emptyList()
+                                                                                                : serverConnection.getServerState().getProgress());
+    final Progress dummyProgress = new Progress();
+    dummyProgress.setCurrentStepDescription("DummyStep");
+    dummyProgress.setCurrentStepNr(7);
+    dummyProgress.setStepCount(9);
+    dummyProgress.setProgressDescription("DummyProgress");
+    dummyProgress.setType(ProgressType.IMPORT_IMAGES);
+    dummyProgress.setProgressId(UUID.randomUUID().toString());
+    progressValues.add(dummyProgress);
 
     final Map<String, String> mappedFields = new HashMap<String, String>();
-    mappedFields.put(Client.ProgressEntry.ID, "progressId");
+    // mappedFields.put(Client.ProgressEntry.ID, "progressId");
     mappedFields.put(Client.ProgressEntry.STEP_COUNT, "stepCount");
     mappedFields.put(Client.ProgressEntry.CURRENT_STEP_NR, "currentStepNr");
     mappedFields.put(Client.ProgressEntry.PROGRESS_DESCRIPTION, "progressDescription");
     mappedFields.put(Client.ProgressEntry.CURRENT_STATE_DESCRIPTION, "currentStepDescription");
     mappedFields.put(Client.ProgressEntry.PROGRESS_TYPE, "type");
     final Map<String, FieldReader<Progress>> fieldReaders = MapperUtil.makeNamedFieldReaders(Progress.class, mappedFields);
+    fieldReaders.put(Client.ProgressEntry.ID, new NumericFieldReader<Progress>(Cursor.FIELD_TYPE_INTEGER) {
 
+      @Override
+      public Number getNumber(final Progress value) {
+        return Long.valueOf(makeLongId(value.getProgressId()));
+      }
+    });
     final NotifyableMatrixCursor cursor = MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders);
     serverCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
     return cursor;

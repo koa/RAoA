@@ -1,11 +1,6 @@
 package ch.bergturbenthal.image.provider.state;
 
-import android.app.ActionBar;
-import android.app.ActionBar.Tab;
 import android.app.Activity;
-import android.app.Fragment;
-import android.app.FragmentTransaction;
-import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.MenuItem;
@@ -20,40 +15,6 @@ import ch.bergturbenthal.image.provider.R;
  * a {@link ServerDetailFragment}.
  */
 public class ServerDetailActivity extends Activity {
-
-  private static class TabListener<T extends Fragment> implements ActionBar.TabListener {
-    private Fragment fragment;
-    private final Context context;
-    private final String tag;
-    private final Class<T> clz;
-
-    public TabListener(final Context context, final String tag, final Class<T> clz) {
-      this.context = context;
-      this.tag = tag;
-      this.clz = clz;
-    }
-
-    @Override
-    public void onTabReselected(final Tab tab, final FragmentTransaction ft) {
-      // User selected the already selected tab. Usually do nothing.
-    }
-
-    @Override
-    public void onTabSelected(final Tab tab, final FragmentTransaction ft) {
-      if (fragment == null) {
-        fragment = Fragment.instantiate(context, clz.getName());
-        ft.add(android.R.id.content, fragment, tag);
-      } else
-        ft.attach(fragment);
-    }
-
-    @Override
-    public void onTabUnselected(final Tab tab, final FragmentTransaction ft) {
-      if (fragment != null)
-        ft.detach(fragment);
-    }
-
-  }
 
   @Override
   public boolean onOptionsItemSelected(final MenuItem item) {
@@ -78,13 +39,7 @@ public class ServerDetailActivity extends Activity {
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-
-    final ActionBar actionBar = getActionBar();
-    actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_TABS);
-    actionBar.setDisplayShowTitleEnabled(false);
-    final Class<Fragment> clz;
-    actionBar.newTab().setText(R.string.server_progress)
-             .setTabListener(new TabListener<ServerDetailFragment>(getApplication(), "progress", ServerDetailFragment.class));
+    TabListener.initTabs(this, getIntent().getExtras());
 
     setContentView(R.layout.activity_server_detail);
 
@@ -107,7 +62,7 @@ public class ServerDetailActivity extends Activity {
       arguments.putString(ServerDetailFragment.ARG_ITEM_ID, getIntent().getStringExtra(ServerDetailFragment.ARG_ITEM_ID));
       final ServerDetailFragment fragment = new ServerDetailFragment();
       fragment.setArguments(arguments);
-      getFragmentManager().beginTransaction().add(R.id.server_detail_container, fragment).commit();
+      getFragmentManager().beginTransaction().add(R.id.server_detail_fragment, fragment).commit();
     }
   }
 }

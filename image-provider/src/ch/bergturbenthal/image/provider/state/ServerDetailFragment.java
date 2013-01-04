@@ -37,12 +37,21 @@ public class ServerDetailFragment extends Fragment {
   public void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
 
-    if (getArguments().containsKey(ARG_ITEM_ID)) {
-      // Load the dummy content specified by the fragment
-      // arguments. In a real-world scenario, use a Loader
-      // to load content from a content provider.
-      mItem = DummyContent.ITEM_MAP.get(getArguments().getString(ARG_ITEM_ID));
-    }
+    // final ActionBar actionBar = getActivity().getActionBar();
+    // actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_TABS);
+    // actionBar.setDisplayShowTitleEnabled(false);
+    // final Tab progressTab =
+    // actionBar.newTab().setText(R.string.server_progress)
+    // .setTabListener(new TabListener<ServerStateFragment>(getActivity(),
+    // "progress", ServerStateFragment.class));
+    // actionBar.addTab(progressTab);
+    // if (getArguments().containsKey(ARG_ITEM_ID)) {
+    // // Load the dummy content specified by the fragment
+    // // arguments. In a real-world scenario, use a Loader
+    // // to load content from a content provider.
+    // mItem = DummyContent.ITEM_MAP.get(getArguments().getString(ARG_ITEM_ID));
+    // }
+
   }
 
   @Override

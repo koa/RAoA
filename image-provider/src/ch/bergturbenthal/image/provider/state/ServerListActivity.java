@@ -40,9 +40,12 @@ public class ServerListActivity extends Activity implements ServerListFragment.C
       // fragment transaction.
       final Bundle arguments = new Bundle();
       arguments.putString(ServerDetailFragment.ARG_ITEM_ID, id);
-      final ServerDetailFragment fragment = new ServerDetailFragment();
-      fragment.setArguments(arguments);
-      getFragmentManager().beginTransaction().replace(R.id.server_detail_container, fragment).commit();
+
+      TabListener.initTabs(this, arguments);
+      // final ServerDetailFragment fragment = new ServerDetailFragment();
+      // fragment.setArguments(arguments);
+      // getFragmentManager().beginTransaction().replace(R.id.server_detail_fragment,
+      // fragment).commit();
 
     } else {
       // In single-pane mode, simply start the detail activity
@@ -58,7 +61,7 @@ public class ServerListActivity extends Activity implements ServerListFragment.C
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_server_list);
 
-    if (findViewById(R.id.server_detail_container) != null) {
+    if (findViewById(R.id.server_detail_fragment) != null) {
       // The detail container view will be present only in the
       // large-screen layouts (res/values-large and
       // res/values-sw600dp). If this view is present, then the

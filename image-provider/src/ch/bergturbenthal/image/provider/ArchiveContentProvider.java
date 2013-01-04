@@ -36,7 +36,7 @@ public class ArchiveContentProvider extends ContentProvider {
     ALBUM_ENTRY_THUMBNAIL,
     @Path("servers")
     SERVER_LIST,
-    @Path("servers/#/progress")
+    @Path("servers/*/progress")
     SERVER_PROGRESS_LIST
 
   }
@@ -156,10 +156,6 @@ public class ArchiveContentProvider extends ContentProvider {
 
     // TODO Auto-generated method stub
     return 0;
-  }
-
-  private Cursor readAlbumList(final String[] projection) {
-    return service.readAlbumList(projection);
   }
 
 }
