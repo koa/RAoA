@@ -39,6 +39,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import android.app.Notification;
+import android.app.Notification.Builder;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -54,7 +55,6 @@ import ch.bergturbenthal.image.data.model.state.Progress;
 import ch.bergturbenthal.image.data.model.state.ProgressType;
 import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.image.provider.Client;
-import ch.bergturbenthal.image.provider.R;
 import ch.bergturbenthal.image.provider.map.FieldReader;
 import ch.bergturbenthal.image.provider.map.MapperUtil;
 import ch.bergturbenthal.image.provider.map.NotifyableMatrixCursor;
@@ -90,7 +90,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   // Binder given to clients
   private final IBinder binder = new LocalBinder();
   private final static String SERVICE_TAG = "Synchronisation Service";
-  private static final String UPDATE_DB_NOTIFICATION = "UpdateDb";
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final Collection<WeakReference<NotifyableMatrixCursor>> serverCursors =
                                                                                   Collections.synchronizedList(new ArrayList<WeakReference<NotifyableMatrixCursor>>());
@@ -100,7 +99,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private MDnsListener dnsListener;
   private ScheduledThreadPoolExecutor executorService;
-  private final int NOTIFICATION = R.string.synchronisation_service_started;
+  private final int NOTIFICATION = 0;
 
   private NotificationManager notificationManager;
   private ScheduledFuture<?> slowUpdatePollingFuture = null;
@@ -115,7 +114,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private final Object updateLock = new Object();
 
   private final ThreadLocal<Boolean> albumListChanged = new ThreadLocal<Boolean>();
-  private ProgressNotification progressNotification = null;
   private ScheduledFuture<?> fastUpdatePollingFuture;
 
   @Override
@@ -187,7 +185,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       newConnectionMap.put(archiveId, connection);
     }
     connectionMap.set(newConnectionMap);
-    progressNotification.pollServerStates(newConnectionMap);
     updateAlbumsOnDB();
     Log.i(SERVICE_TAG, pingResponses.toString());
     updateServerCursors();
@@ -207,8 +204,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
     wrappedExecutorService = ExecutorServiceUtil.wrap(executorService);
-
-    progressNotification = new ProgressNotification(this);
 
     final ConnectionSource connectionSource = DatabaseHelper.makeConnectionSource(getApplicationContext());
     daoHolder = new DaoHolder(connectionSource);
@@ -512,6 +507,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return longId;
   }
 
+  private Builder makeNotificationBuilder() {
+    final PendingIntent intent =
+                                 PendingIntent.getActivity(getApplicationContext(), 0, new Intent(getApplicationContext(), ServerListActivity.class),
+                                                           0);
+    final Builder builder =
+                            new Notification.Builder(this).setContentTitle("Syncing").setSmallIcon(android.R.drawable.ic_dialog_info)
+                                                          .setContentIntent(intent);
+    return builder;
+  }
+
   private URL makeUrl(final InetSocketAddress inetSocketAddress) {
     try {
       return new URL("http", inetSocketAddress.getHostName(), inetSocketAddress.getPort(), "rest");
@@ -690,12 +695,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     running.set(true);
     Log.i(SERVICE_TAG, "Synchronisation started");
     dnsListener.startListening();
-    final PendingIntent intent =
-                                 PendingIntent.getActivity(getApplicationContext(), 0, new Intent(getApplicationContext(), ServerListActivity.class),
-                                                           0);
-    final Notification notification =
-                                      new Notification.Builder(this).setContentTitle("Syncing").setSmallIcon(android.R.drawable.ic_dialog_info)
-                                                                    .setContentIntent(intent).getNotification();
+    final Notification notification = makeNotificationBuilder().getNotification();
     notificationManager.notify(NOTIFICATION, notification);
     startSlowPolling();
   }
@@ -734,11 +734,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     final ConcurrentMap<String, Integer> visibleAlbumsOfArchive =
                                                                   putIfNotExists(visibleAlbums, archiveName, new ConcurrentHashMap<String, Integer>());
 
-    final Notification.Builder builder = new Notification.Builder(getApplicationContext());
-    builder.setContentTitle("DB Update").setSmallIcon(android.R.drawable.ic_dialog_info).setAutoCancel(false);
+    final Notification.Builder builder = makeNotificationBuilder();
+    builder.setContentTitle("DB Update");
     builder.setContentText("Downloading " + lastPart(albumName.split("/")) + " from " + archiveName);
     builder.setProgress(totalAlbumCount, albumCounter.incrementAndGet(), false);
-    notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
+    notificationManager.notify(NOTIFICATION, builder.getNotification());
 
     final Integer albumId = callInTransaction(new Callable<Integer>() {
 
@@ -764,22 +764,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       }
     });
     if (albumId != null)
-      executorService.schedule(new Runnable() {
-        @Override
-        public void run() {
-          refreshAlbumDetail(albumConnection, albumId);
-        }
-      }, 20, TimeUnit.SECONDS);
+      refreshAlbumDetail(albumConnection, albumId);
   }
 
   private void updateAlbumsOnDB() {
     synchronized (updateLock) {
 
       try {
-        final Notification.Builder builder = new Notification.Builder(getApplicationContext());
-        builder.setContentTitle("DB Update").setSmallIcon(android.R.drawable.ic_dialog_info).setContentText("Download in progress")
-               .setAutoCancel(false);
-        notificationManager.notify(UPDATE_DB_NOTIFICATION, NOTIFICATION, builder.getNotification());
+        final Notification.Builder builder = makeNotificationBuilder();
+        builder.setContentTitle("DB Update");
+        notificationManager.notify(NOTIFICATION, builder.getNotification());
 
         // remove invisible archives
         visibleAlbums.keySet().retainAll(connectionMap.get().keySet());
@@ -826,7 +820,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       } catch (final Throwable t) {
         Log.e(SERVICE_TAG, "Exception while updateing data", t);
       } finally {
-        notificationManager.cancel(UPDATE_DB_NOTIFICATION, NOTIFICATION);
+        notificationManager.notify(NOTIFICATION, makeNotificationBuilder().getNotification());
       }
     }
   }
