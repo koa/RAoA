@@ -1,7 +1,6 @@
 package ch.bergturbenthal.image.provider.service;
 
 import java.io.File;
-import java.lang.ref.WeakReference;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
@@ -13,7 +12,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -21,7 +19,6 @@ import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -57,7 +54,6 @@ import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.map.FieldReader;
 import ch.bergturbenthal.image.provider.map.MapperUtil;
-import ch.bergturbenthal.image.provider.map.NotifyableMatrixCursor;
 import ch.bergturbenthal.image.provider.map.NumericFieldReader;
 import ch.bergturbenthal.image.provider.map.StringFieldReader;
 import ch.bergturbenthal.image.provider.model.AlbumEntity;
@@ -91,8 +87,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private final IBinder binder = new LocalBinder();
   private final static String SERVICE_TAG = "Synchronisation Service";
   private final AtomicBoolean running = new AtomicBoolean(false);
-  private final Collection<WeakReference<NotifyableMatrixCursor>> serverCursors =
-                                                                                  Collections.synchronizedList(new ArrayList<WeakReference<NotifyableMatrixCursor>>());
   private final AtomicReference<Map<String, ArchiveConnection>> connectionMap =
                                                                                 new AtomicReference<Map<String, ArchiveConnection>>(
                                                                                                                                     Collections.<String, ArchiveConnection> emptyMap());
@@ -107,13 +101,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private File tempDir;
   private File thumbnailsDir;
   private DaoHolder daoHolder;
-  private final Collection<WeakReference<NotifyableMatrixCursor>> openCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableMatrixCursor>>();
-
   private final ConcurrentMap<String, ConcurrentMap<String, Integer>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, Integer>>();
 
   private final Object updateLock = new Object();
 
-  private final ThreadLocal<Boolean> albumListChanged = new ThreadLocal<Boolean>();
+  private final CursorNotification cursorNotifications = new CursorNotification();
   private ScheduledFuture<?> fastUpdatePollingFuture;
 
   @Override
@@ -288,9 +280,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           }
         });
 
-        final NotifyableMatrixCursor cursor = MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders);
-        openCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
-        return cursor;
+        return cursorNotifications.addSingleAlbumCursor(albumId, MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders));
       }
     });
   }
@@ -348,9 +338,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           }
         });
 
-        final NotifyableMatrixCursor cursor = MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders);
-        openCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
-        return cursor;
+        return cursorNotifications.addAllAlbumCursor(MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders));
       }
 
     });
@@ -396,9 +384,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       }
     });
 
-    final NotifyableMatrixCursor cursor = MapperUtil.loadCollectionIntoCursor(connections, projection, fieldReaders);
-    serverCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
-    return cursor;
+    return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(connections, projection, fieldReaders));
 
   }
 
@@ -442,18 +428,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         return Long.valueOf(makeLongId(value.getProgressId()));
       }
     });
-    final NotifyableMatrixCursor cursor = MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders);
-    serverCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
-    return cursor;
+    return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders));
   }
 
   private <V> V callInTransaction(final Callable<V> callable) {
-    albumListChanged.set(Boolean.FALSE);
-    final V ret = daoHolder.callInTransaction(callable);
-    final boolean albumChanges = albumListChanged.get().booleanValue();
-    if (albumChanges)
-      sendUpateOnCursors();
-    return ret;
+    return cursorNotifications.doWithNotify(callable);
   }
 
   private Iterable<Integer> collectVisibleAlbums() {
@@ -525,8 +504,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     }
   }
 
+  private void notifyAlbumChanged(final int id) {
+    cursorNotifications.notifySingleAlbumCursorChanged(id);
+  }
+
   private void notifyAlbumListChanged() {
-    albumListChanged.set(Boolean.TRUE);
+    cursorNotifications.notifyAllAlbumCursorsChanged();
   }
 
   private PingResponse pingService(final URL url) {
@@ -655,10 +638,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         return null;
       }
 
-      private void notifyAlbumChanged(final int id) {
-        // TODO Auto-generated method stub
-
-      }
     });
   }
 
@@ -673,18 +652,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         PowerStateReceiver.notifyPowerState(getApplicationContext());
       }
     }, 5, TimeUnit.SECONDS);
-  }
-
-  private void sendUpateOnCursors() {
-    for (final Iterator<WeakReference<NotifyableMatrixCursor>> cursorIterator = openCursors.iterator(); cursorIterator.hasNext();) {
-      final WeakReference<NotifyableMatrixCursor> ref = cursorIterator.next();
-      final NotifyableMatrixCursor cursor = ref.get();
-      if (cursor == null || cursor.isClosed()) {
-        cursorIterator.remove();
-        continue;
-      }
-      cursor.onChange(false);
-    }
   }
 
   private synchronized void startFastPolling() {
@@ -836,13 +803,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private void updateServerCursors() {
-    for (final Iterator<WeakReference<NotifyableMatrixCursor>> i = serverCursors.iterator(); i.hasNext();) {
-      final WeakReference<NotifyableMatrixCursor> reference = i.next();
-      final NotifyableMatrixCursor cursor = reference.get();
-      if (cursor != null)
-        cursor.onChange(false);
-      else
-        i.remove();
-    }
+    cursorNotifications.notifyAllAlbumCursorsChanged();
   }
 }
