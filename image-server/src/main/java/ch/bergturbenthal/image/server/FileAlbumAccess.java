@@ -832,7 +832,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       final boolean metaModified = repositoryService.sync(metaGit, remoteMetaDir, localName, remoteName, bare);
       if (metaModified)
         loadMetaConfig();
-      final ArchiveData remoteConfig = loadMetaConfigFile(new File(remoteMetaDir, "config.json"));
+      final ArchiveData remoteConfig = bare ? archiveData : loadMetaConfigFile(new File(remoteMetaDir, "config.json"));
       final Collection<File> existingAlbumsOnExternalDisk = findAlbums(path, bare);
       final Map<String, File> existingRemoteDirectories = new HashMap<>();
       final int basePathLength = path.getAbsolutePath().length() + 1;

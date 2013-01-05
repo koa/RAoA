@@ -83,7 +83,7 @@ public class CursorNotification {
     allAlbumCursorModified.set(Boolean.TRUE);
   }
 
-  public void notifyServerStateModifies() {
+  public void notifyServerStateModified() {
     notifyCursors(stateCursors);
   }
 

@@ -1,5 +1,8 @@
 package ch.bergturbenthal.image.provider.state;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import android.app.Activity;
 import android.app.ListFragment;
 import android.app.LoaderManager.LoaderCallbacks;
@@ -12,15 +15,22 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CursorAdapter;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.ResourceCursorAdapter;
 import android.widget.TextView;
+import ch.bergturbenthal.image.data.model.state.ProgressType;
 import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.R;
 
 public class ServerStateFragment extends ListFragment {
 
   private CursorAdapter adapter;
+
+  private static final Map<String, Integer> iconMap = new HashMap<String, Integer>();
+  static {
+    iconMap.put(ProgressType.REFRESH_ALBUM.name(), android.R.drawable.ic_popup_sync);
+  }
 
   @Override
   public void onCreate(final Bundle savedInstanceState) {
@@ -37,11 +47,14 @@ public class ServerStateFragment extends ListFragment {
 
       @Override
       public void bindView(final View view, final Context context, final Cursor cursor) {
-        ((TextView) view.findViewById(R.id.progress_item_title)).setText(cursor.getString(cursor.getColumnIndex(Client.ProgressEntry.PROGRESS_TYPE)));
-        ((TextView) view.findViewById(R.id.progress_item_description)).setText(cursor.getString(cursor.getColumnIndex(Client.ProgressEntry.PROGRESS_DESCRIPTION)));
+        ((TextView) view.findViewById(R.id.progress_item_title)).setText(cursor.getString(cursor.getColumnIndex(Client.ProgressEntry.PROGRESS_DESCRIPTION)));
+        ((TextView) view.findViewById(R.id.progress_item_description)).setText(cursor.getString(cursor.getColumnIndex(Client.ProgressEntry.CURRENT_STATE_DESCRIPTION)));
         final ProgressBar progressBar = (ProgressBar) view.findViewById(R.id.progress_item_progress);
         progressBar.setProgress(cursor.getInt(cursor.getColumnIndex(Client.ProgressEntry.CURRENT_STEP_NR)));
         progressBar.setMax(cursor.getInt(cursor.getColumnIndex(Client.ProgressEntry.STEP_COUNT)));
+        final Integer alternateIcon = iconMap.get(cursor.getString(cursor.getColumnIndex(Client.ProgressEntry.PROGRESS_TYPE)));
+        if (alternateIcon != null)
+          ((ImageView) view.findViewById(R.id.progress_item_icon)).setImageResource(alternateIcon.intValue());
       }
 
     };

@@ -283,9 +283,7 @@ public class RepositoryServiceImpl implements RepositoryService {
       }
 
       return localModified;
-    } catch (final GitAPIException e) {
-      throw new RuntimeException("Cannot sync " + localRepository.getRepository() + " to " + externalDir, e);
-    } catch (final IOException e) {
+    } catch (final Throwable e) {
       throw new RuntimeException("Cannot sync " + localRepository.getRepository() + " to " + externalDir, e);
     }
   }

@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -103,10 +104,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private DaoHolder daoHolder;
   private final ConcurrentMap<String, ConcurrentMap<String, Integer>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, Integer>>();
 
-  private final Object updateLock = new Object();
-
   private final CursorNotification cursorNotifications = new CursorNotification();
   private ScheduledFuture<?> fastUpdatePollingFuture;
+
+  private final Semaphore updateLockSempahore = new Semaphore(1);
 
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
@@ -177,9 +178,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       newConnectionMap.put(archiveId, connection);
     }
     connectionMap.set(newConnectionMap);
-    updateAlbumsOnDB();
-    Log.i(SERVICE_TAG, pingResponses.toString());
     updateServerCursors();
+    executorService.submit(new Runnable() {
+
+      @Override
+      public void run() {
+        updateAlbumsOnDB();
+      }
+    });
+    Log.i(SERVICE_TAG, pingResponses.toString());
   }
 
   @Override
@@ -498,7 +505,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private URL makeUrl(final InetSocketAddress inetSocketAddress) {
     try {
-      return new URL("http", inetSocketAddress.getHostName(), inetSocketAddress.getPort(), "rest");
+      return new URL("http", inetSocketAddress.getAddress().getHostAddress(), inetSocketAddress.getPort(), "rest");
     } catch (final MalformedURLException e) {
       throw new RuntimeException("Cannot create URL for Socket " + inetSocketAddress, e);
     }
@@ -545,9 +552,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private void pollServers() {
-    final MDnsListener listener = dnsListener;
-    if (listener != null) {
-      listener.pollForServices(true);
+    try {
+      final MDnsListener listener = dnsListener;
+      if (listener != null) {
+        listener.pollForServices(true);
+      }
+    } catch (final Throwable t) {
+      Log.w(SERVICE_TAG, "Exception while polling", t);
     }
   }
 
@@ -745,8 +756,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private void updateAlbumsOnDB() {
-    synchronized (updateLock) {
-
+    final boolean hasLock = updateLockSempahore.tryAcquire();
+    if (hasLock) {
       try {
         final Notification.Builder builder = makeNotificationBuilder();
         builder.setContentTitle("DB Update");
@@ -797,12 +808,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       } catch (final Throwable t) {
         Log.e(SERVICE_TAG, "Exception while updateing data", t);
       } finally {
+        updateLockSempahore.release();
         notificationManager.notify(NOTIFICATION, makeNotificationBuilder().getNotification());
       }
     }
   }
 
   private void updateServerCursors() {
-    cursorNotifications.notifyAllAlbumCursorsChanged();
+    cursorNotifications.notifyServerStateModified();
   }
 }

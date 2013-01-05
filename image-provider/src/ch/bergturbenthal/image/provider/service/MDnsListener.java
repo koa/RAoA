@@ -51,16 +51,16 @@ public class MDnsListener {
 
       @Override
       public void run() {
+        final HashSet<InetSocketAddress> foundEndpoints = new HashSet<InetSocketAddress>();
         synchronized (MDnsListener.this) {
-          final HashSet<InetSocketAddress> foundEndpoints = new HashSet<InetSocketAddress>();
-          final ServiceInfo[] serviceInfos = jmmDNS.list(SERVICE_NAME_URL, 1500);
+          final ServiceInfo[] serviceInfos = jmmDNS.list(SERVICE_NAME_URL, 200);
           for (final ServiceInfo serviceInfo : serviceInfos) {
             for (final InetAddress hostAddress : serviceInfo.getInetAddresses()) {
               foundEndpoints.add(new InetSocketAddress(hostAddress, serviceInfo.getPort()));
             }
           }
-          resultListener.notifyServices(foundEndpoints, withProgressUpdate);
         }
+        resultListener.notifyServices(foundEndpoints, withProgressUpdate);
       }
     }, 2, TimeUnit.SECONDS);
   }

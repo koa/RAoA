@@ -1,0 +1,6 @@
+<resources>
+    <string name="server_progress">Aktueller Fortschritt</string>
+    <string name="synchronisation_service_started">Synchronisiere</string>
+    <string name="title_server_detail">Details</string>
+    <string name="title_server_list">Server</string>
+</resources>
