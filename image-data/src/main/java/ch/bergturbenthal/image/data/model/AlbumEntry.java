@@ -14,6 +14,7 @@ public class AlbumEntry {
   private String name;
   private final Collection<String> clients = new ArrayList<String>();
   private Date lastModified;
+  private long repositorySize;
 
   public AlbumEntry(final String id, final String name) {
     this.id = id;

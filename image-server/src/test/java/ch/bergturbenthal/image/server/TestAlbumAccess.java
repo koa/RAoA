@@ -85,7 +85,7 @@ public class TestAlbumAccess {
           }
         });
       }
-      System.out.println("- " + album + ":" + album.totalSize());
+      System.out.println("- " + album + ":" + album.getRepositorySize());
     }
     executorService.invokeAll(runnables);
   }

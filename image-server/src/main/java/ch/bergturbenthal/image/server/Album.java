@@ -86,25 +86,22 @@ public class Album {
 
   }
 
-  private static String CACHE_DIR = ".servercache";
   private static String AUTOADD_FILE = ".autoadd";
+  private static String CACHE_DIR = ".servercache";
   private static String INDEX_FILE = ".index";
+  private static Logger logger = LoggerFactory.getLogger(Album.class);
+  private static ObjectMapper mapper = new ObjectMapper();
+  private final ConcurrentMap<String, AlbumEntryData> albumMetadataCache = new ConcurrentHashMap<String, AlbumEntryData>();
   private final File baseDir;
   private long cachedImages = 0;
-  private SoftReference<Map<String, AlbumImage>> images = null;
   private final File cacheDir;
-  private Collection<ImportEntry> importEntries = null;
-  private final String[] nameComps;
   private final Git git;
-
-  private final RepositoryService repositoryService;
-
-  private static Logger logger = LoggerFactory.getLogger(Album.class);
-
-  private final ConcurrentMap<String, AlbumEntryData> albumMetadataCache = new ConcurrentHashMap<String, AlbumEntryData>();
+  private SoftReference<Map<String, AlbumImage>> images = null;
+  private Collection<ImportEntry> importEntries = null;
   private final AtomicBoolean metadataModified = new AtomicBoolean(false);
-
-  private static ObjectMapper mapper = new ObjectMapper();
+  private final String[] nameComps;
+  private final RepositoryService repositoryService;
+  private Long repositorySize = null;
 
   private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
 
@@ -221,6 +218,19 @@ public class Album {
     return git.getRepository();
   }
 
+  public long getRepositorySize() {
+    while (true) {
+      final Long size = repositorySize;
+      if (size != null) {
+        return size.longValue();
+      }
+      synchronized (this) {
+        if (repositorySize == null)
+          repositorySize = Long.valueOf(FileUtils.sizeOfDirectory(git.getRepository().getDirectory()));
+      }
+    }
+  }
+
   public boolean importImage(final File imageFile, final Date createDate) {
     if (!imageFile.exists())
       return false;
@@ -290,6 +300,7 @@ public class Album {
 
   public synchronized void pull(final String remoteUri, final String serverName) {
     repositoryService.pull(git, remoteUri, serverName);
+    repositorySize = null;
   }
 
   public synchronized void setAutoAddBeginDate(final Date date) {
@@ -308,19 +319,12 @@ public class Album {
 
   public synchronized void sync(final File remoteDir, final String localName, final String remoteName, final boolean bare) {
     repositoryService.sync(git, remoteDir, localName, remoteName, bare);
+    repositorySize = null;
   }
 
   @Override
   public String toString() {
     return "Album [" + getName() + "]";
-  }
-
-  public synchronized long totalSize() {
-    long size = 0;
-    for (final AlbumImage image : loadImages().values()) {
-      size += image.readSize();
-    }
-    return size;
   }
 
   /**

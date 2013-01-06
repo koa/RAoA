@@ -210,10 +210,4 @@
 			<url>http://www.berg-turbenthal.ch/nexus/content/repositories/thirdparty/</url>
 		</repository>
 	</repositories>
-	<dependencies>
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-		</dependency>
-	</dependencies>
 </project>

@@ -10,20 +10,25 @@ public class Client {
     public static final String AUTOADD_DATE = "autoAddDate";
     public static final String ENTRY_COUNT = "entryCount";
     public static final String FULL_NAME = "fullName";
-    public static final String ID = "_ID";
+    public static final String ID = "_id";
     public static final String NAME = "name";
     public static final String SHOULD_SYNC = "shouldSync";
     public static final String SYNCED = "synced";
     public static final String THUMBNAIL = "thumbnail";
+    public static final String REPOSITORY_SIZE = "repositorySize";
+    public static final String ORIGINALS_SIZE = "originalsSize";
+    public static final String THUMBNAILS_SIZE = "thumbnailsSize";
   }
 
   public static class AlbumEntry {
     public static final String CAPTURE_DATE = "captureDate";
     public static final String ENTRY_TYPE = "entryType";
-    public static final String ID = "_ID";
+    public static final String ID = "_id";
     public static final String LAST_MODIFIED = "lastModified";
     public static final String NAME = "fileName";
     public static final String THUMBNAIL = "thumbnail";
+    public static final String ORIGINAL_SIZE = "originalSize";
+    public static final String THUMBNAIL_SIZE = "thumbnailSize";
   }
 
   public static class ProgressEntry {

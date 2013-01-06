@@ -27,6 +27,10 @@ public class AlbumEntryEntity {
   private Date captureDate;
   @DatabaseField
   private boolean deleted;
+  @DatabaseField
+  private long originalSize;
+  @DatabaseField
+  private long thumbnailSize;
 
   public AlbumEntryEntity(final AlbumEntity album, final String name, final String commId, final AlbumEntryType type, final Date lastModified,
                           final Date captureDate) {
@@ -76,6 +80,16 @@ public class AlbumEntryEntity {
     return name;
   }
 
+  @CursorField(Client.AlbumEntry.ORIGINAL_SIZE)
+  public long getOriginalSize() {
+    return originalSize;
+  }
+
+  @CursorField(Client.AlbumEntry.THUMBNAIL_SIZE)
+  public long getThumbnailSize() {
+    return thumbnailSize;
+  }
+
   @CursorField(Client.AlbumEntry.ENTRY_TYPE)
   public AlbumEntryType getType() {
     return type;
@@ -95,6 +109,14 @@ public class AlbumEntryEntity {
 
   public void setLastModified(final Date lastModified) {
     this.lastModified = lastModified;
+  }
+
+  public void setOriginalSize(final long originalSize) {
+    this.originalSize = originalSize;
+  }
+
+  public void setThumbnailSize(final long thumbnailSize) {
+    this.thumbnailSize = thumbnailSize;
   }
 
 }

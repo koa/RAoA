@@ -68,6 +68,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     ret.getClients().addAll(albumAccess.clientsPerAlbum(albumid));
     ret.setAutoAddDate(album.getAutoAddBeginDate());
     ret.setLastModified(album.getLastModified());
+    ret.setRepositorySize(album.getRepositorySize());
     final Map<String, AlbumImage> images = album.listImages();
     for (final Entry<String, AlbumImage> albumImageEntry : images.entrySet()) {
       final AlbumImageEntry entry = new AlbumImageEntry();
@@ -98,6 +99,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
       final Album album = entry.getValue();
       final AlbumEntry albumEntry = new AlbumEntry(entry.getKey(), album.getName());
       albumEntry.setLastModified(album.getLastModified());
+      albumEntry.setRepositorySize(album.getRepositorySize());
       albumEntry.getClients().addAll(albumAccess.clientsPerAlbum(entry.getKey()));
       albumNames.add(albumEntry);
     }
@@ -206,6 +208,8 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     entry.setName(albumImage.getName());
     entry.setVideo(albumImage.isVideo());
     entry.setLastModified(albumImage.lastModified());
+    entry.setOriginalFileSize(albumImage.getOriginalFileSize());
+    entry.setThumbnailFileSize(albumImage.getThumbnail().length());
     try {
       entry.setCaptureDate(albumImage.captureDate());
     } catch (final RuntimeException ex) {

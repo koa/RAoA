@@ -171,6 +171,8 @@ public class ArchiveConnection {
           dtoEntry.setLastModified(entry.getLastModified());
           dtoEntry.setCaptureDate(entry.getCaptureDate());
           dtoEntry.setCommId(entry.getId());
+          dtoEntry.setOriginalFileSize(entry.getOriginalFileSize());
+          dtoEntry.setThumbnailSize(entry.getThumbnailFileSize());
         }
       });
     }

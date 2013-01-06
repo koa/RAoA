@@ -78,6 +78,10 @@ public class AlbumImage {
     return file.getName();
   }
 
+  public long getOriginalFileSize() {
+    return file.length();
+  }
+
   public File getThumbnail() {
     try {
       final File cachedFile = makeCachedFile();
@@ -117,10 +121,6 @@ public class AlbumImage {
 
   public Date lastModified() {
     return lastModified;
-  }
-
-  public long readSize() {
-    return file.length();
   }
 
   @Override

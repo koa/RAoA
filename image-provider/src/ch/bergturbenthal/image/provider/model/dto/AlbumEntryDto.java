@@ -5,10 +5,12 @@ import java.util.Date;
 import ch.bergturbenthal.image.provider.model.AlbumEntryType;
 
 public class AlbumEntryDto {
-  private Date lastModified;
-  private AlbumEntryType entryType;
   private Date captureDate;
   private String commId;
+  private AlbumEntryType entryType;
+  private Date lastModified;
+  private long originalFileSize;
+  private long thumbnailSize;
 
   /**
    * Returns the captureDate.
@@ -31,6 +33,14 @@ public class AlbumEntryDto {
     return lastModified;
   }
 
+  public long getOriginalFileSize() {
+    return originalFileSize;
+  }
+
+  public long getThumbnailSize() {
+    return thumbnailSize;
+  }
+
   /**
    * Sets the captureDate.
    * 
@@ -51,6 +61,14 @@ public class AlbumEntryDto {
 
   public void setLastModified(final Date lastModified) {
     this.lastModified = lastModified;
+  }
+
+  public void setOriginalFileSize(final long originalFileSize) {
+    this.originalFileSize = originalFileSize;
+  }
+
+  public void setThumbnailSize(final long thumbnailSize) {
+    this.thumbnailSize = thumbnailSize;
   }
 
 }

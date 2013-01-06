@@ -11,5 +11,7 @@ public class AlbumImageEntry {
   private boolean isVideo;
   private Date lastModified;
   private Date captureDate;
+  private long originalFileSize;
+  private long thumbnailFileSize;
 
 }

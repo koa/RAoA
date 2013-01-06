@@ -50,6 +50,8 @@ public class AlbumEntity {
   private AlbumEntryEntity thumbnail;
   @DatabaseField
   private Date lastModified;
+  @DatabaseField
+  private long repositorySize;
 
   public AlbumEntity(final ArchiveEntity archive, final String name, final String commId) {
     this.archive = archive;
@@ -114,6 +116,10 @@ public class AlbumEntity {
     return name;
   }
 
+  public long getRepositorySize() {
+    return repositorySize;
+  }
+
   public boolean getSyncThumbnails() {
     return syncThumbnails;
   }
@@ -142,6 +148,10 @@ public class AlbumEntity {
 
   public void setLastModified(final Date lastModified) {
     this.lastModified = lastModified;
+  }
+
+  public void setRepositorySize(final long repositorySize) {
+    this.repositorySize = repositorySize;
   }
 
   public void setShouldSync(final boolean shouldSync) {

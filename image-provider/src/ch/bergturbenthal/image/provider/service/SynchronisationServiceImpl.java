@@ -7,7 +7,6 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -17,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
-import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -68,6 +66,7 @@ import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
 import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.image.provider.state.ServerListActivity;
 
+import com.j256.ormlite.dao.GenericRawResults;
 import com.j256.ormlite.dao.RuntimeExceptionDao;
 import com.j256.ormlite.stmt.QueryBuilder;
 import com.j256.ormlite.support.ConnectionSource;
@@ -276,11 +275,29 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
       @Override
       public Cursor call() throws Exception {
-        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-        final QueryBuilder<AlbumEntity, Integer> queryBuilder = albumDao.queryBuilder();
-        queryBuilder.orderBy("albumCaptureDate", false);
+        final Iterable<Integer> visibleAlbums = collectVisibleAlbums();
 
-        queryBuilder.where().eq("synced", Boolean.TRUE).or().in("id", collectVisibleAlbums());
+        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+        final QueryBuilder<AlbumEntity, Integer> albumEntityBuilder = albumDao.queryBuilder();
+        albumEntityBuilder.orderBy("albumCaptureDate", false);
+        albumEntityBuilder.where().eq("synced", Boolean.TRUE).or().in("id", visibleAlbums);
+
+        final List<AlbumEntity> albums = albumEntityBuilder.query();
+
+        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
+
+        final QueryBuilder<AlbumEntryEntity, Integer> summaryFieldsBuilder = albumEntryDao.queryBuilder();
+        summaryFieldsBuilder.where().in("album_id", albums);
+        summaryFieldsBuilder.groupBy("album_id");
+        summaryFieldsBuilder.selectRaw("album_id", "count(*)", "sum(originalSize)", "sum(thumbnailSize)");
+
+        final String statement = summaryFieldsBuilder.prepare().getStatement();
+
+        final GenericRawResults<String[]> summaryRows = albumEntryDao.queryRaw(statement);
+        final Map<String, String[]> summaryResult = new HashMap<String, String[]>();
+        for (final String[] resultRow : summaryRows.getResults()) {
+          summaryResult.put(resultRow[0], resultRow);
+        }
 
         final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
         fieldReaders.put(Client.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
@@ -292,24 +309,30 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           }
         });
         fieldReaders.put(Client.Album.ENTRY_COUNT, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
-
-          private final WeakHashMap<AlbumEntity, Integer> cachedCount = new WeakHashMap<AlbumEntity, Integer>();
-
           @Override
           public Number getNumber(final AlbumEntity value) {
-            final Integer cachedValue = cachedCount.get(value);
-            if (cachedValue != null)
-              return cachedValue;
-            try {
-              final QueryBuilder<AlbumEntryEntity, Integer> builder = getAlbumEntryDao().queryBuilder();
-              builder.where().eq("album_id", value).and().eq("deleted", Boolean.FALSE);
-              builder.setCountOf(true);
-              final Integer result = Integer.valueOf(builder.queryRawFirst()[0]);
-              cachedCount.put(value, result);
-              return result;
-            } catch (final SQLException e) {
-              throw new RuntimeException("Cannot count entries of Album" + value, e);
-            }
+            final String values[] = summaryResult.get(String.valueOf(value.getId()));
+            if (values == null)
+              return Integer.valueOf(0);
+            return Integer.valueOf(values[1]);
+          }
+        });
+        fieldReaders.put(Client.Album.ORIGINALS_SIZE, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
+          @Override
+          public Number getNumber(final AlbumEntity value) {
+            final String[] sizeValue = summaryResult.get(String.valueOf(value.getId()));
+            if (sizeValue == null)
+              return Long.valueOf(0);
+            return Long.valueOf(sizeValue[2]);
+          }
+        });
+        fieldReaders.put(Client.Album.THUMBNAILS_SIZE, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
+          @Override
+          public Number getNumber(final AlbumEntity value) {
+            final String[] sizeValue = summaryResult.get(String.valueOf(value.getId()));
+            if (sizeValue == null)
+              return Long.valueOf(0);
+            return Long.valueOf(sizeValue[3]);
           }
         });
         fieldReaders.put(Client.Album.THUMBNAIL, new StringFieldReader<AlbumEntity>() {
@@ -323,7 +346,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           }
         });
 
-        return cursorNotifications.addAllAlbumCursor(MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders));
+        return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(albums, projection, fieldReaders));
       }
 
     });
@@ -497,7 +520,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         return filename.endsWith(THUMBNAIL_SUFFIX);
       }
     })) {
-      thumbnailCache.get(Integer.valueOf(filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length())));
+      final File loadedFile = thumbnailCache.get(Integer.valueOf(filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length())));
+      // delete obsolete cache-entry
+      if (loadedFile == null) {
+        new File(thumbnailsDir, filename).delete();
+      }
     }
   }
 
@@ -655,7 +682,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         for (final AlbumEntryEntity albumEntryEntity : entries) {
           existingEntries.put(albumEntryEntity.getName(), albumEntryEntity);
         }
-
+        AlbumEntryEntity thumbnailCandidate = null;
         for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
           final AlbumEntryEntity existingEntry = existingEntries.remove(albumImageEntry.getKey());
           final AlbumEntryDto entryDto = albumImageEntry.getValue();
@@ -665,22 +692,25 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
                                                       new AlbumEntryEntity(albumEntity, albumImageEntry.getKey(), entryDto.getCommId(),
                                                                            entryDto.getEntryType(), entryDto.getLastModified(),
                                                                            entryDto.getCaptureDate());
+            albumEntryEntity.setOriginalSize(entryDto.getOriginalFileSize());
+            albumEntryEntity.setThumbnailSize(entryDto.getThumbnailSize());
             albumEntryDao.create(albumEntryEntity);
             if (albumEntryEntity.getCaptureDate() != null) {
               dateCount.incrementAndGet();
               dateSum.addAndGet(albumEntryEntity.getCaptureDate().getTime());
             }
-            if (albumEntity.getThumbnail() == null) {
-              albumEntity.setThumbnail(albumEntryEntity);
-              albumDao.update(albumEntity);
-              notifyAlbumListChanged();
+            if (thumbnailCandidate == null) {
+              thumbnailCandidate = albumEntryEntity;
             }
             notifyAlbumChanged(albumEntity.getId());
           } else {
             if (!dateEquals(existingEntry.getCaptureDate(), entryDto.getCaptureDate()) && entryDto.getCaptureDate() != null
-                || existingEntry.isDeleted()) {
+                || existingEntry.getOriginalSize() != entryDto.getOriginalFileSize()
+                || existingEntry.getThumbnailSize() != entryDto.getThumbnailSize() || existingEntry.isDeleted()) {
               existingEntry.setCaptureDate(entryDto.getCaptureDate());
               existingEntry.setDeleted(false);
+              existingEntry.setOriginalSize(entryDto.getOriginalFileSize());
+              existingEntry.setThumbnailSize(entryDto.getThumbnailSize());
               albumEntryDao.update(existingEntry);
               notifyAlbumChanged(albumEntity.getId());
             }
@@ -699,9 +729,18 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             notifyAlbumChanged(albumEntity.getId());
           }
         }
+        boolean findNewThumbnail;
+        final AlbumEntryEntity thumbnail = albumEntity.getThumbnail();
+        if (thumbnail != null) {
+          albumEntryDao.refresh(thumbnail);
+          findNewThumbnail = thumbnail.isDeleted();
+        } else
+          findNewThumbnail = true;
         final Date middleCaptureDate = dateCount.get() == 0 ? null : new Date(dateSum.longValue() / dateCount.longValue());
-        if (!dateEquals(middleCaptureDate, albumEntity.getAlbumCaptureDate())) {
+        if (!dateEquals(middleCaptureDate, albumEntity.getAlbumCaptureDate()) || findNewThumbnail && thumbnailCandidate != null) {
           albumEntity.setAlbumCaptureDate(middleCaptureDate);
+          if (findNewThumbnail && thumbnailCandidate != null)
+            albumEntity.setThumbnail(thumbnailCandidate);
           albumDao.update(albumEntity);
           notifyAlbumListChanged();
         }
