@@ -251,7 +251,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       @Override
       public Cursor call() throws Exception {
         final QueryBuilder<AlbumEntryEntity, Integer> queryBuilder = getAlbumEntryDao().queryBuilder();
-        queryBuilder.where().eq("album_id", getAlbumDao().queryForId(Integer.valueOf(albumId)));
+        queryBuilder.where().eq("album_id", getAlbumDao().queryForId(Integer.valueOf(albumId))).and().eq("deleted", Boolean.FALSE);
         queryBuilder.orderBy("captureDate", true);
 
         final Map<String, FieldReader<AlbumEntryEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryEntity.class);
@@ -287,7 +287,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
 
         final QueryBuilder<AlbumEntryEntity, Integer> summaryFieldsBuilder = albumEntryDao.queryBuilder();
-        summaryFieldsBuilder.where().in("album_id", albums);
+        summaryFieldsBuilder.where().in("album_id", albums).and().eq("deleted", Boolean.FALSE);
         summaryFieldsBuilder.groupBy("album_id");
         summaryFieldsBuilder.selectRaw("album_id", "count(*)", "sum(originalSize)", "sum(thumbnailSize)");
 
@@ -704,6 +704,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             }
             notifyAlbumChanged(albumEntity.getId());
           } else {
+            if (thumbnailCandidate == null)
+              thumbnailCandidate = existingEntry;
             if (!dateEquals(existingEntry.getCaptureDate(), entryDto.getCaptureDate()) && entryDto.getCaptureDate() != null
                 || existingEntry.getOriginalSize() != entryDto.getOriginalFileSize()
                 || existingEntry.getThumbnailSize() != entryDto.getThumbnailSize() || existingEntry.isDeleted()) {

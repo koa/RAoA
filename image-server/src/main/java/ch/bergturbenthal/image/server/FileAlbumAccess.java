@@ -51,6 +51,7 @@ import javax.jmdns.ServiceListener;
 
 import lombok.Cleanup;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
@@ -860,8 +861,19 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
         final Album localAlbumForRemote = existingLocalAlbums.get(albumName);
         final File remoteDir = existingRemoteDirectories.get(albumName);
         if (localAlbumForRemote == null) {
-          if (remoteDir != null)
-            appendAlbum(loadedAlbums, new File(getBaseDir(), albumName), remoteDir.toURI().toString(), remoteName);
+          if (remoteDir != null) {
+            final File albumDir = new File(getBaseDir(), albumName);
+            try {
+              appendAlbum(loadedAlbums, albumDir, remoteDir.toURI().toString(), remoteName);
+            } catch (final Exception e) {
+              logger.warn("Cannot read Repository " + path, e);
+              // cleanup failed repository
+              for (final File file : (Collection<File>) FileUtils.listFiles(albumDir, null, true)) {
+                file.setWritable(true, false);
+              }
+              FileUtils.deleteDirectory(albumDir);
+            }
+          }
         } else {
           localAlbumForRemote.sync(new File(path, makeRepositoryDirectoryName(bare, albumName)), localName, remoteName, bare);
         }

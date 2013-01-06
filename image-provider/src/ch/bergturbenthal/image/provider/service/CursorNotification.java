@@ -96,7 +96,7 @@ public class CursorNotification {
       final WeakReference<NotifyableMatrixCursor> reference = i.next();
       final NotifyableMatrixCursor cursor = reference.get();
       if (cursor != null)
-        cursor.onChange(true);
+        cursor.onChange(false);
       else
         i.remove();
     }
