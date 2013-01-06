@@ -29,7 +29,8 @@ public class ServerStateFragment extends ListFragment {
 
   private static final Map<String, Integer> iconMap = new HashMap<String, Integer>();
   static {
-    iconMap.put(ProgressType.REFRESH_ALBUM.name(), android.R.drawable.ic_popup_sync);
+    iconMap.put(ProgressType.REFRESH_THUMBNAIL.name(), android.R.drawable.ic_popup_sync);
+    iconMap.put(ProgressType.SYNC_LOCAL_DISC.name(), R.drawable.storage_icon);
   }
 
   @Override

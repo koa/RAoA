@@ -25,6 +25,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -75,6 +76,7 @@ import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.image.server.model.ArchiveData;
 import ch.bergturbenthal.image.server.state.ProgressHandler;
 import ch.bergturbenthal.image.server.state.StateManager;
+import ch.bergturbenthal.image.server.util.ConcurrentUtil;
 import ch.bergturbenthal.image.server.util.RepositoryService;
 import ch.bergturbenthal.image.server.watcher.FileNotification;
 import ch.bergturbenthal.image.server.watcher.FileWatcher;
@@ -120,6 +122,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private FileWatcher fileWatcher = null;
 
   private final Semaphore updateAlbumListSemaphore = new Semaphore(1);
+  private final Semaphore refreshThumbnailsSemaphore = new Semaphore(1);
 
   @Override
   public Collection<String> clientsPerAlbum(final String albumId) {
@@ -254,7 +257,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
           logger.error("Cannot delete File " + file);
       }
     } finally {
-      refreshCache();
+      refreshCache(true);
     }
   }
 
@@ -352,7 +355,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
 
         @Override
         public void run() {
-          refreshCache();
+          refreshCache(false);
         }
       });
   }
@@ -419,7 +422,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       @Override
       public void run() {
         try {
-          refreshCache();
+          refreshCache(false);
         } catch (final Throwable t) {
           logger.warn("Exception while refreshing thumbnails", t);
         }
@@ -707,7 +710,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
 
   private void pollCurrentKnownPeers() {
     processFoundServices(jmmDNS.list(SERVICE_TYPE));
-    refreshCache();
+    refreshCache(true);
   }
 
   private synchronized void processFoundServices(final ServiceInfo[] services) {
@@ -750,53 +753,62 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     setInstanceName(preferences.get(INSTANCE_NAME_PREFERENCE, makeDefaultInstanceName()));
   }
 
-  private void refreshCache() {
-    try {
-      final AtomicInteger imageCount = new AtomicInteger();
-      // limit the queue size for take not too much memory
-      final Semaphore queueLimitSemaphore = new Semaphore(100);
-      final long startTime = System.currentTimeMillis();
-      final Collection<Album> albums = loadAlbums(true).values();
-      @Cleanup
-      final ProgressHandler albumProgress = stateManager.newProgress(albums.size(), ProgressType.REFRESH_ALBUM, instanceName);
-      for (final Album album : albums) {
-        albumProgress.notfiyProgress(album.getName());
-        final Collection<AlbumImage> images = album.listImages().values();
-        final ProgressHandler thumbnailProgress = stateManager.newProgress(images.size(), ProgressType.REFRESH_THUMBNAIL, album.getName());
-        for (final AlbumImage image : images) {
-          queueLimitSemaphore.acquire();
-          executorService.submit(new Runnable() {
+  private void refreshCache(final boolean wait) {
+    ConcurrentUtil.executeSequencially(refreshThumbnailsSemaphore, wait, new Callable<Void>() {
 
-            @Override
-            public void run() {
-              try {
-                thumbnailProgress.notfiyProgress(image.getName());
-                // read Metadata
-                image.captureDate();
-                // read Thumbnail
-                image.getThumbnail();
-              } finally {
-                imageCount.incrementAndGet();
-                queueLimitSemaphore.release();
-                thumbnailProgress.finishProgress();
-              }
+      @Override
+      public Void call() throws Exception {
+        try {
+          final AtomicInteger imageCount = new AtomicInteger();
+          // limit the queue size for take not too much memory
+          final Semaphore queueLimitSemaphore = new Semaphore(100);
+          final long startTime = System.currentTimeMillis();
+          final Collection<Album> albums = loadAlbums(wait).values();
+          @Cleanup
+          final ProgressHandler albumProgress = stateManager.newProgress(albums.size(), ProgressType.REFRESH_THUMBNAIL, instanceName);
+          for (final Album album : albums) {
+            albumProgress.notfiyProgress(album.getName());
+            final Collection<AlbumImage> images = album.listImages().values();
+            // final ProgressHandler thumbnailProgress =
+            // stateManager.newProgress(images.size(),
+            // ProgressType.REFRESH_THUMBNAIL, album.getName());
+            for (final AlbumImage image : images) {
+              queueLimitSemaphore.acquire();
+              executorService.submit(new Runnable() {
+
+                @Override
+                public void run() {
+                  try {
+                    // thumbnailProgress.notfiyProgress(image.getName());
+                    // read Metadata
+                    image.captureDate();
+                    // read Thumbnail
+                    image.getThumbnail();
+                  } finally {
+                    imageCount.incrementAndGet();
+                    queueLimitSemaphore.release();
+                    // thumbnailProgress.finishProgress();
+                  }
+                }
+              });
             }
-          });
+          }
+          // wait until the end
+          queueLimitSemaphore.acquire(100);
+          final long endTime = System.currentTimeMillis();
+          final Duration duration = new Duration(startTime, endTime);
+          final StringBuffer buf = new StringBuffer("Refresh-Time: ");
+          PeriodFormat.wordBased().getPrinter().printTo(buf, duration.toPeriod(), Locale.getDefault());
+          buf.append(", ");
+          buf.append(imageCount.intValue());
+          buf.append(" Images");
+          logger.info(buf.toString());
+        } catch (final InterruptedException e) {
+          logger.info("cache refresh interrupted");
         }
+        return null;
       }
-      // wait until the end
-      queueLimitSemaphore.acquire(100);
-      final long endTime = System.currentTimeMillis();
-      final Duration duration = new Duration(startTime, endTime);
-      final StringBuffer buf = new StringBuffer("Refresh-Time: ");
-      PeriodFormat.wordBased().getPrinter().printTo(buf, duration.toPeriod(), Locale.getDefault());
-      buf.append(", ");
-      buf.append(imageCount.intValue());
-      buf.append(" Images");
-      logger.info(buf.toString());
-    } catch (final InterruptedException e) {
-      logger.info("cache refresh interrupted");
-    }
+    });
   }
 
   @PreDestroy
@@ -842,7 +854,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       final Collection<String> albumsToSync = evaluateRepositoriesToSync(localName, existingRemoteDirectories.keySet(), archiveData);
       albumsToSync.addAll(evaluateRepositoriesToSync(remoteName, existingLocalAlbums.keySet(), remoteConfig));
       @Cleanup
-      final ProgressHandler progress = stateManager.newProgress(albumsToSync.size(), ProgressType.ITERATE_OVER_ALBUMS, remoteName);
+      final ProgressHandler progress = stateManager.newProgress(albumsToSync.size(), ProgressType.SYNC_LOCAL_DISC, remoteName);
       for (final String albumName : albumsToSync) {
         progress.notfiyProgress(albumName);
         final Album localAlbumForRemote = existingLocalAlbums.get(albumName);
@@ -860,17 +872,18 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   }
 
   private void updateAllRepositories(final Collection<URI> collection) {
-    @Cleanup
-    final ProgressHandler peerServerProgressHandler =
-                                                      stateManager.newProgress(collection.size(), ProgressType.ITERATE_OVER_SERVERS,
-                                                                               "Polling remote Servers");
+    // @Cleanup
+    // final ProgressHandler peerServerProgressHandler =
+    // stateManager.newProgress(collection.size(),
+    // ProgressType.ITERATE_OVER_SERVERS,
+    // "Polling remote Servers");
     for (final URI peerServerUri : collection) {
       final ResponseEntity<PingResponse> responseEntity = ping(peerServerUri);
       if (!responseEntity.hasBody())
         continue;
       final PingResponse pingResponse = responseEntity.getBody();
       final String remoteHost = peerServerUri.getHost();
-      peerServerProgressHandler.notfiyProgress(pingResponse.getServerName());
+      // peerServerProgressHandler.notfiyProgress(pingResponse.getServerName());
       final int remotePort = pingResponse.getGitPort();
       final ResponseEntity<AlbumList> albumListEntity = restTemplate.getForEntity(peerServerUri.resolve("albums.json"), AlbumList.class);
       if (!albumListEntity.hasBody())
@@ -894,8 +907,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       }
       @Cleanup
       final ProgressHandler albumProgress =
-                                            stateManager.newProgress(albumNames.size(), ProgressType.ITERATE_OVER_ALBUMS,
-                                                                     pingResponse.getServerName());
+                                            stateManager.newProgress(albumNames.size(), ProgressType.SYNC_REMOTE_SERVER, pingResponse.getServerName());
       final Collection<String> repositoriesToSync = evaluateRepositoriesToSync(getArchiveName(), remoteAlbums.keySet(), archiveData);
       for (final String albumName : repositoriesToSync) {
         try {

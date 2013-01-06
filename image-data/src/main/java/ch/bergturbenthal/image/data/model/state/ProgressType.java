@@ -3,8 +3,7 @@ package ch.bergturbenthal.image.data.model.state;
 public enum ProgressType {
   IMPORT_IMAGES,
   GIT,
-  ITERATE_OVER_SERVERS,
-  ITERATE_OVER_ALBUMS,
-  REFRESH_ALBUM,
+  SYNC_REMOTE_SERVER,
+  SYNC_LOCAL_DISC,
   REFRESH_THUMBNAIL
 }
