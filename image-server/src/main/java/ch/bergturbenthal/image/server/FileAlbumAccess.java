@@ -34,7 +34,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.PreferenceChangeEvent;
 import java.util.prefs.PreferenceChangeListener;
@@ -94,7 +93,6 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
 
   private ArchiveData archiveData;
   private File baseDir;
-  private final AtomicReference<Collection<URI>> peerServers = new AtomicReference<Collection<URI>>(Collections.<URI> emptyList());
   @Autowired
   private ScheduledExecutorService executorService;
   @Autowired
@@ -161,17 +159,6 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }
 
     return appendAlbum(loadedAlbums, newAlbumPath, null, null);
-  }
-
-  public Collection<String> evaluateRepositoriesToSync(final String instanceName, final Set<String> existingRepositories, final ArchiveData config) {
-    final Collection<String> ret = new HashSet<>(existingRepositories);
-    if (config != null && config.getAlbumPerStorage() != null) {
-      final Collection<String> configuredToFetch = config.getAlbumPerStorage().get(instanceName);
-      if (configuredToFetch != null) {
-        ret.retainAll(configuredToFetch);
-      }
-    }
-    return ret;
   }
 
   @Override
@@ -546,6 +533,17 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }
   }
 
+  private Collection<String> evaluateRepositoriesToSync(final String instanceName, final Set<String> existingRepositories, final ArchiveData config) {
+    final Collection<String> ret = new HashSet<>(existingRepositories);
+    if (config != null && config.getAlbumPerStorage() != null) {
+      final Collection<String> configuredToFetch = config.getAlbumPerStorage().get(instanceName);
+      if (configuredToFetch != null) {
+        ret.retainAll(configuredToFetch);
+      }
+    }
+    return ret;
+  }
+
   private Collection<File> findAlbums(final File dir, final boolean pure) {
     if (repositoryService.isRepository(dir, pure)) {
       return Collections.singleton(dir);
@@ -743,12 +741,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     for (final Entry<String, URI> peerEntry : foundPeers.entrySet()) {
       logger.info(" - " + peerEntry.getKey() + ": " + peerEntry.getValue());
     }
-    final Collection<URI> currentActiveServers = new HashSet<URI>(foundPeers.values());
-    final Collection<URI> alreadyKnownServers = peerServers.get();
-    if (!ObjectUtils.equals(currentActiveServers, alreadyKnownServers)) {
-      peerServers.set(foundPeers.values());
-      updateAllRepositories();
-    }
+    updateAllRepositories(foundPeers.values());
   }
 
   private void readLocalSettingsFromPreferences() {
@@ -866,8 +859,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }
   }
 
-  private void updateAllRepositories() {
-    final Collection<URI> collection = peerServers.get();
+  private void updateAllRepositories(final Collection<URI> collection) {
     @Cleanup
     final ProgressHandler peerServerProgressHandler =
                                                       stateManager.newProgress(collection.size(), ProgressType.ITERATE_OVER_SERVERS,
@@ -896,17 +888,23 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       final AlbumList remoteAlbumList = albumListEntity.getBody();
       final Map<String, Album> localAlbums = listAlbums();
       final Collection<AlbumEntry> albumNames = remoteAlbumList.getAlbumNames();
+      final Map<String, AlbumEntry> remoteAlbums = new HashMap<>();
+      for (final AlbumEntry remoteAlbum : albumNames) {
+        remoteAlbums.put(remoteAlbum.getName(), remoteAlbum);
+      }
       @Cleanup
       final ProgressHandler albumProgress =
                                             stateManager.newProgress(albumNames.size(), ProgressType.ITERATE_OVER_ALBUMS,
                                                                      pingResponse.getServerName());
-      for (final AlbumEntry album : albumNames) {
+      final Collection<String> repositoriesToSync = evaluateRepositoriesToSync(getArchiveName(), remoteAlbums.keySet(), archiveData);
+      for (final String albumName : repositoriesToSync) {
         try {
+          final AlbumEntry album = remoteAlbums.get(albumName);
           final Album localAlbumForRemote = localAlbums.get(album.getId());
-          albumProgress.notfiyProgress(album.getName());
+          albumProgress.notfiyProgress(albumName);
           final String remoteUri = new URI("git", null, remoteHost, remotePort, "/" + album.getId(), null, null).toASCIIString();
           if (localAlbumForRemote == null)
-            appendAlbum(loadedAlbums, new File(getBaseDir(), album.getName()), remoteUri, pingResponse.getServerName());
+            appendAlbum(loadedAlbums, new File(getBaseDir(), albumName), remoteUri, pingResponse.getServerName());
           else
             localAlbumForRemote.pull(remoteUri, pingResponse.getServerName());
         } catch (final Throwable e) {
