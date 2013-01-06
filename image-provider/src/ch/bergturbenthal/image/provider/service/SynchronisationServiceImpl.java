@@ -1,6 +1,7 @@
 package ch.bergturbenthal.image.provider.service;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
@@ -47,6 +48,7 @@ import android.database.Cursor;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
+import android.util.LruCache;
 import android.util.Pair;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.data.model.state.Progress;
@@ -83,6 +85,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     }
   }
 
+  private static final String THUMBNAIL_SUFFIX = ".thumbnail";
+
   // Binder given to clients
   private final IBinder binder = new LocalBinder();
   private final static String SERVICE_TAG = "Synchronisation Service";
@@ -108,39 +112,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private final Semaphore updateLockSempahore = new Semaphore(1);
 
+  private LruCache<Integer, File> thumbnailCache;
+
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
-    final AlbumEntryEntity albumEntryEntity = callInTransaction(new Callable<AlbumEntryEntity>() {
-
-      @Override
-      public AlbumEntryEntity call() throws Exception {
-        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
-        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-        final AlbumEntryEntity albumEntryEntity = albumEntryDao.queryForId(Integer.valueOf(thumbnailId));
-        if (albumEntryEntity == null)
-          return null;
-        albumDao.refresh(albumEntryEntity.getAlbum());
-        return albumEntryEntity;
-      }
-
-    });
-    final File targetFile = new File(thumbnailsDir, thumbnailId + ".thumbnail");
-    if (targetFile.exists() && targetFile.lastModified() >= albumEntryEntity.getLastModified().getTime()) {
-      return targetFile;
-    }
-    final Map<String, ArchiveConnection> archive = connectionMap.get();
-    if (archive == null)
-      return ifExsists(targetFile);
-    final ArchiveConnection archiveConnection = archive.get(albumEntryEntity.getAlbum().getArchive().getName());
-    if (archiveConnection == null)
-      return ifExsists(targetFile);
-    final AlbumConnection albumConnection = archiveConnection.getAlbums().get(albumEntryEntity.getAlbum().getName());
-    if (albumConnection == null)
-      return ifExsists(targetFile);
-    final File tempFile = new File(tempDir, thumbnailId + ".thumbnail-temp");
-    albumConnection.readThumbnail(albumEntryEntity.getCommId(), tempFile, targetFile);
-    return ifExsists(targetFile);
-
+    return thumbnailCache.get(Integer.valueOf(thumbnailId));
   }
 
   @Override
@@ -220,6 +196,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     thumbnailsDir = new File(getCacheDir(), "thumbnails");
     if (!thumbnailsDir.exists())
       thumbnailsDir.mkdirs();
+
+    // preload thumbnail-cache
+    initThumbnailCache(512 * 1024);
 
     executorService.schedule(new Runnable() {
 
@@ -480,10 +459,74 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return file.exists() ? file : null;
   }
 
+  /**
+   * 
+   * initializes thumbnail-cache
+   * 
+   * @param size
+   *          Cache-Size in kB
+   */
+  private void initThumbnailCache(final int size) {
+    thumbnailCache = new LruCache<Integer, File>(size) {
+
+      @Override
+      protected File create(final Integer key) {
+        return loadThumbnail(key.intValue());
+      }
+
+      @Override
+      protected void entryRemoved(final boolean evicted, final Integer key, final File oldValue, final File newValue) {
+        if (!thumbnailsDir.equals(oldValue.getParentFile()))
+          return;
+        final boolean deleted = oldValue.delete();
+        if (!deleted)
+          throw new RuntimeException("Cannot delete cache-file " + oldValue);
+      }
+
+      @Override
+      protected int sizeOf(final Integer key, final File value) {
+        if (!thumbnailsDir.equals(value.getParentFile()))
+          // count only temporary entries
+          return 0;
+        return (int) value.length() / 1024;
+      }
+    };
+    for (final String filename : thumbnailsDir.list(new FilenameFilter() {
+      @Override
+      public boolean accept(final File dir, final String filename) {
+        return filename.endsWith(THUMBNAIL_SUFFIX);
+      }
+    })) {
+      thumbnailCache.get(Integer.valueOf(filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length())));
+    }
+  }
+
   private String lastPart(final String[] split) {
     if (split == null || split.length == 0)
       return null;
     return split[split.length - 1];
+  }
+
+  private File loadThumbnail(final int thumbnailId) {
+    final AlbumEntryEntity albumEntryEntity = readAlbumEntry(thumbnailId);
+    if (albumEntryEntity == null)
+      return null;
+    final File targetFile = new File(thumbnailsDir, thumbnailId + THUMBNAIL_SUFFIX);
+    if (targetFile.exists() && targetFile.lastModified() >= albumEntryEntity.getLastModified().getTime()) {
+      return targetFile;
+    }
+    final Map<String, ArchiveConnection> archive = connectionMap.get();
+    if (archive == null)
+      return ifExsists(targetFile);
+    final ArchiveConnection archiveConnection = archive.get(albumEntryEntity.getAlbum().getArchive().getName());
+    if (archiveConnection == null)
+      return ifExsists(targetFile);
+    final AlbumConnection albumConnection = archiveConnection.getAlbums().get(albumEntryEntity.getAlbum().getName());
+    if (albumConnection == null)
+      return ifExsists(targetFile);
+    final File tempFile = new File(tempDir, thumbnailId + ".thumbnail-temp");
+    albumConnection.readThumbnail(albumEntryEntity.getCommId(), tempFile, targetFile);
+    return ifExsists(targetFile);
   }
 
   private long makeLongId(final String stringId) {
@@ -566,6 +609,23 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     if (existingValue != null)
       return existingValue;
     return emptyValue;
+  }
+
+  private AlbumEntryEntity readAlbumEntry(final int entryId) {
+    return callInTransaction(new Callable<AlbumEntryEntity>() {
+
+      @Override
+      public AlbumEntryEntity call() throws Exception {
+        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
+        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+        final AlbumEntryEntity albumEntryEntity = albumEntryDao.queryForId(Integer.valueOf(entryId));
+        if (albumEntryEntity == null)
+          return null;
+        albumDao.refresh(albumEntryEntity.getAlbum());
+        return albumEntryEntity;
+      }
+
+    });
   }
 
   private void refreshAlbumDetail(final AlbumConnection albumConnection, final Integer albumId) {
