@@ -213,7 +213,7 @@ public class AlbumImage {
       tempFile.delete();
     try {
       final Process process =
-                              Runtime.getRuntime().exec(new String[] { "avconv", "-i", file.getAbsolutePath(), "-vcodec", "libx264", "-b:v", "1024k",
+                              Runtime.getRuntime().exec(new String[] { "ffmpeg", "-i", file.getAbsolutePath(), "-vcodec", "libx264", "-b:v", "1024k",
                                                                       "-profile:v", "baseline", "-b:a", "24k", "-vf", "yadif", "-vf",
                                                                       "scale=1280:720", "-acodec", "libvo_aacenc", "-sn", "-r", "30",
                                                                       tempFile.getAbsolutePath() });
