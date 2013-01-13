@@ -217,8 +217,10 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       final SortedMap<Date, Album> importAlbums = new TreeMap<Date, Album>();
       for (final Album album : loadAlbums(true).values()) {
         final Date beginDate = album.getAutoAddBeginDate();
-        if (beginDate != null)
+        if (beginDate != null) {
+          logger.info("Album: " + album + ", Date: " + beginDate);
           importAlbums.put(beginDate, album);
+        }
       }
       final Collection<File> deleteFiles = new ArrayList<File>();
       final Collection<File> importCandicates = collectImportFiles(importDir);
@@ -530,7 +532,10 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
           lastLoadedDate.set(System.currentTimeMillis());
           loadedAlbums = ret;
         } catch (final Throwable e) {
-          logger.error("Troubles while accessing resource " + baseDir, e);
+          if (forceWait)
+            throw new RuntimeException("Troubles while accessing resource " + baseDir, e);
+          else
+            logger.error("Troubles while accessing resource " + baseDir, e);
         }
     } finally {
       updateAlbumListSemaphore.release();
