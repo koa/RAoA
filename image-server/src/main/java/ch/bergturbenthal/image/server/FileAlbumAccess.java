@@ -63,7 +63,10 @@ import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.http.HttpStatus.Series;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
@@ -86,7 +89,7 @@ import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
 
-public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveConfiguration, FileNotification {
+public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveConfiguration, FileNotification, ApplicationContextAware {
   private static final String SERVICE_TYPE = "_images._tcp.local.";
   private static final String INSTANCE_NAME_PREFERENCE = "instanceName";
   private static final String ALBUM_PATH_PREFERENCE = "album_path";
@@ -124,6 +127,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
 
   private final Semaphore updateAlbumListSemaphore = new Semaphore(1);
   private final Semaphore refreshThumbnailsSemaphore = new Semaphore(1);
+  private ApplicationContext applicationContext;
 
   @Override
   public Collection<String> clientsPerAlbum(final String albumId) {
@@ -327,6 +331,11 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   }
 
   @Override
+  public void setApplicationContext(final ApplicationContext applicationContext) throws BeansException {
+    this.applicationContext = applicationContext;
+  }
+
+  @Override
   public void setArchiveName(final String archiveName) {
     if (StringUtils.equals(archiveData.getArchiveName(), archiveName))
       return;
@@ -437,8 +446,10 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     final String[] nameComps = albumDir.getAbsolutePath().substring(getBasePath().getAbsolutePath().length() + 1).split(File.pathSeparator);
     final String albumId = Util.encodeStringForUrl(StringUtils.join(nameComps, "/"));
     synchronized (getAlbumLock(albumDir)) {
-      if (!albumMap.containsKey(albumId))
-        albumMap.put(albumId, new Album(albumDir, nameComps, repositoryService, remoteUri, serverName));
+      if (!albumMap.containsKey(albumId)) {
+        final Album newAlbum = (Album) applicationContext.getBean("album", albumDir, nameComps, remoteUri, serverName);
+        albumMap.put(albumId, newAlbum);
+      }
     }
     return albumId;
   }

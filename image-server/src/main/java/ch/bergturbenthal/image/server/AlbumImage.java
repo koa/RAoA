@@ -2,7 +2,6 @@ package ch.bergturbenthal.image.server;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.lang.ref.SoftReference;
 import java.util.Date;
 import java.util.HashMap;
@@ -10,14 +9,14 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.Semaphore;
 
-import org.im4java.core.ConvertCmd;
-import org.im4java.core.IM4JavaException;
-import org.im4java.core.IMOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import ch.bergturbenthal.image.server.cache.AlbumEntryCacheManager;
 import ch.bergturbenthal.image.server.model.AlbumEntryData;
+import ch.bergturbenthal.image.server.thumbnails.ImageThumbnailMaker;
+import ch.bergturbenthal.image.server.thumbnails.VideoThumbnailMaker;
 
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
@@ -26,13 +25,12 @@ import com.drew.metadata.Metadata;
 public class AlbumImage {
 
   private static Map<File, Object> imageLocks = new WeakHashMap<File, Object>();
+  private static Semaphore limitConcurrentScaleSemaphore = new Semaphore(4);
   private static Map<File, SoftReference<AlbumImage>> loadedImages = new HashMap<File, SoftReference<AlbumImage>>();
   private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
   private static final int THUMBNAIL_SIZE = 1600;
 
-  private static Semaphore limitConcurrentScaleSemaphore = new Semaphore(4);
-
-  public static AlbumImage makeImage(final File file, final File cacheDir, final Date lastModified, final AlbumEntryCacheManager cacheManager) {
+  public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumEntryCacheManager cacheManager) {
     synchronized (lockFor(file)) {
       final SoftReference<AlbumImage> softReference = loadedImages.get(file);
       if (softReference != null) {
@@ -57,13 +55,19 @@ public class AlbumImage {
 
   private final File cacheDir;
 
+  private final AlbumEntryCacheManager cacheManager;
+
   private final File file;
+
+  @Autowired
+  private ImageThumbnailMaker imageThumbnailMaker;
 
   private final Date lastModified;
 
-  private final AlbumEntryCacheManager cacheManager;
+  @Autowired
+  private VideoThumbnailMaker videoThumbnailMaker;
 
-  public AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumEntryCacheManager cacheManager) {
+  private AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumEntryCacheManager cacheManager) {
     this.file = file;
     this.cacheDir = cacheDir;
     this.lastModified = lastModified;
@@ -93,19 +97,15 @@ public class AlbumImage {
         limitConcurrentScaleSemaphore.acquire();
         try {
           if (isVideo())
-            scaleVideoDown(cachedFile);
+            videoThumbnailMaker.makeVideoThumbnail(file, cachedFile, cacheDir);
           else
-            scaleImageDown(cachedFile);
+            imageThumbnailMaker.makeImageThumbnail(file, cachedFile, cacheDir);
         } finally {
           limitConcurrentScaleSemaphore.release();
         }
       }
       return cachedFile;
-    } catch (final IOException e) {
-      throw new RuntimeException("Cannot make thumbnail of " + file, e);
-    } catch (final InterruptedException e) {
-      throw new RuntimeException("Cannot make thumbnail of " + file, e);
-    } catch (final IM4JavaException e) {
+    } catch (final Exception e) {
       throw new RuntimeException("Cannot make thumbnail of " + file, e);
     }
   }
@@ -165,77 +165,6 @@ public class AlbumImage {
       return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
     }
     return new File(cacheDir, name);
-  }
-
-  private void scaleImageDown(final File cachedFile) throws IOException, InterruptedException, IM4JavaException {
-    final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.jpg");
-    if (tempFile.exists())
-      tempFile.delete();
-    // logger.debug("Convert " + file);
-    final ConvertCmd cmd = new ConvertCmd();
-    final File secondStepInputFile;
-    final boolean deleteInputFileAfter;
-    if (!file.getName().toLowerCase().endsWith("jpg")) {
-      secondStepInputFile = new File(cachedFile.getParentFile(), cachedFile.getName() + ".tmp.png");
-      if (secondStepInputFile.exists())
-        secondStepInputFile.delete();
-      final IMOperation primaryOperation = new IMOperation();
-      primaryOperation.addImage(file.getAbsolutePath());
-      primaryOperation.addImage(secondStepInputFile.getAbsolutePath());
-      // logger.debug("Start conversion prepare: " + primaryOperation);
-      cmd.run(primaryOperation);
-      deleteInputFileAfter = true;
-    } else {
-      secondStepInputFile = file;
-      deleteInputFileAfter = false;
-    }
-    final IMOperation secondOperation = new IMOperation();
-    secondOperation.addImage(secondStepInputFile.getAbsolutePath());
-    secondOperation.autoOrient();
-    secondOperation.resize(Integer.valueOf(THUMBNAIL_SIZE), Integer.valueOf(THUMBNAIL_SIZE));
-    secondOperation.quality(Double.valueOf(70));
-    secondOperation.addImage(tempFile.getAbsolutePath());
-    // logger.debug("Start conversion: " + secondOperation);
-    cmd.run(secondOperation);
-    tempFile.renameTo(cachedFile);
-    if (deleteInputFileAfter)
-      secondStepInputFile.delete();
-    // logger.debug("End operation");
-  }
-
-  private synchronized void scaleVideoDown(final File cachedFile) {
-    // avconv -i file001.mkv -vcodec libx264 -b:v 1024k -profile:v baseline -b:a
-    // 24k -vf yadif -vf scale=1280:720 -acodec libvo_aacenc -sn -r 30
-    // .servercache/out.mp4
-    logger.debug("Start transcode " + file);
-    final File tempFile = new File(cachedFile.getParentFile(), cachedFile.getName() + "-tmp.mp4");
-    if (tempFile.exists())
-      tempFile.delete();
-    try {
-      final Process process =
-                              Runtime.getRuntime().exec(new String[] { "ffmpeg", "-i", file.getAbsolutePath(), "-vcodec", "libx264", "-b:v", "1024k",
-                                                                      "-profile:v", "baseline", "-b:a", "24k", "-vf", "yadif", "-vf",
-                                                                      "scale=1280:720", "-acodec", "libvo_aacenc", "-sn", "-r", "30",
-                                                                      tempFile.getAbsolutePath() });
-      final StringBuilder errorMessage = new StringBuilder();
-      final InputStreamReader reader = new InputStreamReader(process.getErrorStream());
-      final char[] buffer = new char[8192];
-      while (true) {
-        final int read = reader.read(buffer);
-        if (read < 0)
-          break;
-        errorMessage.append(buffer, 0, read);
-      }
-      final int resultCode = process.waitFor();
-      if (resultCode != 0)
-        throw new RuntimeException("Cannot convert video " + file + ": RC-Code: " + resultCode + "\n" + errorMessage.toString());
-      tempFile.renameTo(cachedFile);
-      logger.debug("End transcode " + file);
-    } catch (final IOException e) {
-      throw new RuntimeException("Cannot convert video " + file, e);
-    } catch (final InterruptedException e) {
-      throw new RuntimeException("Cannot convert video " + file, e);
-    }
   }
 
 }

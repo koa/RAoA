@@ -31,6 +31,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.annotation.PostConstruct;
+
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -50,12 +52,16 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.joda.time.format.ISODateTimeFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 
 import ch.bergturbenthal.image.server.cache.AlbumEntryCacheManager;
 import ch.bergturbenthal.image.server.model.AlbumEntryData;
 import ch.bergturbenthal.image.server.util.RepositoryService;
 
-public class Album {
+public class Album implements ApplicationContextAware {
   private static class ImportEntry {
 
     static ImportEntry parseLine(final String line) {
@@ -91,57 +97,36 @@ public class Album {
   private static String INDEX_FILE = ".index";
   private static Logger logger = LoggerFactory.getLogger(Album.class);
   private static ObjectMapper mapper = new ObjectMapper();
+
+  public static Album createAlbum(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
+    return new Album(baseDir, nameComps, remoteUri, serverName);
+  }
+
   private final ConcurrentMap<String, AlbumEntryData> albumMetadataCache = new ConcurrentHashMap<String, AlbumEntryData>();
   private final File baseDir;
   private long cachedImages = 0;
-  private final File cacheDir;
-  private final Git git;
+  private File cacheDir;
+  private Git git;
   private SoftReference<Map<String, AlbumImage>> images = null;
   private Collection<ImportEntry> importEntries = null;
   private final AtomicBoolean metadataModified = new AtomicBoolean(false);
   private final String[] nameComps;
-  private final RepositoryService repositoryService;
+  @Autowired
+  private RepositoryService repositoryService;
+
   private Long repositorySize = null;
-
   private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
+  private final String initRemoteUri;
 
-  public Album(final File baseDir, final String[] nameComps, final RepositoryService repositoryService) {
-    this(baseDir, nameComps, repositoryService, null, null);
-  }
+  private final String initRemoteServerName;
+  private ApplicationContext applicationContext;
 
-  public Album(final File baseDir, final String[] nameComps, final RepositoryService repositoryService, final String remoteUri,
-               final String serverName) {
+  private Album(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
     this.baseDir = baseDir;
     this.nameComps = nameComps;
-    this.repositoryService = repositoryService;
-
-    if (new File(baseDir, ".git").exists()) {
-      try {
-        git = Git.open(baseDir);
-      } catch (final IOException e) {
-        throw new RuntimeException("Cannot access to git-repository of " + baseDir, e);
-      }
-    } else {
-      try {
-        git = Git.init().setDirectory(baseDir).call();
-      } catch (final GitAPIException e) {
-        throw new RuntimeException("Cannot create Album", e);
-      }
-    }
-    if (remoteUri != null)
-      pull(remoteUri, serverName);
-
-    final boolean modified = checkup();
-    cacheDir = new File(baseDir, CACHE_DIR);
-    if (!cacheDir.exists())
-      cacheDir.mkdirs();
-    if (autoaddFile().exists()) {
-      loadImportEntries();
-    }
-    if (metadataCacheFile().exists())
-      loadMetadataCache();
-    if (modified)
-      commit("initialized repository for image-server");
+    // this.repositoryService = repositoryService;
+    this.initRemoteUri = remoteUri;
+    this.initRemoteServerName = serverName;
   }
 
   public synchronized void commit(final String message) {
@@ -284,6 +269,37 @@ public class Album {
     }
   }
 
+  @PostConstruct
+  public void init() {
+    if (new File(baseDir, ".git").exists()) {
+      try {
+        git = Git.open(baseDir);
+      } catch (final IOException e) {
+        throw new RuntimeException("Cannot access to git-repository of " + baseDir, e);
+      }
+    } else {
+      try {
+        git = Git.init().setDirectory(baseDir).call();
+      } catch (final GitAPIException e) {
+        throw new RuntimeException("Cannot create Album", e);
+      }
+    }
+    if (initRemoteUri != null)
+      pull(initRemoteUri, initRemoteServerName);
+
+    final boolean modified = checkup();
+    cacheDir = new File(baseDir, CACHE_DIR);
+    if (!cacheDir.exists())
+      cacheDir.mkdirs();
+    if (autoaddFile().exists()) {
+      loadImportEntries();
+    }
+    if (metadataCacheFile().exists())
+      loadMetadataCache();
+    if (modified)
+      commit("initialized repository for image-server");
+  }
+
   public long lastModified() {
     long lastModified = 0;
     for (final File imageFile : listImageFiles()) {
@@ -301,6 +317,11 @@ public class Album {
   public synchronized void pull(final String remoteUri, final String serverName) {
     repositoryService.pull(git, remoteUri, serverName);
     repositorySize = null;
+  }
+
+  @Override
+  public void setApplicationContext(final ApplicationContext applicationContext) throws BeansException {
+    this.applicationContext = applicationContext;
   }
 
   public synchronized void setAutoAddBeginDate(final Date date) {
@@ -470,7 +491,7 @@ public class Album {
     final Map<String, AlbumImage> ret = new HashMap<String, AlbumImage>();
     for (final File file : listImageFiles()) {
       final String filename = file.getName();
-      ret.put(Util.encodeStringForUrl(filename), AlbumImage.makeImage(file, cacheDir, lastModified, new AlbumEntryCacheManager() {
+      final AlbumEntryCacheManager cacheManager = new AlbumEntryCacheManager() {
 
         @Override
         public AlbumEntryData getCachedData() {
@@ -481,7 +502,8 @@ public class Album {
         public void updateCache(final AlbumEntryData entryData) {
           updateAlbumEntryInCache(filename, entryData);
         }
-      }));
+      };
+      ret.put(Util.encodeStringForUrl(filename), (AlbumImage) applicationContext.getBean("albumImage", file, cacheDir, lastModified, cacheManager));
     }
     cachedImages = dirLastModified;
     images = new SoftReference<Map<String, AlbumImage>>(ret);

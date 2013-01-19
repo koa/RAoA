@@ -61,7 +61,8 @@
                     <include>linux-x86-64</include>
                     <include>linux-x86-32</include>
                     <include>macosx-x86-universal-32</include>
-                    <include>wrapper-windows-x86-32</include>
+                    <include>windows-x86-32-lib</include>
+                    <include>windows-x86-32-exec</include>
                   </includes>
                 </generatorConfiguration>
               </generatorConfigurations>

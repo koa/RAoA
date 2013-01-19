@@ -65,6 +65,7 @@ public class Starter {
       public void inetAddressAdded(final NetworkTopologyEvent event) {
         try {
           final InetAddress inetAddress = event.getInetAddress();
+          logger.info("Registering address " + inetAddress);
           if (!inetAddress.isLinkLocalAddress())
             event.getDNS().registerService(ServiceInfo.create("_images._tcp.local", "Standalone", localPort, ""));
         } catch (final IOException e) {
