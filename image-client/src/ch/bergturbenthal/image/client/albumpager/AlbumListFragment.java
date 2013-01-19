@@ -1,11 +1,11 @@
 package ch.bergturbenthal.image.client.albumpager;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import android.content.Context;
 import android.os.Bundle;
 import android.support.v4.app.ListFragment;
 import android.view.LayoutInflater;
@@ -33,28 +33,37 @@ public class AlbumListFragment extends ListFragment {
     final String clientTitle = args.getString(CLIENT_TITLE);
     textView.setText(clientTitle);
 
-    new Resolver(container.getContext()).establishLastConnection(new ConnectionAdapter(getActivity(), new ConnectedHandler() {
+    final Resolver resolver = new Resolver(container.getContext());
+    try {
+      resolver.establishLastConnection(new ConnectionAdapter(getActivity(), new ConnectedHandler() {
 
-      @Override
-      public void connected(final AlbumService service, final String serverName) {
-        final List<AlbumEntry> albums = new ArrayList<AlbumEntry>(service.listAlbums().getAlbumNames());
-        Collections.sort(albums, new Comparator<AlbumEntry>() {
-          @Override
-          public int compare(final AlbumEntry o1, final AlbumEntry o2) {
-            return o1.getName().compareTo(o2.getName());
-          }
-        });
-        container.post(new Runnable() {
+        @Override
+        public void connected(final AlbumService service, final String serverName) {
+          final List<AlbumEntry> albums = new ArrayList<AlbumEntry>(service.listAlbums().getAlbumNames());
+          Collections.sort(albums, new Comparator<AlbumEntry>() {
+            @Override
+            public int compare(final AlbumEntry o1, final AlbumEntry o2) {
+              return o1.getName().compareTo(o2.getName());
+            }
+          });
+          container.post(new Runnable() {
 
-          @Override
-          public void run() {
-            final AlbumListAdapter albumList = new AlbumListAdapter(container.getContext(), clientTitle, albums);
-            setListAdapter(albumList);
-          }
-        });
+            @Override
+            public void run() {
+              final AlbumListAdapter albumList = new AlbumListAdapter(container.getContext(), clientTitle, albums);
+              setListAdapter(albumList);
+            }
+          });
+        }
+
+      }));
+    } finally {
+      try {
+        resolver.close();
+      } catch (final IOException e) {
+        throw new RuntimeException(e);
       }
-
-    }));
+    }
 
     return rootView;
   }

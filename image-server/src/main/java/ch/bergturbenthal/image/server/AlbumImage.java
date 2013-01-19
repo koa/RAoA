@@ -28,7 +28,6 @@ public class AlbumImage {
   private static Semaphore limitConcurrentScaleSemaphore = new Semaphore(4);
   private static Map<File, SoftReference<AlbumImage>> loadedImages = new HashMap<File, SoftReference<AlbumImage>>();
   private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
-  private static final int THUMBNAIL_SIZE = 1600;
 
   public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumEntryCacheManager cacheManager) {
     synchronized (lockFor(file)) {

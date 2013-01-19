@@ -148,6 +148,7 @@ public class ExecutorServiceUtil {
       return innerFuture.toString();
     }
 
+    @SuppressWarnings("rawtypes")
     private void runIfNeeded() {
       final Object innerRef = innerFuture;
       if (innerRef instanceof RunnableFuture)

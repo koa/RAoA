@@ -71,13 +71,11 @@
 		<dependency>
 			<groupId>com.google.android</groupId>
 			<artifactId>android</artifactId>
-			<version>${android-version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>com.google.android</groupId>
 			<artifactId>support-v4</artifactId>
-			<version>r7</version>
 		</dependency>
 		<dependency>
 			<groupId>javax.jmdns</groupId>
@@ -86,7 +84,6 @@
 		<dependency>
 			<groupId>org.springframework.android</groupId>
 			<artifactId>spring-android-rest-template</artifactId>
-			<version>${spring-android-version}</version>
 		</dependency>
 		<dependency>
 			<groupId>ch.bergturbenthal.image</groupId>

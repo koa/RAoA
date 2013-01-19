@@ -399,6 +399,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           if (!shouldSync)
             albumEntity.setSynced(false);
           albumDao.update(albumEntity);
+          notifyAlbumChanged(albumId);
         }
         return Integer.valueOf(1);
       }

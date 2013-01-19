@@ -142,6 +142,8 @@ public class ArchiveContentProvider extends ContentProvider {
         return service.readServerList(projection);
       case SERVER_PROGRESS_LIST:
         return service.readServerProgresList(segments.get(1), projection);
+      case ALBUM_ENTRY:
+      case ALBUM_ENTRY_THUMBNAIL:
       }
       throw new UnsupportedOperationException("Query of " + uri + " is not supported");
     } catch (final Throwable e) {
@@ -156,6 +158,12 @@ public class ArchiveContentProvider extends ContentProvider {
     switch (matcher.match(uri)) {
     case ALBUM:
       return service.updateAlbumEntry(Integer.parseInt(segments.get(1)), values);
+    case ALBUM_ENTRY:
+    case ALBUM_ENTRY_LIST:
+    case ALBUM_ENTRY_THUMBNAIL:
+    case ALBUM_LIST:
+    case SERVER_LIST:
+    case SERVER_PROGRESS_LIST:
     }
     throw new UnsupportedOperationException("Update of " + uri + " is not supported");
   }
