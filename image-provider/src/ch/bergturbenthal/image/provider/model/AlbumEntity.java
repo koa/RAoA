@@ -44,8 +44,6 @@ public class AlbumEntity {
   @DatabaseField
   private boolean synced = false;
 
-  @DatabaseField
-  private boolean syncThumbnails = false;
   @DatabaseField(foreign = true)
   private AlbumEntryEntity thumbnail;
   @DatabaseField
@@ -120,10 +118,6 @@ public class AlbumEntity {
     return repositorySize;
   }
 
-  public boolean getSyncThumbnails() {
-    return syncThumbnails;
-  }
-
   public AlbumEntryEntity getThumbnail() {
     return thumbnail;
   }
@@ -160,10 +154,6 @@ public class AlbumEntity {
 
   public void setSynced(final boolean isSynced) {
     this.synced = isSynced;
-  }
-
-  public void setSyncThumbnails(final boolean syncThumbnails) {
-    this.syncThumbnails = syncThumbnails;
   }
 
   public void setThumbnail(final AlbumEntryEntity thumbnail) {

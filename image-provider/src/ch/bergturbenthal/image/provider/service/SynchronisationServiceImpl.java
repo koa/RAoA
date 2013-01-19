@@ -102,7 +102,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private ScheduledFuture<?> slowUpdatePollingFuture = null;
   private ExecutorService wrappedExecutorService;
   private File tempDir;
-  private File thumbnailsDir;
+  private File thumbnailsTempDir;
   private DaoHolder daoHolder;
   private final ConcurrentMap<String, ConcurrentMap<String, Integer>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, Integer>>();
 
@@ -112,6 +112,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private final Semaphore updateLockSempahore = new Semaphore(1);
 
   private LruCache<Integer, File> thumbnailCache;
+
+  private File thumbnailsSyncDir;
 
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
@@ -192,10 +194,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     }
 
     // setup thumbails-dir
-    thumbnailsDir = new File(getCacheDir(), "thumbnails");
-    if (!thumbnailsDir.exists())
-      thumbnailsDir.mkdirs();
-
+    // temporary files
+    thumbnailsTempDir = new File(getCacheDir(), "thumbnails");
+    if (!thumbnailsTempDir.exists())
+      thumbnailsTempDir.mkdirs();
+    // explicit synced thumbnails
+    thumbnailsSyncDir = new File(getFilesDir(), "thumbnails");
+    if (!thumbnailsSyncDir.exists())
+      thumbnailsSyncDir.mkdirs();
     // preload thumbnail-cache
     initThumbnailCache(512 * 1024);
 
@@ -499,7 +505,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
       @Override
       protected void entryRemoved(final boolean evicted, final Integer key, final File oldValue, final File newValue) {
-        if (!thumbnailsDir.equals(oldValue.getParentFile()))
+        if (!thumbnailsTempDir.equals(oldValue.getParentFile()))
           return;
         final boolean deleted = oldValue.delete();
         if (!deleted)
@@ -508,13 +514,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
       @Override
       protected int sizeOf(final Integer key, final File value) {
-        if (!thumbnailsDir.equals(value.getParentFile()))
+        if (!thumbnailsTempDir.equals(value.getParentFile()))
           // count only temporary entries
           return 0;
         return (int) value.length() / 1024;
       }
     };
-    for (final String filename : thumbnailsDir.list(new FilenameFilter() {
+    for (final String filename : thumbnailsTempDir.list(new FilenameFilter() {
       @Override
       public boolean accept(final File dir, final String filename) {
         return filename.endsWith(THUMBNAIL_SUFFIX);
@@ -523,7 +529,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       final File loadedFile = thumbnailCache.get(Integer.valueOf(filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length())));
       // delete obsolete cache-entry
       if (loadedFile == null) {
-        new File(thumbnailsDir, filename).delete();
+        new File(thumbnailsTempDir, filename).delete();
       }
     }
   }
@@ -538,9 +544,29 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     final AlbumEntryEntity albumEntryEntity = readAlbumEntry(thumbnailId);
     if (albumEntryEntity == null)
       return null;
-    final File targetFile = new File(thumbnailsDir, thumbnailId + THUMBNAIL_SUFFIX);
+    final boolean permanentDownload = albumEntryEntity.getAlbum().isShouldSync();
+
+    final File temporaryTargetFile = new File(thumbnailsTempDir, thumbnailId + THUMBNAIL_SUFFIX);
+    final File permanentTargetFile = new File(thumbnailsSyncDir, thumbnailId + THUMBNAIL_SUFFIX);
+    final File targetFile = permanentDownload ? permanentTargetFile : temporaryTargetFile;
+    final File otherTargetFile = permanentDownload ? temporaryTargetFile : permanentTargetFile;
+    // check if the file in the current cache is valid
     if (targetFile.exists() && targetFile.lastModified() >= albumEntryEntity.getLastModified().getTime()) {
+      if (otherTargetFile.exists())
+        otherTargetFile.delete();
       return targetFile;
+    }
+    // check if there is a valid file in the other cache
+    if (otherTargetFile.exists()) {
+      if (otherTargetFile.lastModified() >= albumEntryEntity.getLastModified().getTime()) {
+        final long oldLastModified = otherTargetFile.lastModified();
+        otherTargetFile.renameTo(targetFile);
+        targetFile.setLastModified(oldLastModified);
+        if (targetFile.exists())
+          return targetFile;
+      }
+      // remove the invalid file of the other cache
+      otherTargetFile.delete();
     }
     final Map<String, ArchiveConnection> archive = connectionMap.get();
     if (archive == null)
@@ -552,8 +578,42 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     if (albumConnection == null)
       return ifExsists(targetFile);
     final File tempFile = new File(tempDir, thumbnailId + ".thumbnail-temp");
-    albumConnection.readThumbnail(albumEntryEntity.getCommId(), tempFile, targetFile);
+    try {
+      albumConnection.readThumbnail(albumEntryEntity.getCommId(), tempFile, targetFile);
+    } finally {
+      if (tempFile.exists())
+        tempFile.delete();
+    }
     return ifExsists(targetFile);
+  }
+
+  private void loadThumbnailsOfAlbum(final int albumId) {
+    final Collection<Integer> thumbnails = callInTransaction(new Callable<Collection<Integer>>() {
+
+      @Override
+      public Collection<Integer> call() throws Exception {
+        final ArrayList<Integer> ret = new ArrayList<Integer>();
+        for (final AlbumEntryEntity albumEntryEntity : getAlbumDao().queryForId(Integer.valueOf(albumId)).getEntries()) {
+          ret.add(Integer.valueOf(albumEntryEntity.getId()));
+        }
+        return ret;
+      }
+    });
+    for (final Integer thumbnailId : thumbnails) {
+      loadThumbnail(thumbnailId);
+    }
+    callInTransaction(new Callable<Void>() {
+      @Override
+      public Void call() throws Exception {
+        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+        final AlbumEntity entity = albumDao.queryForId(Integer.valueOf(albumId));
+        if (!entity.isSynced()) {
+          entity.setSynced(true);
+          albumDao.update(entity);
+        }
+        return null;
+      }
+    });
   }
 
   private long makeLongId(final String stringId) {
@@ -828,10 +888,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     builder.setProgress(totalAlbumCount, albumCounter.incrementAndGet(), false);
     notificationManager.notify(NOTIFICATION, builder.getNotification());
 
-    final Integer albumId = callInTransaction(new Callable<Integer>() {
+    final AtomicInteger albumId = new AtomicInteger();
+    final AtomicBoolean shouldUpdateMeta = new AtomicBoolean(false);
+    final AtomicBoolean shouldLoadThumbnails = new AtomicBoolean(false);
+    callInTransaction(new Callable<Void>() {
 
       @Override
-      public Integer call() throws Exception {
+      public Void call() throws Exception {
         final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
         final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
 
@@ -847,12 +910,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           albumEntity = foundEntries.get(0);
         }
         visibleAlbumsOfArchive.put(albumName, Integer.valueOf(albumEntity.getId()));
-
-        return dateEquals(albumEntity.getLastModified(), albumConnection.lastModified()) ? null : Integer.valueOf(albumEntity.getId());
+        albumId.set(albumEntity.getId());
+        shouldUpdateMeta.set(!dateEquals(albumEntity.getLastModified(), albumConnection.lastModified()));
+        shouldLoadThumbnails.set(albumEntity.isShouldSync());
+        return null;
       }
     });
-    if (albumId != null)
-      refreshAlbumDetail(albumConnection, albumId);
+    if (shouldUpdateMeta.get())
+      refreshAlbumDetail(albumConnection, albumId.intValue());
+    if (shouldLoadThumbnails.get())
+      loadThumbnailsOfAlbum(albumId.intValue());
   }
 
   private void updateAlbumsOnDB() {
