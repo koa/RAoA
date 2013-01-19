@@ -108,7 +108,7 @@ public class NetworkActivity extends Activity {
     dumpCursor(albumCursor);
     if (albumCursor.moveToPosition(1)) {
       final int albumId = albumCursor.getInt(albumCursor.getColumnIndexOrThrow(Client.Album.ID));
-      final Cursor entryCursor = resolver.query(Client.makeAlbumUri(albumId), null, null, null, null);
+      final Cursor entryCursor = resolver.query(Client.makeAlbumEntriesUri(albumId), null, null, null, null);
       dumpCursor(entryCursor);
       entryCursor.close();
     }

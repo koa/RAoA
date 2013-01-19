@@ -123,7 +123,6 @@ public class ArchiveContentProvider extends ContentProvider {
     default:
       break;
     }
-    // TODO Auto-generated method stub
     return super.openFile(uri, mode);
   }
 
@@ -135,17 +134,16 @@ public class ArchiveContentProvider extends ContentProvider {
       switch (matcher.match(uri)) {
       case ALBUM_LIST:
         return service.readAlbumList(projection);
+      case ALBUM:
+        return service.readSingleAlbum(Integer.parseInt(segments.get(1)), projection);
       case ALBUM_ENTRY_LIST:
         return service.readAlbumEntryList(Integer.parseInt(segments.get(1)), projection);
       case SERVER_LIST:
         return service.readServerList(projection);
       case SERVER_PROGRESS_LIST:
         return service.readServerProgresList(segments.get(1), projection);
-      default:
-        break;
       }
-      // TODO Auto-generated method stub
-      return null;
+      throw new UnsupportedOperationException("Query of " + uri + " is not supported");
     } catch (final Throwable e) {
       throw new RuntimeException("Cannot query for " + uri, e);
     }
@@ -153,9 +151,13 @@ public class ArchiveContentProvider extends ContentProvider {
 
   @Override
   public int update(final Uri uri, final ContentValues values, final String selection, final String[] selectionArgs) {
-
-    // TODO Auto-generated method stub
-    return 0;
+    Log.i(TAG, "Update called: " + uri);
+    final List<String> segments = uri.getPathSegments();
+    switch (matcher.match(uri)) {
+    case ALBUM:
+      return service.updateAlbumEntry(Integer.parseInt(segments.get(1)), values);
+    }
+    throw new UnsupportedOperationException("Update of " + uri + " is not supported");
   }
 
 }

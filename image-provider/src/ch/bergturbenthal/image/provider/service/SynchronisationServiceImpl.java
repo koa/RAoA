@@ -7,11 +7,13 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -40,6 +42,7 @@ import android.app.Notification.Builder;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
@@ -281,78 +284,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
       @Override
       public Cursor call() throws Exception {
-        final Iterable<Integer> visibleAlbums = collectVisibleAlbums();
-
-        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-        final QueryBuilder<AlbumEntity, Integer> albumEntityBuilder = albumDao.queryBuilder();
-        albumEntityBuilder.orderBy("albumCaptureDate", false);
-        albumEntityBuilder.where().eq("synced", Boolean.TRUE).or().in("id", visibleAlbums);
-
-        final List<AlbumEntity> albums = albumEntityBuilder.query();
-
-        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
-
-        final QueryBuilder<AlbumEntryEntity, Integer> summaryFieldsBuilder = albumEntryDao.queryBuilder();
-        summaryFieldsBuilder.where().in("album_id", albums).and().eq("deleted", Boolean.FALSE);
-        summaryFieldsBuilder.groupBy("album_id");
-        summaryFieldsBuilder.selectRaw("album_id", "count(*)", "sum(originalSize)", "sum(thumbnailSize)");
-
-        final String statement = summaryFieldsBuilder.prepare().getStatement();
-
-        final GenericRawResults<String[]> summaryRows = albumEntryDao.queryRaw(statement);
-        final Map<String, String[]> summaryResult = new HashMap<String, String[]>();
-        for (final String[] resultRow : summaryRows.getResults()) {
-          summaryResult.put(resultRow[0], resultRow);
-        }
-
-        final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
-        fieldReaders.put(Client.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
-          @Override
-          public String getString(final AlbumEntity value) {
-            if (value == null || value.getArchive() == null)
-              return null;
-            return value.getArchive().getName();
-          }
-        });
-        fieldReaders.put(Client.Album.ENTRY_COUNT, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
-          @Override
-          public Number getNumber(final AlbumEntity value) {
-            final String values[] = summaryResult.get(String.valueOf(value.getId()));
-            if (values == null)
-              return Integer.valueOf(0);
-            return Integer.valueOf(values[1]);
-          }
-        });
-        fieldReaders.put(Client.Album.ORIGINALS_SIZE, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
-          @Override
-          public Number getNumber(final AlbumEntity value) {
-            final String[] sizeValue = summaryResult.get(String.valueOf(value.getId()));
-            if (sizeValue == null)
-              return Long.valueOf(0);
-            return Long.valueOf(sizeValue[2]);
-          }
-        });
-        fieldReaders.put(Client.Album.THUMBNAILS_SIZE, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
-          @Override
-          public Number getNumber(final AlbumEntity value) {
-            final String[] sizeValue = summaryResult.get(String.valueOf(value.getId()));
-            if (sizeValue == null)
-              return Long.valueOf(0);
-            return Long.valueOf(sizeValue[3]);
-          }
-        });
-        fieldReaders.put(Client.Album.THUMBNAIL, new StringFieldReader<AlbumEntity>() {
-
-          @Override
-          public String getString(final AlbumEntity value) {
-            if (value.getThumbnail() == null)
-              return null;
-            getAlbumEntryDao().refresh(value.getThumbnail());
-            return Client.makeThumbnailUri(value.getId(), value.getThumbnail().getId()).toString();
-          }
-        });
-
-        return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(albums, projection, fieldReaders));
+        return makeCursorForAlbums(collectVisibleAlbums(), projection, true);
       }
 
     });
@@ -418,17 +350,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     final Collection<Progress> progressValues =
                                                 new ArrayList<Progress>(serverConnection == null ? Collections.<Progress> emptyList()
                                                                                                 : serverConnection.getServerState().getProgress());
-    // final Progress dummyProgress = new Progress();
-    // dummyProgress.setCurrentStepDescription("DummyStep");
-    // dummyProgress.setCurrentStepNr(7);
-    // dummyProgress.setStepCount(9);
-    // dummyProgress.setProgressDescription("DummyProgress");
-    // dummyProgress.setType(ProgressType.IMPORT_IMAGES);
-    // dummyProgress.setProgressId(UUID.randomUUID().toString());
-    // progressValues.add(dummyProgress);
 
     final Map<String, String> mappedFields = new HashMap<String, String>();
-    // mappedFields.put(Client.ProgressEntry.ID, "progressId");
     mappedFields.put(Client.ProgressEntry.STEP_COUNT, "stepCount");
     mappedFields.put(Client.ProgressEntry.CURRENT_STEP_NR, "currentStepNr");
     mappedFields.put(Client.ProgressEntry.PROGRESS_DESCRIPTION, "progressDescription");
@@ -445,12 +368,49 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders));
   }
 
+  @Override
+  public Cursor readSingleAlbum(final int albumId, final String[] projection) {
+    return daoHolder.callInTransaction(new Callable<Cursor>() {
+      @Override
+      public Cursor call() throws Exception {
+        final Collection<Integer> visible = collectVisibleAlbums();
+        if (visible.contains(Integer.valueOf(albumId)))
+          return makeCursorForAlbums(Collections.singletonList(Integer.valueOf(albumId)), projection, false);
+        else
+          return makeCursorForAlbums(Collections.<Integer> emptyList(), projection, false);
+      }
+    });
+  }
+
+  @Override
+  public int updateAlbumEntry(final int albumId, final ContentValues values) {
+    return callInTransaction(new Callable<Integer>() {
+      @Override
+      public Integer call() throws Exception {
+        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+        final AlbumEntity albumEntity = albumDao.queryForId(Integer.valueOf(albumId));
+        if (albumEntity == null)
+          return Integer.valueOf(0);
+        final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
+        if (shouldSync == null)
+          return Integer.valueOf(1);
+        if (albumEntity.isShouldSync() != shouldSync.booleanValue()) {
+          albumEntity.setShouldSync(shouldSync.booleanValue());
+          if (!shouldSync)
+            albumEntity.setSynced(false);
+          albumDao.update(albumEntity);
+        }
+        return Integer.valueOf(1);
+      }
+    }).intValue();
+  }
+
   private <V> V callInTransaction(final Callable<V> callable) {
     return cursorNotifications.doWithNotify(callable);
   }
 
-  private Iterable<Integer> collectVisibleAlbums() {
-    final ArrayList<Integer> ret = new ArrayList<Integer>();
+  private Collection<Integer> collectVisibleAlbums() {
+    final Collection<Integer> ret = new LinkedHashSet<Integer>();
     for (final ConcurrentMap<String, Integer> archive : visibleAlbums.values()) {
       ret.addAll(archive.values());
     }
@@ -614,6 +574,88 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         return null;
       }
     });
+  }
+
+  private Cursor makeCursorForAlbums(final Collection<Integer> visibleAlbums, final String[] projection, final boolean alsoSynced)
+                                                                                                                                  throws SQLException {
+    final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+    final QueryBuilder<AlbumEntity, Integer> albumEntityBuilder = albumDao.queryBuilder();
+    albumEntityBuilder.orderBy("albumCaptureDate", false);
+    if (!alsoSynced)
+      albumEntityBuilder.where().in("id", visibleAlbums);
+    else
+      albumEntityBuilder.where().eq("synced", Boolean.TRUE).or().in("id", visibleAlbums);
+
+    final List<AlbumEntity> albums = albumEntityBuilder.query();
+
+    final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
+
+    final QueryBuilder<AlbumEntryEntity, Integer> summaryFieldsBuilder = albumEntryDao.queryBuilder();
+    summaryFieldsBuilder.where().in("album_id", albums).and().eq("deleted", Boolean.FALSE);
+    summaryFieldsBuilder.groupBy("album_id");
+    summaryFieldsBuilder.selectRaw("album_id", "count(*)", "sum(originalSize)", "sum(thumbnailSize)");
+
+    final String statement = summaryFieldsBuilder.prepare().getStatement();
+
+    final GenericRawResults<String[]> summaryRows = albumEntryDao.queryRaw(statement);
+    final Map<String, String[]> summaryResult = new HashMap<String, String[]>();
+    for (final String[] resultRow : summaryRows.getResults()) {
+      summaryResult.put(resultRow[0], resultRow);
+    }
+
+    final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
+    fieldReaders.put(Client.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
+      @Override
+      public String getString(final AlbumEntity value) {
+        if (value == null || value.getArchive() == null)
+          return null;
+        return value.getArchive().getName();
+      }
+    });
+    fieldReaders.put(Client.Album.ENTRY_COUNT, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
+      @Override
+      public Number getNumber(final AlbumEntity value) {
+        final String values[] = summaryResult.get(String.valueOf(value.getId()));
+        if (values == null)
+          return Integer.valueOf(0);
+        return Integer.valueOf(values[1]);
+      }
+    });
+    fieldReaders.put(Client.Album.ORIGINALS_SIZE, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
+      @Override
+      public Number getNumber(final AlbumEntity value) {
+        final String[] sizeValue = summaryResult.get(String.valueOf(value.getId()));
+        if (sizeValue == null)
+          return Long.valueOf(0);
+        return Long.valueOf(sizeValue[2]);
+      }
+    });
+    fieldReaders.put(Client.Album.THUMBNAILS_SIZE, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
+      @Override
+      public Number getNumber(final AlbumEntity value) {
+        final String[] sizeValue = summaryResult.get(String.valueOf(value.getId()));
+        if (sizeValue == null)
+          return Long.valueOf(0);
+        return Long.valueOf(sizeValue[3]);
+      }
+    });
+    fieldReaders.put(Client.Album.THUMBNAIL, new StringFieldReader<AlbumEntity>() {
+      @Override
+      public String getString(final AlbumEntity value) {
+        if (value.getThumbnail() == null)
+          return null;
+        getAlbumEntryDao().refresh(value.getThumbnail());
+        return Client.makeThumbnailUri(value.getId(), value.getThumbnail().getId()).toString();
+      }
+    });
+    fieldReaders.put(Client.Album.ENTRY_URI, new StringFieldReader<AlbumEntity>() {
+      @Override
+      public String getString(final AlbumEntity value) {
+        return Client.makeAlbumUri(value.getId()).toString();
+      }
+    });
+
+    return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(albums, projection, fieldReaders));
   }
 
   private long makeLongId(final String stringId) {
