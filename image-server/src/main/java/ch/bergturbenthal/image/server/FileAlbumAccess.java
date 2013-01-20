@@ -77,6 +77,7 @@ import ch.bergturbenthal.image.data.model.AlbumList;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.data.model.state.ProgressType;
 import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
+import ch.bergturbenthal.image.server.metadata.MetadataWrapper;
 import ch.bergturbenthal.image.server.model.ArchiveData;
 import ch.bergturbenthal.image.server.state.ProgressHandler;
 import ch.bergturbenthal.image.server.state.StateManager;
@@ -232,7 +233,9 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
         try {
           // logger.info("Read: " + file.getName());
           final Metadata metadata = ImageMetadataReader.readMetadata(file);
-          final Date createDate = MetadataUtil.readCreateDate(metadata);
+          if (metadata == null)
+            continue;
+          final Date createDate = new MetadataWrapper(metadata).readCreateDate();
           if (createDate == null)
             // skip images without creation date
             continue;

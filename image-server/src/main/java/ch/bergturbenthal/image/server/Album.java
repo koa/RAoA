@@ -58,6 +58,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
 import ch.bergturbenthal.image.server.cache.AlbumEntryCacheManager;
+import ch.bergturbenthal.image.server.metadata.PicasaIniData;
 import ch.bergturbenthal.image.server.model.AlbumEntryData;
 import ch.bergturbenthal.image.server.util.RepositoryService;
 
@@ -487,15 +488,21 @@ public class Album implements ApplicationContextAware {
           return cachedImageMap;
       }
     }
-
+    final Map<String, PicasaIniData> picasaData = PicasaIniData.parseIniFile(baseDir);
     final Map<String, AlbumImage> ret = new HashMap<String, AlbumImage>();
     for (final File file : listImageFiles()) {
       final String filename = file.getName();
+      final PicasaIniData picasaIniData = picasaData.get(filename);
       final AlbumEntryCacheManager cacheManager = new AlbumEntryCacheManager() {
 
         @Override
         public AlbumEntryData getCachedData() {
           return readAlbumEntryDataFromCache(filename);
+        }
+
+        @Override
+        public PicasaIniData getPicasaData() {
+          return picasaIniData;
         }
 
         @Override

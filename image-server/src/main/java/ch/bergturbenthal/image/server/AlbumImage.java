@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import ch.bergturbenthal.image.server.cache.AlbumEntryCacheManager;
+import ch.bergturbenthal.image.server.metadata.MetadataWrapper;
+import ch.bergturbenthal.image.server.metadata.PicasaIniData;
 import ch.bergturbenthal.image.server.model.AlbumEntryData;
 import ch.bergturbenthal.image.server.thumbnails.ImageThumbnailMaker;
 import ch.bergturbenthal.image.server.thumbnails.VideoThumbnailMaker;
@@ -24,6 +26,7 @@ import com.drew.metadata.Metadata;
 
 public class AlbumImage {
 
+  private static final Integer STAR_RATING = Integer.valueOf(5);
   private static Map<File, Object> imageLocks = new WeakHashMap<File, Object>();
   private static Semaphore limitConcurrentScaleSemaphore = new Semaphore(4);
   private static Map<File, SoftReference<AlbumImage>> loadedImages = new HashMap<File, SoftReference<AlbumImage>>();
@@ -135,7 +138,15 @@ public class AlbumImage {
     loadedMetaData = new AlbumEntryData();
     final Metadata metadata = getExifMetadata();
     if (metadata != null) {
-      loadedMetaData.setCreationDate(MetadataUtil.readCreateDate(metadata));
+      new MetadataWrapper(metadata).fill(loadedMetaData);
+    }
+    final PicasaIniData picasaData = cacheManager.getPicasaData();
+    if (picasaData != null) {
+      if (loadedMetaData.getRating() == null && picasaData.isStar())
+        loadedMetaData.setRating(STAR_RATING);
+      loadedMetaData.getKeywords().addAll(picasaData.getKeywords());
+      if (loadedMetaData.getCaption() == null)
+        loadedMetaData.setCaption(picasaData.getCaption());
     }
 
     cacheManager.updateCache(loadedMetaData);
