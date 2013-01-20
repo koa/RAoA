@@ -1,6 +1,7 @@
 package ch.bergturbenthal.image.server;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.Date;
@@ -9,6 +10,8 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.Semaphore;
 
+import lombok.Cleanup;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,10 +19,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import ch.bergturbenthal.image.server.cache.AlbumEntryCacheManager;
 import ch.bergturbenthal.image.server.metadata.MetadataWrapper;
 import ch.bergturbenthal.image.server.metadata.PicasaIniData;
+import ch.bergturbenthal.image.server.metadata.XmpWrapper;
 import ch.bergturbenthal.image.server.model.AlbumEntryData;
 import ch.bergturbenthal.image.server.thumbnails.ImageThumbnailMaker;
 import ch.bergturbenthal.image.server.thumbnails.VideoThumbnailMaker;
 
+import com.adobe.xmp.XMPException;
+import com.adobe.xmp.XMPMetaFactory;
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
@@ -148,6 +154,25 @@ public class AlbumImage {
       if (loadedMetaData.getCaption() == null)
         loadedMetaData.setCaption(picasaData.getCaption());
     }
+    final File xmpSideFile = getXmpSideFile();
+    if (xmpSideFile.exists()) {
+      try {
+        @Cleanup
+        final FileInputStream fis = new FileInputStream(xmpSideFile);
+        final XmpWrapper xmp = new XmpWrapper(XMPMetaFactory.parse(fis));
+        final Integer rating = xmp.readRating();
+        if (rating != null)
+          loadedMetaData.setRating(rating);
+        loadedMetaData.getKeywords().addAll(xmp.readKeywords());
+        final String description = xmp.readDescription();
+        if (description != null)
+          loadedMetaData.setCaption(description);
+      } catch (final IOException e) {
+        logger.error("Cannot read XMP-Sidefile: " + xmpSideFile, e);
+      } catch (final XMPException e) {
+        logger.error("Cannot read XMP-Sidefile: " + xmpSideFile, e);
+      }
+    }
 
     cacheManager.updateCache(loadedMetaData);
     return loadedMetaData;
@@ -167,6 +192,10 @@ public class AlbumImage {
       logger.warn("Cannot reade metadata from " + file, e);
     }
     return null;
+  }
+
+  private File getXmpSideFile() {
+    return new File(file.getParent(), file.getName() + ".xmp");
   }
 
   private File makeCachedFile() {
