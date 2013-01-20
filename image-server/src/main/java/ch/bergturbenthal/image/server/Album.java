@@ -35,10 +35,13 @@ import javax.annotation.PostConstruct;
 
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.ObjectReader;
 import org.codehaus.jackson.map.type.MapType;
 import org.codehaus.jackson.map.type.SimpleType;
+import org.eclipse.jgit.api.AddCommand;
+import org.eclipse.jgit.api.CommitCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.LogCommand;
 import org.eclipse.jgit.api.Status;
@@ -57,6 +60,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
+import ch.bergturbenthal.image.data.model.CaptionMutationEntry;
+import ch.bergturbenthal.image.data.model.KeywordMutationEntry;
+import ch.bergturbenthal.image.data.model.MutationEntry;
+import ch.bergturbenthal.image.data.model.RatingMutationEntry;
 import ch.bergturbenthal.image.server.cache.AlbumEntryCacheManager;
 import ch.bergturbenthal.image.server.metadata.PicasaIniData;
 import ch.bergturbenthal.image.server.model.AlbumEntryData;
@@ -347,6 +354,56 @@ public class Album implements ApplicationContextAware {
   @Override
   public String toString() {
     return "Album [" + getName() + "]";
+  }
+
+  public synchronized void updateMetadata(final Collection<MutationEntry> updateEntries) {
+    final Map<String, AlbumImage> loadedImages = loadImages();
+    final Set<String> modifiedImages = new HashSet<>();
+    for (final MutationEntry mutationEntry : updateEntries) {
+      final AlbumImage albumImage = loadedImages.get(mutationEntry.getAlbumEntryId());
+      if (albumImage == null)
+        continue;
+      final AlbumEntryData oldMetadata = albumImage.getAlbumEntryData();
+      if (!StringUtils.equals(oldMetadata.getEditableMetadataHash(), mutationEntry.getBaseVersion()))
+        continue;
+      modifiedImages.add(mutationEntry.getAlbumEntryId());
+      try {
+        if (mutationEntry instanceof RatingMutationEntry) {
+          final RatingMutationEntry ratingMutationEntry = (RatingMutationEntry) mutationEntry;
+          albumImage.setRating(ratingMutationEntry.getRating());
+        }
+        if (mutationEntry instanceof CaptionMutationEntry) {
+          final CaptionMutationEntry captionMutationEntry = (CaptionMutationEntry) mutationEntry;
+          albumImage.setCaption(captionMutationEntry.getCaption());
+        }
+        if (mutationEntry instanceof KeywordMutationEntry) {
+          final KeywordMutationEntry keywordMutationEntry = (KeywordMutationEntry) mutationEntry;
+          switch (keywordMutationEntry.getMutation()) {
+          case ADD:
+            albumImage.addKeyword(keywordMutationEntry.getKeyword());
+            break;
+          case REMOVE:
+            albumImage.removeKeyword(keywordMutationEntry.getKeyword());
+            break;
+          }
+        }
+      } catch (final Exception e) {
+        logger.error("Cannot execute update " + mutationEntry + " at album " + getName(), e);
+      }
+    }
+    if (!modifiedImages.isEmpty())
+      try {
+        final AddCommand addCommand = git.add();
+        for (final String imageId : modifiedImages) {
+          addCommand.addFilepattern(loadedImages.get(imageId).getXmpSideFile().getName());
+        }
+        addCommand.call();
+        final CommitCommand commitCommand = git.commit();
+        commitCommand.setMessage("Metadata updated");
+        commitCommand.call();
+      } catch (final GitAPIException e) {
+        logger.error("Cannot update git", e);
+      }
   }
 
   /**

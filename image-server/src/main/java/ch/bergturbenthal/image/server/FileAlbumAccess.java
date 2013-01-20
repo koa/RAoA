@@ -74,6 +74,7 @@ import org.springframework.web.client.RestTemplate;
 
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.data.model.state.ProgressType;
 import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
@@ -420,6 +421,15 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       albumCollection.remove(albumPath);
       updateMeta("added " + albumPath + " to client " + clientId);
     }
+  }
+
+  @Override
+  public void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries) {
+    final Map<String, Album> albums = loadAlbums(false);
+    final Album foundAlbum = albums.get(albumId);
+    if (foundAlbum == null)
+      return;
+    foundAlbum.updateMetadata(updateEntries);
   }
 
   @Override

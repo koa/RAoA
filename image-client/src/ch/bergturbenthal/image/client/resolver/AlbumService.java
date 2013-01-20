@@ -31,6 +31,7 @@ import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.MutationEntry;
 
 public class AlbumService implements Album {
   private final String baseUrl;
@@ -184,6 +185,11 @@ public class AlbumService implements Album {
   @Override
   public void unRegisterClient(final String albumId, final String clientId) {
     restTemplate.put(baseUrl + "/albums/{albumId}/unRegisterClient", clientId, albumId);
+  }
+
+  @Override
+  public void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries) {
+    restTemplate.put(baseUrl + "/albums/{albumId}/updateMeta", updateEntries, albumId);
   }
 
   @Override

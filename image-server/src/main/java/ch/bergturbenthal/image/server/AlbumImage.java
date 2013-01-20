@@ -2,6 +2,7 @@ package ch.bergturbenthal.image.server;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.Date;
@@ -12,6 +13,7 @@ import java.util.concurrent.Semaphore;
 
 import lombok.Cleanup;
 
+import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,7 @@ import ch.bergturbenthal.image.server.thumbnails.ImageThumbnailMaker;
 import ch.bergturbenthal.image.server.thumbnails.VideoThumbnailMaker;
 
 import com.adobe.xmp.XMPException;
+import com.adobe.xmp.XMPMeta;
 import com.adobe.xmp.XMPMetaFactory;
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
@@ -32,10 +35,15 @@ import com.drew.metadata.Metadata;
 
 public class AlbumImage {
 
+  private static interface XmpRunnable {
+    void run(final XmpWrapper xmp);
+  }
+
   private static final Integer STAR_RATING = Integer.valueOf(5);
   private static Map<File, Object> imageLocks = new WeakHashMap<File, Object>();
   private static Semaphore limitConcurrentScaleSemaphore = new Semaphore(4);
   private static Map<File, SoftReference<AlbumImage>> loadedImages = new HashMap<File, SoftReference<AlbumImage>>();
+
   private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
 
   public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumEntryCacheManager cacheManager) {
@@ -82,61 +90,21 @@ public class AlbumImage {
     this.cacheManager = cacheManager;
   }
 
+  public void addKeyword(final String keyword) {
+    updateXmp(new XmpRunnable() {
+
+      @Override
+      public void run(final XmpWrapper xmp) {
+        xmp.addKeyword(keyword);
+      }
+    });
+  }
+
   public Date captureDate() {
     return getAlbumEntryData().getCreationDate();
   }
 
-  public String getName() {
-    return file.getName();
-  }
-
-  public long getOriginalFileSize() {
-    return file.length();
-  }
-
-  public File getThumbnail() {
-    try {
-      final File cachedFile = makeCachedFile();
-      if (cachedFile.exists() && cachedFile.lastModified() > file.lastModified())
-        return cachedFile;
-      synchronized (this) {
-        if (cachedFile.exists() && cachedFile.lastModified() >= file.lastModified())
-          return cachedFile;
-        limitConcurrentScaleSemaphore.acquire();
-        try {
-          if (isVideo())
-            videoThumbnailMaker.makeVideoThumbnail(file, cachedFile, cacheDir);
-          else
-            imageThumbnailMaker.makeImageThumbnail(file, cachedFile, cacheDir);
-        } finally {
-          limitConcurrentScaleSemaphore.release();
-        }
-      }
-      return cachedFile;
-    } catch (final Exception e) {
-      throw new RuntimeException("Cannot make thumbnail of " + file, e);
-    }
-  }
-
-  /**
-   * returns true if the image is a video
-   * 
-   * @return
-   */
-  public boolean isVideo() {
-    return file.getName().toLowerCase().endsWith(".mkv");
-  }
-
-  public Date lastModified() {
-    return lastModified;
-  }
-
-  @Override
-  public String toString() {
-    return "AlbumImage [file=" + file.getName() + "]";
-  }
-
-  private synchronized AlbumEntryData getAlbumEntryData() {
+  public synchronized AlbumEntryData getAlbumEntryData() {
     AlbumEntryData loadedMetaData = cacheManager.getCachedData();
     if (loadedMetaData != null)
       return loadedMetaData;
@@ -157,16 +125,23 @@ public class AlbumImage {
     final File xmpSideFile = getXmpSideFile();
     if (xmpSideFile.exists()) {
       try {
-        @Cleanup
-        final FileInputStream fis = new FileInputStream(xmpSideFile);
-        final XmpWrapper xmp = new XmpWrapper(XMPMetaFactory.parse(fis));
-        final Integer rating = xmp.readRating();
-        if (rating != null)
-          loadedMetaData.setRating(rating);
-        loadedMetaData.getKeywords().addAll(xmp.readKeywords());
-        final String description = xmp.readDescription();
-        if (description != null)
-          loadedMetaData.setCaption(description);
+        {
+          @Cleanup
+          final FileInputStream fis = new FileInputStream(xmpSideFile);
+          final XmpWrapper xmp = new XmpWrapper(XMPMetaFactory.parse(fis));
+          final Integer rating = xmp.readRating();
+          if (rating != null)
+            loadedMetaData.setRating(rating);
+          loadedMetaData.getKeywords().addAll(xmp.readKeywords());
+          final String description = xmp.readDescription();
+          if (description != null)
+            loadedMetaData.setCaption(description);
+        }
+        {
+          @Cleanup
+          final FileInputStream fis = new FileInputStream(xmpSideFile);
+          loadedMetaData.setEditableMetadataHash(DigestUtils.shaHex(fis));
+        }
       } catch (final IOException e) {
         logger.error("Cannot read XMP-Sidefile: " + xmpSideFile, e);
       } catch (final XMPException e) {
@@ -176,6 +151,91 @@ public class AlbumImage {
 
     cacheManager.updateCache(loadedMetaData);
     return loadedMetaData;
+  }
+
+  public String getName() {
+    return file.getName();
+  }
+
+  public long getOriginalFileSize() {
+    return file.length();
+  }
+
+  public File getThumbnail() {
+    try {
+      final File cachedFile = makeCachedFile();
+      final long originalLastModified = file.lastModified();
+      if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified)
+        return cachedFile;
+      synchronized (this) {
+        if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified)
+          return cachedFile;
+        limitConcurrentScaleSemaphore.acquire();
+        try {
+          if (isVideo())
+            videoThumbnailMaker.makeVideoThumbnail(file, cachedFile, cacheDir);
+          else
+            imageThumbnailMaker.makeImageThumbnail(file, cachedFile, cacheDir);
+          cachedFile.setLastModified(originalLastModified);
+        } finally {
+          limitConcurrentScaleSemaphore.release();
+        }
+      }
+      return cachedFile;
+    } catch (final Exception e) {
+      throw new RuntimeException("Cannot make thumbnail of " + file, e);
+    }
+  }
+
+  public File getXmpSideFile() {
+    return new File(file.getParent(), file.getName() + ".xmp");
+  }
+
+  /**
+   * returns true if the image is a video
+   * 
+   * @return
+   */
+  public boolean isVideo() {
+    return file.getName().toLowerCase().endsWith(".mkv");
+  }
+
+  public Date lastModified() {
+    return lastModified;
+  }
+
+  public void removeKeyword(final String keyword) {
+    updateXmp(new XmpRunnable() {
+
+      @Override
+      public void run(final XmpWrapper xmp) {
+        xmp.removeKeyword(keyword);
+      }
+    });
+  }
+
+  public void setCaption(final String caption) {
+    updateXmp(new XmpRunnable() {
+
+      @Override
+      public void run(final XmpWrapper xmp) {
+        xmp.updateDescription(caption);
+      }
+    });
+  }
+
+  public void setRating(final Integer rating) {
+    updateXmp(new XmpRunnable() {
+      @Override
+      public void run(final XmpWrapper xmp) {
+        xmp.setRating(rating);
+      }
+    });
+  }
+
+  @Override
+  public String toString() {
+    return "AlbumImage [file=" + file.getName() + "]";
   }
 
   private Metadata getExifMetadata() {
@@ -194,16 +254,42 @@ public class AlbumImage {
     return null;
   }
 
-  private File getXmpSideFile() {
-    return new File(file.getParent(), file.getName() + ".xmp");
-  }
-
   private File makeCachedFile() {
     final String name = file.getName();
     if (isVideo()) {
       return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
     }
     return new File(cacheDir, name);
+  }
+
+  private void updateXmp(final XmpRunnable runnable) {
+    final File xmpSideFile = getXmpSideFile();
+    final XMPMeta xmpMeta;
+    try {
+      @Cleanup
+      final FileInputStream fis = new FileInputStream(xmpSideFile);
+      xmpMeta = XMPMetaFactory.parse(fis);
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot parse " + xmpSideFile, e);
+    } catch (final XMPException e) {
+      throw new RuntimeException("Cannot parse " + xmpSideFile, e);
+    }
+    final XmpWrapper xmp = new XmpWrapper(xmpMeta);
+    runnable.run(xmp);
+    final File tempSideFile = new File(xmpSideFile.getParent(), xmpSideFile.getName() + "-tmp");
+    try {
+      {
+        @Cleanup
+        final FileOutputStream fos = new FileOutputStream(tempSideFile);
+        XMPMetaFactory.serialize(xmpMeta, fos);
+      }
+      tempSideFile.renameTo(xmpSideFile);
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot write " + tempSideFile, e);
+    } catch (final XMPException e) {
+      throw new RuntimeException("Cannot write " + tempSideFile, e);
+    }
+
   }
 
 }

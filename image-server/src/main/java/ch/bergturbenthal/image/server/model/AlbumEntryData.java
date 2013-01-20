@@ -19,4 +19,5 @@ public class AlbumEntryData {
   private Collection<String> keywords;
   private Location location;
   private Integer rating;
+  private String editableMetadataHash;
 }

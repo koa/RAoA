@@ -6,6 +6,8 @@ import java.util.Map;
 
 import org.eclipse.jgit.lib.Repository;
 
+import ch.bergturbenthal.image.data.model.MutationEntry;
+
 public interface AlbumAccess {
   /**
    * create a new Album
@@ -57,4 +59,6 @@ public interface AlbumAccess {
   void registerClient(final String albumId, final String clientId);
 
   void unRegisterClient(final String albumId, final String clientId);
+
+  void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries);
 }

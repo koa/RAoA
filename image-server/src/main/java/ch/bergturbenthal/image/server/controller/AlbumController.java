@@ -30,9 +30,11 @@ import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.server.Album;
 import ch.bergturbenthal.image.server.AlbumAccess;
 import ch.bergturbenthal.image.server.AlbumImage;
+import ch.bergturbenthal.image.server.model.AlbumEntryData;
 
 @Controller
 @RequestMapping("/albums")
@@ -204,6 +206,17 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     unRegisterClient(albumId, clientId);
   }
 
+  @Override
+  public void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries) {
+    albumAccess.updateMetadata(albumId, updateEntries);
+  }
+
+  @RequestMapping(value = "{albumId}/updateMeta", method = RequestMethod.PUT)
+  public void updateMetadata(@PathVariable("albumId") final String albumId, @RequestBody final Collection<MutationEntry> updateEntries,
+                             final HttpServletResponse response) {
+    updateMetadata(albumId, updateEntries);
+  }
+
   private void fillAlbumImageEntry(final AlbumImage albumImage, final AlbumImageEntry entry) {
     entry.setName(albumImage.getName());
     entry.setVideo(albumImage.isVideo());
@@ -211,9 +224,21 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     entry.setOriginalFileSize(albumImage.getOriginalFileSize());
     entry.setThumbnailFileSize(albumImage.getThumbnail().length());
     try {
+      final AlbumEntryData albumEntryData = albumImage.getAlbumEntryData();
+
       entry.setCaptureDate(albumImage.captureDate());
+      entry.setCameraMake(albumEntryData.getCameraMake());
+      entry.setCameraModel(albumEntryData.getCameraModel());
+      entry.setCaption(albumEntryData.getCaption());
+      entry.setEditableMetadataHash(albumEntryData.getEditableMetadataHash());
+      entry.setExposureTime(albumEntryData.getExposureTime());
+      entry.setFNumber(albumEntryData.getFNumber());
+      entry.setFocalLength(albumEntryData.getFocalLength());
+      entry.setIso(albumEntryData.getIso());
+      entry.setKeywords(albumEntryData.getKeywords());
+      entry.setRating(albumEntryData.getRating());
     } catch (final RuntimeException ex) {
-      logger.warn("cannot read Datum from image " + albumImage.getName(), ex);
+      logger.warn("cannot read metadata from image " + albumImage.getName(), ex);
     }
   }
 

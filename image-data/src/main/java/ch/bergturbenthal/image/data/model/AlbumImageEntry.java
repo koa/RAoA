@@ -1,5 +1,6 @@
 package ch.bergturbenthal.image.data.model;
 
+import java.util.Collection;
 import java.util.Date;
 
 import lombok.Data;
@@ -14,4 +15,15 @@ public class AlbumImageEntry {
   private long originalFileSize;
   private long thumbnailFileSize;
 
+  private String cameraMake;
+  private String cameraModel;
+  private String caption;
+  private Double exposureTime;
+  private Double fNumber;
+  private Double focalLength;
+  private Integer iso;
+  private Collection<String> keywords;
+  private Location location;
+  private Integer rating;
+  private String editableMetadataHash;
 }
