@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,7 @@ import ch.bergturbenthal.image.provider.map.NumericFieldReader;
 import ch.bergturbenthal.image.provider.map.StringFieldReader;
 import ch.bergturbenthal.image.provider.model.AlbumEntity;
 import ch.bergturbenthal.image.provider.model.AlbumEntryEntity;
+import ch.bergturbenthal.image.provider.model.AlbumEntryKeywordEntry;
 import ch.bergturbenthal.image.provider.model.ArchiveEntity;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
@@ -445,6 +447,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return daoHolder.getDao(ArchiveEntity.class);
   }
 
+  private RuntimeExceptionDao<AlbumEntryKeywordEntry, Integer> getKeywordDao() {
+    return daoHolder.getDao(AlbumEntryKeywordEntry.class);
+  }
+
   private File ifExsists(final File file) {
     return file.exists() ? file : null;
   }
@@ -691,6 +697,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     cursorNotifications.notifyAllAlbumCursorsChanged();
   }
 
+  private <O> boolean objectEquals(final O v1, final O v2) {
+    if (v1 == v2)
+      return true;
+    if (v1 == null || v2 == null)
+      return false;
+    return v1.equals(v2);
+  }
+
   private PingResponse pingService(final URL url) {
     final RestTemplate restTemplate = new RestTemplate(true);
     try {
@@ -809,13 +823,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           } else {
             if (thumbnailCandidate == null)
               thumbnailCandidate = existingEntry;
-            if (!dateEquals(existingEntry.getCaptureDate(), entryDto.getCaptureDate()) && entryDto.getCaptureDate() != null
-                || existingEntry.getOriginalSize() != entryDto.getOriginalFileSize()
-                || existingEntry.getThumbnailSize() != entryDto.getThumbnailSize() || existingEntry.isDeleted()) {
-              existingEntry.setCaptureDate(entryDto.getCaptureDate());
-              existingEntry.setDeleted(false);
-              existingEntry.setOriginalSize(entryDto.getOriginalFileSize());
-              existingEntry.setThumbnailSize(entryDto.getThumbnailSize());
+            final boolean modified = updateEntity(existingEntry, entryDto);
+
+            if (modified) {
               albumEntryDao.update(existingEntry);
               notifyAlbumChanged(albumEntity.getId());
             }
@@ -850,6 +860,81 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           notifyAlbumListChanged();
         }
         return null;
+      }
+
+      private boolean updateEntity(final AlbumEntryEntity existingEntry, final AlbumEntryDto entryDto) {
+        boolean modified = false;
+        if (!dateEquals(existingEntry.getCaptureDate(), entryDto.getCaptureDate()) && entryDto.getCaptureDate() != null) {
+          existingEntry.setCaptureDate(entryDto.getCaptureDate());
+          modified = true;
+        }
+        if (existingEntry.getOriginalSize() != entryDto.getOriginalFileSize()) {
+          existingEntry.setOriginalSize(entryDto.getOriginalFileSize());
+          modified = true;
+        }
+        if (existingEntry.getThumbnailSize() != entryDto.getThumbnailSize()) {
+          existingEntry.setThumbnailSize(entryDto.getThumbnailSize());
+          modified = true;
+        }
+        if (!objectEquals(existingEntry.getCameraMake(), entryDto.getCameraMake())) {
+          existingEntry.setCameraMake(entryDto.getCameraMake());
+          modified = true;
+        }
+        if (!objectEquals(existingEntry.getCameraModel(), entryDto.getCameraModel())) {
+          existingEntry.setCameraMake(entryDto.getCameraModel());
+          modified = true;
+        }
+        if (!objectEquals(existingEntry.getExposureTime(), entryDto.getExposureTime())) {
+          existingEntry.setExposureTime(entryDto.getExposureTime());
+          modified = true;
+        }
+        if (!objectEquals(existingEntry.getfNumber(), entryDto.getfNumber())) {
+          existingEntry.setfNumber(entryDto.getfNumber());
+          modified = true;
+        }
+        if (!objectEquals(existingEntry.getFocalLength(), entryDto.getFocalLength())) {
+          existingEntry.setFocalLength(entryDto.getFocalLength());
+          modified = true;
+        }
+        if (!objectEquals(existingEntry.getIso(), entryDto.getIso())) {
+          existingEntry.setIso(entryDto.getIso());
+          modified = true;
+        }
+
+        if (!objectEquals(existingEntry.getEditableMetadataHash(), entryDto.getEditableMetadataHash())) {
+          existingEntry.setMetaCaption(entryDto.getCaption());
+          existingEntry.setMetaCaptionModified(false);
+          existingEntry.setMetaRating(entryDto.getRating());
+          existingEntry.setMetaRatingModified(false);
+
+          // remove and reset existing entries
+          final RuntimeExceptionDao<AlbumEntryKeywordEntry, Integer> keywordDao = getKeywordDao();
+          final Collection<String> remainingKeywords = new HashSet<String>(entryDto.getKeywords());
+          for (final AlbumEntryKeywordEntry keywordEntry : existingEntry.getKeywords()) {
+            final boolean found = remainingKeywords.remove(keywordEntry.getKeyword());
+            if (found) {
+              if (keywordEntry.isAdded() || keywordEntry.isDeleted()) {
+                keywordEntry.setAdded(false);
+                keywordEntry.setDeleted(false);
+                keywordDao.update(keywordEntry);
+              }
+            } else {
+              keywordDao.delete(keywordEntry);
+            }
+          }
+          // add remaining entries
+          for (final String keyword : remainingKeywords) {
+            keywordDao.create(new AlbumEntryKeywordEntry(existingEntry, keyword));
+          }
+          existingEntry.setEditableMetadataHash(entryDto.getEditableMetadataHash());
+          modified = true;
+        }
+
+        if (existingEntry.isDeleted()) {
+          existingEntry.setDeleted(false);
+          modified = true;
+        }
+        return modified;
       }
 
     });

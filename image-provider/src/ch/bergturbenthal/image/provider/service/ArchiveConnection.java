@@ -173,6 +173,17 @@ public class ArchiveConnection {
           dtoEntry.setCommId(entry.getId());
           dtoEntry.setOriginalFileSize(entry.getOriginalFileSize());
           dtoEntry.setThumbnailSize(entry.getThumbnailFileSize());
+
+          dtoEntry.setCameraMake(entry.getCameraMake());
+          dtoEntry.setCameraModel(entry.getCameraModel());
+          dtoEntry.setCaption(entry.getCaption());
+          dtoEntry.setEditableMetadataHash(entry.getEditableMetadataHash());
+          dtoEntry.setExposureTime(entry.getExposureTime());
+          dtoEntry.setfNumber(entry.getFNumber());
+          dtoEntry.setFocalLength(entry.getFocalLength());
+          dtoEntry.setIso(entry.getIso());
+          dtoEntry.getKeywords().addAll(entry.getKeywords());
+          dtoEntry.setRating(entry.getRating());
         }
       });
     }

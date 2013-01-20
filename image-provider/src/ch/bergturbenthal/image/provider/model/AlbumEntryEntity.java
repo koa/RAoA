@@ -1,5 +1,7 @@
 package ch.bergturbenthal.image.provider.model;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 
 import ch.bergturbenthal.image.provider.Client;
@@ -7,6 +9,7 @@ import ch.bergturbenthal.image.provider.map.CursorField;
 
 import com.j256.ormlite.field.DataType;
 import com.j256.ormlite.field.DatabaseField;
+import com.j256.ormlite.field.ForeignCollectionField;
 import com.j256.ormlite.table.DatabaseTable;
 
 @DatabaseTable(tableName = "album_entry")
@@ -31,6 +34,30 @@ public class AlbumEntryEntity {
   private long originalSize;
   @DatabaseField
   private long thumbnailSize;
+  @DatabaseField
+  private String editableMetadataHash;
+  @DatabaseField
+  private String cameraMake;
+  @DatabaseField
+  private String cameraModel;
+  @DatabaseField
+  private Double exposureTime;
+  @DatabaseField
+  private String metaCaption;
+  @DatabaseField
+  private boolean metaCaptionModified = false;
+  @DatabaseField
+  private Double fNumber;
+  @DatabaseField
+  private Double focalLength;
+  @DatabaseField
+  private Integer iso;
+  @DatabaseField
+  private Integer metaRating;
+  @DatabaseField
+  private boolean metaRatingModified = false;
+  @ForeignCollectionField(eager = true)
+  private final Collection<AlbumEntryKeywordEntry> keywords = new ArrayList<AlbumEntryKeywordEntry>();
 
   public AlbumEntryEntity(final AlbumEntity album, final String name, final String commId, final AlbumEntryType type, final Date lastModified,
                           final Date captureDate) {
@@ -56,6 +83,14 @@ public class AlbumEntryEntity {
     return album;
   }
 
+  public String getCameraMake() {
+    return cameraMake;
+  }
+
+  public String getCameraModel() {
+    return cameraModel;
+  }
+
   @CursorField(Client.AlbumEntry.CAPTURE_DATE)
   public Date getCaptureDate() {
     return captureDate;
@@ -65,14 +100,46 @@ public class AlbumEntryEntity {
     return commId;
   }
 
+  public String getEditableMetadataHash() {
+    return editableMetadataHash;
+  }
+
+  public Double getExposureTime() {
+    return exposureTime;
+  }
+
+  public Double getfNumber() {
+    return fNumber;
+  }
+
+  public Double getFocalLength() {
+    return focalLength;
+  }
+
   @CursorField(Client.AlbumEntry.ID)
   public int getId() {
     return id;
   }
 
+  public Integer getIso() {
+    return iso;
+  }
+
+  public Collection<AlbumEntryKeywordEntry> getKeywords() {
+    return keywords;
+  }
+
   @CursorField(Client.AlbumEntry.LAST_MODIFIED)
   public Date getLastModified() {
     return lastModified;
+  }
+
+  public String getMetaCaption() {
+    return metaCaption;
+  }
+
+  public Integer getMetaRating() {
+    return metaRating;
   }
 
   @CursorField(Client.AlbumEntry.NAME)
@@ -99,6 +166,22 @@ public class AlbumEntryEntity {
     return deleted;
   }
 
+  public boolean isMetaCaptionModified() {
+    return metaCaptionModified;
+  }
+
+  public boolean isMetaRatingModified() {
+    return metaRatingModified;
+  }
+
+  public void setCameraMake(final String cameraMake) {
+    this.cameraMake = cameraMake;
+  }
+
+  public void setCameraModel(final String cameraModel) {
+    this.cameraModel = cameraModel;
+  }
+
   public void setCaptureDate(final Date captureDate) {
     this.captureDate = captureDate;
   }
@@ -107,8 +190,44 @@ public class AlbumEntryEntity {
     this.deleted = deleted;
   }
 
+  public void setEditableMetadataHash(final String editableMetadataHash) {
+    this.editableMetadataHash = editableMetadataHash;
+  }
+
+  public void setExposureTime(final Double exposureTime) {
+    this.exposureTime = exposureTime;
+  }
+
+  public void setfNumber(final Double fNumber) {
+    this.fNumber = fNumber;
+  }
+
+  public void setFocalLength(final Double focalLength) {
+    this.focalLength = focalLength;
+  }
+
+  public void setIso(final Integer iso) {
+    this.iso = iso;
+  }
+
   public void setLastModified(final Date lastModified) {
     this.lastModified = lastModified;
+  }
+
+  public void setMetaCaption(final String metaCaption) {
+    this.metaCaption = metaCaption;
+  }
+
+  public void setMetaCaptionModified(final boolean metaCaptionModified) {
+    this.metaCaptionModified = metaCaptionModified;
+  }
+
+  public void setMetaRating(final Integer metaRating) {
+    this.metaRating = metaRating;
+  }
+
+  public void setMetaRatingModified(final boolean metaRatingModified) {
+    this.metaRatingModified = metaRatingModified;
   }
 
   public void setOriginalSize(final long originalSize) {
