@@ -276,30 +276,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         queryBuilder.where().eq("album_id", getAlbumDao().queryForId(Integer.valueOf(albumId))).and().eq("deleted", Boolean.FALSE);
         queryBuilder.orderBy("captureDate", true);
 
-        final Map<String, FieldReader<AlbumEntryEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryEntity.class);
-
-        fieldReaders.put(Client.AlbumEntry.THUMBNAIL, new StringFieldReader<AlbumEntryEntity>() {
-
-          @Override
-          public String getString(final AlbumEntryEntity value) {
-            return Client.makeThumbnailUri(albumId, value.getId()).toString();
-          }
-        });
-        fieldReaders.put(Client.AlbumEntry.META_KEYWORDS, new StringFieldReader<AlbumEntryEntity>() {
-
-          @Override
-          public String getString(final AlbumEntryEntity value) {
-            final Collection<String> keywordList = new ArrayList<String>();
-            final Collection<AlbumEntryKeywordEntry> keywords = value.getKeywords();
-            for (final AlbumEntryKeywordEntry albumEntryKeywordEntry : keywords) {
-              if (!albumEntryKeywordEntry.isDeleted())
-                keywordList.add(albumEntryKeywordEntry.getKeyword());
-            }
-            return Client.AlbumEntry.encodeKeywords(keywordList);
-          }
-        });
-
-        return cursorNotifications.addSingleAlbumCursor(albumId, MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders));
+        return makeCursorForAlbumEntries(queryBuilder, projection, albumId);
       }
     });
   }
@@ -420,6 +397,18 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           return makeCursorForAlbums(Collections.singletonList(Integer.valueOf(albumId)), projection, false);
         else
           return makeCursorForAlbums(Collections.<Integer> emptyList(), projection, false);
+      }
+    });
+  }
+
+  @Override
+  public Cursor readSingleAlbumEntry(final int albumId, final int albumEntryId, final String[] projection) {
+    return daoHolder.callInTransaction(new Callable<Cursor>() {
+      @Override
+      public Cursor call() throws Exception {
+        final QueryBuilder<AlbumEntryEntity, Integer> queryBuilder = getAlbumEntryDao().queryBuilder();
+        queryBuilder.where().idEq(albumEntryId).and().eq("deleted", Boolean.FALSE);
+        return makeCursorForAlbumEntries(queryBuilder, projection, albumId);
       }
     });
   }
@@ -689,6 +678,40 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         return null;
       }
     });
+  }
+
+  private Cursor makeCursorForAlbumEntries(final QueryBuilder<AlbumEntryEntity, Integer> queryBuilder, final String[] projection, final int albumId) {
+    final Map<String, FieldReader<AlbumEntryEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryEntity.class);
+
+    fieldReaders.put(Client.AlbumEntry.THUMBNAIL, new StringFieldReader<AlbumEntryEntity>() {
+
+      @Override
+      public String getString(final AlbumEntryEntity value) {
+        return Client.makeThumbnailUri(albumId, value.getId()).toString();
+      }
+    });
+    fieldReaders.put(Client.AlbumEntry.META_KEYWORDS, new StringFieldReader<AlbumEntryEntity>() {
+
+      @Override
+      public String getString(final AlbumEntryEntity value) {
+        final Collection<String> keywordList = new ArrayList<String>();
+        final Collection<AlbumEntryKeywordEntry> keywords = value.getKeywords();
+        for (final AlbumEntryKeywordEntry albumEntryKeywordEntry : keywords) {
+          if (!albumEntryKeywordEntry.isDeleted())
+            keywordList.add(albumEntryKeywordEntry.getKeyword());
+        }
+        return Client.AlbumEntry.encodeKeywords(keywordList);
+      }
+    });
+    fieldReaders.put(Client.AlbumEntry.ENTRY_URI, new StringFieldReader<AlbumEntryEntity>() {
+
+      @Override
+      public String getString(final AlbumEntryEntity value) {
+        return Client.makeAlbumEntryUri(albumId, value.getId()).toString();
+      }
+    });
+
+    return cursorNotifications.addSingleAlbumCursor(albumId, MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders));
   }
 
   private Cursor makeCursorForAlbums(final Collection<Integer> visibleAlbums, final String[] projection, final boolean alsoSynced)

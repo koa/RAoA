@@ -23,4 +23,6 @@ public interface SynchronisationService {
   Cursor readServerIssueList(final String string, final String[] projection);
 
   int updateAlbumEntry(final int parseInt, final int parseInt2, final ContentValues values);
+
+  Cursor readSingleAlbumEntry(final int albumId, final int albumEntryId, final String[] projection);
 }

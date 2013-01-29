@@ -48,6 +48,7 @@ public class Client {
     public static final String META_CAPTION = "metaCaption";
     public static final String META_RATING = "metaRating";
     public static final String META_KEYWORDS = "metaKeywords";
+    public static final String ENTRY_URI = "entryUri";
 
     public static Collection<String> decodeKeywords(final String keywordValue) {
       try {
@@ -107,6 +108,14 @@ public class Client {
     final Builder builder = ALBUM_URI.buildUpon();
     builder.appendPath(Integer.toString(albumId));
     builder.appendPath("entries");
+    return builder.build();
+  }
+
+  public static Uri makeAlbumEntryUri(final int albumId, final int albumEntryId) {
+    final Builder builder = ALBUM_URI.buildUpon();
+    builder.appendPath(Integer.toString(albumId));
+    builder.appendPath("entries");
+    builder.appendPath(Integer.toString(albumEntryId));
     return builder.build();
   }
 

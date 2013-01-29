@@ -142,13 +142,14 @@ public class ArchiveContentProvider extends ContentProvider {
         return service.readSingleAlbum(Integer.parseInt(segments.get(1)), projection);
       case ALBUM_ENTRY_LIST:
         return service.readAlbumEntryList(Integer.parseInt(segments.get(1)), projection);
+      case ALBUM_ENTRY:
+        return service.readSingleAlbumEntry(Integer.parseInt(segments.get(1)), Integer.parseInt(segments.get(3)), projection);
       case SERVER_LIST:
         return service.readServerList(projection);
       case SERVER_PROGRESS_LIST:
         return service.readServerProgresList(segments.get(1), projection);
       case SERVER_ISSUE_LIST:
         return service.readServerIssueList(segments.get(1), projection);
-      case ALBUM_ENTRY:
       case ALBUM_ENTRY_THUMBNAIL:
       }
       throw new UnsupportedOperationException("Query of " + uri + " is not supported");
