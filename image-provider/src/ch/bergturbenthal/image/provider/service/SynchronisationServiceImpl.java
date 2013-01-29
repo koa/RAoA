@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -189,7 +190,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   @Override
   public void onCreate() {
     super.onCreate();
-    executorService = new ScheduledThreadPoolExecutor(2);
+
+    executorService = new ScheduledThreadPoolExecutor(4, new ThreadFactory() {
+      final AtomicInteger nextThreadIndex = new AtomicInteger(0);
+
+      @Override
+      public Thread newThread(final Runnable r) {
+        return new Thread(r, "synchronisation-worker-" + nextThreadIndex.getAndIncrement());
+      }
+    });
 
     registerScreenOnOff();
     notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -509,7 +518,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       return date2 == null;
     if (date2 == null)
       return false;
-    return date1.getTime() == date2.getTime();
+    return Math.abs(date1.getTime() - date2.getTime()) < 1000;
   }
 
   private List<AlbumEntity> findAlbumByArchiveAndName(final ArchiveEntity archiveEntity, final String name) {
@@ -939,7 +948,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
                                                                            entryDto.getEntryType(), entryDto.getLastModified(),
                                                                            entryDto.getCaptureDate());
             albumEntryEntity.setOriginalSize(entryDto.getOriginalFileSize());
-            albumEntryEntity.setThumbnailSize(entryDto.getThumbnailSize());
+            if (entryDto.getThumbnailSize() != null)
+              albumEntryEntity.setThumbnailSize(entryDto.getThumbnailSize());
             albumEntryDao.create(albumEntryEntity);
             if (albumEntryEntity.getCaptureDate() != null) {
               dateCount.incrementAndGet();
@@ -948,6 +958,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             if (thumbnailCandidate == null) {
               thumbnailCandidate = albumEntryEntity;
             }
+            updateEntity(existingEntry, entryDto);
             notifyAlbumChanged(albumEntity.getId());
           } else {
             if (thumbnailCandidate == null)
@@ -1222,7 +1233,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             updateDetailRunnables.add(new Callable<Void>() {
               @Override
               public Void call() throws Exception {
-                updateAlbumDetail(archiveName, albumName, albumConnection, albums.size(), albumCounter);
+                try {
+                  updateAlbumDetail(archiveName, albumName, albumConnection, albums.size(), albumCounter);
+                } catch (final Throwable t) {
+                  Log.e(SERVICE_TAG, "Exception while updateing data", t);
+                }
                 return null;
               }
             });

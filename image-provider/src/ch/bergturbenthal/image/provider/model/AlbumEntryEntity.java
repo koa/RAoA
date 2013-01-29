@@ -12,7 +12,7 @@ import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.field.ForeignCollectionField;
 import com.j256.ormlite.table.DatabaseTable;
 
-@DatabaseTable(tableName = "album_entry")
+@DatabaseTable(tableName = "album_entries")
 public class AlbumEntryEntity {
   @DatabaseField(canBeNull = false, uniqueIndexName = "entry_name_index")
   private final String name;

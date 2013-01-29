@@ -3,7 +3,7 @@ package ch.bergturbenthal.image.provider.model;
 import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 
-@DatabaseTable
+@DatabaseTable(tableName = "album_entry_keywords")
 public class AlbumEntryKeywordEntry {
   @DatabaseField(generatedId = true)
   private final int id;

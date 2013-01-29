@@ -147,7 +147,8 @@ public class AlbumImage {
       } catch (final XMPException e) {
         logger.error("Cannot read XMP-Sidefile: " + xmpSideFile, e);
       }
-    }
+    } else
+      loadedMetaData.setEditableMetadataHash("original-data");
 
     albumManager.updateCache(loadedMetaData);
     return loadedMetaData;

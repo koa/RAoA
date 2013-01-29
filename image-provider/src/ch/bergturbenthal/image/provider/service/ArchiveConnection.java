@@ -182,7 +182,8 @@ public class ArchiveConnection {
           dtoEntry.setfNumber(entry.getFNumber());
           dtoEntry.setFocalLength(entry.getFocalLength());
           dtoEntry.setIso(entry.getIso());
-          dtoEntry.getKeywords().addAll(entry.getKeywords());
+          if (entry.getKeywords() != null)
+            dtoEntry.getKeywords().addAll(entry.getKeywords());
           dtoEntry.setRating(entry.getRating());
         }
       });
