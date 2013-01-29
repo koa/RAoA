@@ -5,9 +5,12 @@ import java.util.Date;
 import lombok.Data;
 
 @Data
-public abstract class Issue {
-  private Date issueTime;
+public class Issue {
   private String issueId;
-
-  public abstract boolean canAcknownledge();
+  private Date issueTime;
+  private IssueType type;
+  private String stackTrace;
+  private String imageName;
+  private String albumName;
+  private boolean acknowledgable;
 }

@@ -83,10 +83,12 @@ public class AlbumEntryEntity {
     return album;
   }
 
+  @CursorField(Client.AlbumEntry.CAMERA_MAKE)
   public String getCameraMake() {
     return cameraMake;
   }
 
+  @CursorField(Client.AlbumEntry.CAMERA_MODEL)
   public String getCameraModel() {
     return cameraModel;
   }
@@ -104,14 +106,17 @@ public class AlbumEntryEntity {
     return editableMetadataHash;
   }
 
+  @CursorField(Client.AlbumEntry.EXPOSURE_TIME)
   public Double getExposureTime() {
     return exposureTime;
   }
 
+  @CursorField(Client.AlbumEntry.F_NUMBER)
   public Double getfNumber() {
     return fNumber;
   }
 
+  @CursorField(Client.AlbumEntry.FOCAL_LENGTH)
   public Double getFocalLength() {
     return focalLength;
   }
@@ -121,6 +126,7 @@ public class AlbumEntryEntity {
     return id;
   }
 
+  @CursorField(Client.AlbumEntry.ISO)
   public Integer getIso() {
     return iso;
   }
@@ -134,10 +140,12 @@ public class AlbumEntryEntity {
     return lastModified;
   }
 
+  @CursorField(Client.AlbumEntry.META_CAPTION)
   public String getMetaCaption() {
     return metaCaption;
   }
 
+  @CursorField(Client.AlbumEntry.META_RATING)
   public Integer getMetaRating() {
     return metaRating;
   }

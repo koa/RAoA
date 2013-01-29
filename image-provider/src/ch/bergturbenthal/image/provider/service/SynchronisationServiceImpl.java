@@ -18,7 +18,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -53,6 +52,7 @@ import android.util.Log;
 import android.util.LruCache;
 import android.util.Pair;
 import ch.bergturbenthal.image.data.model.PingResponse;
+import ch.bergturbenthal.image.data.model.state.Issue;
 import ch.bergturbenthal.image.data.model.state.Progress;
 import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.image.provider.Client;
@@ -119,6 +119,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private LruCache<Integer, File> thumbnailCache;
 
   private File thumbnailsSyncDir;
+
+  private final LruCache<String, Long> idCache = new LruCache<String, Long>(100) {
+
+    private final AtomicLong idGenerator = new AtomicLong(0);
+
+    @Override
+    protected Long create(final String key) {
+      return idGenerator.incrementAndGet();
+    }
+
+  };
 
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
@@ -293,6 +304,32 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   @Override
+  public Cursor readServerIssueList(final String serverId, final String[] projection) {
+
+    final ServerConnection serverConnection = getConnectionForServer(serverId);
+    if (serverConnection == null)
+      return null;
+    final Collection<Issue> progressValues = new ArrayList<Issue>(serverConnection.getServerState().getIssues());
+
+    final Map<String, String> mappedFields = new HashMap<String, String>();
+    mappedFields.put(Client.IssueEntry.CAN_ACK, "acknowledgable");
+    mappedFields.put(Client.IssueEntry.ALBUM_NAME, "albumName");
+    mappedFields.put(Client.IssueEntry.ALBUM_ENTRY_NAME, "imageName");
+    mappedFields.put(Client.IssueEntry.ISSUE_TIME, "issueTime");
+    mappedFields.put(Client.IssueEntry.STACK_TRACE, "stackTrace");
+    mappedFields.put(Client.IssueEntry.ISSUE_TYPE, "type");
+
+    final Map<String, FieldReader<Issue>> fieldReaders = MapperUtil.makeNamedFieldReaders(Issue.class, mappedFields);
+    fieldReaders.put(Client.IssueEntry.ID, new NumericFieldReader<Issue>(Cursor.FIELD_TYPE_INTEGER) {
+      @Override
+      public Number getNumber(final Issue value) {
+        return Long.valueOf(makeLongId(value.getIssueId()));
+      }
+    });
+    return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders));
+  }
+
+  @Override
   public Cursor readServerList(final String[] projection) {
     final Map<String, ArchiveConnection> archives = connectionMap.get();
 
@@ -338,20 +375,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   @Override
   public Cursor readServerProgresList(final String serverId, final String[] projection) {
-    final Map<String, ArchiveConnection> archives = connectionMap.get();
-
-    ServerConnection serverConnection = null;
-    for (final Entry<String, ArchiveConnection> archiveEntry : archives.entrySet()) {
-      for (final ServerConnection server : archiveEntry.getValue().listServers().values()) {
-        if (server.getInstanceId().equals(serverId))
-          serverConnection = server;
-      }
-    }
+    final ServerConnection serverConnection = getConnectionForServer(serverId);
     if (serverConnection == null)
       return null;
-    final Collection<Progress> progressValues =
-                                                new ArrayList<Progress>(serverConnection == null ? Collections.<Progress> emptyList()
-                                                                                                : serverConnection.getServerState().getProgress());
+    final Collection<Progress> progressValues = new ArrayList<Progress>(serverConnection.getServerState().getProgress());
 
     final Map<String, String> mappedFields = new HashMap<String, String>();
     mappedFields.put(Client.ProgressEntry.STEP_COUNT, "stepCount");
@@ -445,6 +472,19 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private RuntimeExceptionDao<ArchiveEntity, String> getArchiveDao() {
     return daoHolder.getDao(ArchiveEntity.class);
+  }
+
+  private ServerConnection getConnectionForServer(final String serverId) {
+    final Map<String, ArchiveConnection> archives = connectionMap.get();
+
+    ServerConnection serverConnection = null;
+    for (final Entry<String, ArchiveConnection> archiveEntry : archives.entrySet()) {
+      for (final ServerConnection server : archiveEntry.getValue().listServers().values()) {
+        if (server.getInstanceId().equals(serverId))
+          serverConnection = server;
+      }
+    }
+    return serverConnection;
   }
 
   private RuntimeExceptionDao<AlbumEntryKeywordEntry, Integer> getKeywordDao() {
@@ -666,9 +706,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private long makeLongId(final String stringId) {
-    final UUID uuid = UUID.fromString(stringId);
-    final long longId = uuid.getLeastSignificantBits() ^ uuid.getMostSignificantBits();
-    return longId;
+    return idCache.get(stringId).longValue();
   }
 
   private Builder makeNotificationBuilder() {
@@ -872,7 +910,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           existingEntry.setOriginalSize(entryDto.getOriginalFileSize());
           modified = true;
         }
-        if (existingEntry.getThumbnailSize() != entryDto.getThumbnailSize()) {
+        if (!objectEquals(existingEntry.getThumbnailSize(), entryDto.getThumbnailSize()) && entryDto.getThumbnailSize() != null) {
           existingEntry.setThumbnailSize(entryDto.getThumbnailSize());
           modified = true;
         }

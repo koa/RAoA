@@ -13,7 +13,7 @@ public class AlbumImageEntry {
   private Date lastModified;
   private Date captureDate;
   private long originalFileSize;
-  private long thumbnailFileSize;
+  private Long thumbnailFileSize;
 
   private String cameraMake;
   private String cameraModel;

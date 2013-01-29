@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.MenuItem;
-import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.R;
 
 /**
@@ -40,7 +39,6 @@ public class ServerDetailActivity extends Activity {
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-    TabListener.initTabs(this, getIntent().getExtras());
 
     setContentView(R.layout.activity_server_detail);
 
@@ -59,11 +57,14 @@ public class ServerDetailActivity extends Activity {
     if (savedInstanceState == null) {
       // Create the detail fragment and add it to the activity
       // using a fragment transaction.
-      final Bundle arguments = new Bundle();
-      arguments.putString(Client.ServerEntry.SERVER_ID, getIntent().getStringExtra(Client.ServerEntry.SERVER_ID));
-      final ServerStateFragment fragment = new ServerStateFragment();
-      fragment.setArguments(arguments);
-      getFragmentManager().beginTransaction().add(R.id.server_detail_fragment, fragment).commit();
+      TabListener.initTabs(this, getIntent().getExtras());
     }
   }
+
+  @Override
+  protected void onSaveInstanceState(final Bundle outState) {
+    // TODO Auto-generated method stub
+    super.onSaveInstanceState(outState);
+  }
+
 }

@@ -4,5 +4,7 @@ public enum IssueType {
   /**
    * Synchronization conflict
    */
-  SYNC_CONFLICT
+  SYNC_CONFLICT,
+  ALBUM_LOCKED,
+  UNKNOWN
 }

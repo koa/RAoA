@@ -12,14 +12,17 @@ public class TabListener<T extends Fragment> implements ActionBar.TabListener {
 
   public static void initTabs(final Activity activity, final Bundle arguments) {
     final ActionBar actionBar = activity.getActionBar();
+    final Tab oldSelectedTab = actionBar.getSelectedTab();
+    final int lastIndex = oldSelectedTab == null ? -1 : oldSelectedTab.getPosition();
     actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_TABS);
     actionBar.setDisplayShowTitleEnabled(false);
     actionBar.removeAllTabs();
-    final Tab progressTab =
-                            actionBar.newTab()
-                                     .setText(R.string.server_progress)
-                                     .setTabListener(new TabListener<ServerStateFragment>(activity, "progress", ServerStateFragment.class, arguments));
-    actionBar.addTab(progressTab);
+    actionBar.addTab(actionBar.newTab().setText(R.string.server_progress)
+                              .setTabListener(new TabListener<ServerStateFragment>(activity, "progress", ServerStateFragment.class, arguments)));
+    actionBar.addTab(actionBar.newTab().setText(R.string.server_error)
+                              .setTabListener(new TabListener<ServerIssueFragment>(activity, "issues", ServerIssueFragment.class, arguments)));
+    if (lastIndex >= 0)
+      actionBar.setSelectedNavigationItem(lastIndex);
 
   }
 

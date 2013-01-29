@@ -85,15 +85,19 @@ public class MapperUtil {
       final String targetFieldName = entry.getKey();
       final String getterName = "get" + Character.toUpperCase(objectFieldName.charAt(0)) + objectFieldName.substring(1);
       try {
-        final Method method = type.getMethod(getterName);
-        appendMethodReader(ret, targetFieldName, method);
-      } catch (final NoSuchMethodException e) {
-        // no getter -> try direct field access
+        appendMethodReader(ret, targetFieldName, type.getMethod(getterName));
+      } catch (final NoSuchMethodException e1) {
+        final String isGetterName = "is" + Character.toUpperCase(objectFieldName.charAt(0)) + objectFieldName.substring(1);
         try {
-          final Field field = type.getField(objectFieldName);
-          appendFieldReader(ret, targetFieldName, field);
-        } catch (final NoSuchFieldException e1) {
-          throw new RuntimeException("No getter or field found for " + objectFieldName, e1);
+          appendMethodReader(ret, targetFieldName, type.getMethod(isGetterName));
+        } catch (final NoSuchMethodException e2) {
+          // no getter -> try direct field access
+          try {
+            final Field field = type.getField(objectFieldName);
+            appendFieldReader(ret, targetFieldName, field);
+          } catch (final NoSuchFieldException e3) {
+            throw new RuntimeException("No getter or field found for " + objectFieldName, e3);
+          }
         }
       }
     }
@@ -132,7 +136,10 @@ public class MapperUtil {
         @Override
         public String getString(final V value) {
           try {
-            return ((CharSequence) rawFieldReader.read(value)).toString();
+            final CharSequence rawValue = (CharSequence) rawFieldReader.read(value);
+            if (rawValue == null)
+              return null;
+            return rawValue.toString();
           } catch (final Throwable e) {
             throw new RuntimeException("cannot query field " + fieldName, e);
           }

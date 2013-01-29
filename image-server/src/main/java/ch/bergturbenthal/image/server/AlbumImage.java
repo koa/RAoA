@@ -18,7 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import ch.bergturbenthal.image.server.cache.AlbumEntryCacheManager;
+import ch.bergturbenthal.image.server.cache.AlbumManager;
 import ch.bergturbenthal.image.server.metadata.MetadataWrapper;
 import ch.bergturbenthal.image.server.metadata.PicasaIniData;
 import ch.bergturbenthal.image.server.metadata.XmpWrapper;
@@ -46,7 +46,7 @@ public class AlbumImage {
 
   private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
 
-  public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumEntryCacheManager cacheManager) {
+  public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
     synchronized (lockFor(file)) {
       final SoftReference<AlbumImage> softReference = loadedImages.get(file);
       if (softReference != null) {
@@ -71,7 +71,7 @@ public class AlbumImage {
 
   private final File cacheDir;
 
-  private final AlbumEntryCacheManager cacheManager;
+  private final AlbumManager albumManager;
 
   private final File file;
 
@@ -83,11 +83,11 @@ public class AlbumImage {
   @Autowired
   private VideoThumbnailMaker videoThumbnailMaker;
 
-  private AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumEntryCacheManager cacheManager) {
+  private AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
     this.file = file;
     this.cacheDir = cacheDir;
     this.lastModified = lastModified;
-    this.cacheManager = cacheManager;
+    this.albumManager = cacheManager;
   }
 
   public void addKeyword(final String keyword) {
@@ -105,7 +105,7 @@ public class AlbumImage {
   }
 
   public synchronized AlbumEntryData getAlbumEntryData() {
-    AlbumEntryData loadedMetaData = cacheManager.getCachedData();
+    AlbumEntryData loadedMetaData = albumManager.getCachedData();
     if (loadedMetaData != null)
       return loadedMetaData;
 
@@ -114,7 +114,7 @@ public class AlbumImage {
     if (metadata != null) {
       new MetadataWrapper(metadata).fill(loadedMetaData);
     }
-    final PicasaIniData picasaData = cacheManager.getPicasaData();
+    final PicasaIniData picasaData = albumManager.getPicasaData();
     if (picasaData != null) {
       if (loadedMetaData.getRating() == null && picasaData.isStar())
         loadedMetaData.setRating(STAR_RATING);
@@ -149,7 +149,7 @@ public class AlbumImage {
       }
     }
 
-    cacheManager.updateCache(loadedMetaData);
+    albumManager.updateCache(loadedMetaData);
     return loadedMetaData;
   }
 
@@ -165,11 +165,15 @@ public class AlbumImage {
     try {
       final File cachedFile = makeCachedFile();
       final long originalLastModified = file.lastModified();
-      if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified)
+      if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified) {
+        albumManager.clearThumbnailException(getName());
         return cachedFile;
+      }
       synchronized (this) {
-        if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified)
+        if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified) {
+          albumManager.clearThumbnailException(getName());
           return cachedFile;
+        }
         limitConcurrentScaleSemaphore.acquire();
         try {
           if (isVideo())
@@ -181,9 +185,11 @@ public class AlbumImage {
           limitConcurrentScaleSemaphore.release();
         }
       }
+      albumManager.clearThumbnailException(getName());
       return cachedFile;
     } catch (final Exception e) {
-      throw new RuntimeException("Cannot make thumbnail of " + file, e);
+      albumManager.recordThumbnailException(getName(), e);
+      return null;
     }
   }
 

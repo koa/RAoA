@@ -30,6 +30,24 @@ public class Client {
     public static final String THUMBNAIL = "thumbnail";
     public static final String ORIGINAL_SIZE = "originalSize";
     public static final String THUMBNAIL_SIZE = "thumbnailSize";
+    public static final String CAMERA_MAKE = "cameraMake";
+    public static final String CAMERA_MODEL = "cameraModel";
+    public static final String EXPOSURE_TIME = "exposureTime";
+    public static final String F_NUMBER = "fNumber";
+    public static final String FOCAL_LENGTH = "FOCAL_LENGTH";
+    public static final String ISO = "iso";
+    public static final String META_CAPTION = "metaCaption";
+    public static final String META_RATING = "metaRating";
+  }
+
+  public static class IssueEntry {
+    public static final String ID = "_id";
+    public static final String ISSUE_TIME = "issueTime";
+    public static final String STACK_TRACE = "stackTrace";
+    public static final String ISSUE_TYPE = "issueType";
+    public static final String ALBUM_NAME = "albumName";
+    public static final String ALBUM_ENTRY_NAME = "fileName";
+    public static final String CAN_ACK = "canAck";
   }
 
   public static class ProgressEntry {
@@ -63,6 +81,13 @@ public class Client {
   public static Uri makeAlbumUri(final int albumId) {
     final Builder builder = ALBUM_URI.buildUpon();
     builder.appendPath(Integer.toString(albumId));
+    return builder.build();
+  }
+
+  public static Uri makeServerIssueUri(final String serverId) {
+    final Builder builder = SERVER_URI.buildUpon();
+    builder.appendPath(serverId);
+    builder.appendPath("issues");
     return builder.build();
   }
 

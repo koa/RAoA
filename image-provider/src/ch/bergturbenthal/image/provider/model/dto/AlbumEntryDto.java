@@ -12,7 +12,7 @@ public class AlbumEntryDto {
   private AlbumEntryType entryType;
   private Date lastModified;
   private long originalFileSize;
-  private long thumbnailSize;
+  private Long thumbnailSize;
   private String cameraMake;
   private String cameraModel;
   private String caption;
@@ -89,7 +89,7 @@ public class AlbumEntryDto {
     return rating;
   }
 
-  public long getThumbnailSize() {
+  public Long getThumbnailSize() {
     return thumbnailSize;
   }
 
@@ -155,7 +155,7 @@ public class AlbumEntryDto {
     this.rating = rating;
   }
 
-  public void setThumbnailSize(final long thumbnailSize) {
+  public void setThumbnailSize(final Long thumbnailSize) {
     this.thumbnailSize = thumbnailSize;
   }
 

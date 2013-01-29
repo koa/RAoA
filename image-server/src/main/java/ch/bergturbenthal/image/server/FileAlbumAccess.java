@@ -1,5 +1,6 @@
 package ch.bergturbenthal.image.server;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
@@ -64,6 +65,7 @@ import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -456,8 +458,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   }
 
   private String appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri, final String serverName) {
-    final String[] nameComps = albumDir.getAbsolutePath().substring(getBasePath().getAbsolutePath().length() + 1).split(File.pathSeparator);
-    final String albumId = Util.encodeStringForUrl(StringUtils.join(nameComps, "/"));
+    final String[] nameComps = evaluateNameComps(albumDir);
+    final String albumId = makeAlbumId(nameComps);
     synchronized (getAlbumLock(albumDir)) {
       if (!albumMap.containsKey(albumId)) {
         final Album newAlbum = (Album) applicationContext.getBean("album", albumDir, nameComps, remoteUri, serverName);
@@ -545,8 +547,12 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
                 final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
                 if (relativePath.equals(META_REPOSITORY))
                   return;
-                appendAlbum(ret, albumDir, null, null);
-
+                try {
+                  appendAlbum(ret, albumDir, null, null);
+                  stateManager.clearException(relativePath);
+                } catch (final BeanCreationException ex) {
+                  stateManager.recordException(relativePath, ex);
+                }
               }
             }));
           }
@@ -564,6 +570,10 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     } finally {
       updateAlbumListSemaphore.release();
     }
+  }
+
+  private String[] evaluateNameComps(final File albumDir) {
+    return albumDir.getAbsolutePath().substring(getBasePath().getAbsolutePath().length() + 1).split(File.pathSeparator);
   }
 
   private Collection<String> evaluateRepositoriesToSync(final String instanceName, final Set<String> existingRepositories, final ArchiveData config) {
@@ -716,6 +726,14 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }
   }
 
+  private String makeAlbumId(final File albumDir) {
+    return makeAlbumId(evaluateNameComps(albumDir));
+  }
+
+  private String makeAlbumId(final String[] nameComps) {
+    return Util.encodeStringForUrl(StringUtils.join(nameComps, "/"));
+  }
+
   private String makeDefaultInstanceName() {
     try {
       return InetAddress.getLocalHost().getHostName();
@@ -797,7 +815,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
           @Cleanup
           final ProgressHandler albumProgress = stateManager.newProgress(albums.size(), ProgressType.REFRESH_THUMBNAIL, instanceName);
           for (final Album album : albums) {
-            albumProgress.notfiyProgress(album.getName());
+            @Cleanup
+            final Closeable albumStep = albumProgress.notfiyProgress(album.getName());
             final Collection<AlbumImage> images = album.listImages().values();
             // final ProgressHandler thumbnailProgress =
             // stateManager.newProgress(images.size(),
@@ -886,7 +905,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       @Cleanup
       final ProgressHandler progress = stateManager.newProgress(albumsToSync.size(), ProgressType.SYNC_LOCAL_DISC, remoteName);
       for (final String albumName : albumsToSync) {
-        progress.notfiyProgress(albumName);
+        @Cleanup
+        final Closeable albumStep = progress.notfiyProgress(albumName);
         final Album localAlbumForRemote = existingLocalAlbums.get(albumName);
         final File remoteDir = existingRemoteDirectories.get(albumName);
         if (localAlbumForRemote == null) {
@@ -954,7 +974,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
         try {
           final AlbumEntry album = remoteAlbums.get(albumName);
           final Album localAlbumForRemote = localAlbums.get(album.getId());
-          albumProgress.notfiyProgress(albumName);
+          @Cleanup
+          final Closeable albumStep = albumProgress.notfiyProgress(albumName);
           final String remoteUri = new URI("git", null, remoteHost, remotePort, "/" + album.getId(), null, null).toASCIIString();
           if (localAlbumForRemote == null)
             appendAlbum(loadedAlbums, new File(getBaseDir(), albumName), remoteUri, pingResponse.getServerName());

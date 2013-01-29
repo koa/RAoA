@@ -8,7 +8,6 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.Semaphore;
 
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
@@ -42,8 +41,6 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   private static Logger logger = LoggerFactory.getLogger(AlbumController.class);
   @Autowired
   private AlbumAccess albumAccess;
-
-  private final Semaphore concurrentConvertSemaphore = new Semaphore(4);
 
   @RequestMapping(method = RequestMethod.POST)
   @Override
@@ -118,20 +115,10 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     if (image == null) {
       return null;
     }
-    final File cachedImage = image.getThumbnail();
-    if (cachedImage != null)
-      return makeImageResult(cachedImage, image, ifModifiedSince);
-    try {
-      concurrentConvertSemaphore.acquire();
-      try {
-        final File thumbnail = image.getThumbnail();
-        return makeImageResult(thumbnail, image, ifModifiedSince);
-      } finally {
-        concurrentConvertSemaphore.release();
-      }
-    } catch (final InterruptedException ex) {
-      throw new RuntimeException(ex);
-    }
+    final File thumbnailImage = image.getThumbnail();
+    if (thumbnailImage != null)
+      return makeImageResult(thumbnailImage, image, ifModifiedSince);
+    return null;
   }
 
   @RequestMapping(value = "{albumId}/image/{imageId}.jpg", method = RequestMethod.GET)
@@ -222,7 +209,9 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     entry.setVideo(albumImage.isVideo());
     entry.setLastModified(albumImage.lastModified());
     entry.setOriginalFileSize(albumImage.getOriginalFileSize());
-    entry.setThumbnailFileSize(albumImage.getThumbnail().length());
+    final File thumbnail = albumImage.getThumbnail();
+    if (thumbnail != null)
+      entry.setThumbnailFileSize(thumbnail.length());
     try {
       final AlbumEntryData albumEntryData = albumImage.getAlbumEntryData();
 

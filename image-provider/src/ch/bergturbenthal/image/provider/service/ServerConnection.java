@@ -121,6 +121,9 @@ public class ServerConnection {
             if (response.getStatusCode() == HttpStatus.NOT_MODIFIED) {
               return new ResponseEntity<Boolean>(Boolean.TRUE, response.getStatusCode());
             }
+            if (response.getStatusCode() == HttpStatus.NOT_FOUND) {
+              return new ResponseEntity<Boolean>(Boolean.FALSE, response.getStatusCode());
+            }
             final HttpHeaders headers = response.getHeaders();
             final String mimeType = headers.getContentType().toString();
             final long lastModified = headers.getLastModified();

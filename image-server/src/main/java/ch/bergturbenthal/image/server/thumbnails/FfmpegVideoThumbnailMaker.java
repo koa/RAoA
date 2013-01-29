@@ -43,7 +43,7 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
       @Cleanup
       final FileOutputStream logOutput = new FileOutputStream(logfile);
       logOutput.write((cmdLine.toString() + "\n").getBytes());
-      converted = execute(cmdLine, TimeUnit.MINUTES.toMillis(5), logOutput);
+      converted = execute(cmdLine, TimeUnit.HOURS.toMillis(2), logOutput);
     } catch (final IOException e) {
       throw new RuntimeException("Cannot write to logfile " + logfile);
     } finally {
@@ -74,8 +74,7 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
       final int result = executor.execute(cmdLine);
       return result == 0;
     } catch (final IOException e) {
-      log.warn("Cannot execute " + cmdLine, e);
-      return false;
+      throw new RuntimeException("Cannot execute " + cmdLine, e);
     }
   }
 

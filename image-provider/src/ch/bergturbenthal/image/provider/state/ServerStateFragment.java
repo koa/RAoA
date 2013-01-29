@@ -37,25 +37,23 @@ public class ServerStateFragment extends ListFragment {
   public void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     final Activity activity = getActivity();
-    // adapter =
-    // new SimpleCursorAdapter(activity,
-    // R.layout.activity_server_list_progress_item, null,
-    // new String[] { Client.ProgressEntry.PROGRESS_TYPE,
-    // Client.ProgressEntry.PROGRESS_DESCRIPTION },
-    // new int[] { R.id.progress_item_title, R.id.progress_item_description },
-    // 0);
-    adapter = new ResourceCursorAdapter(getActivity(), R.layout.activity_server_list_progress_item, null, true) {
+
+    adapter = new ResourceCursorAdapter(activity, R.layout.activity_server_list_progress_item, null, true) {
 
       @Override
       public void bindView(final View view, final Context context, final Cursor cursor) {
-        ((TextView) view.findViewById(R.id.progress_item_title)).setText(cursor.getString(cursor.getColumnIndex(Client.ProgressEntry.PROGRESS_DESCRIPTION)));
-        ((TextView) view.findViewById(R.id.progress_item_description)).setText(cursor.getString(cursor.getColumnIndex(Client.ProgressEntry.CURRENT_STATE_DESCRIPTION)));
+        ((TextView) view.findViewById(R.id.progress_item_title)).setText(readStringColumn(cursor, Client.ProgressEntry.PROGRESS_DESCRIPTION));
+        ((TextView) view.findViewById(R.id.progress_item_description)).setText(readStringColumn(cursor, Client.ProgressEntry.CURRENT_STATE_DESCRIPTION));
         final ProgressBar progressBar = (ProgressBar) view.findViewById(R.id.progress_item_progress);
         progressBar.setProgress(cursor.getInt(cursor.getColumnIndex(Client.ProgressEntry.CURRENT_STEP_NR)));
         progressBar.setMax(cursor.getInt(cursor.getColumnIndex(Client.ProgressEntry.STEP_COUNT)));
         final Integer alternateIcon = iconMap.get(cursor.getString(cursor.getColumnIndex(Client.ProgressEntry.PROGRESS_TYPE)));
         if (alternateIcon != null)
           ((ImageView) view.findViewById(R.id.progress_item_icon)).setImageResource(alternateIcon.intValue());
+      }
+
+      private String readStringColumn(final Cursor cursor, final String column) {
+        return cursor.getString(cursor.getColumnIndex(column));
       }
 
     };

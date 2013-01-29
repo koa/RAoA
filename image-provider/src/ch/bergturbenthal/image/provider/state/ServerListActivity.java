@@ -43,10 +43,6 @@ public class ServerListActivity extends Activity implements ServerListFragment.C
       arguments.putString(Client.ServerEntry.SERVER_ID, id);
 
       TabListener.initTabs(this, arguments);
-      // final ServerDetailFragment fragment = new ServerDetailFragment();
-      // fragment.setArguments(arguments);
-      // getFragmentManager().beginTransaction().replace(R.id.server_detail_fragment,
-      // fragment).commit();
 
     } else {
       // In single-pane mode, simply start the detail activity

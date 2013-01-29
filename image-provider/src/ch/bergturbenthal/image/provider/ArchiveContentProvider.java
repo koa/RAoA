@@ -37,7 +37,9 @@ public class ArchiveContentProvider extends ContentProvider {
     @Path("servers")
     SERVER_LIST,
     @Path("servers/*/progress")
-    SERVER_PROGRESS_LIST
+    SERVER_PROGRESS_LIST,
+    @Path("servers/*/issues")
+    SERVER_ISSUE_LIST
 
   }
 
@@ -86,6 +88,8 @@ public class ArchiveContentProvider extends ContentProvider {
       return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server";
     case SERVER_PROGRESS_LIST:
       return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server/progress";
+    case SERVER_ISSUE_LIST:
+      return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server/issues";
     }
     throw new SQLException("Unknown Uri: " + uri);
   }
@@ -142,6 +146,8 @@ public class ArchiveContentProvider extends ContentProvider {
         return service.readServerList(projection);
       case SERVER_PROGRESS_LIST:
         return service.readServerProgresList(segments.get(1), projection);
+      case SERVER_ISSUE_LIST:
+        return service.readServerIssueList(segments.get(1), projection);
       case ALBUM_ENTRY:
       case ALBUM_ENTRY_THUMBNAIL:
       }
@@ -164,8 +170,8 @@ public class ArchiveContentProvider extends ContentProvider {
     case ALBUM_LIST:
     case SERVER_LIST:
     case SERVER_PROGRESS_LIST:
+    case SERVER_ISSUE_LIST:
     }
     throw new UnsupportedOperationException("Update of " + uri + " is not supported");
   }
-
 }

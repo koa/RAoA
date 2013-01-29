@@ -6,9 +6,7 @@ public interface ProgressHandler extends Closeable {
   @Override
   void close();
 
-  void notfiyProgress(final int counter, final String stateDescription);
-
-  void notfiyProgress(final String stateDescription);
+  Closeable notfiyProgress(final String stateDescription);
 
   void finishProgress();
 }

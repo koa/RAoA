@@ -64,9 +64,11 @@ import ch.bergturbenthal.image.data.model.CaptionMutationEntry;
 import ch.bergturbenthal.image.data.model.KeywordMutationEntry;
 import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.data.model.RatingMutationEntry;
-import ch.bergturbenthal.image.server.cache.AlbumEntryCacheManager;
+import ch.bergturbenthal.image.server.cache.AlbumManager;
 import ch.bergturbenthal.image.server.metadata.PicasaIniData;
 import ch.bergturbenthal.image.server.model.AlbumEntryData;
+import ch.bergturbenthal.image.server.state.StateManager;
+import ch.bergturbenthal.image.server.util.ConflictEntry;
 import ch.bergturbenthal.image.server.util.RepositoryService;
 
 public class Album implements ApplicationContextAware {
@@ -128,6 +130,9 @@ public class Album implements ApplicationContextAware {
 
   private final String initRemoteServerName;
   private ApplicationContext applicationContext;
+
+  @Autowired
+  private StateManager stateManager;
 
   private Album(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
     this.baseDir = baseDir;
@@ -325,6 +330,7 @@ public class Album implements ApplicationContextAware {
   public synchronized void pull(final String remoteUri, final String serverName) {
     repositoryService.pull(git, remoteUri, serverName);
     repositorySize = null;
+    updateConflictStatus();
   }
 
   @Override
@@ -349,6 +355,7 @@ public class Album implements ApplicationContextAware {
   public synchronized void sync(final File remoteDir, final String localName, final String remoteName, final boolean bare) {
     repositoryService.sync(git, remoteDir, localName, remoteName, bare);
     repositorySize = null;
+    updateConflictStatus();
   }
 
   @Override
@@ -485,6 +492,7 @@ public class Album implements ApplicationContextAware {
     } catch (final GitAPIException e) {
       throw new RuntimeException("Cannot make initial commit", e);
     }
+    updateConflictStatus();
     return modified;
   }
 
@@ -550,7 +558,12 @@ public class Album implements ApplicationContextAware {
     for (final File file : listImageFiles()) {
       final String filename = file.getName();
       final PicasaIniData picasaIniData = picasaData.get(filename);
-      final AlbumEntryCacheManager cacheManager = new AlbumEntryCacheManager() {
+      final AlbumManager cacheManager = new AlbumManager() {
+
+        @Override
+        public void clearThumbnailException(final String image) {
+          stateManager.clearThumbnailException(getName(), image);
+        }
 
         @Override
         public AlbumEntryData getCachedData() {
@@ -560,6 +573,11 @@ public class Album implements ApplicationContextAware {
         @Override
         public PicasaIniData getPicasaData() {
           return picasaIniData;
+        }
+
+        @Override
+        public void recordThumbnailException(final String image, final Throwable ex) {
+          stateManager.recordThumbnailException(getName(), image, ex);
         }
 
         @Override
@@ -695,16 +713,25 @@ public class Album implements ApplicationContextAware {
     final boolean hasLock = writeAlbumEntryCacheSemaphore.tryAcquire();
     if (hasLock) {
       try {
-        while (metadataModified.getAndSet(false))
+        while (metadataModified.getAndSet(false)) {
+          final File metadataCacheFile = metadataCacheFile();
+          final File tempFile = new File(metadataCacheFile.getParentFile(), "mtadata.tmp");
           try {
-            mapper.writerWithDefaultPrettyPrinter().writeValue(metadataCacheFile(), albumMetadataCache);
+            mapper.writerWithDefaultPrettyPrinter().writeValue(tempFile, albumMetadataCache);
+            tempFile.renameTo(metadataCacheFile);
           } catch (final IOException e) {
-            logger.warn("Cannot write to " + metadataCacheFile(), e);
+            logger.warn("Cannot write to " + tempFile, e);
           }
+        }
       } finally {
         writeAlbumEntryCacheSemaphore.release();
       }
     }
+  }
+
+  private void updateConflictStatus() {
+    final Collection<ConflictEntry> conflicts = repositoryService.describeConflicts(git);
+    stateManager.reportConflict(getName(), conflicts);
   }
 
 }

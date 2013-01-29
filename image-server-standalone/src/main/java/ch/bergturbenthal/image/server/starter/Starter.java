@@ -77,6 +77,7 @@ public class Starter {
       public void inetAddressRemoved(final NetworkTopologyEvent event) {
       }
     });
+    jmmsImpl.registerService(ServiceInfo.create("_images._tcp.local", "Standalone", localPort, ""));
 
     Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
 
