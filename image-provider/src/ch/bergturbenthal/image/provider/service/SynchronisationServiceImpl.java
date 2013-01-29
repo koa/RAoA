@@ -285,6 +285,19 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             return Client.makeThumbnailUri(albumId, value.getId()).toString();
           }
         });
+        fieldReaders.put(Client.AlbumEntry.META_KEYWORDS, new StringFieldReader<AlbumEntryEntity>() {
+
+          @Override
+          public String getString(final AlbumEntryEntity value) {
+            final Collection<String> keywordList = new ArrayList<String>();
+            final Collection<AlbumEntryKeywordEntry> keywords = value.getKeywords();
+            for (final AlbumEntryKeywordEntry albumEntryKeywordEntry : keywords) {
+              if (!albumEntryKeywordEntry.isDeleted())
+                keywordList.add(albumEntryKeywordEntry.getKeyword());
+            }
+            return Client.AlbumEntry.encodeKeywords(keywordList);
+          }
+        });
 
         return cursorNotifications.addSingleAlbumCursor(albumId, MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders));
       }
@@ -412,7 +425,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   @Override
-  public int updateAlbumEntry(final int albumId, final ContentValues values) {
+  public int updateAlbum(final int albumId, final ContentValues values) {
     return callInTransaction(new Callable<Integer>() {
       @Override
       public Integer call() throws Exception {
@@ -421,14 +434,69 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         if (albumEntity == null)
           return Integer.valueOf(0);
         final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
-        if (shouldSync == null)
-          return Integer.valueOf(1);
-        if (albumEntity.isShouldSync() != shouldSync.booleanValue()) {
-          albumEntity.setShouldSync(shouldSync.booleanValue());
-          if (!shouldSync)
-            albumEntity.setSynced(false);
-          albumDao.update(albumEntity);
-          notifyAlbumChanged(albumId);
+        if (shouldSync != null)
+          if (albumEntity.isShouldSync() != shouldSync.booleanValue()) {
+            albumEntity.setShouldSync(shouldSync.booleanValue());
+            if (!shouldSync)
+              albumEntity.setSynced(false);
+            albumDao.update(albumEntity);
+            notifyAlbumChanged(albumId);
+          }
+        return Integer.valueOf(1);
+      }
+    }).intValue();
+  }
+
+  @Override
+  public int updateAlbumEntry(final int albumId, final int albumEntryId, final ContentValues values) {
+    return callInTransaction(new Callable<Integer>() {
+      @Override
+      public Integer call() throws Exception {
+        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
+        final AlbumEntryEntity albumEntryEntity = albumEntryDao.queryForId(Integer.valueOf(albumEntryId));
+        if (albumEntryEntity == null)
+          return Integer.valueOf(0);
+        boolean modified = false;
+        if (values.containsKey(Client.AlbumEntry.META_RATING)
+            && !objectEquals(values.getAsInteger(Client.AlbumEntry.META_RATING), albumEntryEntity.getMetaRating())) {
+          albumEntryEntity.setMetaRating(values.getAsInteger(Client.AlbumEntry.META_RATING));
+          albumEntryEntity.setMetaRatingModified(true);
+          modified = true;
+        }
+        if (values.containsKey(Client.AlbumEntry.META_CAPTION)
+            && !objectEquals(values.getAsString(Client.AlbumEntry.META_CAPTION), albumEntryEntity.getMetaCaption())) {
+          albumEntryEntity.setMetaCaption(values.getAsString(Client.AlbumEntry.META_CAPTION));
+          albumEntryEntity.setMetaCaptionModified(true);
+          modified = true;
+        }
+        if (values.containsKey(Client.AlbumEntry.META_KEYWORDS)) {
+          final RuntimeExceptionDao<AlbumEntryKeywordEntry, Integer> keywordDao = getKeywordDao();
+          final Collection<String> remainingKeywords =
+                                                       new HashSet<String>(
+                                                                           Client.AlbumEntry.decodeKeywords(values.getAsString(Client.AlbumEntry.META_KEYWORDS)));
+          for (final AlbumEntryKeywordEntry keywordEntry : albumEntryEntity.getKeywords()) {
+            keywordDao.refresh(keywordEntry);
+            final boolean keepThisKeyword = remainingKeywords.remove(keywordEntry.getKeyword());
+            if (keepThisKeyword) {
+              if (keywordEntry.isDeleted()) {
+                keywordEntry.setDeleted(false);
+                keywordDao.update(keywordEntry);
+              }
+            } else {
+              if (!keywordEntry.isDeleted()) {
+                keywordEntry.setDeleted(true);
+                keywordDao.update(keywordEntry);
+              }
+            }
+          }
+          for (final String remainingKeyword : remainingKeywords) {
+            final AlbumEntryKeywordEntry newKeyword = new AlbumEntryKeywordEntry(albumEntryEntity, remainingKeyword);
+            newKeyword.setAdded(true);
+            keywordDao.create(newKeyword);
+          }
+        }
+        if (modified) {
+          albumEntryDao.update(albumEntryEntity);
         }
         return Integer.valueOf(1);
       }

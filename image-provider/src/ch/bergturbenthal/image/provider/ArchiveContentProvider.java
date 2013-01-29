@@ -163,8 +163,9 @@ public class ArchiveContentProvider extends ContentProvider {
     final List<String> segments = uri.getPathSegments();
     switch (matcher.match(uri)) {
     case ALBUM:
-      return service.updateAlbumEntry(Integer.parseInt(segments.get(1)), values);
+      return service.updateAlbum(Integer.parseInt(segments.get(1)), values);
     case ALBUM_ENTRY:
+      return service.updateAlbumEntry(Integer.parseInt(segments.get(1)), Integer.parseInt(segments.get(3)), values);
     case ALBUM_ENTRY_LIST:
     case ALBUM_ENTRY_THUMBNAIL:
     case ALBUM_LIST:

@@ -1,5 +1,14 @@
 package ch.bergturbenthal.image.provider;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.map.type.CollectionType;
+import org.codehaus.jackson.map.type.SimpleType;
+
 import android.net.Uri;
 import android.net.Uri.Builder;
 
@@ -38,6 +47,25 @@ public class Client {
     public static final String ISO = "iso";
     public static final String META_CAPTION = "metaCaption";
     public static final String META_RATING = "metaRating";
+    public static final String META_KEYWORDS = "metaKeywords";
+
+    public static Collection<String> decodeKeywords(final String keywordValue) {
+      try {
+        if (keywordValue == null)
+          return Collections.emptyList();
+        return mapper.readValue(keywordValue, stringListType);
+      } catch (final IOException e) {
+        throw new RuntimeException("Cannot decode value " + keywordValue, e);
+      }
+    }
+
+    public static String encodeKeywords(final Collection<String> keywords) {
+      try {
+        return mapper.writeValueAsString(keywords);
+      } catch (final IOException e) {
+        throw new RuntimeException("Cannot encode value " + keywords, e);
+      }
+    }
   }
 
   public static class IssueEntry {
@@ -67,7 +95,11 @@ public class Client {
     public static final String SERVER_NAME = "serverName";
   }
 
+  private final static CollectionType stringListType = CollectionType.construct(List.class, SimpleType.construct(String.class));
+  private static final ObjectMapper mapper = new ObjectMapper();
+
   public static final String AUTHORITY = "ch.bergturbenthal.image.provider";
+
   public static final Uri ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
   public static final Uri SERVER_URI = Uri.parse("content://" + AUTHORITY + "/servers");
 
