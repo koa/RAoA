@@ -950,7 +950,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             albumEntryEntity.setOriginalSize(entryDto.getOriginalFileSize());
             if (entryDto.getThumbnailSize() != null)
               albumEntryEntity.setThumbnailSize(entryDto.getThumbnailSize());
-            albumEntryDao.create(albumEntryEntity);
             if (albumEntryEntity.getCaptureDate() != null) {
               dateCount.incrementAndGet();
               dateSum.addAndGet(albumEntryEntity.getCaptureDate().getTime());
@@ -958,12 +957,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             if (thumbnailCandidate == null) {
               thumbnailCandidate = albumEntryEntity;
             }
-            updateEntity(existingEntry, entryDto);
+            if (updateEntity(albumEntryEntity, entryDto, true))
+              albumEntryDao.create(albumEntryEntity);
             notifyAlbumChanged(albumEntity.getId());
           } else {
             if (thumbnailCandidate == null)
               thumbnailCandidate = existingEntry;
-            final boolean modified = updateEntity(existingEntry, entryDto);
+            final boolean modified = updateEntity(existingEntry, entryDto, false);
 
             if (modified) {
               albumEntryDao.update(existingEntry);
@@ -1002,8 +1002,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         return null;
       }
 
-      private boolean updateEntity(final AlbumEntryEntity existingEntry, final AlbumEntryDto entryDto) {
-        boolean modified = false;
+      private boolean updateEntity(final AlbumEntryEntity existingEntry, final AlbumEntryDto entryDto, final boolean mustCreate) {
+        boolean modified = mustCreate;
         if (!dateEquals(existingEntry.getCaptureDate(), entryDto.getCaptureDate()) && entryDto.getCaptureDate() != null) {
           existingEntry.setCaptureDate(entryDto.getCaptureDate());
           modified = true;
@@ -1063,11 +1063,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             }
           }
           // add remaining entries
+          if (!remainingKeywords.isEmpty()) {
+            if (mustCreate) {
+              getAlbumEntryDao().create(existingEntry);
+              modified = false;
+            }
+          }
           for (final String keyword : remainingKeywords) {
             keywordDao.create(new AlbumEntryKeywordEntry(existingEntry, keyword));
           }
           existingEntry.setEditableMetadataHash(entryDto.getEditableMetadataHash());
-          modified = true;
         }
 
         if (existingEntry.isDeleted()) {
