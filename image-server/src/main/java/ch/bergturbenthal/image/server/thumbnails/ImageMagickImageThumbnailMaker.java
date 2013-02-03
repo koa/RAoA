@@ -84,8 +84,7 @@ public class ImageMagickImageThumbnailMaker implements ImageThumbnailMaker {
       tempFile.renameTo(thumbnailFile);
       return true;
     } catch (final Exception e) {
-      log.warn("Cannot scale image " + originalFile, e);
-      return false;
+      throw new RuntimeException("Cannot scale image " + originalFile, e);
     } finally {
       if (deleteInputFileAfter && secondStepInputFile != null)
         secondStepInputFile.delete();
