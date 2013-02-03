@@ -23,6 +23,7 @@ import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.provider.model.AlbumEntryType;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
@@ -164,6 +165,17 @@ public class ArchiveConnection {
             if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile))
               return;
           }
+        }
+
+        @Override
+        public void updateMetadata(final Collection<MutationEntry> updateEntries) {
+          for (final String serverId : servers) {
+            final ServerConnection serverConnection = serverConnections.get().get(serverId);
+            if (serverConnection == null)
+              continue;
+            serverConnection.updateMetadata(albumId, updateEntries);
+          }
+
         }
 
         private void fillDto(final AlbumEntryDto dtoEntry, final AlbumImageEntry entry) {

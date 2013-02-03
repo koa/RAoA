@@ -52,7 +52,12 @@ import android.os.IBinder;
 import android.util.Log;
 import android.util.LruCache;
 import android.util.Pair;
+import ch.bergturbenthal.image.data.model.CaptionMutationEntry;
+import ch.bergturbenthal.image.data.model.KeywordMutationEntry;
+import ch.bergturbenthal.image.data.model.KeywordMutationEntry.KeywordMutation;
+import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.data.model.PingResponse;
+import ch.bergturbenthal.image.data.model.RatingMutationEntry;
 import ch.bergturbenthal.image.data.model.state.Issue;
 import ch.bergturbenthal.image.data.model.state.Progress;
 import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
@@ -479,11 +484,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
               if (keywordEntry.isDeleted()) {
                 keywordEntry.setDeleted(false);
                 keywordDao.update(keywordEntry);
+                modified = true;
               }
             } else {
               if (!keywordEntry.isDeleted()) {
                 keywordEntry.setDeleted(true);
                 keywordDao.update(keywordEntry);
+                modified = true;
               }
             }
           }
@@ -491,9 +498,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             final AlbumEntryKeywordEntry newKeyword = new AlbumEntryKeywordEntry(albumEntryEntity, remainingKeyword);
             newKeyword.setAdded(true);
             keywordDao.create(newKeyword);
+            modified = true;
           }
         }
         if (modified) {
+          albumEntryEntity.setMetaModified(true);
           albumEntryDao.update(albumEntryEntity);
         }
         return Integer.valueOf(1);
@@ -886,6 +895,70 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     }
   }
 
+  /**
+   * Collect all pending Mutations and send it to the server
+   * 
+   * @param albumConnection
+   * @param albumId
+   */
+  private void pushPendingMetadataUpdate(final AlbumConnection albumConnection, final int albumId) {
+    final Collection<MutationEntry> mutations = callInTransaction(new Callable<Collection<MutationEntry>>() {
+
+      @Override
+      public Collection<MutationEntry> call() throws Exception {
+        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
+        final RuntimeExceptionDao<AlbumEntryKeywordEntry, Integer> keywordDao = getKeywordDao();
+        final AlbumEntity relatedAlbum = albumDao.queryForId(Integer.valueOf(albumId));
+        if (relatedAlbum == null)
+          return Collections.emptyList();
+        final QueryBuilder<AlbumEntryEntity, Integer> queryBuilder = albumEntryDao.queryBuilder();
+        queryBuilder.where().eq("album_id", relatedAlbum).and().eq("metaModified", Boolean.TRUE);
+        final ArrayList<MutationEntry> mutationEntries = new ArrayList<MutationEntry>();
+        for (final AlbumEntryEntity entry : queryBuilder.query()) {
+          if (entry.isMetaCaptionModified()) {
+            final CaptionMutationEntry update = new CaptionMutationEntry();
+            fillMutation(entry, update);
+            update.setCaption(entry.getMetaCaption());
+            mutationEntries.add(update);
+          }
+          if (entry.isMetaRatingModified()) {
+            final RatingMutationEntry update = new RatingMutationEntry();
+            fillMutation(entry, update);
+            update.setRating(entry.getMetaRating());
+            mutationEntries.add(update);
+          }
+          for (final AlbumEntryKeywordEntry keyword : entry.getKeywords()) {
+            keywordDao.refresh(keyword);
+            if (keyword.isDeleted()) {
+              final KeywordMutationEntry update = new KeywordMutationEntry();
+              fillMutation(entry, update);
+              update.setKeyword(keyword.getKeyword());
+              update.setMutation(KeywordMutation.REMOVE);
+              mutationEntries.add(update);
+            } else if (keyword.isAdded()) {
+              final KeywordMutationEntry update = new KeywordMutationEntry();
+              fillMutation(entry, update);
+              update.setKeyword(keyword.getKeyword());
+              update.setMutation(KeywordMutation.ADD);
+              mutationEntries.add(update);
+            }
+          }
+        }
+        return mutationEntries;
+      }
+
+      private void fillMutation(final AlbumEntryEntity entry, final MutationEntry update) {
+        update.setAlbumEntryId(entry.getCommId());
+        update.setBaseVersion(entry.getEditableMetadataHash());
+      }
+    });
+    if (mutations.isEmpty())
+      // no pending mutation found
+      return;
+    albumConnection.updateMetadata(mutations);
+  }
+
   private <K, V> V putIfNotExists(final ConcurrentMap<K, V> map, final K key, final V emptyValue) {
     final V existingValue = map.putIfAbsent(key, emptyValue);
     if (existingValue != null)
@@ -1042,10 +1115,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         }
 
         if (!objectEquals(existingEntry.getEditableMetadataHash(), entryDto.getEditableMetadataHash())) {
+          existingEntry.setMetaModified(false);
           existingEntry.setMetaCaption(entryDto.getCaption());
-          existingEntry.setMetaCaptionModified(false);
           existingEntry.setMetaRating(entryDto.getRating());
-          existingEntry.setMetaRatingModified(false);
 
           // remove and reset existing entries
           final RuntimeExceptionDao<AlbumEntryKeywordEntry, Integer> keywordDao = getKeywordDao();
@@ -1191,6 +1263,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     });
     if (shouldUpdateMeta.get())
       refreshAlbumDetail(albumConnection, albumId.intValue());
+    pushPendingMetadataUpdate(albumConnection, albumId.intValue());
     if (shouldLoadThumbnails.get())
       loadThumbnailsOfAlbum(albumId.intValue());
   }

@@ -18,9 +18,11 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.codehaus.jackson.map.ObjectMapper;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpResponse;
@@ -32,6 +34,7 @@ import android.util.Log;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.data.model.state.ServerState;
 
 public class ServerConnection {
@@ -47,6 +50,7 @@ public class ServerConnection {
 
   private static final String[] DATE_FORMATS = new String[] { "EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd-MMM-yy HH:mm:ss zzz",
                                                              "EEE MMM dd HH:mm:ss yyyy" };
+  private static ObjectMapper mapper = new ObjectMapper();
 
   private static TimeZone GMT = TimeZone.getTimeZone("GMT");
   private String serverName;
@@ -175,6 +179,30 @@ public class ServerConnection {
 
   public void setServerName(final String serverName) {
     this.serverName = serverName;
+  }
+
+  public void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries) {
+    callOne(new ConnectionCallable<Void>() {
+
+      @Override
+      public ResponseEntity<Void> call(final URL baseUrl) throws Exception {
+        final String url = baseUrl.toExternalForm() + "/albums/{albumId}/updateMeta";
+
+        return restTemplate.execute(url, HttpMethod.PUT, new RequestCallback() {
+          @Override
+          public void doWithRequest(final ClientHttpRequest request) throws IOException {
+            request.getHeaders().setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+            mapper.writer().writeValue(request.getBody(), updateEntries);
+          }
+        }, new ResponseExtractor<ResponseEntity<Void>>() {
+          @Override
+          public ResponseEntity<Void> extractData(final ClientHttpResponse response) throws IOException {
+            return new ResponseEntity<Void>(response.getStatusCode());
+          }
+
+        }, albumId);
+      }
+    });
   }
 
   public void updateServerConnections(final Collection<URL> value) {

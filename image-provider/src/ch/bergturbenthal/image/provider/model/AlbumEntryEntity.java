@@ -20,7 +20,7 @@ public class AlbumEntryEntity {
   private final int id;
   @DatabaseField
   private final String commId;
-  @DatabaseField(foreign = true, uniqueIndexName = "entry_name_index")
+  @DatabaseField(foreign = true, uniqueIndexName = "entry_name_index", indexName = "entry_mutation_index")
   private final AlbumEntity album;
   @DatabaseField(canBeNull = false, dataType = DataType.ENUM_STRING)
   private final AlbumEntryType type;
@@ -56,6 +56,8 @@ public class AlbumEntryEntity {
   private Integer metaRating;
   @DatabaseField
   private boolean metaRatingModified = false;
+  @DatabaseField(indexName = "entry_mutation_index")
+  private boolean metaModified = false;
   @ForeignCollectionField(eager = true)
   private final Collection<AlbumEntryKeywordEntry> keywords = new ArrayList<AlbumEntryKeywordEntry>();
 
@@ -178,6 +180,10 @@ public class AlbumEntryEntity {
     return metaCaptionModified;
   }
 
+  public boolean isMetaModified() {
+    return metaModified;
+  }
+
   public boolean isMetaRatingModified() {
     return metaRatingModified;
   }
@@ -228,6 +234,16 @@ public class AlbumEntryEntity {
 
   public void setMetaCaptionModified(final boolean metaCaptionModified) {
     this.metaCaptionModified = metaCaptionModified;
+    if (this.metaCaptionModified)
+      metaModified = true;
+  }
+
+  public void setMetaModified(final boolean metaModified) {
+    this.metaModified = metaModified;
+    if (!metaModified) {
+      metaRatingModified = false;
+      metaCaptionModified = false;
+    }
   }
 
   public void setMetaRating(final Integer metaRating) {
@@ -236,6 +252,8 @@ public class AlbumEntryEntity {
 
   public void setMetaRatingModified(final boolean metaRatingModified) {
     this.metaRatingModified = metaRatingModified;
+    if (metaRatingModified)
+      metaModified = true;
   }
 
   public void setOriginalSize(final long originalSize) {

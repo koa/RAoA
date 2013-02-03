@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.Collection;
 import java.util.Date;
 
+import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
 
 public interface AlbumConnection {
@@ -16,4 +17,6 @@ public interface AlbumConnection {
   void readThumbnail(final String fileId, final File tempFile, final File targetFile);
 
   Date lastModified();
+
+  void updateMetadata(final Collection<MutationEntry> updateEntries);
 }
