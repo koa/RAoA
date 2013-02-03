@@ -226,9 +226,11 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
       for (final Album album : loadAlbums(true).values()) {
         final Date beginDate = album.getAutoAddBeginDate();
         if (beginDate != null) {
-          logger.info("Album: " + album + ", Date: " + beginDate);
           importAlbums.put(beginDate, album);
         }
+      }
+      for (final Entry<Date, Album> album : importAlbums.entrySet()) {
+        logger.info(album.getValue() + ", Date: " + album.getKey());
       }
       final Collection<File> deleteFiles = new ArrayList<File>();
       final Collection<File> importCandicates = collectImportFiles(importDir);
