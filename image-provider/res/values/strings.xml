@@ -6,5 +6,12 @@
     <string name="title_server_list">Servers</string>
     <string name="server_progress">Current Progress</string>
     <string name="server_error">Current Errors</string>
+        
+    <string name="server_create_folder">Create Album</string>
+    <string name="create_folder_album_hint">WM Pau 2013</string>    
+    <string name="create_folder_album_title">new album</string>
+    <string name="create_folder_date_title">begin date</string>
+    <string name="create_folder_execute_title">create</string>
+    <string name="create_folder_parent_title">parent folder</string>
     
 </resources>

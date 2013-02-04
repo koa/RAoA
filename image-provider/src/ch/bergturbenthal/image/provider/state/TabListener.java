@@ -21,6 +21,10 @@ public class TabListener<T extends Fragment> implements ActionBar.TabListener {
                               .setTabListener(new TabListener<ServerStateFragment>(activity, "progress", ServerStateFragment.class, arguments)));
     actionBar.addTab(actionBar.newTab().setText(R.string.server_error)
                               .setTabListener(new TabListener<ServerIssueFragment>(activity, "issues", ServerIssueFragment.class, arguments)));
+    actionBar.addTab(actionBar.newTab()
+                              .setText(R.string.server_create_folder)
+                              .setTabListener(new TabListener<ServerCreateAlbumFragment>(activity, "create_folder",
+                                                                                          ServerCreateAlbumFragment.class, arguments)));
     if (lastIndex >= 0)
       actionBar.setSelectedNavigationItem(lastIndex);
 

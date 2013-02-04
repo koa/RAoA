@@ -5,5 +5,11 @@
     <string name="title_server_detail">Details</string>
     <string name="title_server_list">Server</string>
     <string name="server_error">Probleme</string>
-
+    
+    <string name="server_create_folder">neues Album</string>
+    <string name="create_folder_album_title">neues Album</string>
+    <string name="create_folder_date_title">Startdatum</string>
+    <string name="create_folder_execute_title">erstelle Album</string>
+    <string name="create_folder_parent_title">Verzeichnis</string>
+    
 </resources>
