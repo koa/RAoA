@@ -3,14 +3,17 @@ package ch.bergturbenthal.image.provider;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.type.CollectionType;
 import org.codehaus.jackson.map.type.SimpleType;
 
+import android.content.ContentResolver;
 import android.net.Uri;
 import android.net.Uri.Builder;
+import android.os.Bundle;
 
 public class Client {
   public static class Album {
@@ -96,11 +99,14 @@ public class Client {
     public static final String SERVER_NAME = "serverName";
   }
 
-  private final static CollectionType stringListType = CollectionType.construct(List.class, SimpleType.construct(String.class));
+  public static final String METHOD_CREATE_ALBUM_ON_SERVER = "createAlbumOnServer";
+  public static final String PARAMETER_AUTOADD_DATE = "autoaddDate";
+  public static final String PARAMETER_FULL_ALBUM_NAME = "fullAlbumName";
+
+  private static final CollectionType stringListType = CollectionType.construct(List.class, SimpleType.construct(String.class));
   private static final ObjectMapper mapper = new ObjectMapper();
 
   public static final String AUTHORITY = "ch.bergturbenthal.image.provider";
-
   public static final Uri ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
   public static final Uri SERVER_URI = Uri.parse("content://" + AUTHORITY + "/servers");
 
@@ -156,5 +162,20 @@ public class Client {
     builder.appendPath(Integer.toString(entryId));
     builder.appendPath("thumbnail");
     return builder.build();
+  }
+
+  private final ContentResolver provider;
+
+  public Client(final ContentResolver provider) {
+    this.provider = provider;
+  }
+
+  public void createAlbumOnServer(final String serverId, final String fullAlbumName, final Date autoAddDate) {
+    assert fullAlbumName != null;
+    final Bundle extras = new Bundle();
+    extras.putString(PARAMETER_FULL_ALBUM_NAME, fullAlbumName);
+    if (autoAddDate != null)
+      extras.putLong(PARAMETER_AUTOADD_DATE, autoAddDate.getTime());
+    provider.call(SERVER_URI, METHOD_CREATE_ALBUM_ON_SERVER, serverId, extras);
   }
 }

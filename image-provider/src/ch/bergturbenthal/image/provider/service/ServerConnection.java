@@ -9,12 +9,15 @@ import java.lang.ref.SoftReference;
 import java.net.URL;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -55,8 +58,26 @@ public class ServerConnection {
   private static TimeZone GMT = TimeZone.getTimeZone("GMT");
   private String serverName;
 
+  private static Set<HttpStatus> okStates = new HashSet<HttpStatus>(Arrays.asList(HttpStatus.OK, HttpStatus.CREATED, HttpStatus.ACCEPTED));
+
   public ServerConnection(final String instanceId) {
     this.instanceId = instanceId;
+  }
+
+  public void createAlbum(final String albumName, final Date autoaddDate) {
+    final String[] albumComps = albumName.split("/");
+    final String albumId = callOne(new ConnectionCallable<String>() {
+      @Override
+      public ResponseEntity<String> call(final URL baseUrl) throws Exception {
+        return restTemplate.postForEntity(baseUrl.toExternalForm() + "/albums", albumComps, String.class);
+      }
+    });
+    callOne(new ConnectionCallable<Void>() {
+      @Override
+      public ResponseEntity<Void> call(final URL baseUrl) throws Exception {
+        return executePut(baseUrl.toExternalForm() + "/albums/{albumId}/setAutoAddDate", autoaddDate, albumId);
+      }
+    });
   }
 
   public AlbumDetail getAlbumDetail(final String albumId) {
@@ -186,21 +207,7 @@ public class ServerConnection {
 
       @Override
       public ResponseEntity<Void> call(final URL baseUrl) throws Exception {
-        final String url = baseUrl.toExternalForm() + "/albums/{albumId}/updateMeta";
-
-        return restTemplate.execute(url, HttpMethod.PUT, new RequestCallback() {
-          @Override
-          public void doWithRequest(final ClientHttpRequest request) throws IOException {
-            request.getHeaders().setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-            mapper.writer().writeValue(request.getBody(), updateEntries);
-          }
-        }, new ResponseExtractor<ResponseEntity<Void>>() {
-          @Override
-          public ResponseEntity<Void> extractData(final ClientHttpResponse response) throws IOException {
-            return new ResponseEntity<Void>(response.getStatusCode());
-          }
-
-        }, albumId);
+        return executePut(baseUrl.toExternalForm() + "/albums/{albumId}/updateMeta", updateEntries, albumId);
       }
     });
   }
@@ -219,7 +226,7 @@ public class ServerConnection {
         // final long endTime = System.currentTimeMillis();
         // Log.i("CONNECTION", "connected to " + connection + ", time: " +
         // (endTime - startTime) + " ms");
-        if (response != null && response.hasBody())
+        if (response != null && okStates.contains(response.getStatusCode()))
           return response.getBody();
       } catch (final Throwable ex) {
         if (t != null)
@@ -231,6 +238,22 @@ public class ServerConnection {
       throw new RuntimeException("Cannot connect to server " + serverName, t);
     else
       throw new RuntimeException("Cannot connect to server " + serverName + ", no valid connection found");
+  }
+
+  private ResponseEntity<Void> executePut(final String url, final Object data, final Object... urlVariables) {
+    return restTemplate.execute(url, HttpMethod.PUT, new RequestCallback() {
+      @Override
+      public void doWithRequest(final ClientHttpRequest request) throws IOException {
+        request.getHeaders().setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        mapper.writer().writeValue(request.getBody(), data);
+      }
+    }, new ResponseExtractor<ResponseEntity<Void>>() {
+      @Override
+      public ResponseEntity<Void> extractData(final ClientHttpResponse response) throws IOException {
+        return new ResponseEntity<Void>(response.getStatusCode());
+      }
+
+    }, urlVariables);
   }
 
   private AlbumList readAlbumList() {

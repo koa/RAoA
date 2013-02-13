@@ -1,6 +1,7 @@
 package ch.bergturbenthal.image.provider.service;
 
 import java.io.File;
+import java.util.Date;
 
 import android.content.ContentValues;
 import android.database.Cursor;
@@ -25,4 +26,6 @@ public interface SynchronisationService {
   int updateAlbumEntry(final int parseInt, final int parseInt2, final ContentValues values);
 
   Cursor readSingleAlbumEntry(final int albumId, final int albumEntryId, final String[] projection);
+
+  void createAlbumOnServer(final String server, final String fullAlbumName, final Date autoAddDate);
 }

@@ -2,6 +2,7 @@ package ch.bergturbenthal.image.provider;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.Date;
 import java.util.List;
 
 import android.content.ComponentName;
@@ -13,6 +14,7 @@ import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.database.SQLException;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
@@ -66,6 +68,17 @@ public class ArchiveContentProvider extends ContentProvider {
   };
 
   @Override
+  public Bundle call(final String method, final String arg, final Bundle extras) {
+    if (Client.METHOD_CREATE_ALBUM_ON_SERVER.equals(method)) {
+      final String server = arg;
+      final String fullAlbumName = extras.getString(Client.PARAMETER_FULL_ALBUM_NAME);
+      final Date autoAddDate = extras.containsKey(Client.PARAMETER_AUTOADD_DATE) ? new Date(extras.getLong(Client.PARAMETER_AUTOADD_DATE)) : null;
+      service.createAlbumOnServer(server, fullAlbumName, autoAddDate);
+    }
+    return null;
+  }
+
+  @Override
   public int delete(final Uri uri, final String selection, final String[] selectionArgs) {
     throw new UnsupportedOperationException("delete not supported");
   }
@@ -96,7 +109,10 @@ public class ArchiveContentProvider extends ContentProvider {
 
   @Override
   public Uri insert(final Uri uri, final ContentValues values) {
-    throw new UnsupportedOperationException("insert not supported");
+    switch (matcher.match(uri)) {
+    default:
+      throw new UnsupportedOperationException("insert not supported");
+    }
   }
 
   @Override

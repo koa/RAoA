@@ -13,5 +13,7 @@
     <string name="create_folder_date_title">begin date</string>
     <string name="create_folder_execute_title">create</string>
     <string name="create_folder_parent_title">parent folder</string>
+    <string name="create_folder_error_no_parent">please select a parent folder</string>
+    <string name="create_folder_error_no_album_name">please input a album name</string>
     
 </resources>

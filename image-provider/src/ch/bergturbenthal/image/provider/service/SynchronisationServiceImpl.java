@@ -137,6 +137,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   };
 
+  private final Semaphore pollServerSemaphore = new Semaphore(1);
+
+  @Override
+  public void createAlbumOnServer(final String serverId, final String fullAlbumName, final Date autoAddDate) {
+    final ServerConnection serverConnection = getConnectionForServer(serverId);
+    if (serverConnection == null)
+      return;
+    serverConnection.createAlbum(fullAlbumName, autoAddDate);
+  }
+
   @Override
   public File getLoadedThumbnail(final int thumbnailId) {
     return thumbnailCache.get(Integer.valueOf(thumbnailId));
@@ -885,14 +895,20 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private void pollServers() {
-    try {
-      final MDnsListener listener = dnsListener;
-      if (listener != null) {
-        listener.pollForServices(true);
+    if (pollServerSemaphore.tryAcquire())
+      try {
+        final MDnsListener listener = dnsListener;
+        if (listener != null) {
+          listener.pollForServices(true);
+        }
+      } catch (final Throwable t) {
+        Log.w(SERVICE_TAG, "Exception while polling", t);
+      } finally {
+        pollServerSemaphore.release();
       }
-    } catch (final Throwable t) {
-      Log.w(SERVICE_TAG, "Exception while polling", t);
-    }
+    else
+      // refresh server-state anyway
+      updateServerCursors();
   }
 
   /**
