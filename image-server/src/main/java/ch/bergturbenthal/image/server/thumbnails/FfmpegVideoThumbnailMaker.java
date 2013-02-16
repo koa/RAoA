@@ -12,6 +12,7 @@ import lombok.Cleanup;
 
 import org.apache.commons.exec.CommandLine;
 import org.apache.commons.exec.DefaultExecutor;
+import org.apache.commons.exec.ExecuteException;
 import org.apache.commons.exec.ExecuteWatchdog;
 import org.apache.commons.exec.Executor;
 import org.apache.commons.exec.PumpStreamHandler;
@@ -21,6 +22,8 @@ import org.slf4j.LoggerFactory;
 public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
   private static final Logger log = LoggerFactory.getLogger(FfmpegVideoThumbnailMaker.class);
   private String binary;
+
+  private static String[] binaryCandiates = new String[] { "ffmpeg", "avconv" };
 
   @Override
   public boolean makeVideoThumbnail(final File originalFile, final File thumbnailFile, final File tempDir) {
@@ -67,27 +70,34 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 
   private boolean execute(final CommandLine cmdLine, final long timeout, final OutputStream output) {
     try {
-      final Executor executor = new DefaultExecutor();
-      if (output != null)
-        executor.setStreamHandler(new PumpStreamHandler(output));
-      executor.setWatchdog(new ExecuteWatchdog(timeout));
-      final int result = executor.execute(cmdLine);
-      return result == 0;
+      return executeInternal(cmdLine, timeout, output);
     } catch (final IOException e) {
       throw new RuntimeException("Cannot execute " + cmdLine, e);
     }
+  }
+
+  private boolean executeInternal(final CommandLine cmdLine, final long timeout, final OutputStream output) throws ExecuteException, IOException {
+    final Executor executor = new DefaultExecutor();
+    if (output != null)
+      executor.setStreamHandler(new PumpStreamHandler(output));
+    executor.setWatchdog(new ExecuteWatchdog(timeout));
+    final int result = executor.execute(cmdLine);
+    return result == 0;
   }
 
   @PostConstruct
   private void init() {
     if (binary != null && testExecutable(binary)) {
       // binary is already configured and valid
-    } else if (testExecutable("ffmpeg"))
-      binary = "ffmpeg";
-    else if (testExecutable("avconv"))
-      binary = "avconv";
-    else
-      throw new RuntimeException("No ffmpeg-compatible video converter found");
+      return;
+    }
+    for (final String candidate : binaryCandiates) {
+      if (testExecutable(candidate)) {
+        binary = candidate;
+        return;
+      }
+    }
+    throw new RuntimeException("No ffmpeg-compatible video converter found");
   }
 
   private boolean testExecutable(final String executable) {
@@ -95,7 +105,12 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
       return false;
     final CommandLine cmdLine = new CommandLine(executable);
     cmdLine.addArgument("-version");
-    return execute(cmdLine, TimeUnit.SECONDS.toMillis(2), null);
+    try {
+      return executeInternal(cmdLine, TimeUnit.SECONDS.toMillis(2), null);
+    } catch (final IOException e) {
+      log.debug("Executable " + executable + " not found", e);
+      return false;
+    }
   }
 
 }
