@@ -117,6 +117,7 @@ public class ServerCreateAlbumFragment extends Fragment {
           @Override
           protected Void doInBackground(final Void... params) {
             new Client(contentResolver).createAlbumOnServer(serverId, fullAlbumName, new Date(autoAddDate));
+            Toast.makeText(getActivity(), R.string.create_folder_folder_created, Toast.LENGTH_LONG);
             return null;
           }
         }.execute();
