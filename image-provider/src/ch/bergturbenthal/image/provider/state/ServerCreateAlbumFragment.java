@@ -9,6 +9,9 @@ import java.util.Date;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
+import org.joda.time.DateMidnight;
+import org.joda.time.DateTime;
+
 import android.app.Fragment;
 import android.content.ContentResolver;
 import android.database.Cursor;
@@ -23,6 +26,7 @@ import android.widget.Button;
 import android.widget.CalendarView;
 import android.widget.EditText;
 import android.widget.Spinner;
+import android.widget.TimePicker;
 import android.widget.Toast;
 import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.R;
@@ -37,26 +41,46 @@ public class ServerCreateAlbumFragment extends Fragment {
   @Override
   public View onCreateView(final LayoutInflater inflater, final ViewGroup container, final Bundle savedInstanceState) {
     final ContentResolver contentResolver = getActivity().getContentResolver();
-    final Cursor cursor = contentResolver.query(Client.ALBUM_URI, new String[] { Client.Album.FULL_NAME }, null, null, null);
-    final Collection<String> existingFolders = new TreeSet<String>();
-    while (cursor.moveToNext()) {
-      final String albumDir = cursor.getString(0);
-      final int lastSlash = albumDir.lastIndexOf('/');
-      if (lastSlash <= 1)
-        continue;
-      final String folderPart = albumDir.substring(0, lastSlash);
-      existingFolders.add(folderPart);
-    }
-    existingFolders.add("");
     final View view = inflater.inflate(R.layout.activity_server_createalbum, container, false);
     final Spinner selectFolderSpinner = (Spinner) view.findViewById(R.id.selectFolderSpinner);
-    selectFolderSpinner.setAdapter(new ArrayAdapter<String>(getActivity(), android.R.layout.simple_spinner_dropdown_item,
-                                                            new ArrayList<String>(existingFolders)));
+
+    new AsyncTask<Void, Void, Void>() {
+      final Collection<String> existingFolders = new TreeSet<String>();
+
+      @Override
+      protected Void doInBackground(final Void... params) {
+        final Cursor cursor = contentResolver.query(Client.ALBUM_URI, new String[] { Client.Album.FULL_NAME }, null, null, null);
+        while (cursor.moveToNext()) {
+          final String albumDir = cursor.getString(0);
+          final int lastSlash = albumDir.lastIndexOf('/');
+          if (lastSlash <= 1)
+            continue;
+          final String folderPart = albumDir.substring(0, lastSlash);
+          existingFolders.add(folderPart);
+        }
+        existingFolders.add("");
+        return null;
+      }
+
+      @Override
+      protected void onPostExecute(final Void result) {
+        selectFolderSpinner.setAdapter(new ArrayAdapter<String>(getActivity(), android.R.layout.simple_spinner_dropdown_item,
+                                                                new ArrayList<String>(existingFolders)));
+      }
+    }.execute();
+
     final CalendarView datePicker = (CalendarView) view.findViewById(R.id.selectDate);
+
     // set startdate to now - 60 days
-    datePicker.setMinDate(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(60));
-    // datePicker.setMaxDate(System.currentTimeMillis() +
-    // TimeUnit.DAYS.toMillis(30));
+    final long now = System.currentTimeMillis();
+    datePicker.setMinDate(now - TimeUnit.DAYS.toMillis(360));
+    datePicker.setMaxDate(now + TimeUnit.DAYS.toMillis(30));
+    datePicker.setDate(now);
+
+    final TimePicker timePicker = (TimePicker) view.findViewById(R.id.selectTime);
+    timePicker.setIs24HourView(Boolean.TRUE);
+    timePicker.setCurrentHour(0);
+    timePicker.setCurrentMinute(0);
 
     final EditText albumNameInput = (EditText) view.findViewById(R.id.album_name);
 
@@ -78,7 +102,11 @@ public class ServerCreateAlbumFragment extends Fragment {
         final String serverId = getArguments() == null ? null : getArguments().getString(Client.ServerEntry.SERVER_ID);
         if (serverId == null)
           return;
-        final long autoAddDate = datePicker.getDate();
+        final DateMidnight date = new DateTime(datePicker.getDate()).toDateMidnight();
+
+        final long autoAddDate =
+                                 date.getMillis() + TimeUnit.HOURS.toMillis(timePicker.getCurrentHour())
+                                     + TimeUnit.MINUTES.toMillis(timePicker.getCurrentMinute());
         final String fullAlbumName;
         if (parentFolder.equals(""))
           fullAlbumName = albumName.trim();

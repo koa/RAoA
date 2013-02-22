@@ -24,6 +24,7 @@ import ch.bergturbenthal.image.client.resolver.ConnectedHandler;
 import ch.bergturbenthal.image.client.resolver.ConnectionAdapter;
 import ch.bergturbenthal.image.client.resolver.Resolver;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
+import ch.bergturbenthal.image.data.model.CreateAlbumRequest;
 
 public class CreateAlbumActivity extends Activity {
   private AlbumService service;
@@ -55,8 +56,9 @@ public class CreateAlbumActivity extends Activity {
             pathComps.add(trimmedComp);
           }
         }
-        final String createdAlbum = service.createAlbum(pathComps.toArray(new String[pathComps.size()]));
-        service.setAutoAddDate(createdAlbum, selectedDate.toDate());
+        final String[] pathCompsArray = pathComps.toArray(new String[pathComps.size()]);
+        final CreateAlbumRequest request = new CreateAlbumRequest(pathCompsArray, selectedDate.toDate());
+        service.createAlbum(request).getId();
         return null;
       }
 

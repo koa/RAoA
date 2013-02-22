@@ -5,12 +5,14 @@ import java.util.Collection;
 import java.util.Date;
 
 import ch.bergturbenthal.image.data.model.AlbumDetail;
+import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.CreateAlbumRequest;
 import ch.bergturbenthal.image.data.model.MutationEntry;
 
 public interface Album {
 
-  String createAlbum(final String[] pathComps);
+  AlbumEntry createAlbum(final CreateAlbumRequest request);
 
   AlbumDetail listAlbumContent(final String albumid);
 
@@ -24,5 +26,5 @@ public interface Album {
 
   void unRegisterClient(final String albumId, final String clientId);
 
-  void updateMetadata(String albumId, final Collection<MutationEntry> updateEntries);
+  void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries);
 }

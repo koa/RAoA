@@ -31,6 +31,7 @@ import ch.bergturbenthal.image.data.api.ImageResult;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.CreateAlbumRequest;
 import ch.bergturbenthal.image.data.model.MutationEntry;
 
 public class AlbumService implements Album {
@@ -69,8 +70,8 @@ public class AlbumService implements Album {
   }
 
   @Override
-  public String createAlbum(final String[] pathComps) {
-    final ResponseEntity<String> response = restTemplate.postForEntity(baseUrl + "/albums", pathComps, String.class);
+  public AlbumEntry createAlbum(final CreateAlbumRequest request) {
+    final ResponseEntity<AlbumEntry> response = restTemplate.postForEntity(baseUrl + "/albums", request, AlbumEntry.class);
     if (response.hasBody())
       return response.getBody();
     throw new RuntimeException("Response without body. Status: " + response.getStatusCode());

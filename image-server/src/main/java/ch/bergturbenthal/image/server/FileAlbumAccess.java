@@ -157,7 +157,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     }
     if (newAlbumPath.exists()) {
       for (final Entry<String, Album> albumEntry : albums.entrySet()) {
-        if (Arrays.asList(pathNames).equals(albumEntry.getValue().getNameComps())) {
+        final Album existingAlbum = albumEntry.getValue();
+        if (Arrays.asList(pathNames).equals(existingAlbum.getNameComps())) {
           // album already exists
           return albumEntry.getKey();
         }

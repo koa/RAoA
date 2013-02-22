@@ -58,6 +58,12 @@ public class Starter {
     server.start();
     final int localPort = connector.getLocalPort();
 
+    registerMDNS(localPort);
+
+    server.join();
+  }
+
+  private static void registerMDNS(final int localPort) throws IOException {
     final JmmDNS jmmsImpl = JmmDNS.Factory.getInstance();
     jmmsImpl.addNetworkTopologyListener(new NetworkTopologyListener() {
 
@@ -90,7 +96,5 @@ public class Starter {
         }
       }
     }));
-
-    server.join();
   }
 }

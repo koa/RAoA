@@ -29,6 +29,7 @@ import ch.bergturbenthal.image.data.model.AlbumDetail;
 import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.CreateAlbumRequest;
 import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.server.Album;
 import ch.bergturbenthal.image.server.AlbumAccess;
@@ -42,11 +43,16 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   @Autowired
   private AlbumAccess albumAccess;
 
-  @RequestMapping(method = RequestMethod.POST)
   @Override
+  @RequestMapping(method = RequestMethod.POST)
   public @ResponseBody
-  String createAlbum(@RequestBody final String[] pathComps) {
-    return albumAccess.createAlbum(pathComps);
+  AlbumEntry createAlbum(@RequestBody final CreateAlbumRequest request) {
+    final String newKey = albumAccess.createAlbum(request.getPathComps());
+    final Album album = albumAccess.getAlbum(newKey);
+    final Date autoAddDate = request.getAutoAddDate();
+    if (autoAddDate != null)
+      album.setAutoAddBeginDate(autoAddDate);
+    return makeAlbumEntry(newKey, album);
   }
 
   @RequestMapping(value = "import", method = RequestMethod.GET)
@@ -95,11 +101,7 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     final AlbumList albumList = new AlbumList();
     final Collection<AlbumEntry> albumNames = albumList.getAlbumNames();
     for (final Entry<String, Album> entry : albumAccess.listAlbums().entrySet()) {
-      final Album album = entry.getValue();
-      final AlbumEntry albumEntry = new AlbumEntry(entry.getKey(), album.getName());
-      albumEntry.setLastModified(album.getLastModified());
-      albumEntry.setRepositorySize(album.getRepositorySize());
-      albumEntry.getClients().addAll(albumAccess.clientsPerAlbum(entry.getKey()));
+      final AlbumEntry albumEntry = makeAlbumEntry(entry.getKey(), entry.getValue());
       albumNames.add(albumEntry);
     }
     return albumList;
@@ -229,6 +231,14 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
     } catch (final RuntimeException ex) {
       logger.warn("cannot read metadata from image " + albumImage.getName(), ex);
     }
+  }
+
+  private AlbumEntry makeAlbumEntry(final String id, final Album album) {
+    final AlbumEntry albumEntry = new AlbumEntry(id, album.getName());
+    albumEntry.setLastModified(album.getLastModified());
+    albumEntry.setRepositorySize(album.getRepositorySize());
+    albumEntry.getClients().addAll(albumAccess.clientsPerAlbum(id));
+    return albumEntry;
   }
 
   private ImageResult makeImageResult(final File sourceFile, final AlbumImage image, final Date ifModifiedSince) {

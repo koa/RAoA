@@ -22,6 +22,7 @@ import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.codehaus.jackson.map.ObjectMapper;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -35,8 +36,10 @@ import org.springframework.web.client.RestTemplate;
 
 import android.util.Log;
 import ch.bergturbenthal.image.data.model.AlbumDetail;
+import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
+import ch.bergturbenthal.image.data.model.CreateAlbumRequest;
 import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.data.model.state.ServerState;
 
@@ -64,18 +67,13 @@ public class ServerConnection {
     this.instanceId = instanceId;
   }
 
-  public void createAlbum(final String albumName, final Date autoaddDate) {
+  public AlbumEntry createAlbum(final String albumName, final Date autoaddDate) {
     final String[] albumComps = albumName.split("/");
-    final String albumId = callOne(new ConnectionCallable<String>() {
+    final CreateAlbumRequest request = new CreateAlbumRequest(albumComps, autoaddDate);
+    return callOne(new ConnectionCallable<AlbumEntry>() {
       @Override
-      public ResponseEntity<String> call(final URL baseUrl) throws Exception {
-        return restTemplate.postForEntity(baseUrl.toExternalForm() + "/albums", albumComps, String.class);
-      }
-    });
-    callOne(new ConnectionCallable<Void>() {
-      @Override
-      public ResponseEntity<Void> call(final URL baseUrl) throws Exception {
-        return executePut(baseUrl.toExternalForm() + "/albums/{albumId}/setAutoAddDate", autoaddDate, albumId);
+      public ResponseEntity<AlbumEntry> call(final URL baseUrl) throws Exception {
+        return restTemplate.postForEntity(baseUrl.toExternalForm() + "/albums", request, AlbumEntry.class);
       }
     });
   }
@@ -241,19 +239,11 @@ public class ServerConnection {
   }
 
   private ResponseEntity<Void> executePut(final String url, final Object data, final Object... urlVariables) {
-    return restTemplate.execute(url, HttpMethod.PUT, new RequestCallback() {
-      @Override
-      public void doWithRequest(final ClientHttpRequest request) throws IOException {
-        request.getHeaders().setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-        mapper.writer().writeValue(request.getBody(), data);
-      }
-    }, new ResponseExtractor<ResponseEntity<Void>>() {
-      @Override
-      public ResponseEntity<Void> extractData(final ClientHttpResponse response) throws IOException {
-        return new ResponseEntity<Void>(response.getStatusCode());
-      }
 
-    }, urlVariables);
+    final HttpHeaders headers = new HttpHeaders();
+    headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+    headers.setContentType(MediaType.APPLICATION_JSON);
+    return restTemplate.exchange(url, HttpMethod.PUT, new HttpEntity<Object>(data, headers), Void.class, urlVariables);
   }
 
   private AlbumList readAlbumList() {
