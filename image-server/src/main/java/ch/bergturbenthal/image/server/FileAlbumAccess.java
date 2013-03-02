@@ -393,7 +393,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     if (importBaseDir != null && executorService != null) {
       if (fileWatcher != null) {
         fileWatcher.close();
-        fileWatcher = new FileWatcher(importBaseDir, executorService, this);
+        fileWatcher = createFileWatcher();
       }
     }
     if (preferences != null) {
@@ -518,6 +518,10 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
         }
       });
     }
+  }
+
+  private FileWatcher createFileWatcher() {
+    return (FileWatcher) applicationContext.getBean("fileWatcher", importBaseDir);
   }
 
   private void doLoadAlbums(final boolean forceWait) {
@@ -646,7 +650,7 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   private void init() {
     configureFromPreferences();
     if (importBaseDir != null && executorService != null)
-      fileWatcher = new FileWatcher(importBaseDir, executorService, this);
+      fileWatcher = createFileWatcher();
   }
 
   @PostConstruct

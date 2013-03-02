@@ -10,19 +10,39 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.concurrent.ExecutorService;
 
+import javax.annotation.PostConstruct;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 public class FileWatcher implements Closeable {
+  public static FileWatcher createWatcher(final File basePath) {
+    return new FileWatcher(basePath);
+  }
+
   private WatchService watchService;
   private Thread watcherThread;
   private static Logger logger = LoggerFactory.getLogger(FileWatcher.class);
-  private final ExecutorService executorService;
-  private final FileNotification notification;
+  @Autowired
+  private ExecutorService executorService;
 
-  public FileWatcher(final File basePath, final ExecutorService executorService, final FileNotification notification) {
-    this.executorService = executorService;
-    this.notification = notification;
+  private final File basePath;
+
+  @Autowired
+  private DirectoryNotificationService notificationService;
+
+  public FileWatcher(final File basePath) {
+    this.basePath = basePath;
+  }
+
+  @Override
+  public void close() {
+    watcherThread.interrupt();
+  }
+
+  @PostConstruct
+  public void init() {
     try {
       final Path path = basePath.toPath();
 
@@ -82,41 +102,7 @@ public class FileWatcher implements Closeable {
 
   }
 
-  @Override
-  public void close() {
-    watcherThread.interrupt();
-  }
-
   private void processDirectory(final File directory) {
-    if (!directory.isDirectory())
-      return;
-    final File clientIdFile = new File(directory, ".clientid");
-    final File bareIdFile = new File(directory, ".bareid");
-    if (clientIdFile.exists() && clientIdFile.canRead()) {
-      executorService.execute(new Runnable() {
-        @Override
-        public void run() {
-          notification.notifySyncDiskPlugged(directory);
-        }
-      });
-    } else if (bareIdFile.exists() && bareIdFile.canRead()) {
-      executorService.execute(new Runnable() {
-
-        @Override
-        public void run() {
-          notification.notifySyncBareDiskPlugged(directory);
-        }
-      });
-    }
-    final File dcimDirectory = new File(directory, "DCIM");
-    if (dcimDirectory.exists() && dcimDirectory.isDirectory()) {
-      executorService.execute(new Runnable() {
-
-        @Override
-        public void run() {
-          notification.notifyCameraStorePlugged(dcimDirectory);
-        }
-      });
-    }
+    notificationService.notifyDirectory(directory);
   }
 }

@@ -26,6 +26,9 @@
   <bean name="albumImage" class="ch.bergturbenthal.image.server.AlbumImage"
     scope="prototype" factory-method="createImage">
   </bean>
+  <bean name="fileWatcher" class="ch.bergturbenthal.image.server.watcher.FileWatcher"
+    scope="prototype" factory-method="createWatcher">
+  </bean>
 
   <bean
     class="ch.bergturbenthal.image.server.thumbnails.FfmpegVideoThumbnailMaker">
