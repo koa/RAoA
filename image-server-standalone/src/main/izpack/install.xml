@@ -21,7 +21,7 @@
 	</variables>
 
 	<panels>
-		<panel classname="HTMLInfoPanel" id="welcome" />
+		<!-- <panel classname="HTMLInfoPanel" id="welcome" />-->
 		<panel classname="TargetPanel" id="install_dir" />
 		<panel classname="InstallPanel" id="install" />
 		<panel classname="FinishPanel" id="finish" />
