@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
@@ -35,6 +36,7 @@ import ch.bergturbenthal.image.server.Album;
 import ch.bergturbenthal.image.server.AlbumAccess;
 import ch.bergturbenthal.image.server.AlbumImage;
 import ch.bergturbenthal.image.server.model.AlbumEntryData;
+import ch.bergturbenthal.image.server.watcher.DirectoryNotificationService;
 
 @Controller
 @RequestMapping("/albums")
@@ -42,6 +44,9 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   private static Logger logger = LoggerFactory.getLogger(AlbumController.class);
   @Autowired
   private AlbumAccess albumAccess;
+
+  @Autowired
+  private DirectoryNotificationService directoryNotificationService;
 
   @Override
   @RequestMapping(method = RequestMethod.POST)
@@ -56,9 +61,9 @@ public class AlbumController implements ch.bergturbenthal.image.data.api.Album {
   }
 
   @RequestMapping(value = "import", method = RequestMethod.GET)
-  public void importDirectory(@RequestParam("path") final String path, final HttpServletResponse response) throws IOException {
-    albumAccess.importFiles(new File(path));
-    System.gc();
+  public void importDirectory(@RequestParam("path") final String path, final HttpServletResponse response) throws IOException, InterruptedException,
+                                                                                                          ExecutionException {
+    directoryNotificationService.notifyDirectory(new File(path)).get();
     response.getWriter().println("Import finished");
   }
 
