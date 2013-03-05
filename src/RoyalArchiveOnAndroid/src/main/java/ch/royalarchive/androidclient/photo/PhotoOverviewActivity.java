@@ -38,7 +38,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		// Handle click on photo
 		gridview.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
-				Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailviewActivity.class);
+				Intent intent = new Intent(PhotoOverviewActivity.this, PagerActivity.class);
 				intent.putExtra("album_id", albumId);
 				intent.putExtra("actPos", position);
 				startActivity(intent);
@@ -52,7 +52,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 
 	@Override
 	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-		return new CursorLoader(this, Client.makeAlbumUri(albumId), null, null, null, null);
+		return new CursorLoader(this, Client.makeAlbumEntriesUri(albumId), null, null, null, null);
 	}
 
 	@Override

@@ -57,7 +57,7 @@ public class PhotoDetailviewActivity extends Activity implements LoaderCallbacks
 	@Override
 	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
 		Log.d(TAG, "onCreateLoader: actual position: " + actPos);
-		return new CursorLoader(this, Client.makeAlbumUri(albumId), null, null, null, null);
+		return new CursorLoader(this, Client.makeAlbumEntriesUri(albumId), null, null, null, null);
 	}
 
 	@Override
