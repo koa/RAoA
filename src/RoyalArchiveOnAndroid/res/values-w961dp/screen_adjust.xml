@@ -5,6 +5,6 @@
 
     <item name="colum_count" format="integer" type="integer">4</item>
 
-    <dimen name="image_detail_width">920dp</dimen>
+    <dimen name="image_detail_width">300dp</dimen>
 
 </resources>
