@@ -7,25 +7,25 @@ import android.content.ContentValues;
 import android.database.Cursor;
 
 public interface SynchronisationService {
-  File getLoadedThumbnail(final int thumbnailId);
+  File getLoadedThumbnail(final String archiveName, final String albumName, final String albumEntryName);
 
-  Cursor readAlbumEntryList(final int albumId, final String[] projection);
+  Cursor readAlbumEntryList(final String archiveName, final String albumName, final String[] projection);
 
   Cursor readAlbumList(final String[] projection);
 
   Cursor readServerList(final String[] projection);
 
-  Cursor readServerProgresList(final String string, final String[] projection);
+  Cursor readServerProgresList(final String server, final String[] projection);
 
-  Cursor readSingleAlbum(final int albumId, final String[] projection);
+  Cursor readSingleAlbum(final String archiveName, final String albumName, final String[] projection);
 
-  int updateAlbum(final int albumId, final ContentValues values);
+  int updateAlbum(final String archiveName, final String albumName, final ContentValues values);
 
-  Cursor readServerIssueList(final String string, final String[] projection);
+  Cursor readServerIssueList(final String server, final String[] projection);
 
-  int updateAlbumEntry(final int parseInt, final int parseInt2, final ContentValues values);
+  int updateAlbumEntry(final String archiveName, final String albumName, final String albumEntryName, final ContentValues values);
 
-  Cursor readSingleAlbumEntry(final int albumId, final int albumEntryId, final String[] projection);
+  Cursor readSingleAlbumEntry(final String archiveName, final String albumName, final String albumEntryName, final String[] projection);
 
   void createAlbumOnServer(final String server, final String fullAlbumName, final Date autoAddDate);
 }

@@ -31,6 +31,7 @@ public class Client {
     public static final String ORIGINALS_SIZE = "originalsSize";
     public static final String THUMBNAILS_SIZE = "thumbnailsSize";
     public static final String ENTRY_URI = "entryUri";
+    public static final String ALBUM_ENTRIES_URI = "albumEntriesUri";
   }
 
   public static class AlbumEntry {
@@ -46,7 +47,7 @@ public class Client {
     public static final String CAMERA_MODEL = "cameraModel";
     public static final String EXPOSURE_TIME = "exposureTime";
     public static final String F_NUMBER = "fNumber";
-    public static final String FOCAL_LENGTH = "FOCAL_LENGTH";
+    public static final String FOCAL_LENGTH = "focalLength";
     public static final String ISO = "iso";
     public static final String META_CAPTION = "metaCaption";
     public static final String META_RATING = "metaRating";
@@ -110,24 +111,27 @@ public class Client {
   public static final Uri ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
   public static final Uri SERVER_URI = Uri.parse("content://" + AUTHORITY + "/servers");
 
-  public static Uri makeAlbumEntriesUri(final int albumId) {
+  public static Uri makeAlbumEntriesUri(final String archiveName, final String albumId) {
     final Builder builder = ALBUM_URI.buildUpon();
-    builder.appendPath(Integer.toString(albumId));
+    builder.appendPath(archiveName);
+    builder.appendPath(albumId);
     builder.appendPath("entries");
     return builder.build();
   }
 
-  public static Uri makeAlbumEntryUri(final int albumId, final int albumEntryId) {
+  public static Uri makeAlbumEntryUri(final String archiveName, final String albumId, final String albumEntryId) {
     final Builder builder = ALBUM_URI.buildUpon();
-    builder.appendPath(Integer.toString(albumId));
+    builder.appendPath(archiveName);
+    builder.appendPath(albumId);
     builder.appendPath("entries");
-    builder.appendPath(Integer.toString(albumEntryId));
+    builder.appendPath(albumEntryId);
     return builder.build();
   }
 
-  public static Uri makeAlbumUri(final int albumId) {
+  public static Uri makeAlbumUri(final String archiveName, final String albumId) {
     final Builder builder = ALBUM_URI.buildUpon();
-    builder.appendPath(Integer.toString(albumId));
+    builder.appendPath(archiveName);
+    builder.appendPath(albumId);
     return builder.build();
   }
 
@@ -155,11 +159,12 @@ public class Client {
    *          id of image
    * @return built URI
    */
-  public static Uri makeThumbnailUri(final int albumId, final int entryId) {
+  public static Uri makeThumbnailUri(final String archiveName, final String albumId, final String albumEntryId) {
     final Builder builder = ALBUM_URI.buildUpon();
-    builder.appendPath(Integer.toString(albumId));
+    builder.appendPath(archiveName);
+    builder.appendPath(albumId);
     builder.appendPath("entries");
-    builder.appendPath(Integer.toString(entryId));
+    builder.appendPath(albumEntryId);
     builder.appendPath("thumbnail");
     return builder.build();
   }

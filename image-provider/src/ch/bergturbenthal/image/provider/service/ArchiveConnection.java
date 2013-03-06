@@ -25,9 +25,9 @@ import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
 import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.data.model.PingResponse;
-import ch.bergturbenthal.image.provider.model.AlbumEntryType;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
+import ch.bergturbenthal.image.provider.model.dto.AlbumEntryType;
 import ch.bergturbenthal.image.provider.model.dto.ServerStateDto;
 
 public class ArchiveConnection {
@@ -135,12 +135,12 @@ public class ArchiveConnection {
               ret.setAutoAddDate(albumDetail.getAutoAddDate());
             ret.setLastModified(albumDetail.getLastModified());
             for (final AlbumImageEntry entry : albumDetail.getImages()) {
-              final String name = entry.getName();
-              if (entries.containsKey(name) && entries.get(name).getLastModified().getTime() > entry.getLastModified().getTime())
+              final String key = entry.getId();
+              if (entries.containsKey(key) && entries.get(key).getLastModified().getTime() > entry.getLastModified().getTime())
                 continue;
               final AlbumEntryDto dtoEntry = new AlbumEntryDto();
               fillDto(dtoEntry, entry);
-              entries.put(name, dtoEntry);
+              entries.put(key, dtoEntry);
             }
           }
           return ret;
@@ -183,6 +183,7 @@ public class ArchiveConnection {
           dtoEntry.setLastModified(entry.getLastModified());
           dtoEntry.setCaptureDate(entry.getCaptureDate());
           dtoEntry.setCommId(entry.getId());
+          dtoEntry.setFileName(entry.getName());
           dtoEntry.setOriginalFileSize(entry.getOriginalFileSize());
           dtoEntry.setThumbnailSize(entry.getThumbnailFileSize());
 

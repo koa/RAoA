@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
 import ch.bergturbenthal.image.provider.map.NotifyableMatrixCursor;
+import ch.bergturbenthal.image.provider.model.dto.AlbumIndex;
 
 public class CursorNotification {
   private final ThreadLocal<Boolean> allAlbumCursorModified = new ThreadLocal<Boolean>() {
@@ -32,16 +33,16 @@ public class CursorNotification {
 
   private final Collection<WeakReference<NotifyableMatrixCursor>> stateCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableMatrixCursor>>();
 
-  private final ConcurrentMap<Integer, Collection<WeakReference<NotifyableMatrixCursor>>> singleAlbumCursors =
-                                                                                                               new ConcurrentHashMap<Integer, Collection<WeakReference<NotifyableMatrixCursor>>>();
+  private final ConcurrentMap<AlbumIndex, Collection<WeakReference<NotifyableMatrixCursor>>> singleAlbumCursors =
+                                                                                                                  new ConcurrentHashMap<AlbumIndex, Collection<WeakReference<NotifyableMatrixCursor>>>();
 
   public NotifyableMatrixCursor addAllAlbumCursor(final NotifyableMatrixCursor cursor) {
     allAlbumCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
     return cursor;
   }
 
-  public NotifyableMatrixCursor addSingleAlbumCursor(final int album, final NotifyableMatrixCursor cursor) {
-    final Integer albumKey = Integer.valueOf(album);
+  public NotifyableMatrixCursor addSingleAlbumCursor(final AlbumIndex albumIndex, final NotifyableMatrixCursor cursor) {
+    final AlbumIndex albumKey = albumIndex;
     if (!singleAlbumCursors.containsKey(albumKey))
       singleAlbumCursors.putIfAbsent(albumKey, new ConcurrentLinkedQueue<WeakReference<NotifyableMatrixCursor>>());
     singleAlbumCursors.get(albumKey).add(new WeakReference<NotifyableMatrixCursor>(cursor));

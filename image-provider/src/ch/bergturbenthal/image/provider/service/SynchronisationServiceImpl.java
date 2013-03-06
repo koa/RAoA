@@ -1,7 +1,7 @@
 package ch.bergturbenthal.image.provider.service;
 
 import java.io.File;
-import java.io.FilenameFilter;
+import java.io.FileFilter;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
@@ -9,11 +9,14 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +34,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
+import org.codehaus.jackson.map.ObjectMapper;
 import org.springframework.http.HttpStatus.Series;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
@@ -64,23 +69,18 @@ import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.map.FieldReader;
 import ch.bergturbenthal.image.provider.map.MapperUtil;
+import ch.bergturbenthal.image.provider.map.NotifyableMatrixCursor;
 import ch.bergturbenthal.image.provider.map.NumericFieldReader;
 import ch.bergturbenthal.image.provider.map.StringFieldReader;
-import ch.bergturbenthal.image.provider.model.AlbumEntity;
-import ch.bergturbenthal.image.provider.model.AlbumEntryEntity;
-import ch.bergturbenthal.image.provider.model.AlbumEntryKeywordEntry;
-import ch.bergturbenthal.image.provider.model.ArchiveEntity;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
+import ch.bergturbenthal.image.provider.model.dto.AlbumEntries;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
-import ch.bergturbenthal.image.provider.orm.DaoHolder;
-import ch.bergturbenthal.image.provider.orm.DatabaseHelper;
+import ch.bergturbenthal.image.provider.model.dto.AlbumEntryIndex;
+import ch.bergturbenthal.image.provider.model.dto.AlbumIndex;
+import ch.bergturbenthal.image.provider.model.dto.AlbumMeta;
+import ch.bergturbenthal.image.provider.model.dto.MutationList;
 import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.image.provider.state.ServerListActivity;
-
-import com.j256.ormlite.dao.GenericRawResults;
-import com.j256.ormlite.dao.RuntimeExceptionDao;
-import com.j256.ormlite.stmt.QueryBuilder;
-import com.j256.ormlite.support.ConnectionSource;
 
 public class SynchronisationServiceImpl extends Service implements ResultListener, SynchronisationService {
 
@@ -114,15 +114,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private ExecutorService wrappedExecutorService;
   private File tempDir;
   private File thumbnailsTempDir;
-  private DaoHolder daoHolder;
-  private final ConcurrentMap<String, ConcurrentMap<String, Integer>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, Integer>>();
+  private File dataDir;
+  private final ConcurrentMap<String, ConcurrentMap<String, String>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, String>>();
 
   private final CursorNotification cursorNotifications = new CursorNotification();
   private ScheduledFuture<?> fastUpdatePollingFuture;
 
   private final Semaphore updateLockSempahore = new Semaphore(1);
 
-  private LruCache<Integer, File> thumbnailCache;
+  private LruCache<AlbumEntryIndex, File> thumbnailCache;
 
   private File thumbnailsSyncDir;
 
@@ -139,6 +139,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private final Semaphore pollServerSemaphore = new Semaphore(1);
 
+  private final ThreadLocal<FileTransaction> currentTransaction = new ThreadLocal<FileTransaction>();
+
+  private final ObjectMapper mapper = new ObjectMapper();
+
+  private final AtomicInteger tempFileId = new AtomicInteger();
+
   @Override
   public void createAlbumOnServer(final String serverId, final String fullAlbumName, final Date autoAddDate) {
     final ServerConnection serverConnection = getConnectionForServer(serverId);
@@ -148,8 +154,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   @Override
-  public File getLoadedThumbnail(final int thumbnailId) {
-    return thumbnailCache.get(Integer.valueOf(thumbnailId));
+  public File getLoadedThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
+    return thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
   }
 
   @Override
@@ -220,10 +226,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
     wrappedExecutorService = ExecutorServiceUtil.wrap(executorService);
 
-    final ConnectionSource connectionSource = DatabaseHelper.makeConnectionSource(getApplicationContext());
-    daoHolder = new DaoHolder(connectionSource);
-
     dnsListener = new MDnsListener(getApplicationContext(), this, executorService);
+
+    dataDir = new File(getFilesDir(), "data");
 
     // setup and clean temp-dir
     tempDir = new File(getCacheDir(), "temp");
@@ -233,7 +238,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       file.delete();
     }
 
-    // setup thumbails-dir
+    // setup thumbnails-dir
     // temporary files
     thumbnailsTempDir = new File(getCacheDir(), "thumbnails");
     if (!thumbnailsTempDir.exists())
@@ -291,23 +296,26 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   @Override
-  public Cursor readAlbumEntryList(final int albumId, final String[] projection) {
-    return daoHolder.callInTransaction(new Callable<Cursor>() {
+  public Cursor readAlbumEntryList(final String archiveName, final String albumId, final String[] projection) {
+    return callInTransaction(new Callable<Cursor>() {
 
       @Override
       public Cursor call() throws Exception {
-        final QueryBuilder<AlbumEntryEntity, Integer> queryBuilder = getAlbumEntryDao().queryBuilder();
-        queryBuilder.where().eq("album_id", getAlbumDao().queryForId(Integer.valueOf(albumId))).and().eq("deleted", Boolean.FALSE);
-        queryBuilder.orderBy("captureDate", true);
+        final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
 
-        return makeCursorForAlbumEntries(queryBuilder, projection, albumId);
+        final AlbumEntries albumDetail = getOrMakeAlbumDetail(archiveName, albumId);
+        if (albumDetail.getEntries() == null || albumDetail.getEntries().isEmpty())
+          return cursorNotifications.addSingleAlbumCursor(new AlbumIndex(archiveName, albumId), new NotifyableMatrixCursor(new String[] {}));
+        final Collection<AlbumEntryDto> albumEntries = albumDetail.getEntries().values();
+        return makeCursorForAlbumEntries(albumEntries, archiveName, albumId, projection);
+
       }
     });
   }
 
   @Override
   public Cursor readAlbumList(final String[] projection) {
-    return daoHolder.callInTransaction(new Callable<Cursor>() {
+    return callInTransaction(new Callable<Cursor>() {
 
       @Override
       public Cursor call() throws Exception {
@@ -412,108 +420,126 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   @Override
-  public Cursor readSingleAlbum(final int albumId, final String[] projection) {
-    return daoHolder.callInTransaction(new Callable<Cursor>() {
+  public Cursor readSingleAlbum(final String archiveName, final String albumId, final String[] projection) {
+    return callInTransaction(new Callable<Cursor>() {
       @Override
       public Cursor call() throws Exception {
-        final Collection<Integer> visible = collectVisibleAlbums();
-        if (visible.contains(Integer.valueOf(albumId)))
-          return makeCursorForAlbums(Collections.singletonList(Integer.valueOf(albumId)), projection, false);
+        final Collection<AlbumIndex> visible = collectVisibleAlbums();
+        if (visible.contains(new AlbumIndex(archiveName, albumId)))
+          return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false);
         else
-          return makeCursorForAlbums(Collections.<Integer> emptyList(), projection, false);
+          return makeCursorForAlbums(Collections.<AlbumIndex> emptyList(), projection, false);
       }
     });
   }
 
   @Override
-  public Cursor readSingleAlbumEntry(final int albumId, final int albumEntryId, final String[] projection) {
-    return daoHolder.callInTransaction(new Callable<Cursor>() {
+  public Cursor readSingleAlbumEntry(final String archiveName, final String albumId, final String archiveEntryId, final String[] projection) {
+    return callInTransaction(new Callable<Cursor>() {
       @Override
       public Cursor call() throws Exception {
-        final QueryBuilder<AlbumEntryEntity, Integer> queryBuilder = getAlbumEntryDao().queryBuilder();
-        queryBuilder.where().idEq(albumEntryId).and().eq("deleted", Boolean.FALSE);
-        return makeCursorForAlbumEntries(queryBuilder, projection, albumId);
+        final AlbumEntries albumEntries = getAlbumEntries(archiveName, albumId);
+        if (albumEntries == null || albumEntries.getEntries() == null || albumEntries.getEntries().get(archiveEntryId) == null)
+          return makeCursorForAlbumEntries(Collections.<AlbumEntryDto> emptyList(), archiveName, albumId, projection);
+        final AlbumEntryDto entryDto = albumEntries.getEntries().get(archiveEntryId);
+        return makeCursorForAlbumEntries(Collections.singletonList(entryDto), archiveName, albumId, projection);
       }
     });
   }
 
   @Override
-  public int updateAlbum(final int albumId, final ContentValues values) {
+  public int updateAlbum(final String archiveName, final String albumId, final ContentValues values) {
     return callInTransaction(new Callable<Integer>() {
       @Override
       public Integer call() throws Exception {
-        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-        final AlbumEntity albumEntity = albumDao.queryForId(Integer.valueOf(albumId));
-        if (albumEntity == null)
+        final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
+        if (albumMeta == null)
           return Integer.valueOf(0);
         final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
         if (shouldSync != null)
-          if (albumEntity.isShouldSync() != shouldSync.booleanValue()) {
-            albumEntity.setShouldSync(shouldSync.booleanValue());
-            if (!shouldSync)
-              albumEntity.setSynced(false);
-            albumDao.update(albumEntity);
-            notifyAlbumChanged(albumId);
-          }
+          albumMeta.setShouldSync(shouldSync.booleanValue());
         return Integer.valueOf(1);
       }
     }).intValue();
   }
 
   @Override
-  public int updateAlbumEntry(final int albumId, final int albumEntryId, final ContentValues values) {
+  public int updateAlbumEntry(final String archiveName, final String albumId, final String albumEntryId, final ContentValues values) {
     return callInTransaction(new Callable<Integer>() {
       @Override
       public Integer call() throws Exception {
-        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
-        final AlbumEntryEntity albumEntryEntity = albumEntryDao.queryForId(Integer.valueOf(albumEntryId));
-        if (albumEntryEntity == null)
+        final AlbumEntries albumEntries = getAlbumEntries(archiveName, albumId);
+        if (albumEntries == null)
           return Integer.valueOf(0);
-        boolean modified = false;
-        if (values.containsKey(Client.AlbumEntry.META_RATING)
-            && !objectEquals(values.getAsInteger(Client.AlbumEntry.META_RATING), albumEntryEntity.getMetaRating())) {
-          albumEntryEntity.setMetaRating(values.getAsInteger(Client.AlbumEntry.META_RATING));
-          albumEntryEntity.setMetaRatingModified(true);
-          modified = true;
+        final Map<String, AlbumEntryDto> entries = albumEntries.getEntries();
+        if (entries == null && !entries.containsKey(albumEntryId))
+          return Integer.valueOf(0);
+        final AlbumEntryDto albumEntryDto = entries.get(albumEntryId);
+        if (albumEntryDto == null)
+          return Integer.valueOf(0);
+        final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
+        final MutationList mutationList = getOrMakeAlbumMutationList(archiveName, albumId);
+
+        final Collection<MutationEntry> mutations = mutationList.getMutations();
+        if (values.containsKey(Client.AlbumEntry.META_RATING)) {
+          for (final Iterator<MutationEntry> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+            final MutationEntry mutationEntry = entryIterator.next();
+            if (mutationEntry instanceof RatingMutationEntry && mutationEntry.getAlbumEntryId().equals(albumEntryId))
+              entryIterator.remove();
+          }
+          final Integer newRating = values.getAsInteger(Client.AlbumEntry.META_RATING);
+          if (!objectEquals(albumEntryDto.getRating(), newRating)) {
+            final RatingMutationEntry newEntry = new RatingMutationEntry();
+            newEntry.setAlbumEntryId(albumEntryId);
+            newEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
+            newEntry.setRating(newRating);
+            mutations.add(newEntry);
+          }
         }
-        if (values.containsKey(Client.AlbumEntry.META_CAPTION)
-            && !objectEquals(values.getAsString(Client.AlbumEntry.META_CAPTION), albumEntryEntity.getMetaCaption())) {
-          albumEntryEntity.setMetaCaption(values.getAsString(Client.AlbumEntry.META_CAPTION));
-          albumEntryEntity.setMetaCaptionModified(true);
-          modified = true;
+        if (values.containsKey(Client.AlbumEntry.META_CAPTION)) {
+          for (final Iterator<MutationEntry> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+            final MutationEntry mutationEntry = entryIterator.next();
+            if (mutationEntry instanceof CaptionMutationEntry && mutationEntry.getAlbumEntryId().equals(albumEntryId))
+              entryIterator.remove();
+          }
+          final String newCaption = values.getAsString(Client.AlbumEntry.META_CAPTION);
+          if (!objectEquals(albumEntryDto.getCaption(), newCaption)) {
+            final CaptionMutationEntry mutationEntry = new CaptionMutationEntry();
+            mutationEntry.setAlbumEntryId(albumEntryId);
+            mutationEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
+            mutationEntry.setCaption(newCaption);
+            mutations.add(mutationEntry);
+          }
         }
+
         if (values.containsKey(Client.AlbumEntry.META_KEYWORDS)) {
-          final RuntimeExceptionDao<AlbumEntryKeywordEntry, Integer> keywordDao = getKeywordDao();
+          for (final Iterator<MutationEntry> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+            final MutationEntry mutationEntry = entryIterator.next();
+            if (mutationEntry instanceof KeywordMutationEntry && mutationEntry.getAlbumEntryId().equals(albumEntryId))
+              entryIterator.remove();
+          }
           final Collection<String> remainingKeywords =
                                                        new HashSet<String>(
                                                                            Client.AlbumEntry.decodeKeywords(values.getAsString(Client.AlbumEntry.META_KEYWORDS)));
-          for (final AlbumEntryKeywordEntry keywordEntry : albumEntryEntity.getKeywords()) {
-            keywordDao.refresh(keywordEntry);
-            final boolean keepThisKeyword = remainingKeywords.remove(keywordEntry.getKeyword());
-            if (keepThisKeyword) {
-              if (keywordEntry.isDeleted()) {
-                keywordEntry.setDeleted(false);
-                keywordDao.update(keywordEntry);
-                modified = true;
-              }
-            } else {
-              if (!keywordEntry.isDeleted()) {
-                keywordEntry.setDeleted(true);
-                keywordDao.update(keywordEntry);
-                modified = true;
-              }
+          for (final String existingKeyword : albumEntryDto.getKeywords()) {
+            final boolean removeThisKeyword = !remainingKeywords.remove(existingKeyword);
+            if (removeThisKeyword) {
+              final KeywordMutationEntry mutationEntry = new KeywordMutationEntry();
+              mutationEntry.setAlbumEntryId(albumEntryId);
+              mutationEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
+              mutationEntry.setKeyword(existingKeyword);
+              mutationEntry.setMutation(KeywordMutation.REMOVE);
+              mutations.add(mutationEntry);
             }
           }
-          for (final String remainingKeyword : remainingKeywords) {
-            final AlbumEntryKeywordEntry newKeyword = new AlbumEntryKeywordEntry(albumEntryEntity, remainingKeyword);
-            newKeyword.setAdded(true);
-            keywordDao.create(newKeyword);
-            modified = true;
+          for (final String newKeyword : remainingKeywords) {
+            final KeywordMutationEntry mutationEntry = new KeywordMutationEntry();
+            mutationEntry.setAlbumEntryId(albumEntryId);
+            mutationEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
+            mutationEntry.setKeyword(newKeyword);
+            mutationEntry.setMutation(KeywordMutation.ADD);
+            mutations.add(mutationEntry);
           }
-        }
-        if (modified) {
-          albumEntryEntity.setMetaModified(true);
-          albumEntryDao.update(albumEntryEntity);
         }
         return Integer.valueOf(1);
       }
@@ -521,15 +547,32 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private <V> V callInTransaction(final Callable<V> callable) {
-    return cursorNotifications.doWithNotify(callable);
+    assert currentTransaction.get() == null;
+    currentTransaction.set(new FileTransaction(dataDir));
+    try {
+      final V result = cursorNotifications.doWithNotify(callable);
+      currentTransaction.get().commitTransaction();
+      return result;
+    } catch (final Throwable e) {
+      throw new RuntimeException("Cannot close transaction", e);
+    } finally {
+      currentTransaction.set(null);
+    }
   }
 
-  private Collection<Integer> collectVisibleAlbums() {
-    final Collection<Integer> ret = new LinkedHashSet<Integer>();
-    for (final ConcurrentMap<String, Integer> archive : visibleAlbums.values()) {
-      ret.addAll(archive.values());
+  private Collection<AlbumIndex> collectVisibleAlbums() {
+    final Collection<AlbumIndex> ret = new LinkedHashSet<AlbumIndex>();
+    for (final Entry<String, ConcurrentMap<String, String>> archiveEntry : visibleAlbums.entrySet()) {
+      final String archiveName = archiveEntry.getKey();
+      for (final String albumId : archiveEntry.getValue().values()) {
+        ret.add(new AlbumIndex(archiveName, albumId));
+      }
     }
     return ret;
+  }
+
+  private int dateCompare(final Date date1, final Date date2) {
+    return (date1 == null ? new Date(0) : date1).compareTo(date2 == null ? new Date(0) : date2);
   }
 
   private boolean dateEquals(final Date date1, final Date date2) {
@@ -540,23 +583,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return Math.abs(date1.getTime() - date2.getTime()) < 1000;
   }
 
-  private List<AlbumEntity> findAlbumByArchiveAndName(final ArchiveEntity archiveEntity, final String name) {
-    final Map<String, Object> valueMap = new HashMap<String, Object>();
-    valueMap.put("archive_id", archiveEntity);
-    valueMap.put("name", name);
-    return getAlbumDao().queryForFieldValues(valueMap);
+  private AlbumEntries getAlbumEntries(final String archiveName, final String commId) {
+    final AlbumEntries existingEntry = currentTransaction.get().getObject(makeAlbumEntriesPath(archiveName, commId), AlbumEntries.class);
+    return existingEntry;
   }
 
-  private RuntimeExceptionDao<AlbumEntity, Integer> getAlbumDao() {
-    return daoHolder.getDao(AlbumEntity.class);
+  private AlbumMeta getAlbumMeta(final String archiveName, final String commId) {
+    return currentTransaction.get().getObject(makeAlbumMetaPath(archiveName, commId), AlbumMeta.class);
   }
 
-  private RuntimeExceptionDao<AlbumEntryEntity, Integer> getAlbumEntryDao() {
-    return daoHolder.getDao(AlbumEntryEntity.class);
-  }
-
-  private RuntimeExceptionDao<ArchiveEntity, String> getArchiveDao() {
-    return daoHolder.getDao(ArchiveEntity.class);
+  private MutationList getAlbumMutationList(final String archiveName, final String albumId) {
+    return currentTransaction.get().getObject(makeAlbumMutationPath(archiveName, albumId), MutationList.class);
   }
 
   private ServerConnection getConnectionForServer(final String serverId) {
@@ -572,8 +609,23 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return serverConnection;
   }
 
-  private RuntimeExceptionDao<AlbumEntryKeywordEntry, Integer> getKeywordDao() {
-    return daoHolder.getDao(AlbumEntryKeywordEntry.class);
+  private AlbumEntries getOrMakeAlbumDetail(final String archiveName, final String commId) {
+    final AlbumEntries existingEntry = getAlbumEntries(archiveName, commId);
+    if (existingEntry != null)
+      return existingEntry;
+    final AlbumEntries newEntries = new AlbumEntries();
+    currentTransaction.get().putObject(makeAlbumEntriesPath(archiveName, commId), newEntries);
+    return newEntries;
+  }
+
+  private MutationList getOrMakeAlbumMutationList(final String archiveName, final String albumId) {
+    final MutationList existingList = getAlbumMutationList(archiveName, albumId);
+    if (existingList != null)
+      return existingList;
+    final MutationList newList = new MutationList();
+    newList.setMutations(new ArrayList<MutationEntry>());
+    currentTransaction.get().putObject(makeAlbumMutationPath(archiveName, albumId), newList);
+    return newList;
   }
 
   private File ifExsists(final File file) {
@@ -588,15 +640,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
    *          Cache-Size in kB
    */
   private void initThumbnailCache(final int size) {
-    thumbnailCache = new LruCache<Integer, File>(size) {
+    thumbnailCache = new LruCache<AlbumEntryIndex, File>(size) {
 
       @Override
-      protected File create(final Integer key) {
-        return loadThumbnail(key.intValue());
+      protected File create(final AlbumEntryIndex key) {
+        return loadThumbnail(key.getArchiveName(), key.getAlbumId(), key.getAlbumEntryId());
       }
 
       @Override
-      protected void entryRemoved(final boolean evicted, final Integer key, final File oldValue, final File newValue) {
+      protected void entryRemoved(final boolean evicted, final AlbumEntryIndex key, final File oldValue, final File newValue) {
         if (!thumbnailsTempDir.equals(oldValue.getParentFile()))
           return;
         final boolean deleted = oldValue.delete();
@@ -605,23 +657,41 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       }
 
       @Override
-      protected int sizeOf(final Integer key, final File value) {
+      protected int sizeOf(final AlbumEntryIndex key, final File value) {
         if (!thumbnailsTempDir.equals(value.getParentFile()))
           // count only temporary entries
           return 0;
         return (int) value.length() / 1024;
       }
     };
-    for (final String filename : thumbnailsTempDir.list(new FilenameFilter() {
+    for (final File archiveDir : thumbnailsTempDir.listFiles(new FileFilter() {
+
       @Override
-      public boolean accept(final File dir, final String filename) {
-        return filename.endsWith(THUMBNAIL_SUFFIX);
+      public boolean accept(final File pathname) {
+        return pathname.isDirectory();
       }
     })) {
-      final File loadedFile = thumbnailCache.get(Integer.valueOf(filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length())));
-      // delete obsolete cache-entry
-      if (loadedFile == null) {
-        new File(thumbnailsTempDir, filename).delete();
+      final String archiveName = archiveDir.getName();
+      for (final File albumDir : archiveDir.listFiles(new FileFilter() {
+        @Override
+        public boolean accept(final File pathname) {
+          return pathname.isDirectory();
+        }
+      })) {
+        final String albumId = albumDir.getName();
+        for (final File thumbnailFile : albumDir.listFiles(new FileFilter() {
+
+          @Override
+          public boolean accept(final File pathname) {
+            return pathname.isFile() && pathname.getName().endsWith(THUMBNAIL_SUFFIX);
+          }
+        })) {
+          final String filename = thumbnailFile.getName();
+          final String albumEntryId = filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length() - 1);
+          final File loadedFile = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
+          if (loadedFile == null)
+            thumbnailFile.delete();
+        }
       }
     }
   }
@@ -632,25 +702,43 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return split[split.length - 1];
   }
 
-  private File loadThumbnail(final int thumbnailId) {
-    final AlbumEntryEntity albumEntryEntity = readAlbumEntry(thumbnailId);
-    if (albumEntryEntity == null)
-      return null;
-    final boolean permanentDownload = albumEntryEntity.getAlbum().isShouldSync();
+  private File loadThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
+    final Pair<AlbumMeta, AlbumEntries> transactionResult = callInTransaction(new Callable<Pair<AlbumMeta, AlbumEntries>>() {
 
-    final File temporaryTargetFile = new File(thumbnailsTempDir, thumbnailId + THUMBNAIL_SUFFIX);
-    final File permanentTargetFile = new File(thumbnailsSyncDir, thumbnailId + THUMBNAIL_SUFFIX);
+      @Override
+      public Pair<AlbumMeta, AlbumEntries> call() throws Exception {
+        final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
+        final AlbumEntries albumEntries = getAlbumEntries(archiveName, albumId);
+        return new Pair<AlbumMeta, AlbumEntries>(albumMeta, albumEntries);
+      }
+    });
+    final AlbumMeta albumMeta = transactionResult.first;
+    final AlbumEntries albumEntries = transactionResult.second;
+
+    if (albumMeta == null)
+      return null;
+    final boolean permanentDownload = albumMeta.isShouldSync();
+    if (albumEntries == null || albumEntries.getEntries() == null)
+      return null;
+    final AlbumEntryDto albumEntryDto = albumEntries.getEntries().get(albumEntryId);
+    if (albumEntryDto == null)
+      return null;
+
+    final File temporaryTargetFile = new File(thumbnailsTempDir, archiveName + "/" + albumId + "/" + albumEntryId + THUMBNAIL_SUFFIX);
+    final File permanentTargetFile =
+                                     new File(thumbnailsSyncDir, archiveName + "/" + albumMeta.getName() + "/" + albumEntryDto.getFileName()
+                                                                 + THUMBNAIL_SUFFIX);
     final File targetFile = permanentDownload ? permanentTargetFile : temporaryTargetFile;
     final File otherTargetFile = permanentDownload ? temporaryTargetFile : permanentTargetFile;
     // check if the file in the current cache is valid
-    if (targetFile.exists() && targetFile.lastModified() >= albumEntryEntity.getLastModified().getTime()) {
+    if (targetFile.exists() && targetFile.lastModified() >= albumEntryDto.getLastModified().getTime()) {
       if (otherTargetFile.exists())
         otherTargetFile.delete();
       return targetFile;
     }
     // check if there is a valid file in the other cache
     if (otherTargetFile.exists()) {
-      if (otherTargetFile.lastModified() >= albumEntryEntity.getLastModified().getTime()) {
+      if (otherTargetFile.lastModified() >= albumEntryDto.getLastModified().getTime()) {
         final long oldLastModified = otherTargetFile.lastModified();
         otherTargetFile.renameTo(targetFile);
         targetFile.setLastModified(oldLastModified);
@@ -660,18 +748,23 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       // remove the invalid file of the other cache
       otherTargetFile.delete();
     }
+    if (!targetFile.getParentFile().exists())
+      targetFile.getParentFile().mkdirs();
     final Map<String, ArchiveConnection> archive = connectionMap.get();
     if (archive == null)
       return ifExsists(targetFile);
-    final ArchiveConnection archiveConnection = archive.get(albumEntryEntity.getAlbum().getArchive().getName());
+    final ArchiveConnection archiveConnection = archive.get(archiveName);
     if (archiveConnection == null)
       return ifExsists(targetFile);
-    final AlbumConnection albumConnection = archiveConnection.getAlbums().get(albumEntryEntity.getAlbum().getName());
+    final AlbumConnection albumConnection = archiveConnection.getAlbums().get(albumMeta.getName());
     if (albumConnection == null)
       return ifExsists(targetFile);
-    final File tempFile = new File(tempDir, thumbnailId + ".thumbnail-temp");
+
+    final File tempFile = new File(tempDir, tempFileId.incrementAndGet() + ".thumbnail-temp");
+    if (tempFile.exists())
+      tempFile.delete();
     try {
-      albumConnection.readThumbnail(albumEntryEntity.getCommId(), tempFile, targetFile);
+      albumConnection.readThumbnail(albumEntryId, tempFile, targetFile);
     } finally {
       if (tempFile.exists())
         tempFile.delete();
@@ -679,145 +772,136 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return ifExsists(targetFile);
   }
 
-  private void loadThumbnailsOfAlbum(final int albumId) {
-    final Collection<Integer> thumbnails = callInTransaction(new Callable<Collection<Integer>>() {
-
+  private void loadThumbnailsOfAlbum(final String archiveName, final String albumId) {
+    final Collection<String> thumbnails = callInTransaction(new Callable<Collection<String>>() {
       @Override
-      public Collection<Integer> call() throws Exception {
-        final ArrayList<Integer> ret = new ArrayList<Integer>();
-        for (final AlbumEntryEntity albumEntryEntity : getAlbumDao().queryForId(Integer.valueOf(albumId)).getEntries()) {
-          ret.add(Integer.valueOf(albumEntryEntity.getId()));
-        }
-        return ret;
+      public Collection<String> call() throws Exception {
+        final AlbumEntries albumEntries = getAlbumEntries(archiveName, albumId);
+        if (albumEntries == null || albumEntries.getEntries() == null)
+          return Collections.emptyList();
+        return new ArrayList<String>(albumEntries.getEntries().keySet());
       }
     });
-    for (final Integer thumbnailId : thumbnails) {
-      loadThumbnail(thumbnailId);
+    for (final String thumbnailId : thumbnails) {
+      loadThumbnail(archiveName, albumId, thumbnailId);
     }
     callInTransaction(new Callable<Void>() {
       @Override
       public Void call() throws Exception {
-        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-        final AlbumEntity entity = albumDao.queryForId(Integer.valueOf(albumId));
-        if (!entity.isSynced()) {
-          entity.setSynced(true);
-          albumDao.update(entity);
-        }
+        final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
+        albumMeta.setSynced(true);
         return null;
       }
     });
   }
 
-  private Cursor makeCursorForAlbumEntries(final QueryBuilder<AlbumEntryEntity, Integer> queryBuilder, final String[] projection, final int albumId) {
-    final Map<String, FieldReader<AlbumEntryEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryEntity.class);
-
-    fieldReaders.put(Client.AlbumEntry.THUMBNAIL, new StringFieldReader<AlbumEntryEntity>() {
-
-      @Override
-      public String getString(final AlbumEntryEntity value) {
-        return Client.makeThumbnailUri(albumId, value.getId()).toString();
-      }
-    });
-    fieldReaders.put(Client.AlbumEntry.META_KEYWORDS, new StringFieldReader<AlbumEntryEntity>() {
-
-      @Override
-      public String getString(final AlbumEntryEntity value) {
-        final Collection<String> keywordList = new ArrayList<String>();
-        final Collection<AlbumEntryKeywordEntry> keywords = value.getKeywords();
-        for (final AlbumEntryKeywordEntry albumEntryKeywordEntry : keywords) {
-          if (!albumEntryKeywordEntry.isDeleted())
-            keywordList.add(albumEntryKeywordEntry.getKeyword());
-        }
-        return Client.AlbumEntry.encodeKeywords(keywordList);
-      }
-    });
-    fieldReaders.put(Client.AlbumEntry.ENTRY_URI, new StringFieldReader<AlbumEntryEntity>() {
-
-      @Override
-      public String getString(final AlbumEntryEntity value) {
-        return Client.makeAlbumEntryUri(albumId, value.getId()).toString();
-      }
-    });
-
-    return cursorNotifications.addSingleAlbumCursor(albumId, MapperUtil.loadQueryIntoCursor(queryBuilder, projection, fieldReaders));
+  private String makeAlbumDetailPath(final String archiveName, final String albumId) {
+    return makeAlbumEntriesPath(archiveName, albumId);
   }
 
-  private Cursor makeCursorForAlbums(final Collection<Integer> visibleAlbums, final String[] projection, final boolean alsoSynced)
-                                                                                                                                  throws SQLException {
-    final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-    final QueryBuilder<AlbumEntity, Integer> albumEntityBuilder = albumDao.queryBuilder();
-    albumEntityBuilder.orderBy("albumCaptureDate", false);
-    if (!alsoSynced)
-      albumEntityBuilder.where().in("id", visibleAlbums);
-    else
-      albumEntityBuilder.where().eq("synced", Boolean.TRUE).or().in("id", visibleAlbums);
+  private String makeAlbumEntriesPath(final String archiveName, final String commId) {
+    return archiveName + "/" + commId + "-entries";
+  }
 
-    final List<AlbumEntity> albums = albumEntityBuilder.query();
+  private String makeAlbumMetaPath(final String archiveName, final String commId) {
+    return archiveName + "/" + commId + "-metadata";
+  }
 
-    final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
+  private String makeAlbumMutationPath(final String archiveName, final String albumId) {
+    return archiveName + "/" + albumId + "-mutation";
+  }
 
-    final QueryBuilder<AlbumEntryEntity, Integer> summaryFieldsBuilder = albumEntryDao.queryBuilder();
-    summaryFieldsBuilder.where().in("album_id", albums).and().eq("deleted", Boolean.FALSE);
-    summaryFieldsBuilder.groupBy("album_id");
-    summaryFieldsBuilder.selectRaw("album_id", "count(*)", "sum(originalSize)", "sum(thumbnailSize)");
+  private Cursor makeCursorForAlbumEntries(final Collection<AlbumEntryDto> albumEntries, final String archiveName, final String albumId,
+                                           final String[] projection) {
+    final List<AlbumEntryDto> values = new ArrayList(albumEntries);
+    Collections.sort(values, new Comparator<AlbumEntryDto>() {
 
-    final String statement = summaryFieldsBuilder.prepare().getStatement();
+      @Override
+      public int compare(final AlbumEntryDto lhs, final AlbumEntryDto rhs) {
+        return dateCompare(lhs.getCaptureDate(), rhs.getCaptureDate());
+      }
 
-    final GenericRawResults<String[]> summaryRows = albumEntryDao.queryRaw(statement);
-    final Map<String, String[]> summaryResult = new HashMap<String, String[]>();
-    for (final String[] resultRow : summaryRows.getResults()) {
-      summaryResult.put(resultRow[0], resultRow);
+    });
+
+    final Map<String, FieldReader<AlbumEntryDto>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryDto.class);
+
+    fieldReaders.put(Client.AlbumEntry.THUMBNAIL, new StringFieldReader<AlbumEntryDto>() {
+
+      @Override
+      public String getString(final AlbumEntryDto value) {
+        return Client.makeThumbnailUri(archiveName, albumId, value.getCommId()).toString();
+      }
+    });
+    fieldReaders.put(Client.AlbumEntry.META_KEYWORDS, new StringFieldReader<AlbumEntryDto>() {
+
+      @Override
+      public String getString(final AlbumEntryDto value) {
+        final Collection<String> keywords = value.getKeywords();
+        return Client.AlbumEntry.encodeKeywords(keywords);
+      }
+    });
+    fieldReaders.put(Client.AlbumEntry.ENTRY_URI, new StringFieldReader<AlbumEntryDto>() {
+
+      @Override
+      public String getString(final AlbumEntryDto value) {
+        return Client.makeAlbumEntryUri(archiveName, albumId, value.getCommId()).toString();
+      }
+    });
+
+    return cursorNotifications.addSingleAlbumCursor(new AlbumIndex(archiveName, albumId),
+                                                    MapperUtil.loadCollectionIntoCursor(values, projection, fieldReaders));
+  }
+
+  private Cursor
+      makeCursorForAlbums(final Collection<AlbumIndex> visibleAlbums, final String[] projection, final boolean alsoSynced) throws SQLException {
+
+    final Collection<AlbumMeta> allEntries =
+                                             currentTransaction.get().readAll(Arrays.asList(Pattern.compile(".*"), Pattern.compile(".*-metadata")),
+                                                                              AlbumMeta.class);
+    final Map<AlbumIndex, AlbumMeta> loadedAlbums = new HashMap<AlbumIndex, AlbumMeta>();
+    if (alsoSynced)
+      for (final AlbumMeta albumEntry : allEntries) {
+        if (!albumEntry.isSynced())
+          continue;
+        final String archiveName = albumEntry.getArchiveName();
+        final String albumId = albumEntry.getAlbumId();
+        loadedAlbums.put(new AlbumIndex(archiveName, albumId), albumEntry);
+      }
+    for (final AlbumIndex visibleAlbumIndex : visibleAlbums) {
+      final AlbumMeta visibleAlbum = getAlbumMeta(visibleAlbumIndex.getArchiveName(), visibleAlbumIndex.getAlbumId());
+      if (visibleAlbum != null)
+        loadedAlbums.put(visibleAlbumIndex, visibleAlbum);
     }
+    final ArrayList<AlbumMeta> albums = new ArrayList<AlbumMeta>(loadedAlbums.values());
+    Collections.sort(albums, new Comparator<AlbumMeta>() {
+      @Override
+      public int compare(final AlbumMeta lhs, final AlbumMeta rhs) {
+        final Date leftDate = lhs.getAlbumDate() == null ? new Date(0) : lhs.getAlbumDate();
+        final Date rightDate = rhs.getAlbumDate() == null ? new Date(0) : rhs.getAlbumDate();
+        return leftDate.compareTo(rightDate);
+      }
+    });
 
-    final Map<String, FieldReader<AlbumEntity>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntity.class);
-    fieldReaders.put(Client.Album.ARCHIVE_NAME, new StringFieldReader<AlbumEntity>() {
+    final Map<String, FieldReader<AlbumMeta>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumMeta.class);
+    fieldReaders.put(Client.Album.THUMBNAIL, new StringFieldReader<AlbumMeta>() {
       @Override
-      public String getString(final AlbumEntity value) {
-        if (value == null || value.getArchive() == null)
+      public String getString(final AlbumMeta value) {
+        if (value.getThumbnailId() == null)
           return null;
-        return value.getArchive().getName();
+        return Client.makeThumbnailUri(value.getArchiveName(), value.getAlbumId(), value.getThumbnailId()).toString();
       }
     });
-    fieldReaders.put(Client.Album.ENTRY_COUNT, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
+    fieldReaders.put(Client.Album.ENTRY_URI, new StringFieldReader<AlbumMeta>() {
       @Override
-      public Number getNumber(final AlbumEntity value) {
-        final String values[] = summaryResult.get(String.valueOf(value.getId()));
-        if (values == null)
-          return Integer.valueOf(0);
-        return Integer.valueOf(values[1]);
+      public String getString(final AlbumMeta value) {
+        return Client.makeAlbumUri(value.getArchiveName(), value.getAlbumId()).toString();
       }
     });
-    fieldReaders.put(Client.Album.ORIGINALS_SIZE, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
+    fieldReaders.put(Client.Album.ALBUM_ENTRIES_URI, new StringFieldReader<AlbumMeta>() {
+
       @Override
-      public Number getNumber(final AlbumEntity value) {
-        final String[] sizeValue = summaryResult.get(String.valueOf(value.getId()));
-        if (sizeValue == null)
-          return Long.valueOf(0);
-        return Long.valueOf(sizeValue[2]);
-      }
-    });
-    fieldReaders.put(Client.Album.THUMBNAILS_SIZE, new NumericFieldReader<AlbumEntity>(Cursor.FIELD_TYPE_INTEGER) {
-      @Override
-      public Number getNumber(final AlbumEntity value) {
-        final String[] sizeValue = summaryResult.get(String.valueOf(value.getId()));
-        if (sizeValue == null)
-          return Long.valueOf(0);
-        return Long.valueOf(sizeValue[3]);
-      }
-    });
-    fieldReaders.put(Client.Album.THUMBNAIL, new StringFieldReader<AlbumEntity>() {
-      @Override
-      public String getString(final AlbumEntity value) {
-        if (value.getThumbnail() == null)
-          return null;
-        getAlbumEntryDao().refresh(value.getThumbnail());
-        return Client.makeThumbnailUri(value.getId(), value.getThumbnail().getId()).toString();
-      }
-    });
-    fieldReaders.put(Client.Album.ENTRY_URI, new StringFieldReader<AlbumEntity>() {
-      @Override
-      public String getString(final AlbumEntity value) {
-        return Client.makeAlbumUri(value.getId()).toString();
+      public String getString(final AlbumMeta value) {
+        return Client.makeAlbumEntriesUri(value.getArchiveName(), value.getAlbumId()).toString();
       }
     });
 
@@ -916,63 +1000,20 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
    * 
    * @param albumConnection
    * @param albumId
+   * @param albumId
    */
-  private void pushPendingMetadataUpdate(final AlbumConnection albumConnection, final int albumId) {
-    final Collection<MutationEntry> mutations = callInTransaction(new Callable<Collection<MutationEntry>>() {
+  private void pushPendingMetadataUpdate(final AlbumConnection albumConnection, final String archiveName, final String albumId) {
+    final MutationList mutations = callInTransaction(new Callable<MutationList>() {
 
       @Override
-      public Collection<MutationEntry> call() throws Exception {
-        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
-        final RuntimeExceptionDao<AlbumEntryKeywordEntry, Integer> keywordDao = getKeywordDao();
-        final AlbumEntity relatedAlbum = albumDao.queryForId(Integer.valueOf(albumId));
-        if (relatedAlbum == null)
-          return Collections.emptyList();
-        final QueryBuilder<AlbumEntryEntity, Integer> queryBuilder = albumEntryDao.queryBuilder();
-        queryBuilder.where().eq("album_id", relatedAlbum).and().eq("metaModified", Boolean.TRUE);
-        final ArrayList<MutationEntry> mutationEntries = new ArrayList<MutationEntry>();
-        for (final AlbumEntryEntity entry : queryBuilder.query()) {
-          if (entry.isMetaCaptionModified()) {
-            final CaptionMutationEntry update = new CaptionMutationEntry();
-            fillMutation(entry, update);
-            update.setCaption(entry.getMetaCaption());
-            mutationEntries.add(update);
-          }
-          if (entry.isMetaRatingModified()) {
-            final RatingMutationEntry update = new RatingMutationEntry();
-            fillMutation(entry, update);
-            update.setRating(entry.getMetaRating());
-            mutationEntries.add(update);
-          }
-          for (final AlbumEntryKeywordEntry keyword : entry.getKeywords()) {
-            keywordDao.refresh(keyword);
-            if (keyword.isDeleted()) {
-              final KeywordMutationEntry update = new KeywordMutationEntry();
-              fillMutation(entry, update);
-              update.setKeyword(keyword.getKeyword());
-              update.setMutation(KeywordMutation.REMOVE);
-              mutationEntries.add(update);
-            } else if (keyword.isAdded()) {
-              final KeywordMutationEntry update = new KeywordMutationEntry();
-              fillMutation(entry, update);
-              update.setKeyword(keyword.getKeyword());
-              update.setMutation(KeywordMutation.ADD);
-              mutationEntries.add(update);
-            }
-          }
-        }
-        return mutationEntries;
-      }
-
-      private void fillMutation(final AlbumEntryEntity entry, final MutationEntry update) {
-        update.setAlbumEntryId(entry.getCommId());
-        update.setBaseVersion(entry.getEditableMetadataHash());
+      public MutationList call() throws Exception {
+        return getAlbumMutationList(archiveName, albumId);
       }
     });
-    if (mutations.isEmpty())
+    if (mutations == null || mutations.getMutations().isEmpty())
       // no pending mutation found
       return;
-    albumConnection.updateMetadata(mutations);
+    albumConnection.updateMetadata(mutations.getMutations());
   }
 
   private <K, V> V putIfNotExists(final ConcurrentMap<K, V> map, final K key, final V emptyValue) {
@@ -982,194 +1023,53 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return emptyValue;
   }
 
-  private AlbumEntryEntity readAlbumEntry(final int entryId) {
-    return callInTransaction(new Callable<AlbumEntryEntity>() {
-
-      @Override
-      public AlbumEntryEntity call() throws Exception {
-        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
-        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
-        final AlbumEntryEntity albumEntryEntity = albumEntryDao.queryForId(Integer.valueOf(entryId));
-        if (albumEntryEntity == null)
-          return null;
-        albumDao.refresh(albumEntryEntity.getAlbum());
-        return albumEntryEntity;
-      }
-
-    });
-  }
-
-  private void refreshAlbumDetail(final AlbumConnection albumConnection, final Integer albumId) {
+  private void refreshAlbumDetail(final AlbumConnection albumConnection, final String archiveName, final String albumId) {
     // read data from Server
     final AlbumDto albumDto = albumConnection.getAlbumDetail();
     callInTransaction(new Callable<Void>() {
 
       @Override
       public Void call() throws Exception {
-        final RuntimeExceptionDao<AlbumEntryEntity, Integer> albumEntryDao = getAlbumEntryDao();
-        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
+        // clear pending mutation-data if it exists
+        final MutationList mutationList = getAlbumMutationList(archiveName, albumId);
+        final Collection<MutationEntry> mutations =
+                                                    mutationList != null && mutationList.getMutations() != null
+                                                                                                               ? mutationList.getMutations()
+                                                                                                               : Collections.<MutationEntry> emptyList();
+        final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
+        getOrMakeAlbumDetail(archiveName, albumId).setEntries(albumDto.getEntries());
+        albumMeta.setLastModified(albumDto.getLastModified());
+        albumMeta.setAutoAddDate(albumDto.getAutoAddDate());
+        albumMeta.setEntryCount(albumDto.getEntries().size());
 
         final AtomicLong dateSum = new AtomicLong(0);
         final AtomicInteger dateCount = new AtomicInteger(0);
-        final Map<String, AlbumEntryEntity> existingEntries = new HashMap<String, AlbumEntryEntity>();
 
-        final AlbumEntity albumEntity = albumDao.queryForId(albumId);
-
-        if (!dateEquals(albumEntity.getAutoAddDate(), albumDto.getAutoAddDate())
-            || !dateEquals(albumEntity.getLastModified(), albumDto.getLastModified())) {
-          albumEntity.setAutoAddDate(albumDto.getAutoAddDate());
-          albumEntity.setLastModified(albumDto.getLastModified());
-          albumDao.update(albumEntity);
-          notifyAlbumListChanged();
-        }
-        final Collection<AlbumEntryEntity> entries = albumEntity.getEntries();
-        for (final AlbumEntryEntity albumEntryEntity : entries) {
-          existingEntries.put(albumEntryEntity.getName(), albumEntryEntity);
-        }
-        AlbumEntryEntity thumbnailCandidate = null;
+        String thumbnailId = albumMeta.getThumbnailId();
         for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
-          final AlbumEntryEntity existingEntry = existingEntries.remove(albumImageEntry.getKey());
+
           final AlbumEntryDto entryDto = albumImageEntry.getValue();
+          final String imageId = albumImageEntry.getKey();
+          final String editableMetadataHash = entryDto.getEditableMetadataHash();
+          for (final Iterator<MutationEntry> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+            final MutationEntry mutationEntry = entryIterator.next();
+            if (mutationEntry.getAlbumEntryId().equals(imageId) && !mutationEntry.getBaseVersion().equals(editableMetadataHash))
+              entryIterator.remove();
+          }
+          if (thumbnailId == null)
+            thumbnailId = albumImageEntry.getKey();
 
-          if (existingEntry == null) {
-            final AlbumEntryEntity albumEntryEntity =
-                                                      new AlbumEntryEntity(albumEntity, albumImageEntry.getKey(), entryDto.getCommId(),
-                                                                           entryDto.getEntryType(), entryDto.getLastModified(),
-                                                                           entryDto.getCaptureDate());
-            albumEntryEntity.setOriginalSize(entryDto.getOriginalFileSize());
-            if (entryDto.getThumbnailSize() != null)
-              albumEntryEntity.setThumbnailSize(entryDto.getThumbnailSize());
-            if (albumEntryEntity.getCaptureDate() != null) {
-              dateCount.incrementAndGet();
-              dateSum.addAndGet(albumEntryEntity.getCaptureDate().getTime());
-            }
-            if (thumbnailCandidate == null) {
-              thumbnailCandidate = albumEntryEntity;
-            }
-            if (updateEntity(albumEntryEntity, entryDto, true))
-              albumEntryDao.create(albumEntryEntity);
-            notifyAlbumChanged(albumEntity.getId());
-          } else {
-            if (thumbnailCandidate == null)
-              thumbnailCandidate = existingEntry;
-            final boolean modified = updateEntity(existingEntry, entryDto, false);
-
-            if (modified) {
-              albumEntryDao.update(existingEntry);
-              notifyAlbumChanged(albumEntity.getId());
-            }
-            final Date captureDate = existingEntry.getCaptureDate();
-            if (captureDate != null) {
-              dateCount.incrementAndGet();
-              dateSum.addAndGet(captureDate.getTime());
-            }
+          if (entryDto.getCaptureDate() != null) {
+            dateCount.incrementAndGet();
+            dateSum.addAndGet(entryDto.getCaptureDate().getTime());
           }
         }
-        // set remaining entries to deleted
-        for (final AlbumEntryEntity remainingEntry : existingEntries.values()) {
-          if (!remainingEntry.isDeleted()) {
-            remainingEntry.setDeleted(true);
-            albumEntryDao.update(remainingEntry);
-            notifyAlbumChanged(albumEntity.getId());
-          }
-        }
-        boolean findNewThumbnail;
-        final AlbumEntryEntity thumbnail = albumEntity.getThumbnail();
-        if (thumbnail != null) {
-          albumEntryDao.refresh(thumbnail);
-          findNewThumbnail = thumbnail.isDeleted();
-        } else
-          findNewThumbnail = true;
-        final Date middleCaptureDate = dateCount.get() == 0 ? null : new Date(dateSum.longValue() / dateCount.longValue());
-        if (!dateEquals(middleCaptureDate, albumEntity.getAlbumCaptureDate()) || findNewThumbnail && thumbnailCandidate != null) {
-          albumEntity.setAlbumCaptureDate(middleCaptureDate);
-          if (findNewThumbnail && thumbnailCandidate != null)
-            albumEntity.setThumbnail(thumbnailCandidate);
-          albumDao.update(albumEntity);
-          notifyAlbumListChanged();
+        albumMeta.setThumbnailId(thumbnailId);
+        if (dateCount.get() > 0) {
+          albumMeta.setAlbumDate(new Date(dateSum.longValue() / dateCount.longValue()));
         }
         return null;
       }
-
-      private boolean updateEntity(final AlbumEntryEntity existingEntry, final AlbumEntryDto entryDto, final boolean mustCreate) {
-        boolean modified = mustCreate;
-        if (!dateEquals(existingEntry.getCaptureDate(), entryDto.getCaptureDate()) && entryDto.getCaptureDate() != null) {
-          existingEntry.setCaptureDate(entryDto.getCaptureDate());
-          modified = true;
-        }
-        if (existingEntry.getOriginalSize() != entryDto.getOriginalFileSize()) {
-          existingEntry.setOriginalSize(entryDto.getOriginalFileSize());
-          modified = true;
-        }
-        if (!objectEquals(existingEntry.getThumbnailSize(), entryDto.getThumbnailSize()) && entryDto.getThumbnailSize() != null) {
-          existingEntry.setThumbnailSize(entryDto.getThumbnailSize());
-          modified = true;
-        }
-        if (!objectEquals(existingEntry.getCameraMake(), entryDto.getCameraMake())) {
-          existingEntry.setCameraMake(entryDto.getCameraMake());
-          modified = true;
-        }
-        if (!objectEquals(existingEntry.getCameraModel(), entryDto.getCameraModel())) {
-          existingEntry.setCameraMake(entryDto.getCameraModel());
-          modified = true;
-        }
-        if (!objectEquals(existingEntry.getExposureTime(), entryDto.getExposureTime())) {
-          existingEntry.setExposureTime(entryDto.getExposureTime());
-          modified = true;
-        }
-        if (!objectEquals(existingEntry.getfNumber(), entryDto.getfNumber())) {
-          existingEntry.setfNumber(entryDto.getfNumber());
-          modified = true;
-        }
-        if (!objectEquals(existingEntry.getFocalLength(), entryDto.getFocalLength())) {
-          existingEntry.setFocalLength(entryDto.getFocalLength());
-          modified = true;
-        }
-        if (!objectEquals(existingEntry.getIso(), entryDto.getIso())) {
-          existingEntry.setIso(entryDto.getIso());
-          modified = true;
-        }
-
-        if (!objectEquals(existingEntry.getEditableMetadataHash(), entryDto.getEditableMetadataHash())) {
-          existingEntry.setMetaModified(false);
-          existingEntry.setMetaCaption(entryDto.getCaption());
-          existingEntry.setMetaRating(entryDto.getRating());
-
-          // remove and reset existing entries
-          final RuntimeExceptionDao<AlbumEntryKeywordEntry, Integer> keywordDao = getKeywordDao();
-          final Collection<String> remainingKeywords = new HashSet<String>(entryDto.getKeywords());
-          for (final AlbumEntryKeywordEntry keywordEntry : existingEntry.getKeywords()) {
-            final boolean found = remainingKeywords.remove(keywordEntry.getKeyword());
-            if (found) {
-              if (keywordEntry.isAdded() || keywordEntry.isDeleted()) {
-                keywordEntry.setAdded(false);
-                keywordEntry.setDeleted(false);
-                keywordDao.update(keywordEntry);
-              }
-            } else {
-              keywordDao.delete(keywordEntry);
-            }
-          }
-          // add remaining entries
-          if (!remainingKeywords.isEmpty()) {
-            if (mustCreate) {
-              getAlbumEntryDao().create(existingEntry);
-              modified = false;
-            }
-          }
-          for (final String keyword : remainingKeywords) {
-            keywordDao.create(new AlbumEntryKeywordEntry(existingEntry, keyword));
-          }
-          existingEntry.setEditableMetadataHash(entryDto.getEditableMetadataHash());
-        }
-
-        if (existingEntry.isDeleted()) {
-          existingEntry.setDeleted(false);
-          modified = true;
-        }
-        return modified;
-      }
-
     });
   }
 
@@ -1184,6 +1084,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         PowerStateReceiver.notifyPowerState(getApplicationContext());
       }
     }, 5, TimeUnit.SECONDS);
+  }
+
+  private void saveAlbumMeta(final String archiveName, final String commId, final AlbumMeta albumMeta) {
+    currentTransaction.get().putObject(makeAlbumMetaPath(archiveName, commId), albumMeta);
   }
 
   private synchronized void startFastPolling() {
@@ -1240,8 +1144,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private void updateAlbumDetail(final String archiveName, final String albumName, final AlbumConnection albumConnection, final int totalAlbumCount,
                                  final AtomicInteger albumCounter) {
-    final ConcurrentMap<String, Integer> visibleAlbumsOfArchive =
-                                                                  putIfNotExists(visibleAlbums, archiveName, new ConcurrentHashMap<String, Integer>());
+    final ConcurrentMap<String, String> visibleAlbumsOfArchive = putIfNotExists(visibleAlbums, archiveName, new ConcurrentHashMap<String, String>());
 
     final Notification.Builder builder = makeNotificationBuilder();
     builder.setContentTitle("DB Update");
@@ -1249,39 +1152,40 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     builder.setProgress(totalAlbumCount, albumCounter.incrementAndGet(), false);
     notificationManager.notify(NOTIFICATION, builder.getNotification());
 
-    final AtomicInteger albumId = new AtomicInteger();
+    final AtomicReference<String> albumId = new AtomicReference<String>();
     final AtomicBoolean shouldUpdateMeta = new AtomicBoolean(false);
     final AtomicBoolean shouldLoadThumbnails = new AtomicBoolean(false);
     callInTransaction(new Callable<Void>() {
-
       @Override
       public Void call() throws Exception {
-        final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
-        final RuntimeExceptionDao<AlbumEntity, Integer> albumDao = getAlbumDao();
 
-        final ArchiveEntity archiveEntity = archiveDao.queryForId(archiveName);
-
-        final List<AlbumEntity> foundEntries = findAlbumByArchiveAndName(archiveEntity, albumName);
-        final AlbumEntity albumEntity;
-        if (foundEntries.isEmpty()) {
-          albumEntity = new AlbumEntity(archiveEntity, albumName, albumConnection.getCommId());
-          albumDao.create(albumEntity);
-          notifyAlbumListChanged();
+        final String commId = albumConnection.getCommId();
+        final AlbumMeta existingAlbumMeta = getAlbumMeta(archiveName, commId);
+        if (existingAlbumMeta == null) {
+          final AlbumMeta newAlbumMeta = new AlbumMeta();
+          newAlbumMeta.setName(albumName);
+          newAlbumMeta.setArchiveName(archiveName);
+          newAlbumMeta.setAlbumId(commId);
+          saveAlbumMeta(archiveName, commId, newAlbumMeta);
+          shouldUpdateMeta.set(true);
         } else {
-          albumEntity = foundEntries.get(0);
+          existingAlbumMeta.setName(albumName);
+          existingAlbumMeta.setArchiveName(archiveName);
+          existingAlbumMeta.setAlbumId(commId);
+          shouldUpdateMeta.set(!dateEquals(existingAlbumMeta.getLastModified(), albumConnection.lastModified()));
+          shouldLoadThumbnails.set(existingAlbumMeta.isShouldSync());
         }
-        visibleAlbumsOfArchive.put(albumName, Integer.valueOf(albumEntity.getId()));
-        albumId.set(albumEntity.getId());
-        shouldUpdateMeta.set(!dateEquals(albumEntity.getLastModified(), albumConnection.lastModified()));
-        shouldLoadThumbnails.set(albumEntity.isShouldSync());
+        visibleAlbumsOfArchive.put(albumName, commId);
+        albumId.set(commId);
         return null;
       }
+
     });
     if (shouldUpdateMeta.get())
-      refreshAlbumDetail(albumConnection, albumId.intValue());
-    pushPendingMetadataUpdate(albumConnection, albumId.intValue());
+      refreshAlbumDetail(albumConnection, archiveName, albumId.get());
+    pushPendingMetadataUpdate(albumConnection, archiveName, albumId.get());
     if (shouldLoadThumbnails.get())
-      loadThumbnailsOfAlbum(albumId.intValue());
+      loadThumbnailsOfAlbum(archiveName, albumId.get());
   }
 
   private void updateAlbumsOnDB() {
@@ -1301,21 +1205,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           if (!running.get())
             break;
           final String archiveName = archive.getKey();
-
-          callInTransaction(new Callable<Void>() {
-            @Override
-            public Void call() throws Exception {
-              final RuntimeExceptionDao<ArchiveEntity, String> archiveDao = getArchiveDao();
-              final ArchiveEntity loadedArchive = archiveDao.queryForId(archiveName);
-              if (loadedArchive == null) {
-                archiveDao.create(new ArchiveEntity(archiveName));
-              }
-              return null;
-            }
-          });
           final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
           // remove invisible albums
-          putIfNotExists(visibleAlbums, archiveName, new ConcurrentHashMap<String, Integer>()).keySet().retainAll(albums.keySet());
+          putIfNotExists(visibleAlbums, archiveName, new ConcurrentHashMap<String, String>()).keySet().retainAll(albums.keySet());
 
           final AtomicInteger albumCounter = new AtomicInteger();
           builder.setContentText("Downloading from " + archiveName);

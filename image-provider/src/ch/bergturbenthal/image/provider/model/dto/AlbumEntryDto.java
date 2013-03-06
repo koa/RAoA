@@ -4,11 +4,13 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedHashSet;
 
-import ch.bergturbenthal.image.provider.model.AlbumEntryType;
+import ch.bergturbenthal.image.provider.Client;
+import ch.bergturbenthal.image.provider.map.CursorField;
 
 public class AlbumEntryDto {
   private Date captureDate;
   private String commId;
+  private String fileName;
   private AlbumEntryType entryType;
   private Date lastModified;
   private long originalFileSize;
@@ -24,14 +26,27 @@ public class AlbumEntryDto {
   private final Collection<String> keywords = new LinkedHashSet<String>();
   private Integer rating;
 
+  /**
+   * Returns the albumName.
+   * 
+   * @return the albumName
+   */
+  @CursorField(Client.AlbumEntry.NAME)
+  public String getFileName() {
+    return fileName;
+  }
+
+  @CursorField(Client.AlbumEntry.CAMERA_MAKE)
   public String getCameraMake() {
     return cameraMake;
   }
 
+  @CursorField(Client.AlbumEntry.CAMERA_MODEL)
   public String getCameraModel() {
     return cameraModel;
   }
 
+  @CursorField(Client.AlbumEntry.META_CAPTION)
   public String getCaption() {
     return caption;
   }
@@ -41,10 +56,12 @@ public class AlbumEntryDto {
    * 
    * @return the captureDate
    */
+  @CursorField(Client.AlbumEntry.CAPTURE_DATE)
   public Date getCaptureDate() {
     return captureDate;
   }
 
+  @CursorField(Client.AlbumEntry.ID)
   public String getCommId() {
     return commId;
   }
@@ -57,18 +74,22 @@ public class AlbumEntryDto {
     return entryType;
   }
 
+  @CursorField(Client.AlbumEntry.EXPOSURE_TIME)
   public Double getExposureTime() {
     return exposureTime;
   }
 
+  @CursorField(Client.AlbumEntry.F_NUMBER)
   public Double getfNumber() {
     return fNumber;
   }
 
+  @CursorField(Client.AlbumEntry.FOCAL_LENGTH)
   public Double getFocalLength() {
     return focalLength;
   }
 
+  @CursorField(Client.AlbumEntry.ISO)
   public Integer getIso() {
     return iso;
   }
@@ -77,20 +98,34 @@ public class AlbumEntryDto {
     return keywords;
   }
 
+  @CursorField(Client.AlbumEntry.LAST_MODIFIED)
   public Date getLastModified() {
     return lastModified;
   }
 
+  @CursorField(Client.AlbumEntry.ORIGINAL_SIZE)
   public long getOriginalFileSize() {
     return originalFileSize;
   }
 
+  @CursorField(Client.AlbumEntry.META_RATING)
   public Integer getRating() {
     return rating;
   }
 
+  @CursorField(Client.AlbumEntry.THUMBNAIL_SIZE)
   public Long getThumbnailSize() {
     return thumbnailSize;
+  }
+
+  /**
+   * Sets the albumName.
+   * 
+   * @param albumName
+   *          the albumName to set
+   */
+  public void setFileName(final String albumName) {
+    this.fileName = albumName;
   }
 
   public void setCameraMake(final String cameraMake) {

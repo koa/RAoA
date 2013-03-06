@@ -28,13 +28,13 @@ public class ArchiveContentProvider extends ContentProvider {
   public static enum UriType {
     @Path("albums")
     ALBUM_LIST,
-    @Path("albums/#")
+    @Path("albums/*/*")
     ALBUM,
-    @Path("albums/#/entries")
+    @Path("albums/*/*/entries")
     ALBUM_ENTRY_LIST,
-    @Path("albums/#/entries/#")
+    @Path("albums/*/*/entries/*")
     ALBUM_ENTRY,
-    @Path("albums/#/entries/#/thumbnail")
+    @Path("albums/*/*/entries/*/thumbnail")
     ALBUM_ENTRY_THUMBNAIL,
     @Path("servers")
     SERVER_LIST,
@@ -133,10 +133,11 @@ public class ArchiveContentProvider extends ContentProvider {
     switch (match) {
     case ALBUM_ENTRY_THUMBNAIL:
       final List<String> segments = uri.getPathSegments();
-      final String album = segments.get(1);
-      final String image = segments.get(3);
-      Log.i(TAG, "Selected Entry: " + album + ":" + image);
-      final File thumbnail = service.getLoadedThumbnail(Integer.parseInt(image));
+      final String archive = segments.get(1);
+      final String albumId = segments.get(2);
+      final String image = segments.get(4);
+      Log.i(TAG, "Selected Entry: " + archive + ":" + albumId + ":" + image);
+      final File thumbnail = service.getLoadedThumbnail(archive, albumId, image);
       if (thumbnail == null)
         throw new FileNotFoundException("Thumbnail-Image " + uri + " not found");
       return ParcelFileDescriptor.open(thumbnail, ParcelFileDescriptor.MODE_READ_ONLY);
@@ -155,11 +156,11 @@ public class ArchiveContentProvider extends ContentProvider {
       case ALBUM_LIST:
         return service.readAlbumList(projection);
       case ALBUM:
-        return service.readSingleAlbum(Integer.parseInt(segments.get(1)), projection);
+        return service.readSingleAlbum(segments.get(1), segments.get(2), projection);
       case ALBUM_ENTRY_LIST:
-        return service.readAlbumEntryList(Integer.parseInt(segments.get(1)), projection);
+        return service.readAlbumEntryList(segments.get(1), segments.get(2), projection);
       case ALBUM_ENTRY:
-        return service.readSingleAlbumEntry(Integer.parseInt(segments.get(1)), Integer.parseInt(segments.get(3)), projection);
+        return service.readSingleAlbumEntry(segments.get(1), segments.get(2), segments.get(4), projection);
       case SERVER_LIST:
         return service.readServerList(projection);
       case SERVER_PROGRESS_LIST:
@@ -180,9 +181,9 @@ public class ArchiveContentProvider extends ContentProvider {
     final List<String> segments = uri.getPathSegments();
     switch (matcher.match(uri)) {
     case ALBUM:
-      return service.updateAlbum(Integer.parseInt(segments.get(1)), values);
+      return service.updateAlbum(segments.get(1), segments.get(2), values);
     case ALBUM_ENTRY:
-      return service.updateAlbumEntry(Integer.parseInt(segments.get(1)), Integer.parseInt(segments.get(3)), values);
+      return service.updateAlbumEntry(segments.get(1), segments.get(2), segments.get(4), values);
     case ALBUM_ENTRY_LIST:
     case ALBUM_ENTRY_THUMBNAIL:
     case ALBUM_LIST:

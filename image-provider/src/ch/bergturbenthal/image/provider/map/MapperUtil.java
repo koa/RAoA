@@ -3,7 +3,6 @@ package ch.bergturbenthal.image.provider.map;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
-import java.sql.SQLException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -11,9 +10,6 @@ import java.util.Map.Entry;
 
 import android.database.Cursor;
 import android.util.Log;
-
-import com.j256.ormlite.dao.CloseableIterator;
-import com.j256.ormlite.stmt.QueryBuilder;
 
 public class MapperUtil {
   private interface RawFieldReader<V> {
@@ -38,21 +34,6 @@ public class MapperUtil {
       cursor.addRow(makeRow(entry, columnNames, fieldReaders));
     }
     return cursor;
-  }
-
-  public static <E, I> NotifyableMatrixCursor loadQueryIntoCursor(final QueryBuilder<E, I> queryBuilder, final String[] projection,
-                                                                  final Map<String, FieldReader<E>> fieldReaders) {
-
-    try {
-      final String[] columnNames = projection != null ? projection : fieldReaders.keySet().toArray(new String[0]);
-      final NotifyableMatrixCursor cursor = new NotifyableMatrixCursor(columnNames);
-      for (final CloseableIterator<E> i = queryBuilder.iterator(); i.hasNext();) {
-        cursor.addRow(makeRow(i.next(), columnNames, fieldReaders));
-      }
-      return cursor;
-    } catch (final SQLException e) {
-      throw new RuntimeException(e);
-    }
   }
 
   public static <V> Map<String, FieldReader<V>> makeAnnotaedFieldReaders(final Class<V> type) {
