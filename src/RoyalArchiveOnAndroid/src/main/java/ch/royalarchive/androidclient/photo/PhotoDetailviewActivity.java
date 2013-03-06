@@ -33,12 +33,12 @@ public class PhotoDetailviewActivity extends Activity implements LoaderCallbacks
 		albumId = bundle.getInt(ALBUM_ID);
 		actPos = bundle.getInt(ACTUAL_POS);
 
-		// Create an empty adapter we will use to display the loaded data.
-		cursorAdapter = new PhotoDetailviewAdapter(this, R.layout.photo_detailview_item);
-		photoGallery = (Gallery) findViewById(R.id.photo_detail_gallery);
-		photoGallery.setAdapter(cursorAdapter);
-		
-		Log.d(TAG, "onCreate: actual position: " + actPos);
+//		// Create an empty adapter we will use to display the loaded data.
+//		cursorAdapter = new PhotoDetailviewAdapter(this, R.layout.photo_detailview_item);
+//		photoGallery = (Gallery) findViewById(R.id.photo_detail_gallery);
+//		photoGallery.setAdapter(cursorAdapter);
+//		
+//		Log.d(TAG, "onCreate: actual position: " + actPos);
 
 		// Prepare the loader. Either re-connect with an existing one,
 		// or start a new one.

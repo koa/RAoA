@@ -8,21 +8,21 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 
-public class PagerContainer extends FrameLayout implements ViewPager.OnPageChangeListener {
+public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPageChangeListener {
 	private ViewPager mPager;
 	boolean mNeedsRedraw = false;
 
-	public PagerContainer(Context context) {
+	public PhotoDetailContainer(Context context) {
 		super(context);
 		init();
 	}
 
-	public PagerContainer(Context context, AttributeSet attrs) {
+	public PhotoDetailContainer(Context context, AttributeSet attrs) {
 		super(context, attrs);
 		init();
 	}
 
-	public PagerContainer(Context context, AttributeSet attrs, int defStyle) {
+	public PhotoDetailContainer(Context context, AttributeSet attrs, int defStyle) {
 		super(context, attrs, defStyle);
 		init();
 	}

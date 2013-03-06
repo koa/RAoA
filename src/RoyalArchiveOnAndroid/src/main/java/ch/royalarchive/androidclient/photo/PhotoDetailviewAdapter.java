@@ -1,25 +1,62 @@
 package ch.royalarchive.androidclient.photo;
 
-import ch.bergturbenthal.image.provider.Client;
-import ch.royalarchive.androidclient.OverviewBinder;
-import ch.royalarchive.androidclient.R;
 import android.content.Context;
-import android.widget.SimpleCursorAdapter;
+import android.database.Cursor;
+import android.support.v4.view.PagerAdapter;
+import android.support.v4.view.ViewPager;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.SimpleCursorAdapter.ViewBinder;
+import ch.royalarchive.androidclient.OverviewBinder;
 
-public class PhotoDetailviewAdapter extends SimpleCursorAdapter {
+public class PhotoDetailviewAdapter extends PagerAdapter {
+	
+	private final Context context;
+	private final ViewBinder viewBinder;
+	private Cursor cursor;
 
-	private static final String[] FROM = new String[] { 
-		Client.AlbumEntry.THUMBNAIL };
+	public PhotoDetailviewAdapter(Context context, Cursor cursor) {
+		this.context = context;
+		this.cursor = cursor;
 
-	private static final int[] TO = new int[] {
-		R.id.photo_detail_item_image };
-
-	public PhotoDetailviewAdapter(Context context, int layout) {
-		super(context, layout, null, FROM, TO, 0);
-		
-		// set photo overview view binder
-		setViewBinder(new OverviewBinder(true));
+		// set photo detail view binder
+		viewBinder = new OverviewBinder(true);
 	}
 
+	@Override
+	public Object instantiateItem(ViewGroup container, int position) {
+		ImageView view = new ImageView(context);
+		cursor.moveToPosition(position);
+		viewBinder.setViewValue(view, cursor, 0);
+		container.addView(view);
+		return view;
+	}
+
+	@Override
+	public void destroyItem(View container, int position, Object object) {
+		((ViewPager) container).removeView((View) object);
+	}
+
+	@Override
+	public int getCount() {
+		if (cursor == null)
+			return 0;
+		else
+			return cursor.getCount();
+	}
+
+	@Override
+	public boolean isViewFromObject(View view, Object object) {
+		return (view == object);
+	}
+
+	public void swapCursor(Cursor c) {
+		if (cursor == c)
+			return;
+
+		this.cursor = c;
+		notifyDataSetChanged();
+	}
 
 }
