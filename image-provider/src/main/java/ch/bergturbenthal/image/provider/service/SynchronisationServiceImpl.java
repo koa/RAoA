@@ -1040,7 +1040,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
                                                                                                                ? mutationList.getMutations()
                                                                                                                : Collections.<MutationEntry> emptyList();
         final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
-        getOrMakeAlbumDetail(archiveName, albumId).setEntries(albumDto.getEntries());
+        final Map<String, AlbumEntryDto> entries = getOrMakeAlbumDetail(archiveName, albumId).getEntries();
+        entries.clear();
+        entries.putAll(albumDto.getEntries());
         albumMeta.setLastModified(albumDto.getLastModified());
         albumMeta.setAutoAddDate(albumDto.getAutoAddDate());
         albumMeta.setEntryCount(albumDto.getEntries().size());

@@ -11,6 +11,8 @@ public class KeywordMutationEntry extends MutationEntry {
     REMOVE
   }
 
+  private static final long serialVersionUID = 7314544238011292405L;
+
   private String keyword;
   private KeywordMutation mutation;
 }

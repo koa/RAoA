@@ -10,7 +10,7 @@
 		<module>image-server</module>
 		<module>image-data</module>
 		<module>image-provider</module>
-		<!-- <module>image-provider-test</module> -->
+		<module>image-provider-test</module> 
 		<module>image-provider-api</module>
 		<module>image-server-standalone</module>
 		<module>image-server-war</module>
@@ -132,7 +132,7 @@
 			<dependency>
 				<groupId>junit</groupId>
 				<artifactId>junit</artifactId>
-				<version>4.7</version>
+				<version>4.8.2</version>
 			</dependency>
 			<dependency>
 				<groupId>org.springframework</groupId>
@@ -164,6 +164,11 @@
 				<artifactId>lombok</artifactId>
 				<version>0.11.6</version>
 				<scope>provided</scope>
+			</dependency>
+			<dependency>
+			  <groupId>com.pivotallabs</groupId>
+			  <artifactId>robolectric</artifactId>
+			  <version>1.2</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

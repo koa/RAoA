@@ -37,6 +37,23 @@ public class MutationList implements Parcelable {
     return 0;
   }
 
+  @Override
+  public boolean equals(final Object obj) {
+    if (this == obj)
+      return true;
+    if (obj == null)
+      return false;
+    if (getClass() != obj.getClass())
+      return false;
+    final MutationList other = (MutationList) obj;
+    if (mutations == null) {
+      if (other.mutations != null)
+        return false;
+    } else if (!mutations.equals(other.mutations))
+      return false;
+    return true;
+  }
+
   /**
    * Returns the mutations.
    * 
@@ -44,6 +61,14 @@ public class MutationList implements Parcelable {
    */
   public Collection<MutationEntry> getMutations() {
     return mutations;
+  }
+
+  @Override
+  public int hashCode() {
+    final int prime = 31;
+    int result = 1;
+    result = prime * result + ((mutations == null) ? 0 : mutations.hashCode());
+    return result;
   }
 
   /**
@@ -54,6 +79,11 @@ public class MutationList implements Parcelable {
    */
   public void setMutations(final Collection<MutationEntry> mutations) {
     this.mutations = mutations;
+  }
+
+  @Override
+  public String toString() {
+    return "MutationList [mutations=" + mutations + "]";
   }
 
   @Override

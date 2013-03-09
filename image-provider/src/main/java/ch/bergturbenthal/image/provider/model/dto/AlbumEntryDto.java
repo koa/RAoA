@@ -7,11 +7,36 @@ import java.util.LinkedHashSet;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import ch.bergturbenthal.image.data.model.AlbumImageEntry;
 import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.map.CursorField;
 import ch.bergturbenthal.image.provider.util.ParcelUtil;
 
 public class AlbumEntryDto implements Parcelable {
+  public static AlbumEntryDto fromServer(final AlbumImageEntry entry) {
+    final AlbumEntryDto dtoEntry = new AlbumEntryDto();
+    dtoEntry.setEntryType(entry.isVideo() ? AlbumEntryType.VIDEO : AlbumEntryType.IMAGE);
+    dtoEntry.setLastModified(entry.getLastModified());
+    dtoEntry.setCaptureDate(entry.getCaptureDate());
+    dtoEntry.setCommId(entry.getId());
+    dtoEntry.setFileName(entry.getName());
+    dtoEntry.setOriginalFileSize(entry.getOriginalFileSize());
+    dtoEntry.setThumbnailSize(entry.getThumbnailFileSize());
+
+    dtoEntry.setCameraMake(entry.getCameraMake());
+    dtoEntry.setCameraModel(entry.getCameraModel());
+    dtoEntry.setCaption(entry.getCaption());
+    dtoEntry.setEditableMetadataHash(entry.getEditableMetadataHash());
+    dtoEntry.setExposureTime(entry.getExposureTime());
+    dtoEntry.setfNumber(entry.getFNumber());
+    dtoEntry.setFocalLength(entry.getFocalLength());
+    dtoEntry.setIso(entry.getIso());
+    if (entry.getKeywords() != null)
+      dtoEntry.getKeywords().addAll(entry.getKeywords());
+    dtoEntry.setRating(entry.getRating());
+    return dtoEntry;
+  }
+
   private String cameraMake;
   private String cameraModel;
   private String caption;
@@ -28,6 +53,7 @@ public class AlbumEntryDto implements Parcelable {
   private Date lastModified;
   private long originalFileSize;
   private Integer rating;
+
   private Long thumbnailSize;
 
   public static final Parcelable.Creator<AlbumEntryDto> CREATOR = new Parcelable.Creator<AlbumEntryDto>() {
@@ -69,6 +95,97 @@ public class AlbumEntryDto implements Parcelable {
   public int describeContents() {
     // TODO Auto-generated method stub
     return 0;
+  }
+
+  @Override
+  public boolean equals(final Object obj) {
+    if (this == obj)
+      return true;
+    if (obj == null)
+      return false;
+    if (getClass() != obj.getClass())
+      return false;
+    final AlbumEntryDto other = (AlbumEntryDto) obj;
+    if (cameraMake == null) {
+      if (other.cameraMake != null)
+        return false;
+    } else if (!cameraMake.equals(other.cameraMake))
+      return false;
+    if (cameraModel == null) {
+      if (other.cameraModel != null)
+        return false;
+    } else if (!cameraModel.equals(other.cameraModel))
+      return false;
+    if (caption == null) {
+      if (other.caption != null)
+        return false;
+    } else if (!caption.equals(other.caption))
+      return false;
+    if (captureDate == null) {
+      if (other.captureDate != null)
+        return false;
+    } else if (!captureDate.equals(other.captureDate))
+      return false;
+    if (commId == null) {
+      if (other.commId != null)
+        return false;
+    } else if (!commId.equals(other.commId))
+      return false;
+    if (editableMetadataHash == null) {
+      if (other.editableMetadataHash != null)
+        return false;
+    } else if (!editableMetadataHash.equals(other.editableMetadataHash))
+      return false;
+    if (entryType != other.entryType)
+      return false;
+    if (exposureTime == null) {
+      if (other.exposureTime != null)
+        return false;
+    } else if (!exposureTime.equals(other.exposureTime))
+      return false;
+    if (fNumber == null) {
+      if (other.fNumber != null)
+        return false;
+    } else if (!fNumber.equals(other.fNumber))
+      return false;
+    if (fileName == null) {
+      if (other.fileName != null)
+        return false;
+    } else if (!fileName.equals(other.fileName))
+      return false;
+    if (focalLength == null) {
+      if (other.focalLength != null)
+        return false;
+    } else if (!focalLength.equals(other.focalLength))
+      return false;
+    if (iso == null) {
+      if (other.iso != null)
+        return false;
+    } else if (!iso.equals(other.iso))
+      return false;
+    if (keywords == null) {
+      if (other.keywords != null)
+        return false;
+    } else if (!keywords.equals(other.keywords))
+      return false;
+    if (lastModified == null) {
+      if (other.lastModified != null)
+        return false;
+    } else if (!lastModified.equals(other.lastModified))
+      return false;
+    if (originalFileSize != other.originalFileSize)
+      return false;
+    if (rating == null) {
+      if (other.rating != null)
+        return false;
+    } else if (!rating.equals(other.rating))
+      return false;
+    if (thumbnailSize == null) {
+      if (other.thumbnailSize != null)
+        return false;
+    } else if (!thumbnailSize.equals(other.thumbnailSize))
+      return false;
+    return true;
   }
 
   @CursorField(Client.AlbumEntry.CAMERA_MAKE)
@@ -163,6 +280,30 @@ public class AlbumEntryDto implements Parcelable {
     return thumbnailSize;
   }
 
+  @Override
+  public int hashCode() {
+    final int prime = 31;
+    int result = 1;
+    result = prime * result + ((cameraMake == null) ? 0 : cameraMake.hashCode());
+    result = prime * result + ((cameraModel == null) ? 0 : cameraModel.hashCode());
+    result = prime * result + ((caption == null) ? 0 : caption.hashCode());
+    result = prime * result + ((captureDate == null) ? 0 : captureDate.hashCode());
+    result = prime * result + ((commId == null) ? 0 : commId.hashCode());
+    result = prime * result + ((editableMetadataHash == null) ? 0 : editableMetadataHash.hashCode());
+    result = prime * result + ((entryType == null) ? 0 : entryType.hashCode());
+    result = prime * result + ((exposureTime == null) ? 0 : exposureTime.hashCode());
+    result = prime * result + ((fNumber == null) ? 0 : fNumber.hashCode());
+    result = prime * result + ((fileName == null) ? 0 : fileName.hashCode());
+    result = prime * result + ((focalLength == null) ? 0 : focalLength.hashCode());
+    result = prime * result + ((iso == null) ? 0 : iso.hashCode());
+    result = prime * result + ((keywords == null) ? 0 : keywords.hashCode());
+    result = prime * result + ((lastModified == null) ? 0 : lastModified.hashCode());
+    result = prime * result + (int) (originalFileSize ^ (originalFileSize >>> 32));
+    result = prime * result + ((rating == null) ? 0 : rating.hashCode());
+    result = prime * result + ((thumbnailSize == null) ? 0 : thumbnailSize.hashCode());
+    return result;
+  }
+
   public void setCameraMake(final String cameraMake) {
     this.cameraMake = cameraMake;
   }
@@ -237,6 +378,15 @@ public class AlbumEntryDto implements Parcelable {
 
   public void setThumbnailSize(final Long thumbnailSize) {
     this.thumbnailSize = thumbnailSize;
+  }
+
+  @Override
+  public String toString() {
+    return "AlbumEntryDto [cameraMake=" + cameraMake + ", cameraModel=" + cameraModel + ", caption=" + caption + ", captureDate=" + captureDate
+           + ", commId=" + commId + ", editableMetadataHash=" + editableMetadataHash + ", entryType=" + entryType + ", exposureTime=" + exposureTime
+           + ", fileName=" + fileName + ", fNumber=" + fNumber + ", focalLength=" + focalLength + ", iso=" + iso + ", keywords=" + keywords
+           + ", lastModified=" + lastModified + ", originalFileSize=" + originalFileSize + ", rating=" + rating + ", thumbnailSize=" + thumbnailSize
+           + "]";
   }
 
   @Override

@@ -27,7 +27,6 @@ import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.data.model.PingResponse;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
-import ch.bergturbenthal.image.provider.model.dto.AlbumEntryType;
 import ch.bergturbenthal.image.provider.model.dto.ServerStateDto;
 
 public class ArchiveConnection {
@@ -138,9 +137,7 @@ public class ArchiveConnection {
               final String key = entry.getId();
               if (entries.containsKey(key) && entries.get(key).getLastModified().getTime() > entry.getLastModified().getTime())
                 continue;
-              final AlbumEntryDto dtoEntry = new AlbumEntryDto();
-              fillDto(dtoEntry, entry);
-              entries.put(key, dtoEntry);
+              entries.put(key, AlbumEntryDto.fromServer(entry));
             }
           }
           return ret;
@@ -176,28 +173,6 @@ public class ArchiveConnection {
             serverConnection.updateMetadata(albumId, updateEntries);
           }
 
-        }
-
-        private void fillDto(final AlbumEntryDto dtoEntry, final AlbumImageEntry entry) {
-          dtoEntry.setEntryType(entry.isVideo() ? AlbumEntryType.VIDEO : AlbumEntryType.IMAGE);
-          dtoEntry.setLastModified(entry.getLastModified());
-          dtoEntry.setCaptureDate(entry.getCaptureDate());
-          dtoEntry.setCommId(entry.getId());
-          dtoEntry.setFileName(entry.getName());
-          dtoEntry.setOriginalFileSize(entry.getOriginalFileSize());
-          dtoEntry.setThumbnailSize(entry.getThumbnailFileSize());
-
-          dtoEntry.setCameraMake(entry.getCameraMake());
-          dtoEntry.setCameraModel(entry.getCameraModel());
-          dtoEntry.setCaption(entry.getCaption());
-          dtoEntry.setEditableMetadataHash(entry.getEditableMetadataHash());
-          dtoEntry.setExposureTime(entry.getExposureTime());
-          dtoEntry.setfNumber(entry.getFNumber());
-          dtoEntry.setFocalLength(entry.getFocalLength());
-          dtoEntry.setIso(entry.getIso());
-          if (entry.getKeywords() != null)
-            dtoEntry.getKeywords().addAll(entry.getKeywords());
-          dtoEntry.setRating(entry.getRating());
         }
       });
     }

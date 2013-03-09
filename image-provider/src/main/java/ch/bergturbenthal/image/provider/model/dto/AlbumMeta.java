@@ -63,6 +63,65 @@ public class AlbumMeta implements Parcelable {
     return 0;
   }
 
+  @Override
+  public boolean equals(final Object obj) {
+    if (this == obj)
+      return true;
+    if (obj == null)
+      return false;
+    if (getClass() != obj.getClass())
+      return false;
+    final AlbumMeta other = (AlbumMeta) obj;
+    if (albumDate == null) {
+      if (other.albumDate != null)
+        return false;
+    } else if (!albumDate.equals(other.albumDate))
+      return false;
+    if (albumId == null) {
+      if (other.albumId != null)
+        return false;
+    } else if (!albumId.equals(other.albumId))
+      return false;
+    if (archiveName == null) {
+      if (other.archiveName != null)
+        return false;
+    } else if (!archiveName.equals(other.archiveName))
+      return false;
+    if (autoAddDate == null) {
+      if (other.autoAddDate != null)
+        return false;
+    } else if (!autoAddDate.equals(other.autoAddDate))
+      return false;
+    if (entryCount != other.entryCount)
+      return false;
+    if (lastModified == null) {
+      if (other.lastModified != null)
+        return false;
+    } else if (!lastModified.equals(other.lastModified))
+      return false;
+    if (name == null) {
+      if (other.name != null)
+        return false;
+    } else if (!name.equals(other.name))
+      return false;
+    if (originalsSize != other.originalsSize)
+      return false;
+    if (repositorySize != other.repositorySize)
+      return false;
+    if (shouldSync != other.shouldSync)
+      return false;
+    if (synced != other.synced)
+      return false;
+    if (thumbnailId == null) {
+      if (other.thumbnailId != null)
+        return false;
+    } else if (!thumbnailId.equals(other.thumbnailId))
+      return false;
+    if (thumbnailSize != other.thumbnailSize)
+      return false;
+    return true;
+  }
+
   /**
    * Returns the albumDate.
    * 
@@ -169,6 +228,26 @@ public class AlbumMeta implements Parcelable {
   @CursorField(Client.Album.THUMBNAILS_SIZE)
   public long getThumbnailSize() {
     return thumbnailSize;
+  }
+
+  @Override
+  public int hashCode() {
+    final int prime = 31;
+    int result = 1;
+    result = prime * result + ((albumDate == null) ? 0 : albumDate.hashCode());
+    result = prime * result + ((albumId == null) ? 0 : albumId.hashCode());
+    result = prime * result + ((archiveName == null) ? 0 : archiveName.hashCode());
+    result = prime * result + ((autoAddDate == null) ? 0 : autoAddDate.hashCode());
+    result = prime * result + entryCount;
+    result = prime * result + ((lastModified == null) ? 0 : lastModified.hashCode());
+    result = prime * result + ((name == null) ? 0 : name.hashCode());
+    result = prime * result + (int) (originalsSize ^ (originalsSize >>> 32));
+    result = prime * result + (int) (repositorySize ^ (repositorySize >>> 32));
+    result = prime * result + (shouldSync ? 1231 : 1237);
+    result = prime * result + (synced ? 1231 : 1237);
+    result = prime * result + ((thumbnailId == null) ? 0 : thumbnailId.hashCode());
+    result = prime * result + (int) (thumbnailSize ^ (thumbnailSize >>> 32));
+    return result;
   }
 
   /**
@@ -322,6 +401,14 @@ public class AlbumMeta implements Parcelable {
   }
 
   @Override
+  public String toString() {
+    return "AlbumMeta [lastModified=" + lastModified + ", name=" + name + ", synced=" + synced + ", shouldSync=" + shouldSync + ", autoAddDate="
+           + autoAddDate + ", thumbnailId=" + thumbnailId + ", albumDate=" + albumDate + ", archiveName=" + archiveName + ", albumId=" + albumId
+           + ", entryCount=" + entryCount + ", thumbnailSize=" + thumbnailSize + ", repositorySize=" + repositorySize + ", originalsSize="
+           + originalsSize + "]";
+  }
+
+  @Override
   public void writeToParcel(final Parcel dest, final int flags) {
     ParcelUtil.writeDate(lastModified, dest);
     dest.writeString(name);
@@ -337,4 +424,5 @@ public class AlbumMeta implements Parcelable {
     dest.writeLong(repositorySize);
     dest.writeLong(originalsSize);
   }
+
 }
