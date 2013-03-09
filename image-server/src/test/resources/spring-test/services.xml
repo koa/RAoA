@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xmlns:context="http://www.springframework.org/schema/context" xmlns="http://www.springframework.org/schema/beans"
+  xmlns:context="http://www.springframework.org/schema/context"
+  xmlns="http://www.springframework.org/schema/beans"
   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
 		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.1.xsd">
 
@@ -37,7 +38,10 @@
   <bean name="albumImage" class="ch.bergturbenthal.image.server.AlbumImage"
     scope="prototype" factory-method="createImage">
   </bean>
-
+  <bean name="fileWatcher" class="ch.bergturbenthal.image.server.watcher.FileWatcher"
+    scope="prototype" factory-method="createWatcher">
+  </bean>
+  
   <bean
     class="ch.bergturbenthal.image.server.thumbnails.FfmpegVideoThumbnailMaker">
   </bean>
@@ -45,5 +49,8 @@
     class="ch.bergturbenthal.image.server.thumbnails.ImageMagickImageThumbnailMaker">
     <!-- <property name="gmBinary"/> <property name="imConvertBinary"/> -->
     <property name="thumbnailSize" value="1600" />
+  </bean>
+  <bean
+    class="ch.bergturbenthal.image.server.watcher.DirectoryNotificationService">
   </bean>
 </beans>
