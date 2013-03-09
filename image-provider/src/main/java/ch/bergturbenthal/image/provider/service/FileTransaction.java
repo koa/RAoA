@@ -29,8 +29,8 @@ import java.util.zip.GZIPOutputStream;
 
 import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.ObjectWriter;
 
+import android.os.Parcel;
 import android.os.Parcelable;
 import ch.bergturbenthal.image.provider.util.IOUtil;
 import ch.bergturbenthal.image.provider.util.ObjectUtils;
@@ -41,7 +41,7 @@ import ch.bergturbenthal.image.provider.util.ObjectUtils;
  */
 public class FileTransaction {
   private final File baseDir;
-  private final Map<String, Object> parsedData = new LinkedHashMap<String, Object>();
+  private final Map<String, Parcelable> parsedData = new LinkedHashMap<String, Parcelable>();
   private final Map<String, Date> originalData = new HashMap<String, Date>();
   private static final ObjectMapper mapper = new ObjectMapper();
   private static final Map<String, WeakReference<Object>> readOnlyCache = new ConcurrentHashMap<String, WeakReference<Object>>();
@@ -50,7 +50,13 @@ public class FileTransaction {
     final GZIPInputStream is = new GZIPInputStream(new FileInputStream(infile));
     final D readValue;
     try {
-      readValue = mapper.reader(type).readValue(is);
+      final Parcel parcel = Parcel.obtain();
+      final byte[] data = IOUtil.readStream(is);
+      parcel.setDataPosition(0);
+      parcel.unmarshall(data, 0, data.length);
+      parcel.setDataPosition(0);
+      readValue = parcel.readParcelable(type.getClassLoader());
+      parcel.recycle();
     } finally {
       is.close();
     }
@@ -64,11 +70,12 @@ public class FileTransaction {
   public void commitTransaction() {
     if (parsedData.isEmpty())
       return;
-    final ObjectWriter writer = mapper.writer();
-    for (final Entry<String, Object> fileEntry : parsedData.entrySet()) {
+    final Parcel parcel = Parcel.obtain();
+    for (final Entry<String, ? extends Parcelable> fileEntry : parsedData.entrySet()) {
       final String filename = fileEntry.getKey();
       try {
-        final Object newData = fileEntry.getValue();
+        parcel.setDataPosition(0);
+        final Parcelable newData = fileEntry.getValue();
         final File targetFile = evaluateFile(filename);
         if (newData == null) {
           if (targetFile.exists())
@@ -80,10 +87,13 @@ public class FileTransaction {
         if (!ObjectUtils.objectEquals(oldDate, currentDate)) {
           throw new ConcurrentTransactionException(filename);
         }
+        parcel.writeParcelable(newData, 0);
+        parcel.setDataPosition(0);
+        final byte[] fileContent = parcel.marshall();
         final ByteArrayOutputStream tempOs = new ByteArrayOutputStream();
         final GZIPOutputStream gzipOs = new GZIPOutputStream(tempOs);
         try {
-          writer.writeValue(gzipOs, newData);
+          gzipOs.write(fileContent);
         } finally {
           gzipOs.close();
         }
@@ -107,9 +117,10 @@ public class FileTransaction {
         throw new RuntimeException("Cannot save " + filename, t);
       }
     }
-    for (final Entry<String, Object> updatedEntry : parsedData.entrySet()) {
+    for (final Entry<String, Parcelable> updatedEntry : parsedData.entrySet()) {
       readOnlyCache.put(updatedEntry.getKey(), new WeakReference<Object>(updatedEntry.getValue()));
     }
+    parcel.recycle();
     parsedData.clear();
     originalData.clear();
   }
@@ -207,7 +218,7 @@ public class FileTransaction {
 
   }
 
-  private <D> D readFile(final File infile, final String relativePath, final Class<D> type) {
+  private <D extends Parcelable> D readFile(final File infile, final String relativePath, final Class<D> type) {
     try {
       originalData.put(relativePath, new Date(infile.lastModified()));
       final D readValue = readFileContent(infile, type);

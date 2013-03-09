@@ -155,7 +155,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   @Override
   public File getLoadedThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
-    return thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
+    final long startTime = System.currentTimeMillis();
+    try {
+      return thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
+    } finally {
+      Log.i("Performance", "Returned Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId + " in "
+                           + (System.currentTimeMillis() - startTime) + " ms");
+    }
   }
 
   @Override
@@ -301,8 +307,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
       @Override
       public Cursor call() throws Exception {
-        final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
-
         final AlbumEntries albumDetail = getOrMakeAlbumDetail(archiveName, albumId);
         if (albumDetail.getEntries() == null || albumDetail.getEntries().isEmpty())
           return cursorNotifications.addSingleAlbumCursor(new AlbumIndex(archiveName, albumId), new NotifyableMatrixCursor(new String[] {}));
@@ -468,7 +472,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return callInTransaction(new Callable<Integer>() {
       @Override
       public Integer call() throws Exception {
-        final AlbumEntries albumEntries = getAlbumEntries(makeAlbumEntriesPath(archiveName, albumId));
+        final AlbumEntries albumEntries = getAlbumEntries(archiveName, albumId);
         if (albumEntries == null)
           return Integer.valueOf(0);
         final Map<String, AlbumEntryDto> entries = albumEntries.getEntries();
@@ -583,12 +587,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return Math.abs(date1.getTime() - date2.getTime()) < 1000;
   }
 
-  private AlbumEntries getAlbumEntries(final String path) {
-    return currentTransaction.get().getObject(path, AlbumEntries.class);
+  private AlbumEntries getAlbumEntries(final String archiveName, final String albumId) {
+    return currentTransaction.get().getObject(makeAlbumEntriesPath(archiveName, albumId), AlbumEntries.class);
   }
 
   private AlbumEntries getAlbumEntriesReadOnly(final String archiveName, final String commId) {
-    return currentTransaction.get().getObjectReadOnly(makeAlbumEntriesPath(archiveName, commId), AlbumEntries.class);
+    final long start = System.currentTimeMillis();
+    try {
+      return currentTransaction.get().getObjectReadOnly(makeAlbumEntriesPath(archiveName, commId), AlbumEntries.class);
+    } finally {
+      Log.i("Performance", "Loaded entries for " + archiveName + ":" + commId + " in " + (System.currentTimeMillis() - start) + " ms");
+    }
   }
 
   private AlbumMeta getAlbumMeta(final String archiveName, final String commId) {
@@ -613,7 +622,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private AlbumEntries getOrMakeAlbumDetail(final String archiveName, final String commId) {
-    final AlbumEntries existingEntry = getAlbumEntriesReadOnly(archiveName, commId);
+    final AlbumEntries existingEntry = getAlbumEntries(archiveName, commId);
     if (existingEntry != null)
       return existingEntry;
     final AlbumEntries newEntries = new AlbumEntries();
@@ -690,7 +699,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           }
         })) {
           final String filename = thumbnailFile.getName();
-          final String albumEntryId = filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length() - 1);
+          final String albumEntryId = filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length());
           final File loadedFile = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
           if (loadedFile == null)
             thumbnailFile.delete();
@@ -706,73 +715,79 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private File loadThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
-    final Pair<AlbumMeta, AlbumEntries> transactionResult = callInTransaction(new Callable<Pair<AlbumMeta, AlbumEntries>>() {
-
-      @Override
-      public Pair<AlbumMeta, AlbumEntries> call() throws Exception {
-        final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
-        final AlbumEntries albumEntries = getAlbumEntriesReadOnly(archiveName, albumId);
-        return new Pair<AlbumMeta, AlbumEntries>(albumMeta, albumEntries);
-      }
-    });
-    final AlbumMeta albumMeta = transactionResult.first;
-    final AlbumEntries albumEntries = transactionResult.second;
-
-    if (albumMeta == null)
-      return null;
-    final boolean permanentDownload = albumMeta.isShouldSync();
-    if (albumEntries == null || albumEntries.getEntries() == null)
-      return null;
-    final AlbumEntryDto albumEntryDto = albumEntries.getEntries().get(albumEntryId);
-    if (albumEntryDto == null)
-      return null;
-
-    final File temporaryTargetFile = new File(thumbnailsTempDir, archiveName + "/" + albumId + "/" + albumEntryId + THUMBNAIL_SUFFIX);
-    final File permanentTargetFile =
-                                     new File(thumbnailsSyncDir, archiveName + "/" + albumMeta.getName() + "/" + albumEntryDto.getFileName()
-                                                                 + THUMBNAIL_SUFFIX);
-    final File targetFile = permanentDownload ? permanentTargetFile : temporaryTargetFile;
-    final File otherTargetFile = permanentDownload ? temporaryTargetFile : permanentTargetFile;
-    // check if the file in the current cache is valid
-    if (targetFile.exists() && targetFile.lastModified() >= albumEntryDto.getLastModified().getTime()) {
-      if (otherTargetFile.exists())
-        otherTargetFile.delete();
-      return targetFile;
-    }
-    // check if there is a valid file in the other cache
-    if (otherTargetFile.exists()) {
-      if (otherTargetFile.lastModified() >= albumEntryDto.getLastModified().getTime()) {
-        final long oldLastModified = otherTargetFile.lastModified();
-        otherTargetFile.renameTo(targetFile);
-        targetFile.setLastModified(oldLastModified);
-        if (targetFile.exists())
-          return targetFile;
-      }
-      // remove the invalid file of the other cache
-      otherTargetFile.delete();
-    }
-    if (!targetFile.getParentFile().exists())
-      targetFile.getParentFile().mkdirs();
-    final Map<String, ArchiveConnection> archive = connectionMap.get();
-    if (archive == null)
-      return ifExsists(targetFile);
-    final ArchiveConnection archiveConnection = archive.get(archiveName);
-    if (archiveConnection == null)
-      return ifExsists(targetFile);
-    final AlbumConnection albumConnection = archiveConnection.getAlbums().get(albumMeta.getName());
-    if (albumConnection == null)
-      return ifExsists(targetFile);
-
-    final File tempFile = new File(tempDir, tempFileId.incrementAndGet() + ".thumbnail-temp");
-    if (tempFile.exists())
-      tempFile.delete();
+    final long startTime = System.currentTimeMillis();
     try {
-      albumConnection.readThumbnail(albumEntryId, tempFile, targetFile);
-    } finally {
+      final Pair<AlbumMeta, AlbumEntries> transactionResult = callInTransaction(new Callable<Pair<AlbumMeta, AlbumEntries>>() {
+
+        @Override
+        public Pair<AlbumMeta, AlbumEntries> call() throws Exception {
+          final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
+          final AlbumEntries albumEntries = getAlbumEntriesReadOnly(archiveName, albumId);
+          return new Pair<AlbumMeta, AlbumEntries>(albumMeta, albumEntries);
+        }
+      });
+      final AlbumMeta albumMeta = transactionResult.first;
+      final AlbumEntries albumEntries = transactionResult.second;
+
+      if (albumMeta == null)
+        return null;
+      final boolean permanentDownload = albumMeta.isShouldSync();
+      if (albumEntries == null || albumEntries.getEntries() == null)
+        return null;
+      final AlbumEntryDto albumEntryDto = albumEntries.getEntries().get(albumEntryId);
+      if (albumEntryDto == null)
+        return null;
+
+      final File temporaryTargetFile = new File(thumbnailsTempDir, archiveName + "/" + albumId + "/" + albumEntryId + THUMBNAIL_SUFFIX);
+      final File permanentTargetFile =
+                                       new File(thumbnailsSyncDir, archiveName + "/" + albumMeta.getName() + "/" + albumEntryDto.getFileName()
+                                                                   + THUMBNAIL_SUFFIX);
+      final File targetFile = permanentDownload ? permanentTargetFile : temporaryTargetFile;
+      final File otherTargetFile = permanentDownload ? temporaryTargetFile : permanentTargetFile;
+      // check if the file in the current cache is valid
+      if (targetFile.exists() && targetFile.lastModified() >= albumEntryDto.getLastModified().getTime()) {
+        if (otherTargetFile.exists())
+          otherTargetFile.delete();
+        return targetFile;
+      }
+      // check if there is a valid file in the other cache
+      if (otherTargetFile.exists()) {
+        if (otherTargetFile.lastModified() >= albumEntryDto.getLastModified().getTime()) {
+          final long oldLastModified = otherTargetFile.lastModified();
+          otherTargetFile.renameTo(targetFile);
+          targetFile.setLastModified(oldLastModified);
+          if (targetFile.exists())
+            return targetFile;
+        }
+        // remove the invalid file of the other cache
+        otherTargetFile.delete();
+      }
+      if (!targetFile.getParentFile().exists())
+        targetFile.getParentFile().mkdirs();
+      final Map<String, ArchiveConnection> archive = connectionMap.get();
+      if (archive == null)
+        return ifExsists(targetFile);
+      final ArchiveConnection archiveConnection = archive.get(archiveName);
+      if (archiveConnection == null)
+        return ifExsists(targetFile);
+      final AlbumConnection albumConnection = archiveConnection.getAlbums().get(albumMeta.getName());
+      if (albumConnection == null)
+        return ifExsists(targetFile);
+
+      final File tempFile = new File(tempDir, tempFileId.incrementAndGet() + ".thumbnail-temp");
       if (tempFile.exists())
         tempFile.delete();
+      try {
+        albumConnection.readThumbnail(albumEntryId, tempFile, targetFile);
+      } finally {
+        if (tempFile.exists())
+          tempFile.delete();
+      }
+      return ifExsists(targetFile);
+    } finally {
+      Log.i("Performance", "Loaded Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId + " in " + (System.currentTimeMillis() - startTime)
+                           + " ms");
     }
-    return ifExsists(targetFile);
   }
 
   private void loadThumbnailsOfAlbum(final String archiveName, final String albumId) {
