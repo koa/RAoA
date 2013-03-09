@@ -5,14 +5,17 @@ package ch.bergturbenthal.image.provider.model.dto;
 
 import java.util.Date;
 
+import android.os.Parcel;
+import android.os.Parcelable;
 import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.map.CursorField;
+import ch.bergturbenthal.image.provider.util.ParcelUtil;
 
 /**
  * TODO: add type comment.
  * 
  */
-public class AlbumMeta {
+public class AlbumMeta implements Parcelable {
   private Date lastModified;
   private String name;
   private boolean synced;
@@ -26,6 +29,39 @@ public class AlbumMeta {
   private long thumbnailSize;
   private long repositorySize;
   private long originalsSize;
+
+  public static Parcelable.Creator<AlbumMeta> CREATOR = new Parcelable.Creator<AlbumMeta>() {
+
+    @Override
+    public AlbumMeta createFromParcel(final Parcel source) {
+      final AlbumMeta ret = new AlbumMeta();
+      ret.setLastModified(ParcelUtil.readDate(source));
+      ret.setName(source.readString());
+      ret.setSynced(ParcelUtil.readBoolean(source));
+      ret.setShouldSync(ParcelUtil.readBoolean(source));
+      ret.setAutoAddDate(ParcelUtil.readDate(source));
+      ret.setThumbnailId(source.readString());
+      ret.setAlbumDate(ParcelUtil.readDate(source));
+      ret.setArchiveName(source.readString());
+      ret.setAlbumId(source.readString());
+      ret.setEntryCount(source.readInt());
+      ret.setThumbnailSize(source.readLong());
+      ret.setRepositorySize(source.readLong());
+      ret.setOriginalsSize(source.readLong());
+      return ret;
+    }
+
+    @Override
+    public AlbumMeta[] newArray(final int size) {
+      return new AlbumMeta[size];
+    }
+  };
+
+  @Override
+  public int describeContents() {
+    // TODO Auto-generated method stub
+    return 0;
+  }
 
   /**
    * Returns the albumDate.
@@ -283,5 +319,22 @@ public class AlbumMeta {
    */
   public void setThumbnailSize(final long thumbnailSize) {
     this.thumbnailSize = thumbnailSize;
+  }
+
+  @Override
+  public void writeToParcel(final Parcel dest, final int flags) {
+    ParcelUtil.writeDate(lastModified, dest);
+    dest.writeString(name);
+    ParcelUtil.writeBoolean(dest, synced);
+    ParcelUtil.writeBoolean(dest, shouldSync);
+    ParcelUtil.writeDate(autoAddDate, dest);
+    dest.writeString(thumbnailId);
+    ParcelUtil.writeDate(albumDate, dest);
+    dest.writeString(archiveName);
+    dest.writeString(albumId);
+    dest.writeInt(entryCount);
+    dest.writeLong(thumbnailSize);
+    dest.writeLong(repositorySize);
+    dest.writeLong(originalsSize);
   }
 }

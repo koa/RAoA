@@ -1,39 +1,74 @@
 package ch.bergturbenthal.image.provider.model.dto;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedHashSet;
 
+import android.os.Parcel;
+import android.os.Parcelable;
 import ch.bergturbenthal.image.provider.Client;
 import ch.bergturbenthal.image.provider.map.CursorField;
+import ch.bergturbenthal.image.provider.util.ParcelUtil;
 
-public class AlbumEntryDto {
-  private Date captureDate;
-  private String commId;
-  private String fileName;
-  private AlbumEntryType entryType;
-  private Date lastModified;
-  private long originalFileSize;
-  private Long thumbnailSize;
+public class AlbumEntryDto implements Parcelable {
   private String cameraMake;
   private String cameraModel;
   private String caption;
+  private Date captureDate;
+  private String commId;
   private String editableMetadataHash;
+  private AlbumEntryType entryType;
   private Double exposureTime;
+  private String fileName;
   private Double fNumber;
   private Double focalLength;
   private Integer iso;
   private final Collection<String> keywords = new LinkedHashSet<String>();
+  private Date lastModified;
+  private long originalFileSize;
   private Integer rating;
+  private Long thumbnailSize;
 
-  /**
-   * Returns the albumName.
-   * 
-   * @return the albumName
-   */
-  @CursorField(Client.AlbumEntry.NAME)
-  public String getFileName() {
-    return fileName;
+  public static final Parcelable.Creator<AlbumEntryDto> CREATOR = new Parcelable.Creator<AlbumEntryDto>() {
+
+    @Override
+    public AlbumEntryDto createFromParcel(final Parcel source) {
+      final AlbumEntryDto ret = new AlbumEntryDto();
+
+      final ClassLoader classLoader = ret.getClass().getClassLoader();
+      ret.setCameraMake(source.readString());
+      ret.setCameraModel(source.readString());
+      ret.setCaption(source.readString());
+      ret.setCaptureDate(ParcelUtil.readDate(source));
+      ret.setCommId(source.readString());
+      ret.setEditableMetadataHash(source.readString());
+      ret.setEntryType(ParcelUtil.readEnum(source, AlbumEntryType.class));
+      ret.setExposureTime((Double) source.readValue(classLoader));
+      ret.setFileName(source.readString());
+      ret.setfNumber((Double) source.readValue(classLoader));
+      ret.setFocalLength((Double) source.readValue(classLoader));
+      ret.setIso((Integer) source.readValue(classLoader));
+      final ArrayList<String> k = new ArrayList<String>();
+      source.readList(k, classLoader);
+      ret.getKeywords().addAll(k);
+      ret.setLastModified(ParcelUtil.readDate(source));
+      ret.setOriginalFileSize(source.readLong());
+      ret.setRating((Integer) source.readValue(classLoader));
+      ret.setThumbnailSize((Long) source.readValue(classLoader));
+      return ret;
+    }
+
+    @Override
+    public AlbumEntryDto[] newArray(final int size) {
+      return new AlbumEntryDto[size];
+    }
+  };
+
+  @Override
+  public int describeContents() {
+    // TODO Auto-generated method stub
+    return 0;
   }
 
   @CursorField(Client.AlbumEntry.CAMERA_MAKE)
@@ -79,6 +114,16 @@ public class AlbumEntryDto {
     return exposureTime;
   }
 
+  /**
+   * Returns the albumName.
+   * 
+   * @return the albumName
+   */
+  @CursorField(Client.AlbumEntry.NAME)
+  public String getFileName() {
+    return fileName;
+  }
+
   @CursorField(Client.AlbumEntry.F_NUMBER)
   public Double getfNumber() {
     return fNumber;
@@ -116,16 +161,6 @@ public class AlbumEntryDto {
   @CursorField(Client.AlbumEntry.THUMBNAIL_SIZE)
   public Long getThumbnailSize() {
     return thumbnailSize;
-  }
-
-  /**
-   * Sets the albumName.
-   * 
-   * @param albumName
-   *          the albumName to set
-   */
-  public void setFileName(final String albumName) {
-    this.fileName = albumName;
   }
 
   public void setCameraMake(final String cameraMake) {
@@ -166,6 +201,16 @@ public class AlbumEntryDto {
     this.exposureTime = exposureTime;
   }
 
+  /**
+   * Sets the albumName.
+   * 
+   * @param albumName
+   *          the albumName to set
+   */
+  public void setFileName(final String albumName) {
+    this.fileName = albumName;
+  }
+
   public void setfNumber(final Double fNumber) {
     this.fNumber = fNumber;
   }
@@ -192,6 +237,27 @@ public class AlbumEntryDto {
 
   public void setThumbnailSize(final Long thumbnailSize) {
     this.thumbnailSize = thumbnailSize;
+  }
+
+  @Override
+  public void writeToParcel(final Parcel dest, final int flags) {
+    dest.writeString(cameraMake);
+    dest.writeString(cameraModel);
+    dest.writeString(caption);
+    ParcelUtil.writeDate(captureDate, dest);
+    dest.writeString(commId);
+    dest.writeString(editableMetadataHash);
+    ParcelUtil.writeEnum(entryType, dest);
+    dest.writeValue(exposureTime);
+    dest.writeString(fileName);
+    dest.writeValue(fNumber);
+    dest.writeValue(focalLength);
+    dest.writeValue(iso);
+    dest.writeList(new ArrayList<String>(keywords));
+    ParcelUtil.writeDate(lastModified, dest);
+    dest.writeLong(originalFileSize);
+    dest.writeValue(rating);
+    dest.writeValue(thumbnailSize);
   }
 
 }

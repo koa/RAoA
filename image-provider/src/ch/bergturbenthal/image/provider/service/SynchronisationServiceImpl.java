@@ -438,7 +438,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return callInTransaction(new Callable<Cursor>() {
       @Override
       public Cursor call() throws Exception {
-        final AlbumEntries albumEntries = getAlbumEntries(archiveName, albumId);
+        final AlbumEntries albumEntries = getAlbumEntriesReadOnly(archiveName, albumId);
         if (albumEntries == null || albumEntries.getEntries() == null || albumEntries.getEntries().get(archiveEntryId) == null)
           return makeCursorForAlbumEntries(Collections.<AlbumEntryDto> emptyList(), archiveName, albumId, projection);
         final AlbumEntryDto entryDto = albumEntries.getEntries().get(archiveEntryId);
@@ -468,7 +468,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return callInTransaction(new Callable<Integer>() {
       @Override
       public Integer call() throws Exception {
-        final AlbumEntries albumEntries = getAlbumEntries(archiveName, albumId);
+        final AlbumEntries albumEntries = getAlbumEntries(makeAlbumEntriesPath(archiveName, albumId));
         if (albumEntries == null)
           return Integer.valueOf(0);
         final Map<String, AlbumEntryDto> entries = albumEntries.getEntries();
@@ -583,9 +583,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return Math.abs(date1.getTime() - date2.getTime()) < 1000;
   }
 
-  private AlbumEntries getAlbumEntries(final String archiveName, final String commId) {
-    final AlbumEntries existingEntry = currentTransaction.get().getObject(makeAlbumEntriesPath(archiveName, commId), AlbumEntries.class);
-    return existingEntry;
+  private AlbumEntries getAlbumEntries(final String path) {
+    return currentTransaction.get().getObject(path, AlbumEntries.class);
+  }
+
+  private AlbumEntries getAlbumEntriesReadOnly(final String archiveName, final String commId) {
+    return currentTransaction.get().getObjectReadOnly(makeAlbumEntriesPath(archiveName, commId), AlbumEntries.class);
   }
 
   private AlbumMeta getAlbumMeta(final String archiveName, final String commId) {
@@ -610,7 +613,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private AlbumEntries getOrMakeAlbumDetail(final String archiveName, final String commId) {
-    final AlbumEntries existingEntry = getAlbumEntries(archiveName, commId);
+    final AlbumEntries existingEntry = getAlbumEntriesReadOnly(archiveName, commId);
     if (existingEntry != null)
       return existingEntry;
     final AlbumEntries newEntries = new AlbumEntries();
@@ -708,7 +711,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       @Override
       public Pair<AlbumMeta, AlbumEntries> call() throws Exception {
         final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
-        final AlbumEntries albumEntries = getAlbumEntries(archiveName, albumId);
+        final AlbumEntries albumEntries = getAlbumEntriesReadOnly(archiveName, albumId);
         return new Pair<AlbumMeta, AlbumEntries>(albumMeta, albumEntries);
       }
     });
@@ -776,7 +779,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     final Collection<String> thumbnails = callInTransaction(new Callable<Collection<String>>() {
       @Override
       public Collection<String> call() throws Exception {
-        final AlbumEntries albumEntries = getAlbumEntries(archiveName, albumId);
+        final AlbumEntries albumEntries = getAlbumEntriesReadOnly(archiveName, albumId);
         if (albumEntries == null || albumEntries.getEntries() == null)
           return Collections.emptyList();
         return new ArrayList<String>(albumEntries.getEntries().keySet());
@@ -878,7 +881,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       public int compare(final AlbumMeta lhs, final AlbumMeta rhs) {
         final Date leftDate = lhs.getAlbumDate() == null ? new Date(0) : lhs.getAlbumDate();
         final Date rightDate = rhs.getAlbumDate() == null ? new Date(0) : rhs.getAlbumDate();
-        return leftDate.compareTo(rightDate);
+        return rightDate.compareTo(leftDate);
       }
     });
 
