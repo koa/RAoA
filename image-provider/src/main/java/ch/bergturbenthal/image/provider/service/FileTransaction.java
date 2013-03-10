@@ -82,11 +82,6 @@ public class FileTransaction {
             targetFile.delete();
           continue;
         }
-        final Date oldDate = originalData.get(filename);
-        final Date currentDate = targetFile.exists() ? new Date(targetFile.lastModified()) : null;
-        if (!ObjectUtils.objectEquals(oldDate, currentDate)) {
-          throw new ConcurrentTransactionException(filename);
-        }
         parcel.writeParcelable(newData, 0);
         parcel.setDataPosition(0);
         final byte[] fileContent = parcel.marshall();
@@ -102,6 +97,11 @@ public class FileTransaction {
         if (oldBytes != null && Arrays.equals(oldBytes, newBytes)) {
           // data not modified
           continue;
+        }
+        final Date oldDate = originalData.get(filename);
+        final Date currentDate = targetFile.exists() ? new Date(targetFile.lastModified()) : null;
+        if (!ObjectUtils.objectEquals(oldDate, currentDate)) {
+          throw new ConcurrentTransactionException(filename);
         }
         if (!targetFile.getParentFile().exists())
           targetFile.getParentFile().mkdirs();
