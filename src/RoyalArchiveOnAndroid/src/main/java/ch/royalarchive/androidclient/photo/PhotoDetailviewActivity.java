@@ -5,19 +5,19 @@ import android.app.LoaderManager.LoaderCallbacks;
 import android.content.CursorLoader;
 import android.content.Loader;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Gallery;
-import ch.bergturbenthal.image.provider.Client;
 import ch.royalarchive.androidclient.R;
 
 public class PhotoDetailviewActivity extends Activity implements LoaderCallbacks<Cursor> {
 	private static String TAG = PhotoDetailviewActivity.class.getSimpleName();
 	
 	private static final String ACTUAL_POS = "actPos";
-	private static final String ALBUM_ID = "album_id";
+	private static final String ALBUM_ID = "album_uri";
 
-	private int albumId;
+	private Uri albumUri;
 	private int actPos;
 
 	private PhotoDetailviewAdapter cursorAdapter;
@@ -30,7 +30,7 @@ public class PhotoDetailviewActivity extends Activity implements LoaderCallbacks
 
 		// get album id and photo id out of intent
 		Bundle bundle = getIntent().getExtras();
-		albumId = bundle.getInt(ALBUM_ID);
+		albumUri = Uri.parse( bundle.getString(ALBUM_ID));
 		actPos = bundle.getInt(ACTUAL_POS);
 
 //		// Create an empty adapter we will use to display the loaded data.
@@ -57,7 +57,7 @@ public class PhotoDetailviewActivity extends Activity implements LoaderCallbacks
 	@Override
 	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
 		Log.d(TAG, "onCreateLoader: actual position: " + actPos);
-		return new CursorLoader(this, Client.makeAlbumEntriesUri(albumId), null, null, null, null);
+		return new CursorLoader(this, albumUri, null, null, null, null);
 	}
 
 	@Override

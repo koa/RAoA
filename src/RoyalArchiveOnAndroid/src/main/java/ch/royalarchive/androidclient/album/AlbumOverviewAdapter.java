@@ -30,7 +30,7 @@ public class AlbumOverviewAdapter extends SimpleCursorAdapter {
 	@Override
 	public View getView(int position, View convertView, ViewGroup parent) {
 		View newView = super.getView(position, convertView, parent);
-		newView.setTag(getCursor().getInt(getCursor().getColumnIndexOrThrow(Client.Album.ID)));
+		newView.setTag(getCursor().getString(getCursor().getColumnIndexOrThrow(Client.Album.ALBUM_ENTRIES_URI)));
 		return newView;
 	}
 

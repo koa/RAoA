@@ -37,7 +37,7 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		gridview.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
 				Intent intent = new Intent(AlbumOverviewActivity.this, PhotoOverviewActivity.class);
-				intent.putExtra("album_id", (Integer) (v.getTag()));
+				intent.putExtra("album_uri", (String) (v.getTag()));
 				startActivity(intent);
 			}
 		});
