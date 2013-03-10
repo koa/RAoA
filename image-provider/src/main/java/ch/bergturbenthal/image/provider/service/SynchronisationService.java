@@ -28,4 +28,6 @@ public interface SynchronisationService {
   Cursor readSingleAlbumEntry(final String archiveName, final String albumName, final String albumEntryName, final String[] projection);
 
   void createAlbumOnServer(final String server, final String fullAlbumName, final Date autoAddDate);
+
+  String getContenttype(final String archive, final String albumId, final String image);
 }

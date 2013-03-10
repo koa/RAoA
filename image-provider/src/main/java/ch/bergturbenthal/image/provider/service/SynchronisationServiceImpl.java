@@ -154,8 +154,33 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   @Override
+  public String getContenttype(final String archive, final String albumId, final String image) {
+    return callInTransaction(new Callable<String>() {
+
+      @Override
+      public String call() throws Exception {
+        final AlbumEntries entriesReadOnly = getAlbumEntriesReadOnly(archive, albumId);
+        if (entriesReadOnly == null)
+          return null;
+        final AlbumEntryDto entryDto = entriesReadOnly.getEntries().get(image);
+        if (entryDto == null)
+          return null;
+        switch (entryDto.getEntryType()) {
+        case IMAGE:
+          return "image/jpeg";
+        case VIDEO:
+          return "video/mp4";
+        default:
+          return null;
+        }
+      }
+    });
+  }
+
+  @Override
   public File getLoadedThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
     final long startTime = System.currentTimeMillis();
+    Log.i("Performance", "Start load Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId);
     try {
       return thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
     } finally {
@@ -254,7 +279,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     if (!thumbnailsSyncDir.exists())
       thumbnailsSyncDir.mkdirs();
     // preload thumbnail-cache
-    initThumbnailCache(512 * 1024);
+    initThumbnailCache(2 * 1024 * 1024);
 
     executorService.schedule(new Runnable() {
 

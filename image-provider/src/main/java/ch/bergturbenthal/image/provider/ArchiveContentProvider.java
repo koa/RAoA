@@ -95,8 +95,13 @@ public class ArchiveContentProvider extends ContentProvider {
       return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/album/entry";
     case ALBUM_ENTRY:
       return "vnd.android.cursor.item/vnd." + Client.AUTHORITY + "/album/entry";
-    case ALBUM_ENTRY_THUMBNAIL:
-      return "image/jpeg";
+    case ALBUM_ENTRY_THUMBNAIL: {
+      final List<String> segments = uri.getPathSegments();
+      final String archive = segments.get(1);
+      final String albumId = segments.get(2);
+      final String image = segments.get(4);
+      return service.getContenttype(archive, albumId, image);
+    }
     case SERVER_LIST:
       return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server";
     case SERVER_PROGRESS_LIST:
