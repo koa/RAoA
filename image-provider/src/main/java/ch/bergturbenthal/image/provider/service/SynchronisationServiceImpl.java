@@ -579,16 +579,39 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private <V> V callInTransaction(final Callable<V> callable) {
     assert currentTransaction.get() == null;
-    currentTransaction.set(new FileTransaction(dataDir));
-    try {
-      final V result = cursorNotifications.doWithNotify(callable);
-      currentTransaction.get().commitTransaction();
-      return result;
-    } catch (final Throwable e) {
-      throw new RuntimeException("Cannot close transaction", e);
-    } finally {
-      currentTransaction.set(null);
-    }
+    return cursorNotifications.doWithNotify(new Callable<V>() {
+
+      @Override
+      public V call() throws Exception {
+        for (int i = 0;; i++) {
+          currentTransaction.set(new FileTransaction(dataDir));
+          try {
+            final V result;
+            try {
+              result = callable.call();
+            } catch (final Throwable e) {
+              throw new RuntimeException("Cannot execute transaction", e);
+            }
+            boolean commitSucessful;
+            try {
+              commitSucessful = currentTransaction.get().commitTransaction();
+            } catch (final Throwable e) {
+              throw new RuntimeException("Cannot commit transaction", e);
+            }
+            if (!commitSucessful) {
+              if (i < 5) {
+                Log.w("Transaction", "Cannot close Transaction -> rerun whole transaction");
+                continue;
+              } else
+                throw new RuntimeException("Cannot close transaction -> give up");
+            }
+            return result;
+          } finally {
+            currentTransaction.set(null);
+          }
+        }
+      }
+    });
   }
 
   private Collection<AlbumIndex> collectVisibleAlbums() {

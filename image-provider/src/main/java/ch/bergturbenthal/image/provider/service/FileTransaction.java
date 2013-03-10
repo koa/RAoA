@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.util.Log;
 import ch.bergturbenthal.image.provider.util.IOUtil;
 import ch.bergturbenthal.image.provider.util.ObjectUtils;
 
@@ -67,9 +69,11 @@ public class FileTransaction {
     this.baseDir = baseDir;
   }
 
-  public void commitTransaction() {
+  public boolean commitTransaction() {
     if (parsedData.isEmpty())
-      return;
+      return true;
+    final Collection<Runnable> performRunnables = new ArrayList<Runnable>();
+    // prepare commit
     final Parcel parcel = Parcel.obtain();
     for (final Entry<String, ? extends Parcelable> fileEntry : parsedData.entrySet()) {
       final String filename = fileEntry.getKey();
@@ -101,7 +105,8 @@ public class FileTransaction {
         final Date oldDate = originalData.get(filename);
         final Date currentDate = targetFile.exists() ? new Date(targetFile.lastModified()) : null;
         if (!ObjectUtils.objectEquals(oldDate, currentDate)) {
-          throw new ConcurrentTransactionException(filename);
+          Log.w("Transaction", "Conflict on file " + targetFile);
+          return false;
         }
         if (!targetFile.getParentFile().exists())
           targetFile.getParentFile().mkdirs();
@@ -112,17 +117,39 @@ public class FileTransaction {
         } finally {
           os.close();
         }
-        tempFile.renameTo(targetFile);
+        performRunnables.add(new Runnable() {
+
+          @Override
+          public void run() {
+            final boolean renameOk = tempFile.renameTo(targetFile);
+            if (!renameOk) {
+              throw new RuntimeException("Cannot peform commit by moving file to " + targetFile);
+            }
+          }
+        });
       } catch (final Throwable t) {
         throw new RuntimeException("Cannot save " + filename, t);
       }
     }
+    parcel.recycle();
+
+    // perform commit
+    for (final Runnable runnable : performRunnables) {
+      runnable.run();
+    }
+
+    // update readonly-caches
     for (final Entry<String, Parcelable> updatedEntry : parsedData.entrySet()) {
       readOnlyCache.put(updatedEntry.getKey(), new WeakReference<Object>(updatedEntry.getValue()));
     }
-    parcel.recycle();
+    // cleanup garbaged entries of cache
+    for (final Iterator<Entry<String, WeakReference<Object>>> iterator = readOnlyCache.entrySet().iterator(); iterator.hasNext();) {
+      if (iterator.next().getValue().get() == null)
+        iterator.remove();
+    }
     parsedData.clear();
     originalData.clear();
+    return true;
   }
 
   public void evict(final String relativePath) {
