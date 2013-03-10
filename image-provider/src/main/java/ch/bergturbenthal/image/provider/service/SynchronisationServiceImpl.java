@@ -53,6 +53,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
 import android.os.Binder;
+import android.os.Environment;
 import android.os.IBinder;
 import android.util.Log;
 import android.util.LruCache;
@@ -76,9 +77,10 @@ import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntries;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryDto;
 import ch.bergturbenthal.image.provider.model.dto.AlbumEntryIndex;
+import ch.bergturbenthal.image.provider.model.dto.AlbumEntryType;
 import ch.bergturbenthal.image.provider.model.dto.AlbumIndex;
+import ch.bergturbenthal.image.provider.model.dto.AlbumLocalData;
 import ch.bergturbenthal.image.provider.model.dto.AlbumMeta;
-import ch.bergturbenthal.image.provider.model.dto.MutationList;
 import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.image.provider.state.ServerListActivity;
 
@@ -275,7 +277,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     if (!thumbnailsTempDir.exists())
       thumbnailsTempDir.mkdirs();
     // explicit synced thumbnails
-    thumbnailsSyncDir = new File(getFilesDir(), "thumbnails");
+    thumbnailsSyncDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "royalarchive");
     if (!thumbnailsSyncDir.exists())
       thumbnailsSyncDir.mkdirs();
     // preload thumbnail-cache
@@ -481,7 +483,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return callInTransaction(new Callable<Integer>() {
       @Override
       public Integer call() throws Exception {
-        final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
+        final AlbumLocalData albumMeta = getAlbumMutationList(archiveName, albumId);
         if (albumMeta == null)
           return Integer.valueOf(0);
         final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
@@ -507,7 +509,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         if (albumEntryDto == null)
           return Integer.valueOf(0);
         final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
-        final MutationList mutationList = getOrMakeAlbumMutationList(archiveName, albumId);
+        final AlbumLocalData mutationList = getOrMakeAlbumMutationList(archiveName, albumId);
 
         final Collection<MutationEntry> mutations = mutationList.getMutations();
         if (values.containsKey(Client.AlbumEntry.META_RATING)) {
@@ -629,8 +631,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return currentTransaction.get().getObject(makeAlbumMetaPath(archiveName, commId), AlbumMeta.class);
   }
 
-  private MutationList getAlbumMutationList(final String archiveName, final String albumId) {
-    return currentTransaction.get().getObject(makeAlbumMutationPath(archiveName, albumId), MutationList.class);
+  private AlbumLocalData getAlbumMutationList(final String archiveName, final String albumId) {
+    return currentTransaction.get().getObject(makeAlbumMutationPath(archiveName, albumId), AlbumLocalData.class);
+  }
+
+  private String getBasename(final String fileName) {
+    final int lastPt = fileName.lastIndexOf('.');
+    if (lastPt < 0)
+      return fileName;
+    return fileName.substring(0, lastPt);
   }
 
   private ServerConnection getConnectionForServer(final String serverId) {
@@ -655,11 +664,22 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return newEntries;
   }
 
-  private MutationList getOrMakeAlbumMutationList(final String archiveName, final String albumId) {
-    final MutationList existingList = getAlbumMutationList(archiveName, albumId);
+  private AlbumMeta getOrMakeAlbumMeta(final String archiveName, final String albumId) {
+    final AlbumMeta existingEntry = currentTransaction.get().getObject(makeAlbumMetaPath(archiveName, albumId), AlbumMeta.class);
+    if (existingEntry != null)
+      return existingEntry;
+    final AlbumMeta newAlbumMeta = new AlbumMeta();
+    newAlbumMeta.setArchiveName(archiveName);
+    newAlbumMeta.setAlbumId(albumId);
+    currentTransaction.get().putObject(makeAlbumMetaPath(archiveName, albumId), newAlbumMeta);
+    return newAlbumMeta;
+  }
+
+  private AlbumLocalData getOrMakeAlbumMutationList(final String archiveName, final String albumId) {
+    final AlbumLocalData existingList = getAlbumMutationList(archiveName, albumId);
     if (existingList != null)
       return existingList;
-    final MutationList newList = new MutationList();
+    final AlbumLocalData newList = new AlbumLocalData();
     newList.setMutations(new ArrayList<MutationEntry>());
     currentTransaction.get().putObject(makeAlbumMutationPath(archiveName, albumId), newList);
     return newList;
@@ -742,31 +762,43 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   private File loadThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
     final long startTime = System.currentTimeMillis();
     try {
-      final Pair<AlbumMeta, AlbumEntries> transactionResult = callInTransaction(new Callable<Pair<AlbumMeta, AlbumEntries>>() {
+      final Pair<AlbumMeta, Pair<AlbumEntries, AlbumLocalData>> transactionResult =
+                                                                                    callInTransaction(new Callable<Pair<AlbumMeta, Pair<AlbumEntries, AlbumLocalData>>>() {
 
-        @Override
-        public Pair<AlbumMeta, AlbumEntries> call() throws Exception {
-          final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
-          final AlbumEntries albumEntries = getAlbumEntriesReadOnly(archiveName, albumId);
-          return new Pair<AlbumMeta, AlbumEntries>(albumMeta, albumEntries);
-        }
-      });
+                                                                                      @Override
+                                                                                      public Pair<AlbumMeta, Pair<AlbumEntries, AlbumLocalData>>
+                                                                                          call() throws Exception {
+                                                                                        final AlbumMeta albumMeta =
+                                                                                                                    getAlbumMeta(archiveName, albumId);
+                                                                                        final AlbumEntries albumEntries =
+                                                                                                                          getAlbumEntriesReadOnly(archiveName,
+                                                                                                                                                  albumId);
+                                                                                        final AlbumLocalData localData =
+                                                                                                                         getAlbumMutationList(archiveName,
+                                                                                                                                              albumId);
+                                                                                        return new Pair<AlbumMeta, Pair<AlbumEntries, AlbumLocalData>>(
+                                                                                                                                                       albumMeta,
+                                                                                                                                                       new Pair<AlbumEntries, AlbumLocalData>(
+                                                                                                                                                                                              albumEntries,
+                                                                                                                                                                                              localData));
+                                                                                      }
+                                                                                    });
       final AlbumMeta albumMeta = transactionResult.first;
-      final AlbumEntries albumEntries = transactionResult.second;
+      final AlbumEntries albumEntries = transactionResult.second.first;
+      final AlbumLocalData localData = transactionResult.second.second;
 
       if (albumMeta == null)
         return null;
-      final boolean permanentDownload = albumMeta.isShouldSync();
+      final boolean permanentDownload = localData.isShouldSync();
       if (albumEntries == null || albumEntries.getEntries() == null)
         return null;
       final AlbumEntryDto albumEntryDto = albumEntries.getEntries().get(albumEntryId);
       if (albumEntryDto == null)
         return null;
-
+      final String externalSuffix = albumEntryDto.getEntryType() == AlbumEntryType.IMAGE ? ".jpg" : ".mp4";
       final File temporaryTargetFile = new File(thumbnailsTempDir, archiveName + "/" + albumId + "/" + albumEntryId + THUMBNAIL_SUFFIX);
-      final File permanentTargetFile =
-                                       new File(thumbnailsSyncDir, archiveName + "/" + albumMeta.getName() + "/" + albumEntryDto.getFileName()
-                                                                   + THUMBNAIL_SUFFIX);
+      final String fileName = getBasename(albumEntryDto.getFileName());
+      final File permanentTargetFile = new File(thumbnailsSyncDir, archiveName + "/" + albumMeta.getName() + "/" + fileName + externalSuffix);
       final File targetFile = permanentDownload ? permanentTargetFile : temporaryTargetFile;
       final File otherTargetFile = permanentDownload ? temporaryTargetFile : permanentTargetFile;
       // check if the file in the current cache is valid
@@ -831,7 +863,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     callInTransaction(new Callable<Void>() {
       @Override
       public Void call() throws Exception {
-        final AlbumMeta albumMeta = getAlbumMeta(archiveName, albumId);
+        final AlbumLocalData albumMeta = getAlbumMutationList(archiveName, albumId);
         albumMeta.setSynced(true);
         return null;
       }
@@ -904,10 +936,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     final Map<AlbumIndex, AlbumMeta> loadedAlbums = new HashMap<AlbumIndex, AlbumMeta>();
     if (alsoSynced)
       for (final AlbumMeta albumEntry : allEntries) {
-        if (!albumEntry.isSynced())
-          continue;
         final String archiveName = albumEntry.getArchiveName();
         final String albumId = albumEntry.getAlbumId();
+        if (!getAlbumMutationList(archiveName, albumId).isSynced())
+          continue;
         loadedAlbums.put(new AlbumIndex(archiveName, albumId), albumEntry);
       }
     for (final AlbumIndex visibleAlbumIndex : visibleAlbums) {
@@ -1046,10 +1078,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
    * @param albumId
    */
   private void pushPendingMetadataUpdate(final AlbumConnection albumConnection, final String archiveName, final String albumId) {
-    final MutationList mutations = callInTransaction(new Callable<MutationList>() {
+    final AlbumLocalData mutations = callInTransaction(new Callable<AlbumLocalData>() {
 
       @Override
-      public MutationList call() throws Exception {
+      public AlbumLocalData call() throws Exception {
         return getAlbumMutationList(archiveName, albumId);
       }
     });
@@ -1074,7 +1106,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       @Override
       public Void call() throws Exception {
         // clear pending mutation-data if it exists
-        final MutationList mutationList = getAlbumMutationList(archiveName, albumId);
+        final AlbumLocalData mutationList = getAlbumMutationList(archiveName, albumId);
         final Collection<MutationEntry> mutations =
                                                     mutationList != null && mutationList.getMutations() != null
                                                                                                                ? mutationList.getMutations()
@@ -1205,21 +1237,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       public Void call() throws Exception {
 
         final String commId = albumConnection.getCommId();
-        final AlbumMeta existingAlbumMeta = getAlbumMeta(archiveName, commId);
-        if (existingAlbumMeta == null) {
-          final AlbumMeta newAlbumMeta = new AlbumMeta();
-          newAlbumMeta.setName(albumName);
-          newAlbumMeta.setArchiveName(archiveName);
-          newAlbumMeta.setAlbumId(commId);
-          saveAlbumMeta(archiveName, commId, newAlbumMeta);
-          shouldUpdateMeta.set(true);
-        } else {
-          existingAlbumMeta.setName(albumName);
-          existingAlbumMeta.setArchiveName(archiveName);
-          existingAlbumMeta.setAlbumId(commId);
-          shouldUpdateMeta.set(!dateEquals(existingAlbumMeta.getLastModified(), albumConnection.lastModified()));
-          shouldLoadThumbnails.set(existingAlbumMeta.isShouldSync());
+        final AlbumMeta existingAlbumMeta = getOrMakeAlbumMeta(archiveName, commId);
+        final AlbumLocalData mutationList = getOrMakeAlbumMutationList(archiveName, commId);
+        existingAlbumMeta.setName(albumName);
+        final boolean albumModified = !dateEquals(existingAlbumMeta.getLastModified(), albumConnection.lastModified());
+        shouldUpdateMeta.set(albumModified);
+        if (albumModified) {
+          mutationList.setSynced(false);
         }
+        shouldLoadThumbnails.set(mutationList.isShouldSync() && !mutationList.isSynced());
+
         visibleAlbumsOfArchive.put(albumName, commId);
         albumId.set(commId);
         return null;

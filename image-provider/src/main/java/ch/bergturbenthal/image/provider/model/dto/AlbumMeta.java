@@ -18,8 +18,6 @@ import ch.bergturbenthal.image.provider.util.ParcelUtil;
 public class AlbumMeta implements Parcelable {
   private Date lastModified;
   private String name;
-  private boolean synced;
-  private boolean shouldSync;
   private Date autoAddDate;
   private String thumbnailId;
   private Date albumDate;
@@ -37,8 +35,6 @@ public class AlbumMeta implements Parcelable {
       final AlbumMeta ret = new AlbumMeta();
       ret.setLastModified(ParcelUtil.readDate(source));
       ret.setName(source.readString());
-      ret.setSynced(ParcelUtil.readBoolean(source));
-      ret.setShouldSync(ParcelUtil.readBoolean(source));
       ret.setAutoAddDate(ParcelUtil.readDate(source));
       ret.setThumbnailId(source.readString());
       ret.setAlbumDate(ParcelUtil.readDate(source));
@@ -107,10 +103,6 @@ public class AlbumMeta implements Parcelable {
     if (originalsSize != other.originalsSize)
       return false;
     if (repositorySize != other.repositorySize)
-      return false;
-    if (shouldSync != other.shouldSync)
-      return false;
-    if (synced != other.synced)
       return false;
     if (thumbnailId == null) {
       if (other.thumbnailId != null)
@@ -243,31 +235,9 @@ public class AlbumMeta implements Parcelable {
     result = prime * result + ((name == null) ? 0 : name.hashCode());
     result = prime * result + (int) (originalsSize ^ (originalsSize >>> 32));
     result = prime * result + (int) (repositorySize ^ (repositorySize >>> 32));
-    result = prime * result + (shouldSync ? 1231 : 1237);
-    result = prime * result + (synced ? 1231 : 1237);
     result = prime * result + ((thumbnailId == null) ? 0 : thumbnailId.hashCode());
     result = prime * result + (int) (thumbnailSize ^ (thumbnailSize >>> 32));
     return result;
-  }
-
-  /**
-   * Returns the shouldSync.
-   * 
-   * @return the shouldSync
-   */
-  @CursorField(Client.Album.SHOULD_SYNC)
-  public boolean isShouldSync() {
-    return shouldSync;
-  }
-
-  /**
-   * Returns the synced.
-   * 
-   * @return the synced
-   */
-  @CursorField(Client.Album.SYNCED)
-  public boolean isSynced() {
-    return synced;
   }
 
   /**
@@ -361,26 +331,6 @@ public class AlbumMeta implements Parcelable {
   }
 
   /**
-   * Sets the shouldSync.
-   * 
-   * @param shouldSync
-   *          the shouldSync to set
-   */
-  public void setShouldSync(final boolean shouldSync) {
-    this.shouldSync = shouldSync;
-  }
-
-  /**
-   * Sets the synced.
-   * 
-   * @param synced
-   *          the synced to set
-   */
-  public void setSynced(final boolean synced) {
-    this.synced = synced;
-  }
-
-  /**
    * Sets the thumbnailId.
    * 
    * @param thumbnailId
@@ -402,18 +352,15 @@ public class AlbumMeta implements Parcelable {
 
   @Override
   public String toString() {
-    return "AlbumMeta [lastModified=" + lastModified + ", name=" + name + ", synced=" + synced + ", shouldSync=" + shouldSync + ", autoAddDate="
-           + autoAddDate + ", thumbnailId=" + thumbnailId + ", albumDate=" + albumDate + ", archiveName=" + archiveName + ", albumId=" + albumId
-           + ", entryCount=" + entryCount + ", thumbnailSize=" + thumbnailSize + ", repositorySize=" + repositorySize + ", originalsSize="
-           + originalsSize + "]";
+    return "AlbumMeta [lastModified=" + lastModified + ", name=" + name + ", autoAddDate=" + autoAddDate + ", thumbnailId=" + thumbnailId
+           + ", albumDate=" + albumDate + ", archiveName=" + archiveName + ", albumId=" + albumId + ", entryCount=" + entryCount + ", thumbnailSize="
+           + thumbnailSize + ", repositorySize=" + repositorySize + ", originalsSize=" + originalsSize + "]";
   }
 
   @Override
   public void writeToParcel(final Parcel dest, final int flags) {
     ParcelUtil.writeDate(lastModified, dest);
     dest.writeString(name);
-    ParcelUtil.writeBoolean(dest, synced);
-    ParcelUtil.writeBoolean(dest, shouldSync);
     ParcelUtil.writeDate(autoAddDate, dest);
     dest.writeString(thumbnailId);
     ParcelUtil.writeDate(albumDate, dest);
