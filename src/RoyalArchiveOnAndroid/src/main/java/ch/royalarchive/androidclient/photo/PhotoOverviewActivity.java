@@ -12,14 +12,18 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import android.widget.SimpleCursorAdapter;
-import android.widget.Toast;
 import ch.bergturbenthal.image.provider.Client;
 import ch.royalarchive.androidclient.R;
 
 public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<Cursor> {
+	
+	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
 	private SimpleCursorAdapter cursorAdapter;
 	private int albumId;
+	private int currentItemIndex;
+
+	private GridView gridview;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -33,7 +37,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		// Create an empty adapter we will use to display the loaded data.
 		cursorAdapter = new PhotoOverviewAdapter(this, R.layout.photo_overview_item);
 
-		GridView gridview = (GridView) findViewById(R.id.photo_overview);
+		gridview = (GridView) findViewById(R.id.photo_overview);
 		gridview.setAdapter(cursorAdapter);
 
 		// Handle click on photo
@@ -42,7 +46,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 				Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailViewActivity.class);
 				intent.putExtra("album_id", albumId);
 				intent.putExtra("actPos", position);
-				startActivity(intent);
+				startActivityForResult(intent, 1);
 			}
 		});
 
@@ -51,6 +55,14 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		getLoaderManager().initLoader(0, null, this);
 	}
 
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		super.onActivityResult(requestCode, resultCode, data);
+		Bundle bundle = data.getExtras();
+		currentItemIndex = bundle.getInt(CURR_ITEM_INDEX);
+		gridview.setSelection(currentItemIndex);
+	}
+	
 	@Override
 	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
 		return new CursorLoader(this, Client.makeAlbumEntriesUri(albumId), null, null, null, null);

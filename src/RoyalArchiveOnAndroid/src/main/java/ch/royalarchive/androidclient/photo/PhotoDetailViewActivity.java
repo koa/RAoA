@@ -3,6 +3,7 @@ package ch.royalarchive.androidclient.photo;
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.CursorLoader;
+import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.Bundle;
@@ -15,6 +16,8 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 	private static final String[] PROJECTION = new String[] { 
 		Client.AlbumEntry.THUMBNAIL };
 	
+	private static final String CURR_ITEM_INDEX = "currentItemIndex";
+	
 	private PhotoDetailContainer detailContainer;
 
 	private static final String ACTUAL_POS = "actPos";
@@ -24,6 +27,8 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 	private int actPos;
 
 	private PhotoDetailviewAdapter adapter;
+
+	private ViewPager pager;
 
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -37,7 +42,7 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 		
     detailContainer = (PhotoDetailContainer) findViewById(R.id.photo_detailview_container);
 
-    ViewPager pager = detailContainer.getViewPager();
+    pager = detailContainer.getViewPager();
     adapter = new PhotoDetailviewAdapter(this, null);
     
     // View pager configuration
@@ -57,6 +62,14 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 		// or start a new one.
 		getLoaderManager().initLoader(0, null, this);
 	}
+	
+	@Override
+	public void onBackPressed() {
+		Intent output = new Intent();
+		output.putExtra(CURR_ITEM_INDEX, ((PhotoDetailviewAdapter)pager.getAdapter()).getCurrentPosition());
+		setResult(RESULT_OK, output);
+		super.onBackPressed();
+	}
 
 	@Override
 	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
@@ -66,6 +79,9 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 	@Override
 	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
 		adapter.swapCursor(data);
+		
+		// set specific item
+		pager.setCurrentItem(actPos, false);
 	}
 
 	@Override

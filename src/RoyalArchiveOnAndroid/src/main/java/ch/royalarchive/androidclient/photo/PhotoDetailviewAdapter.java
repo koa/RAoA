@@ -15,6 +15,7 @@ public class PhotoDetailviewAdapter extends PagerAdapter {
 	private final Context context;
 	private final ViewBinder viewBinder;
 	private Cursor cursor;
+	private int currentPosition;
 
 	public PhotoDetailviewAdapter(Context context, Cursor cursor) {
 		this.context = context;
@@ -37,6 +38,11 @@ public class PhotoDetailviewAdapter extends PagerAdapter {
 	public void destroyItem(View container, int position, Object object) {
 		((ViewPager) container).removeView((View) object);
 	}
+	
+	@Override
+	public void setPrimaryItem(View container, int position, Object object) {
+		currentPosition = position;
+	}
 
 	@Override
 	public int getCount() {
@@ -57,6 +63,10 @@ public class PhotoDetailviewAdapter extends PagerAdapter {
 
 		this.cursor = c;
 		notifyDataSetChanged();
+	}
+
+	public int getCurrentPosition() {
+		return currentPosition;
 	}
 
 }
