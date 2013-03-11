@@ -24,6 +24,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		
 		// get album id out of intent
 		Bundle bundle = getIntent().getExtras();
 		albumId = bundle.getInt("album_id");
@@ -38,7 +39,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		// Handle click on photo
 		gridview.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
-				Intent intent = new Intent(PhotoOverviewActivity.this, PagerActivity.class);
+				Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailViewActivity.class);
 				intent.putExtra("album_id", albumId);
 				intent.putExtra("actPos", position);
 				startActivity(intent);

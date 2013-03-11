@@ -1,17 +1,16 @@
 package ch.royalarchive.androidclient.photo;
 
+import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.CursorLoader;
 import android.content.Loader;
 import android.database.Cursor;
-import android.graphics.Color;
 import android.os.Bundle;
-import android.support.v4.app.FragmentActivity;
 import android.support.v4.view.ViewPager;
 import ch.bergturbenthal.image.provider.Client;
 import ch.royalarchive.androidclient.R;
 
-public class PagerActivity extends FragmentActivity implements LoaderCallbacks<Cursor> {
+public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks<Cursor> {
 	
 	private static final String[] PROJECTION = new String[] { 
 		Client.AlbumEntry.THUMBNAIL };

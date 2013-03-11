@@ -23,8 +23,7 @@
         <activity android:name=".GalleryActivity" />
         <activity android:name=".album.AlbumOverviewActivity" />
         <activity android:name=".photo.PhotoOverviewActivity" />
-        <activity android:name=".photo.PhotoDetailviewActivity" />
-        <activity android:name=".photo.PagerActivity" />
+        <activity android:name=".photo.PhotoDetailViewActivity" />
     </application>
 
 </manifest>
