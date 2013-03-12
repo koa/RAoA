@@ -6,6 +6,7 @@ import android.content.CursorLoader;
 import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.view.ViewPager;
 import ch.bergturbenthal.image.provider.Client;
@@ -21,9 +22,9 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 	private PhotoDetailContainer detailContainer;
 
 	private static final String ACTUAL_POS = "actPos";
-	private static final String ALBUM_ID = "album_id";
+	private static final String ALBUM_ID = "album_uri";
 
-	private int albumId;
+	private Uri albumUri;
 	private int actPos;
 
 	private PhotoDetailviewAdapter adapter;
@@ -37,7 +38,7 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 
 		// get album id and photo id out of intent
 		Bundle bundle = getIntent().getExtras();
-		albumId = bundle.getInt(ALBUM_ID);
+		albumUri = Uri.parse( bundle.getString(ALBUM_ID));
 		actPos = bundle.getInt(ACTUAL_POS);
 		
     detailContainer = (PhotoDetailContainer) findViewById(R.id.photo_detailview_container);
@@ -73,7 +74,7 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 
 	@Override
 	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-		return new CursorLoader(this, Client.makeAlbumEntriesUri(albumId), PROJECTION, null, null, null);
+		return new CursorLoader(this, albumUri, PROJECTION, null, null, null);
 	}
 
 	@Override

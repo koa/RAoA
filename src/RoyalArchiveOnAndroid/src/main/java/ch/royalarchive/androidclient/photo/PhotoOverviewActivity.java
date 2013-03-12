@@ -6,6 +6,7 @@ import android.content.CursorLoader;
 import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.AdapterView;
@@ -20,7 +21,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
 	private SimpleCursorAdapter cursorAdapter;
-	private int albumId;
+	private Uri albumUri;
 	private int currentItemIndex;
 
 	private GridView gridview;
@@ -31,7 +32,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		
 		// get album id out of intent
 		Bundle bundle = getIntent().getExtras();
-		albumId = bundle.getInt("album_id");
+		albumUri = Uri.parse( bundle.getString("album_uri"));
 		setContentView(R.layout.photo_overview);
 
 		// Create an empty adapter we will use to display the loaded data.
@@ -44,11 +45,12 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		gridview.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
 				Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailViewActivity.class);
-				intent.putExtra("album_id", albumId);
+				intent.putExtra("album_uri", albumUri.toString());
 				intent.putExtra("actPos", position);
 				startActivityForResult(intent, 1);
 			}
 		});
+		gridview.setWillNotCacheDrawing(false);
 
 		// Prepare the loader. Either re-connect with an existing one,
 		// or start a new one.
@@ -65,7 +67,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 	
 	@Override
 	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-		return new CursorLoader(this, Client.makeAlbumEntriesUri(albumId), null, null, null, null);
+		return new CursorLoader(this, albumUri, null, null, null, null);
 	}
 
 	@Override
