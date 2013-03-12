@@ -82,7 +82,7 @@ public class OverviewBinder implements ViewBinder {
 
 		AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
 
-			private Bitmap bitmap;
+			private Bitmap bitmap=null;
 
 			@Override
 			protected Void doInBackground(Void... params) {
@@ -94,6 +94,8 @@ public class OverviewBinder implements ViewBinder {
 					if (type.startsWith("image/")) {
 						InputStream imageStream = contentResolver
 								.openInputStream(uri);
+						if(isCancelled())
+							return null;
 						try {
 							int dimen_width = R.dimen.image_width;
 							if (isDetailView) {
@@ -104,6 +106,8 @@ public class OverviewBinder implements ViewBinder {
 
 							Bitmap fullBitmap = BitmapFactory
 									.decodeStream(imageStream);
+							if(fullBitmap==null || isCancelled())
+								return null;
 							double scaleX = 1.0 * imageLength
 									/ fullBitmap.getWidth();
 							double scaleY = 1.0 * imageLength
