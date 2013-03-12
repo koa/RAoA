@@ -56,8 +56,6 @@ public class ParcelTest extends AndroidTestCase {
     albumMeta.setName("Test-Album");
     albumMeta.setOriginalsSize(5 * 1024 * 1024);
     albumMeta.setRepositorySize(3 * 1024 * 1024);
-    albumMeta.setShouldSync(true);
-    albumMeta.setSynced(false);
     albumMeta.setThumbnailId("thumb-1");
     albumMeta.setThumbnailSize(512 * 1024);
     checkCycle(albumMeta);
