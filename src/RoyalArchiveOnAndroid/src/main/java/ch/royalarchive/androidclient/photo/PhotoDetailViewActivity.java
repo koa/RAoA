@@ -12,12 +12,11 @@ import ch.bergturbenthal.image.provider.Client;
 import ch.royalarchive.androidclient.R;
 
 public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks<Cursor> {
-	
-	private static final String[] PROJECTION = new String[] { 
-		Client.AlbumEntry.THUMBNAIL };
-	
+
+	private static final String[] PROJECTION = new String[] { Client.AlbumEntry.THUMBNAIL };
+
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
-	
+
 	private PhotoDetailContainer detailContainer;
 
 	private static final String ACTUAL_POS = "actPos";
@@ -32,41 +31,50 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-	
-    setContentView(R.layout.photo_detailview);
+
+		setContentView(R.layout.photo_detailview);
+		detailContainer = (PhotoDetailContainer) findViewById(R.id.photo_detailview_container);
+
+		pager = detailContainer.getViewPager();
 
 		// get album id and photo id out of intent
 		Bundle bundle = getIntent().getExtras();
 		albumId = bundle.getInt(ALBUM_ID);
 		actPos = bundle.getInt(ACTUAL_POS);
+		adapter = new PhotoDetailviewAdapter(this, null);
+
+		// View pager configuration
+		pager.setAdapter(adapter);
+
+		// Preload two pages
+		pager.setOffscreenPageLimit(2);
+
+		// Add a little space between pages
+		pager.setPageMargin(15);
+
+		// If hardware acceleration is enabled, you should also remove
+		// clipping on the pager for its children.
+		pager.setClipChildren(false);
 		
-    detailContainer = (PhotoDetailContainer) findViewById(R.id.photo_detailview_container);
+		if (savedInstanceState != null) {
+      actPos = savedInstanceState.getInt(ACTUAL_POS);
+		}
 
-    pager = detailContainer.getViewPager();
-    adapter = new PhotoDetailviewAdapter(this, null);
-    
-    // View pager configuration
-    pager.setAdapter(adapter);
-    
-    // Preload two pages
-    pager.setOffscreenPageLimit(2);
-    
-    // Add a little space between pages
-    pager.setPageMargin(15);
-
-    // If hardware acceleration is enabled, you should also remove
-    // clipping on the pager for its children.
-    pager.setClipChildren(false);
-    
 		// Prepare the loader. Either re-connect with an existing one,
 		// or start a new one.
 		getLoaderManager().initLoader(0, null, this);
 	}
-	
+
+	@Override
+	protected void onSaveInstanceState(Bundle outState) {
+		super.onSaveInstanceState(outState);
+		outState.putInt(ACTUAL_POS, ((PhotoDetailviewAdapter) pager.getAdapter()).getCurrentPosition());
+	}
+
 	@Override
 	public void onBackPressed() {
 		Intent output = new Intent();
-		output.putExtra(CURR_ITEM_INDEX, ((PhotoDetailviewAdapter)pager.getAdapter()).getCurrentPosition());
+		output.putExtra(CURR_ITEM_INDEX, ((PhotoDetailviewAdapter) pager.getAdapter()).getCurrentPosition());
 		setResult(RESULT_OK, output);
 		super.onBackPressed();
 	}
@@ -79,7 +87,7 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 	@Override
 	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
 		adapter.swapCursor(data);
-		
+
 		// set specific item
 		pager.setCurrentItem(actPos, false);
 	}
