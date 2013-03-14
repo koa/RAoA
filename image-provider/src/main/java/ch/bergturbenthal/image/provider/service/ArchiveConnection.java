@@ -154,14 +154,15 @@ public class ArchiveConnection {
         }
 
         @Override
-        public void readThumbnail(final String fileId, final File tempFile, final File targetFile) {
+        public boolean readThumbnail(final String fileId, final File tempFile, final File targetFile) {
           for (final String serverId : servers) {
             final ServerConnection serverConnection = serverConnections.get().get(serverId);
             if (serverConnection == null)
               continue;
             if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile))
-              return;
+              return true;
           }
+          return false;
         }
 
         @Override

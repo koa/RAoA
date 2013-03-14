@@ -14,7 +14,7 @@ public interface AlbumConnection {
 
   String getCommId();
 
-  void readThumbnail(final String fileId, final File tempFile, final File targetFile);
+  boolean readThumbnail(final String fileId, final File tempFile, final File targetFile);
 
   Date lastModified();
 

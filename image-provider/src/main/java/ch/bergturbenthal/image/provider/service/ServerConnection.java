@@ -184,11 +184,11 @@ public class ServerConnection {
             } finally {
               arrayOutputStream.close();
             }
-            tempFile.renameTo(targetFile);
+            final boolean renameOk = tempFile.renameTo(targetFile);
             if (lastModifiedDate != null)
               targetFile.setLastModified(lastModifiedDate.getTime());
 
-            return new ResponseEntity<Boolean>(Boolean.TRUE, response.getStatusCode());
+            return new ResponseEntity<Boolean>(Boolean.valueOf(renameOk), response.getStatusCode());
           }
         }, albumId, fileId);
       }

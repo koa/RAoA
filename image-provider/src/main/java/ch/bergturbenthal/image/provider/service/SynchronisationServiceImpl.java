@@ -480,18 +480,28 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   @Override
   public int updateAlbum(final String archiveName, final String albumId, final ContentValues values) {
-    return callInTransaction(new Callable<Integer>() {
+    final Collection<String> albumEntriesToClear = new ArrayList<String>();
+    final int updatedCount = callInTransaction(new Callable<Integer>() {
       @Override
       public Integer call() throws Exception {
         final AlbumLocalData albumMeta = getAlbumMutationList(archiveName, albumId);
         if (albumMeta == null)
           return Integer.valueOf(0);
         final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
-        if (shouldSync != null)
+        if (shouldSync != null && albumMeta.isShouldSync() != shouldSync.booleanValue()) {
           albumMeta.setShouldSync(shouldSync.booleanValue());
+          final AlbumEntries albumEntries = getAlbumEntriesReadOnly(archiveName, albumId);
+          if (albumEntries != null && albumEntries.getEntries() != null) {
+            albumEntriesToClear.addAll(albumEntries.getEntries().keySet());
+          }
+        }
         return Integer.valueOf(1);
       }
     }).intValue();
+    for (final String entryId : albumEntriesToClear) {
+      thumbnailCache.remove(new AlbumEntryIndex(archiveName, albumId, entryId));
+    }
+    return updatedCount;
   }
 
   @Override
@@ -782,6 +792,19 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     return split[split.length - 1];
   }
 
+  private Collection<String> listAllAlbumEntries(final String archiveName, final String albumId) {
+    final Collection<String> albumEntries = callInTransaction(new Callable<Collection<String>>() {
+      @Override
+      public Collection<String> call() throws Exception {
+        final AlbumEntries albumEntries = getAlbumEntriesReadOnly(archiveName, albumId);
+        if (albumEntries == null || albumEntries.getEntries() == null)
+          return Collections.emptyList();
+        return new ArrayList<String>(albumEntries.getEntries().keySet());
+      }
+    });
+    return albumEntries;
+  }
+
   private File loadThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
     final long startTime = System.currentTimeMillis();
     try {
@@ -838,12 +861,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
           targetFile.setLastModified(oldLastModified);
           if (targetFile.exists())
             return targetFile;
+
         }
         // remove the invalid file of the other cache
         otherTargetFile.delete();
       }
-      if (!targetFile.getParentFile().exists())
-        targetFile.getParentFile().mkdirs();
+      final File parentDir = targetFile.getParentFile();
+      if (!parentDir.exists())
+        parentDir.mkdirs();
       final Map<String, ArchiveConnection> archive = connectionMap.get();
       if (archive == null)
         return ifExsists(targetFile);
@@ -854,7 +879,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       if (albumConnection == null)
         return ifExsists(targetFile);
 
-      final File tempFile = new File(tempDir, tempFileId.incrementAndGet() + ".thumbnail-temp");
+      final File tempFile = new File(parentDir, tempFileId.incrementAndGet() + ".thumbnail-temp");
       if (tempFile.exists())
         tempFile.delete();
       try {
@@ -871,26 +896,20 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private void loadThumbnailsOfAlbum(final String archiveName, final String albumId) {
-    final Collection<String> thumbnails = callInTransaction(new Callable<Collection<String>>() {
-      @Override
-      public Collection<String> call() throws Exception {
-        final AlbumEntries albumEntries = getAlbumEntriesReadOnly(archiveName, albumId);
-        if (albumEntries == null || albumEntries.getEntries() == null)
-          return Collections.emptyList();
-        return new ArrayList<String>(albumEntries.getEntries().keySet());
-      }
-    });
-    for (final String thumbnailId : thumbnails) {
-      loadThumbnail(archiveName, albumId, thumbnailId);
+    final Collection<String> albumEntries = listAllAlbumEntries(archiveName, albumId);
+    boolean allOk = true;
+    for (final String thumbnailId : albumEntries) {
+      allOk &= thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, thumbnailId)) != null;
     }
-    callInTransaction(new Callable<Void>() {
-      @Override
-      public Void call() throws Exception {
-        final AlbumLocalData albumMeta = getAlbumMutationList(archiveName, albumId);
-        albumMeta.setSynced(true);
-        return null;
-      }
-    });
+    if (allOk)
+      callInTransaction(new Callable<Void>() {
+        @Override
+        public Void call() throws Exception {
+          final AlbumLocalData albumMeta = getAlbumMutationList(archiveName, albumId);
+          albumMeta.setSynced(true);
+          return null;
+        }
+      });
   }
 
   private String makeAlbumDetailPath(final String archiveName, final String albumId) {
