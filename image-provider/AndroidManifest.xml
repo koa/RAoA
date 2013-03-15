@@ -18,7 +18,7 @@
     <application
         android:debuggable="true"
         android:hardwareAccelerated="true"
-        android:label="RoyalArchive Provider" android:largeHeap="true">
+        android:label="RoyalArchive Provider" android:largeHeap="true" android:logo="@drawable/ic_launcher" android:icon="@drawable/ic_launcher">
         <receiver
             android:name="ch.bergturbenthal.image.provider.service.NetworkReceiver"
             android:enabled="true" >
