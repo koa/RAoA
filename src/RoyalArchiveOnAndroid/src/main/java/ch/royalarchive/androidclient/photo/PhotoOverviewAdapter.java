@@ -5,7 +5,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.SimpleCursorAdapter;
 import ch.bergturbenthal.image.provider.Client;
-import ch.royalarchive.androidclient.OverviewBinder;
+import ch.royalarchive.androidclient.PhotoBinder;
 import ch.royalarchive.androidclient.R;
 
 public class PhotoOverviewAdapter extends SimpleCursorAdapter {
@@ -20,7 +20,7 @@ public class PhotoOverviewAdapter extends SimpleCursorAdapter {
 		super(context, layout, null, FROM, TO, 0);
 		
 		// set photo overview view binder
-		setViewBinder(new OverviewBinder(false, context));
+		setViewBinder(new PhotoBinder(false, context));
 	}
 	
 	@Override

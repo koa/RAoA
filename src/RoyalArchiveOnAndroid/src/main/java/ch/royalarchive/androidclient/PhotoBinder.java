@@ -20,9 +20,9 @@ import android.widget.ImageView;
 import android.widget.SimpleCursorAdapter.ViewBinder;
 import ch.royalarchive.androidclient.util.BitmapUtil;
 
-public class OverviewBinder implements ViewBinder {
+public class PhotoBinder implements ViewBinder {
 
-	private static String TAG = OverviewBinder.class.getSimpleName();
+	private static String TAG = PhotoBinder.class.getSimpleName();
 
 	private Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
 	private Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
@@ -30,7 +30,7 @@ public class OverviewBinder implements ViewBinder {
 	private boolean isDetailView = false;
 	private Context context;
 
-	public OverviewBinder(boolean isDetailView, Context context) {
+	public PhotoBinder(boolean isDetailView, Context context) {
 		this.isDetailView = isDetailView;
 		this.context = context;
 	}
