@@ -9,7 +9,7 @@ public class BitmapUtil {
 		// Raw height and width of image
 		final int height = options.outHeight;
 		final int width = options.outWidth;
-		int inSampleSize = 0;
+		int inSampleSize = 1;
 		
 		if (height > reqHeight || width > reqWidth) {
 			if (orientation == Configuration.ORIENTATION_PORTRAIT) {
@@ -19,7 +19,7 @@ public class BitmapUtil {
 				inSampleSize = Math.round((float) height / (float) reqHeight);
 			}
 		}
-		return inSampleSize <= 1 ? 2 : inSampleSize;
+		return inSampleSize;
 	}
 
 }
