@@ -22,7 +22,7 @@ public class PhotoDetailviewAdapter extends PagerAdapter {
 		this.cursor = cursor;
 
 		// set photo detail view binder
-		viewBinder = new OverviewBinder(true);
+		viewBinder = new OverviewBinder(true, context);
 	}
 
 	@Override

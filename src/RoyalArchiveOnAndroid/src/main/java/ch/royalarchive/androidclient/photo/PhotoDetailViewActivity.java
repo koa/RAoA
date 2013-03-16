@@ -47,7 +47,7 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 		pager.setAdapter(adapter);
 
 		// Preload two pages
-		pager.setOffscreenPageLimit(2);
+		pager.setOffscreenPageLimit(1);
 
 		// Add a little space between pages
 		pager.setPageMargin(15);

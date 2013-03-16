@@ -24,7 +24,7 @@ public class AlbumOverviewAdapter extends SimpleCursorAdapter {
 		super(context, layout, null, FROM, TO, 0);
 
 		// set album overview view binder
-		setViewBinder(new OverviewBinder(false));
+		setViewBinder(new OverviewBinder(false, context));
 	}
 
 	@Override
