@@ -82,7 +82,6 @@ public class PhotoBinder implements ViewBinder {
 			protected Void doInBackground(Void... params) {
 				int width;
 				int heigth;
-				int orientation;
 
 				try {
 					// get the real image
@@ -90,8 +89,6 @@ public class PhotoBinder implements ViewBinder {
 					try {
 						// Get window manager
 						WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-						// Get display orientation
-						orientation = context.getResources().getConfiguration().orientation;
 						// Get display size
 						DisplayMetrics displaymetrics = new DisplayMetrics();
 						wm.getDefaultDisplay().getMetrics(displaymetrics);
@@ -108,7 +105,7 @@ public class PhotoBinder implements ViewBinder {
 							width = heigth = view.getContext().getResources().getDimensionPixelSize(R.dimen.image_width);
 						}
 
-						options.inSampleSize = BitmapUtil.calculateInSampleSize(options, orientation, width, heigth);
+						options.inSampleSize = BitmapUtil.calculateInSampleSize(options, width, heigth);
 
 						imageStream.close();
 						imageStream = view.getContext().getContentResolver().openInputStream(uri);

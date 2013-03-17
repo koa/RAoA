@@ -1,25 +1,20 @@
 package ch.royalarchive.androidclient.util;
 
-import android.content.res.Configuration;
 import android.graphics.BitmapFactory;
 
 public class BitmapUtil {
 
-	public static int calculateInSampleSize(BitmapFactory.Options options, int orientation, int reqWidth, int reqHeight) {
-		// Raw height and width of image
+	public static int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
 		final int height = options.outHeight;
 		final int width = options.outWidth;
-		int inSampleSize = 1;
-		
+		int inSampleSize_width = 1;
+		int inSampleSize_height = 1;
+
 		if (height > reqHeight || width > reqWidth) {
-			if (orientation == Configuration.ORIENTATION_PORTRAIT) {
-				inSampleSize = Math.round((float) width / (float) reqWidth);
-				
-			} else {
-				inSampleSize = Math.round((float) height / (float) reqHeight);
-			}
+			inSampleSize_width = (int) Math.floor((float) width / (float) reqWidth);
+			inSampleSize_height = (int) Math.floor((float) height / (float) reqHeight);
 		}
-		return inSampleSize;
+		return Math.max(1, Math.max(inSampleSize_width, inSampleSize_height));
 	}
 
 }
