@@ -16,37 +16,37 @@
         android:layout_gravity="bottom"
         android:background="#88000000" >
        
-        <TextView
-            android:id="@+id/album_item_name"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="4dp" />
-        
-	    <ImageView
-	        android:id="@+id/album_item_icon"
-	        android:layout_width="wrap_content"
-	        android:layout_height="wrap_content"
-	        android:layout_alignParentBottom="true"
-	        android:layout_alignParentLeft="true"
-	        android:src="@drawable/ic_menu_archive" />
-	    
-	    <TextView
-	        android:id="@+id/album_item_size"
-	        android:layout_width="fill_parent"
-	        android:layout_height="wrap_content" 
-	        android:layout_toRightOf="@id/album_item_icon"
-	        android:layout_alignParentBottom="true"
-        	android:layout_alignParentRight="true" 
-        	android:paddingBottom="2dp" />
-	    
-	    <ImageView
-	        android:id="@+id/album_item_icon_offline"
-	        android:layout_width="wrap_content"
-	        android:layout_height="wrap_content"
-	        android:layout_alignParentRight="true"
-	        android:layout_alignParentBottom="true"
-	        android:src="@drawable/ic_menu_refresh" 
-	        android:clickable="true" />
+				<TextView
+				    android:id="@+id/album_item_name"
+				    android:layout_width="fill_parent"
+				    android:layout_height="wrap_content"
+				    android:layout_marginLeft="4dp" />
+	        
+		    <ImageView
+		        android:id="@+id/album_item_icon"
+		        android:layout_width="wrap_content"
+		        android:layout_height="wrap_content"
+		        android:layout_alignParentBottom="true"
+		        android:layout_alignParentLeft="true"
+		        android:src="@drawable/ic_menu_archive" />
+		    
+		    <TextView
+		        android:id="@+id/album_item_size"
+		        android:layout_width="fill_parent"
+		        android:layout_height="wrap_content" 
+		        android:layout_toRightOf="@id/album_item_icon"
+		        android:layout_alignParentBottom="true"
+	        	android:layout_alignParentRight="true" 
+	        	android:paddingBottom="2dp" />
+		    
+		    <ImageView
+		        android:id="@+id/album_item_icon_offline"
+		        android:layout_width="wrap_content"
+		        android:layout_height="wrap_content"
+		        android:layout_alignParentRight="true"
+		        android:layout_alignParentBottom="true"
+		        android:src="@drawable/ic_menu_refresh" 
+		        android:clickable="true" />
 	    
     </RelativeLayout>
 
