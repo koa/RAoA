@@ -96,24 +96,27 @@ public class PhotoBinder implements ViewBinder {
 						// bitmap = Bitmap.createScaledBitmap(fullBitmap, (int) Math.round(fullBitmap.getWidth() * scale),
 						// (int) Math.round(fullBitmap.getHeight() * scale), true);
 
-						// First decode with inJustDecodeBounds=true to check dimensions
-						final BitmapFactory.Options options = new BitmapFactory.Options();
-						options.inJustDecodeBounds = true;
-						options.inPurgeable = true;
-						options.inInputShareable = true;
-						BitmapFactory.decodeStream(imageStream, null, options);
-
-						// Calculate inSampleSize
-						// Get current orientation
+						// Get window manager
 						WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+						// Get display orientation
 						orientation = context.getResources().getConfiguration().orientation;
-
-						// Get display size in pixels
+						// Get display size
 						DisplayMetrics displaymetrics = new DisplayMetrics();
 						wm.getDefaultDisplay().getMetrics(displaymetrics);
 						width = displaymetrics.widthPixels;
 						heigth = displaymetrics.heightPixels;
 
+						// First decode with inJustDecodeBounds=true to check dimensions
+						final BitmapFactory.Options options = new BitmapFactory.Options();
+						options.inJustDecodeBounds = true;
+						options.inPurgeable = true;
+						options.inInputShareable = true;
+						options.inScaled = true;
+						options.inDensity = DisplayMetrics.DENSITY_MEDIUM;
+						options.inTargetDensity = displaymetrics.densityDpi;
+						BitmapFactory.decodeStream(imageStream, null, options);
+
+						// Calculate inSampleSize
 						if (!isDetailView) {
 							width = heigth = view.getContext().getResources().getDimensionPixelSize(R.dimen.image_width);
 						}
