@@ -24,6 +24,8 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.SimpleCursorAdapter.ViewBinder;
 
+/// Nur noch eine Vorlage für ev. anpassungen am PhotoBinder
+@Deprecated
 public class OverviewBinder implements ViewBinder {
 
 	private static String TAG = OverviewBinder.class.getSimpleName();

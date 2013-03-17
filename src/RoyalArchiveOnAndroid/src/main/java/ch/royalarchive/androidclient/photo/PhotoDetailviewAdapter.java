@@ -8,7 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.SimpleCursorAdapter.ViewBinder;
-import ch.royalarchive.androidclient.OverviewBinder;
+import ch.royalarchive.androidclient.PhotoBinder;
 
 public class PhotoDetailviewAdapter extends PagerAdapter {
 	
@@ -22,7 +22,7 @@ public class PhotoDetailviewAdapter extends PagerAdapter {
 		this.cursor = cursor;
 
 		// set photo detail view binder
-		viewBinder = new OverviewBinder(true);
+		viewBinder = new PhotoBinder(true, context);
 	}
 
 	@Override

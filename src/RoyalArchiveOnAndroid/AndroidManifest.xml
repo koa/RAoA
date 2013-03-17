@@ -20,7 +20,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".GalleryActivity" />
         <activity android:name=".album.AlbumOverviewActivity" />
         <activity android:name=".photo.PhotoOverviewActivity" />
         <activity android:name=".photo.PhotoDetailViewActivity" />

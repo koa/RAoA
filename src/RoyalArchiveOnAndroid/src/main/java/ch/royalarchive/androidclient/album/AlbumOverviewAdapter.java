@@ -8,7 +8,7 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.SimpleCursorAdapter;
 import ch.bergturbenthal.image.provider.Client;
-import ch.royalarchive.androidclient.OverviewBinder;
+import ch.royalarchive.androidclient.PhotoBinder;
 import ch.royalarchive.androidclient.R;
 
 public class AlbumOverviewAdapter extends SimpleCursorAdapter {
@@ -29,7 +29,7 @@ public class AlbumOverviewAdapter extends SimpleCursorAdapter {
 		super(context, layout, null, FROM, TO, 0);
 		this.context = context;
 		// set album overview view binder
-		setViewBinder(new OverviewBinder(false));
+		setViewBinder(new PhotoBinder(false, context));
 	}
 
 	@Override
