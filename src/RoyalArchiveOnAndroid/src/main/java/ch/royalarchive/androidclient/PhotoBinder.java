@@ -7,17 +7,13 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.DisplayMetrics;
@@ -31,16 +27,9 @@ import ch.royalarchive.androidclient.util.BitmapUtil;
 public class PhotoBinder implements ViewBinder {
 
 	private static String TAG = PhotoBinder.class.getSimpleName();
-	public static final Executor THREAD_POOL_EXECUTOR = new ThreadPoolExecutor(
-			5, 15, 1, TimeUnit.SECONDS,
-			new LinkedBlockingQueue<Runnable>(1000), new ThreadFactory() {
-				private final AtomicInteger mCount = new AtomicInteger(1);
 
-				public Thread newThread(Runnable r) {
-					return new Thread(r, "OverviewBinder #"
-							+ mCount.getAndIncrement());
-				}
-			});
+	private final Executor THREAD_POOL_EXECUTOR = new ThreadPoolExecutor(5, 15, 1, TimeUnit.SECONDS,
+			new LinkedBlockingQueue<Runnable>(1000));
 
 	private Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
 	private Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
@@ -74,8 +63,7 @@ public class PhotoBinder implements ViewBinder {
 			return true;
 		}
 
-		SoftReference<Bitmap> cacheReference = bitmapCache
-				.get(thumbnailUriString);
+		SoftReference<Bitmap> cacheReference = bitmapCache.get(thumbnailUriString);
 		if (cacheReference != null) {
 			Bitmap cachedBitmap = cacheReference.get();
 			if (cachedBitmap != null) {
@@ -88,108 +76,51 @@ public class PhotoBinder implements ViewBinder {
 
 		AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
 
-			private Bitmap bitmap = null;
+			private Bitmap bitmap;
 
 			@Override
 			protected Void doInBackground(Void... params) {
 				int width;
 				int heigth;
-				int orientation;
 
 				try {
 					// get the real image
-					ContentResolver contentResolver = view.getContext()
-							.getContentResolver();
-					InputStream imageStream = contentResolver
-							.openInputStream(uri);
-					String type = contentResolver.getType(uri);
-					if (type.startsWith("image/")) {
-						try {
-							if (isCancelled())
-								return null;
+					InputStream imageStream = view.getContext().getContentResolver().openInputStream(uri);
+					try {
+						// Get window manager
+						WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+						// Get display size
+						DisplayMetrics displaymetrics = new DisplayMetrics();
+						wm.getDefaultDisplay().getMetrics(displaymetrics);
+						width = displaymetrics.widthPixels;
+						heigth = displaymetrics.heightPixels;
 
-							// int dimen_width = R.dimen.image_width;
-							// if (isDetailView) {
-							// dimen_width = R.dimen.image_detail_width;
-							// }
-							// int imageLength =
-							// view.getContext().getResources().getDimensionPixelSize(dimen_width);
-							//
-							// Bitmap fullBitmap =
-							// BitmapFactory.decodeStream(imageStream);
-							// double scaleX = 1.0 * imageLength /
-							// fullBitmap.getWidth();
-							// double scaleY = 1.0 * imageLength /
-							// fullBitmap.getHeight();
-							// double scale = Math.max(scaleX, scaleY);
-							//
-							// bitmap = Bitmap.createScaledBitmap(fullBitmap,
-							// (int) Math.round(fullBitmap.getWidth() * scale),
-							// (int) Math.round(fullBitmap.getHeight() * scale),
-							// true);
+						// First decode with inJustDecodeBounds=true to check dimensions
+						final BitmapFactory.Options options = new BitmapFactory.Options();
+						options.inJustDecodeBounds = true;
+						BitmapFactory.decodeStream(imageStream, null, options);
 
-							// Get window manager
-							WindowManager wm = (WindowManager) context
-									.getSystemService(Context.WINDOW_SERVICE);
-							// Get display orientation
-							orientation = context.getResources()
-									.getConfiguration().orientation;
-							// Get display size
-							DisplayMetrics displaymetrics = new DisplayMetrics();
-							wm.getDefaultDisplay().getMetrics(displaymetrics);
-							width = displaymetrics.widthPixels;
-							heigth = displaymetrics.heightPixels;
-
-							// First decode with inJustDecodeBounds=true to
-							// check dimensions
-							final BitmapFactory.Options options = new BitmapFactory.Options();
-							options.inJustDecodeBounds = true;
-							options.inPurgeable = true;
-							options.inInputShareable = true;
-							options.inScaled = true;
-							options.inDensity = DisplayMetrics.DENSITY_MEDIUM;
-							options.inTargetDensity = displaymetrics.densityDpi;
-							BitmapFactory.decodeStream(imageStream, null,
-									options);
-
-							if (isCancelled())
-								return null;
-							// Calculate inSampleSize
-							if (!isDetailView) {
-								width = heigth = view
-										.getContext()
-										.getResources()
-										.getDimensionPixelSize(
-												R.dimen.image_width);
-							}
-
-							options.inSampleSize = BitmapUtil
-									.calculateInSampleSize(options,
-											orientation, width, heigth);
-
-							imageStream.close();
-							imageStream = contentResolver.openInputStream(uri);
-							if (isCancelled())
-								return null;
-
-							// Decode bitmap with inSampleSize set
-							options.inJustDecodeBounds = false;
-							bitmap = BitmapFactory.decodeStream(imageStream,
-									null, options);
-
-							bitmapCache.put(thumbnailUriString,
-									new SoftReference<Bitmap>(bitmap));
-						} finally {
-							if (imageStream != null) {
-								imageStream.close();
-							}
+						// Calculate inSampleSize
+						if (!isDetailView) {
+							width = heigth = view.getContext().getResources().getDimensionPixelSize(R.dimen.image_width);
 						}
-					} else if (type.startsWith("video/")) {
-						MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-						retriever.setDataSource(view.getContext(), uri);
-						bitmap = retriever.getFrameAtTime();
-						bitmapCache.put(thumbnailUriString,
-								new SoftReference<Bitmap>(bitmap));
+
+						options.inSampleSize = BitmapUtil.calculateInSampleSize(options, width, heigth);
+
+						imageStream.close();
+						imageStream = view.getContext().getContentResolver().openInputStream(uri);
+
+						// Decode bitmap with inSampleSize set
+						options.inJustDecodeBounds = false;
+						options.inPurgeable = true;
+						options.inInputShareable = true;
+						bitmap = BitmapFactory.decodeStream(imageStream, null, options);
+
+						bitmapCache.put(thumbnailUriString, new SoftReference<Bitmap>(bitmap));
+					} finally {
+						if (imageStream != null) {
+							imageStream.close();
+						}
 					}
 				} catch (Throwable t) {
 					Log.i(TAG, "Cannot load image", t);

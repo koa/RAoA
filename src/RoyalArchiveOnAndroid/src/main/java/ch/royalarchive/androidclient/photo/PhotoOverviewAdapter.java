@@ -11,10 +11,12 @@ import ch.royalarchive.androidclient.R;
 public class PhotoOverviewAdapter extends SimpleCursorAdapter {
 	
 	private static final String[] FROM = new String[] { 
-		Client.AlbumEntry.THUMBNAIL };
+		Client.AlbumEntry.THUMBNAIL,
+		Client.AlbumEntry.NAME };
 
 	private static final int[] TO = new int[] {
-		R.id.photos_item_image };
+		R.id.photos_item_image,
+		R.id.photo_name};
 
 	public PhotoOverviewAdapter(Context context, int layout) {
 		super(context, layout, null, FROM, TO, 0);
