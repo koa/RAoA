@@ -5,6 +5,12 @@ import java.lang.ref.SoftReference;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -23,6 +29,16 @@ import ch.royalarchive.androidclient.util.BitmapUtil;
 public class PhotoBinder implements ViewBinder {
 
 	private static String TAG = PhotoBinder.class.getSimpleName();
+	public static final Executor THREAD_POOL_EXECUTOR = new ThreadPoolExecutor(
+			5, 15, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1000),
+			new ThreadFactory() {
+				private final AtomicInteger mCount = new AtomicInteger(1);
+
+				public Thread newThread(Runnable r) {
+					return new Thread(r, "OverviewBinder #"
+							+ mCount.getAndIncrement());
+				}
+			});
 
 	private Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
 	private Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
@@ -69,7 +85,7 @@ public class PhotoBinder implements ViewBinder {
 
 		AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
 
-			private Bitmap bitmap;
+			private Bitmap bitmap=null;
 
 			@Override
 			protected Void doInBackground(Void... params) {
@@ -81,6 +97,8 @@ public class PhotoBinder implements ViewBinder {
 					// get the real image
 					InputStream imageStream = view.getContext().getContentResolver().openInputStream(uri);
 					try {
+						if(isCancelled())
+							return null;
 
 						// int dimen_width = R.dimen.image_width;
 						// if (isDetailView) {
@@ -116,6 +134,8 @@ public class PhotoBinder implements ViewBinder {
 						options.inTargetDensity = displaymetrics.densityDpi;
 						BitmapFactory.decodeStream(imageStream, null, options);
 
+						if(isCancelled())
+							return null;
 						// Calculate inSampleSize
 						if (!isDetailView) {
 							width = heigth = view.getContext().getResources().getDimensionPixelSize(R.dimen.image_width);
@@ -125,6 +145,8 @@ public class PhotoBinder implements ViewBinder {
 
 						imageStream.close();
 						imageStream = view.getContext().getContentResolver().openInputStream(uri);
+						if(isCancelled())
+							return null;
 
 						// Decode bitmap with inSampleSize set
 						options.inJustDecodeBounds = false;
@@ -152,7 +174,7 @@ public class PhotoBinder implements ViewBinder {
 			}
 		};
 		runningBgTasks.put(view, asyncTask);
-		asyncTask.execute();
+		asyncTask.executeOnExecutor(THREAD_POOL_EXECUTOR);
 		return true;
 	}
 
