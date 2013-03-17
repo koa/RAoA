@@ -5,6 +5,10 @@ import java.lang.ref.SoftReference;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -23,6 +27,9 @@ import ch.royalarchive.androidclient.util.BitmapUtil;
 public class PhotoBinder implements ViewBinder {
 
 	private static String TAG = PhotoBinder.class.getSimpleName();
+
+	private final Executor THREAD_POOL_EXECUTOR = new ThreadPoolExecutor(5, 15, 1, TimeUnit.SECONDS,
+			new LinkedBlockingQueue<Runnable>(1000));
 
 	private Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
 	private Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
@@ -81,21 +88,6 @@ public class PhotoBinder implements ViewBinder {
 					// get the real image
 					InputStream imageStream = view.getContext().getContentResolver().openInputStream(uri);
 					try {
-
-						// int dimen_width = R.dimen.image_width;
-						// if (isDetailView) {
-						// dimen_width = R.dimen.image_detail_width;
-						// }
-						// int imageLength = view.getContext().getResources().getDimensionPixelSize(dimen_width);
-						//
-						// Bitmap fullBitmap = BitmapFactory.decodeStream(imageStream);
-						// double scaleX = 1.0 * imageLength / fullBitmap.getWidth();
-						// double scaleY = 1.0 * imageLength / fullBitmap.getHeight();
-						// double scale = Math.max(scaleX, scaleY);
-						//
-						// bitmap = Bitmap.createScaledBitmap(fullBitmap, (int) Math.round(fullBitmap.getWidth() * scale),
-						// (int) Math.round(fullBitmap.getHeight() * scale), true);
-
 						// Get window manager
 						WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
 						// Get display orientation
@@ -109,11 +101,6 @@ public class PhotoBinder implements ViewBinder {
 						// First decode with inJustDecodeBounds=true to check dimensions
 						final BitmapFactory.Options options = new BitmapFactory.Options();
 						options.inJustDecodeBounds = true;
-						options.inPurgeable = true;
-						options.inInputShareable = true;
-						options.inScaled = true;
-						options.inDensity = DisplayMetrics.DENSITY_MEDIUM;
-						options.inTargetDensity = displaymetrics.densityDpi;
 						BitmapFactory.decodeStream(imageStream, null, options);
 
 						// Calculate inSampleSize
@@ -128,6 +115,8 @@ public class PhotoBinder implements ViewBinder {
 
 						// Decode bitmap with inSampleSize set
 						options.inJustDecodeBounds = false;
+						options.inPurgeable = true;
+						options.inInputShareable = true;
 						bitmap = BitmapFactory.decodeStream(imageStream, null, options);
 
 						bitmapCache.put(thumbnailUriString, new SoftReference<Bitmap>(bitmap));
@@ -152,7 +141,7 @@ public class PhotoBinder implements ViewBinder {
 			}
 		};
 		runningBgTasks.put(view, asyncTask);
-		asyncTask.execute();
+		asyncTask.executeOnExecutor(THREAD_POOL_EXECUTOR);
 		return true;
 	}
 
