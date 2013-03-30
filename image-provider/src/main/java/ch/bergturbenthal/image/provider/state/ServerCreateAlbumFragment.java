@@ -49,7 +49,7 @@ public class ServerCreateAlbumFragment extends Fragment {
 
       @Override
       protected Void doInBackground(final Void... params) {
-        final Cursor cursor = contentResolver.query(Client.ALBUM_URI, new String[] { Client.Album.FULL_NAME }, null, null, null);
+        final Cursor cursor = contentResolver.query(Client.ALBUM_URI, new String[] { Client.Album.NAME }, null, null, null);
         while (cursor.moveToNext()) {
           final String albumDir = cursor.getString(0);
           final int lastSlash = albumDir.lastIndexOf('/');

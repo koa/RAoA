@@ -222,6 +222,7 @@ public class AlbumEntryDto implements Parcelable {
     return editableMetadataHash;
   }
 
+  @CursorField(Client.AlbumEntry.ENTRY_TYPE)
   public AlbumEntryType getEntryType() {
     return entryType;
   }

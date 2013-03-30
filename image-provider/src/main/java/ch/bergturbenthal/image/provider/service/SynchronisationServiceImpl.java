@@ -83,6 +83,9 @@ import ch.bergturbenthal.image.provider.model.dto.AlbumLocalData;
 import ch.bergturbenthal.image.provider.model.dto.AlbumMeta;
 import ch.bergturbenthal.image.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.image.provider.state.ServerListActivity;
+import ch.bergturbenthal.image.provider.store.FileBackend;
+import ch.bergturbenthal.image.provider.store.FileStorage;
+import ch.bergturbenthal.image.provider.store.ParcelableBackend;
 
 public class SynchronisationServiceImpl extends Service implements ResultListener, SynchronisationService {
 
@@ -141,7 +144,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private final Semaphore pollServerSemaphore = new Semaphore(1);
 
-  private final ThreadLocal<FileTransaction> currentTransaction = new ThreadLocal<FileTransaction>();
+  private FileStorage store;
 
   private final ObjectMapper mapper = new ObjectMapper();
 
@@ -262,6 +265,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     dnsListener = new MDnsListener(getApplicationContext(), this, executorService);
 
     dataDir = new File(getFilesDir(), "data");
+    store =
+            new FileStorage(Arrays.asList((FileBackend<?>) new ParcelableBackend<AlbumEntries>(dataDir, AlbumEntries.class),
+                                          (FileBackend<?>) new ParcelableBackend<AlbumMeta>(dataDir, AlbumMeta.class),
+                                          (FileBackend<?>) new ParcelableBackend<AlbumLocalData>(dataDir, AlbumLocalData.class)
+
+            ));
 
     // setup and clean temp-dir
     tempDir = new File(getCacheDir(), "temp");
@@ -588,38 +597,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private <V> V callInTransaction(final Callable<V> callable) {
-    assert currentTransaction.get() == null;
     return cursorNotifications.doWithNotify(new Callable<V>() {
-
       @Override
       public V call() throws Exception {
-        for (int i = 0;; i++) {
-          currentTransaction.set(new FileTransaction(dataDir));
-          try {
-            final V result;
-            try {
-              result = callable.call();
-            } catch (final Throwable e) {
-              throw new RuntimeException("Cannot execute transaction", e);
-            }
-            boolean commitSucessful;
-            try {
-              commitSucessful = currentTransaction.get().commitTransaction();
-            } catch (final Throwable e) {
-              throw new RuntimeException("Cannot commit transaction", e);
-            }
-            if (!commitSucessful) {
-              if (i < 5) {
-                Log.w("Transaction", "Cannot close Transaction -> rerun whole transaction");
-                continue;
-              } else
-                throw new RuntimeException("Cannot close transaction -> give up");
-            }
-            return result;
-          } finally {
-            currentTransaction.set(null);
-          }
-        }
+        return store.callInTransaction(callable);
       }
     });
   }
@@ -648,24 +629,24 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private AlbumEntries getAlbumEntries(final String archiveName, final String albumId) {
-    return currentTransaction.get().getObject(makeAlbumEntriesPath(archiveName, albumId), AlbumEntries.class);
+    return store.getObject(makeAlbumEntriesPath(archiveName, albumId), AlbumEntries.class);
   }
 
   private AlbumEntries getAlbumEntriesReadOnly(final String archiveName, final String commId) {
     final long start = System.currentTimeMillis();
     try {
-      return currentTransaction.get().getObjectReadOnly(makeAlbumEntriesPath(archiveName, commId), AlbumEntries.class);
+      return store.getObjectReadOnly(makeAlbumEntriesPath(archiveName, commId), AlbumEntries.class);
     } finally {
       Log.i("Performance", "Loaded entries for " + archiveName + ":" + commId + " in " + (System.currentTimeMillis() - start) + " ms");
     }
   }
 
   private AlbumMeta getAlbumMeta(final String archiveName, final String commId) {
-    return currentTransaction.get().getObject(makeAlbumMetaPath(archiveName, commId), AlbumMeta.class);
+    return store.getObject(makeAlbumMetaPath(archiveName, commId), AlbumMeta.class);
   }
 
   private AlbumLocalData getAlbumMutationList(final String archiveName, final String albumId) {
-    return currentTransaction.get().getObject(makeAlbumMutationPath(archiveName, albumId), AlbumLocalData.class);
+    return store.getObject(makeAlbumMutationPath(archiveName, albumId), AlbumLocalData.class);
   }
 
   private String getBasename(final String fileName) {
@@ -693,18 +674,18 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     if (existingEntry != null)
       return existingEntry;
     final AlbumEntries newEntries = new AlbumEntries();
-    currentTransaction.get().putObject(makeAlbumEntriesPath(archiveName, commId), newEntries);
+    store.putObject(makeAlbumEntriesPath(archiveName, commId), newEntries);
     return newEntries;
   }
 
   private AlbumMeta getOrMakeAlbumMeta(final String archiveName, final String albumId) {
-    final AlbumMeta existingEntry = currentTransaction.get().getObject(makeAlbumMetaPath(archiveName, albumId), AlbumMeta.class);
+    final AlbumMeta existingEntry = store.getObject(makeAlbumMetaPath(archiveName, albumId), AlbumMeta.class);
     if (existingEntry != null)
       return existingEntry;
     final AlbumMeta newAlbumMeta = new AlbumMeta();
     newAlbumMeta.setArchiveName(archiveName);
     newAlbumMeta.setAlbumId(albumId);
-    currentTransaction.get().putObject(makeAlbumMetaPath(archiveName, albumId), newAlbumMeta);
+    store.putObject(makeAlbumMetaPath(archiveName, albumId), newAlbumMeta);
     return newAlbumMeta;
   }
 
@@ -714,7 +695,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
       return existingList;
     final AlbumLocalData newList = new AlbumLocalData();
     newList.setMutations(new ArrayList<MutationEntry>());
-    currentTransaction.get().putObject(makeAlbumMutationPath(archiveName, albumId), newList);
+    store.putObject(makeAlbumMutationPath(archiveName, albumId), newList);
     return newList;
   }
 
@@ -971,19 +952,20 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private Cursor
       makeCursorForAlbums(final Collection<AlbumIndex> visibleAlbums, final String[] projection, final boolean alsoSynced) throws SQLException {
-
-    final Collection<AlbumMeta> allEntries =
-                                             currentTransaction.get().readAll(Arrays.asList(Pattern.compile(".*"), Pattern.compile(".*-metadata")),
-                                                                              AlbumMeta.class);
     final Map<AlbumIndex, AlbumMeta> loadedAlbums = new HashMap<AlbumIndex, AlbumMeta>();
-    if (alsoSynced)
-      for (final AlbumMeta albumEntry : allEntries) {
+    if (alsoSynced) {
+      final Collection<String> entryNames =
+                                            store.listRelativePath(Arrays.asList(Pattern.compile(".*"), Pattern.compile(".*-metadata")),
+                                                                   AlbumMeta.class);
+      for (final String relativePath : entryNames) {
+        final AlbumMeta albumEntry = store.getObject(relativePath, AlbumMeta.class);
         final String archiveName = albumEntry.getArchiveName();
         final String albumId = albumEntry.getAlbumId();
         if (!getAlbumMutationList(archiveName, albumId).isSynced())
           continue;
         loadedAlbums.put(new AlbumIndex(archiveName, albumId), albumEntry);
       }
+    }
     for (final AlbumIndex visibleAlbumIndex : visibleAlbums) {
       final AlbumMeta visibleAlbum = getAlbumMeta(visibleAlbumIndex.getArchiveName(), visibleAlbumIndex.getAlbumId());
       if (visibleAlbum != null)
@@ -1206,7 +1188,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private void saveAlbumMeta(final String archiveName, final String commId, final AlbumMeta albumMeta) {
-    currentTransaction.get().putObject(makeAlbumMetaPath(archiveName, commId), albumMeta);
+    store.putObject(makeAlbumMetaPath(archiveName, commId), albumMeta);
   }
 
   private synchronized void startFastPolling() {

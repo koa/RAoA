@@ -1,4 +1,4 @@
-package ch.bergturbenthal.image.provider.service;
+package ch.bergturbenthal.image.provider.store;
 
 public class ConcurrentTransactionException extends RuntimeException {
   private final String file;
