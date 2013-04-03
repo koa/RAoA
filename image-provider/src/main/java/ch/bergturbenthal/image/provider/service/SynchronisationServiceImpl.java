@@ -3,8 +3,11 @@ package ch.bergturbenthal.image.provider.service;
 import java.io.File;
 import java.io.FileFilter;
 import java.net.ConnectException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
+import java.net.NetworkInterface;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.sql.SQLException;
@@ -265,6 +268,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     dnsListener = new MDnsListener(getApplicationContext(), this, executorService);
 
     dataDir = new File(getFilesDir(), "data");
+    ParcelableBackend.checkVersion(dataDir, 1);
     store =
             new FileStorage(Arrays.asList((FileBackend<?>) new ParcelableBackend<AlbumEntries>(dataDir, AlbumEntries.class),
                                           (FileBackend<?>) new ParcelableBackend<AlbumMeta>(dataDir, AlbumMeta.class),
@@ -1023,6 +1027,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   private URL makeUrl(final InetSocketAddress inetSocketAddress) {
     try {
+      final InetAddress targetAddress = inetSocketAddress.getAddress();
+      if (targetAddress instanceof Inet6Address) {
+        final NetworkInterface scopedInterface = ((Inet6Address) targetAddress).getScopedInterface();
+        if (scopedInterface != null) {
+          return new URL("http", inetSocketAddress.getAddress().getHostAddress(), inetSocketAddress.getPort(), "rest");
+        }
+      }
       return new URL("http", inetSocketAddress.getAddress().getHostAddress(), inetSocketAddress.getPort(), "rest");
     } catch (final MalformedURLException e) {
       throw new RuntimeException("Cannot create URL for Socket " + inetSocketAddress, e);

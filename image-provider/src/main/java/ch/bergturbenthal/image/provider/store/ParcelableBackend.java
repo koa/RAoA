@@ -1,10 +1,15 @@
 package ch.bergturbenthal.image.provider.store;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -17,6 +22,58 @@ public class ParcelableBackend<T extends Parcelable> extends AbstractFileBackend
   private static final String SUFFIX = ".parc";
 
   private final Class<T> type;
+  private static String PARCELABLE_VERSION = "parcelable.version";
+
+  public static void checkVersion(final File basePath, final long version) {
+    boolean versionOk = false;
+    final File versionFile = new File(basePath, PARCELABLE_VERSION);
+    if (versionFile.exists()) {
+      try {
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(versionFile), "utf-8"));
+        try {
+          final String versionString = reader.readLine();
+          if (versionString != null) {
+            versionOk = Long.parseLong(versionString) == version;
+          }
+        } finally {
+          reader.close();
+        }
+      } catch (final IOException e) {
+        // cannot read File
+        versionOk = false;
+      } catch (final NumberFormatException e) {
+        // no readable content
+        versionOk = false;
+      }
+    }
+    if (!versionOk) {
+      cleanParcFiles(basePath);
+      try {
+        final PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(versionFile), "utf-8"));
+        try {
+          writer.println(version);
+        } finally {
+          writer.close();
+        }
+      } catch (final IOException e) {
+        throw new RuntimeException("Cannot write version file " + versionFile, e);
+      }
+    }
+  }
+
+  private static void cleanParcFiles(final File basePath) {
+    for (final File file : basePath.listFiles(new FileFilter() {
+      @Override
+      public boolean accept(final File pathname) {
+        return pathname.isDirectory() || pathname.getName().endsWith(SUFFIX);
+      }
+    })) {
+      if (file.isDirectory())
+        cleanParcFiles(file);
+      else
+        file.delete();
+    }
+  }
 
   public ParcelableBackend(final File basePath, final Class<T> type) {
     super(basePath, SUFFIX, new FileSerializer<T>() {
