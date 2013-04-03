@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.util.ObjectUtils;
 
+import android.util.Log;
 import android.util.Pair;
 import ch.bergturbenthal.image.provider.store.FileBackend.CommitExecutor;
 
@@ -25,6 +26,7 @@ public class FileStorage {
     private final Map<Pair<Class<Object>, String>, Object> referencedObjects = new HashMap<Pair<Class<Object>, String>, Object>();
 
     synchronized void commit() {
+      final long start = System.currentTimeMillis();
       try {
         if (rollbackOnly)
           return;
@@ -66,6 +68,9 @@ public class FileStorage {
           }
         }
       } finally {
+        final long time = System.currentTimeMillis() - start;
+        if (time > 50)
+          Log.i("performance commit", "commit of " + referencedObjects.size() + " took " + time + " ms");
         referencedObjects.clear();
         lastModified.clear();
       }

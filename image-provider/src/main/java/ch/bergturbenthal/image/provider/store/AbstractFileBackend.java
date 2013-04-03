@@ -12,6 +12,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import android.util.Log;
+
 public abstract class AbstractFileBackend<T> implements FileBackend<T> {
   protected interface FileSerializer<T> {
     public void writeToFile(final File f, final T value) throws IOException;
@@ -54,6 +56,7 @@ public abstract class AbstractFileBackend<T> implements FileBackend<T> {
 
   @Override
   public T load(final String relativePath) {
+    final long start = System.currentTimeMillis();
     try {
       final File file = resolveFilePath(relativePath);
       if (!file.exists())
@@ -61,6 +64,10 @@ public abstract class AbstractFileBackend<T> implements FileBackend<T> {
       return serializer.readFromFile(file);
     } catch (final IOException e) {
       throw new RuntimeException("Cannot read file " + relativePath, e);
+    } finally {
+      final long time = System.currentTimeMillis() - start;
+      if (time > 50)
+        Log.i("Performance Read", "read of " + relativePath + " took " + time + " ms");
     }
   }
 
