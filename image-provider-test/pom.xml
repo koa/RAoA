@@ -3,7 +3,7 @@
   <parent>
     <groupId>ch.bergturbenthal.image</groupId>
     <artifactId>image-main</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0-SNAPSHOT</version>
   </parent>
   <artifactId>image-provider-test</artifactId>
   <name>Image Provider Test</name>
@@ -22,18 +22,17 @@
     <dependency>
       <groupId>ch.bergturbenthal.image</groupId>
       <artifactId>image-provider</artifactId>
-      <version>0.0.1-SNAPSHOT</version>
+      <version>0.1.0-SNAPSHOT</version>
       <type>apk</type>
     </dependency>
     <dependency>
       <groupId>ch.bergturbenthal.image</groupId>
       <artifactId>image-provider</artifactId>
-      <version>0.0.1-SNAPSHOT</version>
+      <version>0.1.0-SNAPSHOT</version>
       <type>jar</type>
     </dependency>
   </dependencies>
   <build>
-    <sourceDirectory>src</sourceDirectory>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

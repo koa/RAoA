@@ -21,7 +21,6 @@ public class Client {
     public static final String ARCHIVE_NAME = "archiveName";
     public static final String AUTOADD_DATE = "autoAddDate";
     public static final String ENTRY_COUNT = "entryCount";
-    public static final String FULL_NAME = "fullName";
     public static final String ID = "_id";
     public static final String NAME = "name";
     public static final String SHOULD_SYNC = "shouldSync";

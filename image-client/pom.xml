@@ -65,7 +65,7 @@
 	<parent>
 		<groupId>ch.bergturbenthal.image</groupId>
 		<artifactId>image-main</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
+		<version>0.1.0-SNAPSHOT</version>
 	</parent>
 	<dependencies>
 		<dependency>
@@ -88,7 +88,7 @@
 		<dependency>
 			<groupId>ch.bergturbenthal.image</groupId>
 			<artifactId>image-data</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
+			<version>0.1.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 		  <groupId>joda-time</groupId>

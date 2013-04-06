@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>ch.bergturbenthal.image</groupId>
 		<artifactId>image-main</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
+		<version>0.1.0-SNAPSHOT</version>
 	</parent>
 	<artifactId>image-server-war</artifactId>
 	<packaging>war</packaging>
@@ -65,7 +65,7 @@
 		<dependency>
 			<groupId>ch.bergturbenthal.image</groupId>
 			<artifactId>image-server</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
+			<version>0.1.0-SNAPSHOT</version>
 		</dependency>
 	</dependencies>
 </project>
