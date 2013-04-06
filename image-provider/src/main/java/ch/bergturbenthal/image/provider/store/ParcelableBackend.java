@@ -47,6 +47,8 @@ public class ParcelableBackend<T extends Parcelable> extends AbstractFileBackend
       }
     }
     if (!versionOk) {
+      if (!basePath.exists())
+        basePath.mkdirs();
       cleanParcFiles(basePath);
       try {
         final PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(versionFile), "utf-8"));
