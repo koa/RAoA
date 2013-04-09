@@ -1,14 +1,20 @@
 package ch.bergturbenthal.image.provider.service;
 
 import java.io.IOException;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import javax.jmdns.JmDNS;
 import javax.jmdns.JmmDNS;
 import javax.jmdns.NetworkTopologyEvent;
 import javax.jmdns.NetworkTopologyListener;
@@ -20,6 +26,7 @@ import javax.jmdns.impl.JmmDNSImpl;
 import android.content.Context;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.MulticastLock;
+import android.util.Log;
 
 public class MDnsListener {
   public static interface ResultListener {
@@ -34,6 +41,7 @@ public class MDnsListener {
   private final ScheduledExecutorService executorService;
   private ScheduledFuture<?> pendingFuture = null;
   private final ResultListener resultListener;
+  private final Map<InetAddress, JmDNS> runningMdns = new ConcurrentHashMap<InetAddress, JmDNS>();
 
   public MDnsListener(final Context context, final ResultListener resultListener, final ScheduledExecutorService executorService) {
     this.context = context;
@@ -53,11 +61,30 @@ public class MDnsListener {
       public void run() {
         final HashSet<InetSocketAddress> foundEndpoints = new HashSet<InetSocketAddress>();
         synchronized (MDnsListener.this) {
-          final ServiceInfo[] serviceInfos = jmmDNS.list(SERVICE_NAME_URL, 200);
-          for (final ServiceInfo serviceInfo : serviceInfos) {
-            for (final InetAddress hostAddress : serviceInfo.getInetAddresses()) {
-              foundEndpoints.add(new InetSocketAddress(hostAddress, serviceInfo.getPort()));
-            }
+          for (final Entry<InetAddress, JmDNS> interfaceEntry : runningMdns.entrySet()) {
+            final InetAddress localAddress = interfaceEntry.getKey();
+            final JmDNS mdns = interfaceEntry.getValue();
+            final ServiceInfo[] serviceInfos = mdns.list(SERVICE_NAME_URL);
+            if (localAddress instanceof Inet6Address && ((Inet6Address) localAddress).getScopeId() != 0) {
+              final int scopedInterface = ((Inet6Address) localAddress).getScopeId();
+              Log.i(MDNS_TAG, "Scoped Interface: " + scopedInterface);
+              for (final ServiceInfo serviceInfo : serviceInfos) {
+                for (final InetAddress hostAddress : serviceInfo.getInetAddresses()) {
+                  try {
+                    final Inet6Address scopedAddress =
+                                                       Inet6Address.getByAddress(hostAddress.getHostName(), hostAddress.getAddress(), scopedInterface);
+                    foundEndpoints.add(new InetSocketAddress(scopedAddress, serviceInfo.getPort()));
+                  } catch (final UnknownHostException e) {
+                    foundEndpoints.add(new InetSocketAddress(hostAddress, serviceInfo.getPort()));
+                  }
+                }
+              }
+            } else
+              for (final ServiceInfo serviceInfo : serviceInfos) {
+                for (final InetAddress hostAddress : serviceInfo.getInetAddresses()) {
+                  foundEndpoints.add(new InetSocketAddress(hostAddress, serviceInfo.getPort()));
+                }
+              }
           }
         }
         resultListener.notifyServices(foundEndpoints, withProgressUpdate);
@@ -91,11 +118,16 @@ public class MDnsListener {
 
       @Override
       public void inetAddressAdded(final NetworkTopologyEvent event) {
-        jmmDNS.addServiceListener(SERVICE_NAME_URL, listener);
+        Log.i(MDNS_TAG, "Interface found: " + event.getInetAddress());
+        final JmDNS dns = event.getDNS();
+        runningMdns.put(event.getInetAddress(), dns);
+        dns.addServiceListener(SERVICE_NAME_URL, listener);
+        pollForServices(true);
       }
 
       @Override
       public void inetAddressRemoved(final NetworkTopologyEvent event) {
+        runningMdns.remove(event.getInetAddress());
         pollForServices(false);
       }
     });

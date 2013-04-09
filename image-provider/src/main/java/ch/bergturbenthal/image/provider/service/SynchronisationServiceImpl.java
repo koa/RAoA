@@ -7,7 +7,6 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
-import java.net.NetworkInterface;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.sql.SQLException;
@@ -1029,8 +1028,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     try {
       final InetAddress targetAddress = inetSocketAddress.getAddress();
       if (targetAddress instanceof Inet6Address) {
-        final NetworkInterface scopedInterface = ((Inet6Address) targetAddress).getScopedInterface();
-        if (scopedInterface != null) {
+        final int scopedInterface = ((Inet6Address) targetAddress).getScopeId();
+        if (scopedInterface != 0) {
           return new URL("http", inetSocketAddress.getAddress().getHostAddress(), inetSocketAddress.getPort(), "rest");
         }
       }
