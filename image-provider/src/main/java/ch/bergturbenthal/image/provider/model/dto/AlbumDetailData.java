@@ -9,20 +9,17 @@ import java.util.Collection;
 import android.os.Parcel;
 import android.os.Parcelable;
 import ch.bergturbenthal.image.data.model.MutationEntry;
-import ch.bergturbenthal.image.provider.util.ParcelUtil;
 
 /**
  * TODO: add type comment.
  * 
  */
-public class AlbumLocalData implements Parcelable {
-  public static Parcelable.Creator<AlbumLocalData> CREATOR = new Creator<AlbumLocalData>() {
+public class AlbumDetailData implements Parcelable {
+  public static Parcelable.Creator<AlbumDetailData> CREATOR = new Creator<AlbumDetailData>() {
 
     @Override
-    public AlbumLocalData createFromParcel(final Parcel source) {
-      final AlbumLocalData ret = new AlbumLocalData();
-      ret.setShouldSync(ParcelUtil.readBoolean(source));
-      ret.setSynced(ParcelUtil.readBoolean(source));
+    public AlbumDetailData createFromParcel(final Parcel source) {
+      final AlbumDetailData ret = new AlbumDetailData();
       final ArrayList<MutationEntry> mutationList = new ArrayList<MutationEntry>();
       source.readList(mutationList, ret.getClass().getClassLoader());
       ret.setMutations(mutationList);
@@ -30,14 +27,11 @@ public class AlbumLocalData implements Parcelable {
     }
 
     @Override
-    public AlbumLocalData[] newArray(final int size) {
-      return new AlbumLocalData[size];
+    public AlbumDetailData[] newArray(final int size) {
+      return new AlbumDetailData[size];
     }
   };
   private Collection<MutationEntry> mutations;
-
-  private boolean synced;
-  private boolean shouldSync;
 
   @Override
   public int describeContents() {
@@ -53,7 +47,7 @@ public class AlbumLocalData implements Parcelable {
       return false;
     if (getClass() != obj.getClass())
       return false;
-    final AlbumLocalData other = (AlbumLocalData) obj;
+    final AlbumDetailData other = (AlbumDetailData) obj;
     if (mutations == null) {
       if (other.mutations != null)
         return false;
@@ -80,24 +74,6 @@ public class AlbumLocalData implements Parcelable {
   }
 
   /**
-   * Returns the shouldSync.
-   * 
-   * @return the shouldSync
-   */
-  public boolean isShouldSync() {
-    return shouldSync;
-  }
-
-  /**
-   * Returns the synced.
-   * 
-   * @return the synced
-   */
-  public boolean isSynced() {
-    return synced;
-  }
-
-  /**
    * Sets the mutations.
    * 
    * @param mutations
@@ -107,26 +83,6 @@ public class AlbumLocalData implements Parcelable {
     this.mutations = mutations;
   }
 
-  /**
-   * Sets the shouldSync.
-   * 
-   * @param shouldSync
-   *          the shouldSync to set
-   */
-  public void setShouldSync(final boolean shouldSync) {
-    this.shouldSync = shouldSync;
-  }
-
-  /**
-   * Sets the synced.
-   * 
-   * @param synced
-   *          the synced to set
-   */
-  public void setSynced(final boolean synced) {
-    this.synced = synced;
-  }
-
   @Override
   public String toString() {
     return "MutationList [mutations=" + mutations + "]";
@@ -134,8 +90,6 @@ public class AlbumLocalData implements Parcelable {
 
   @Override
   public void writeToParcel(final Parcel dest, final int flags) {
-    ParcelUtil.writeBoolean(dest, shouldSync);
-    ParcelUtil.writeBoolean(dest, synced);
     dest.writeList(new ArrayList<MutationEntry>(mutations));
   }
 }
