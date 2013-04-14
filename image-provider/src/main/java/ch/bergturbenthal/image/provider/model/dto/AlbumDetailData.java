@@ -31,7 +31,7 @@ public class AlbumDetailData implements Parcelable {
       return new AlbumDetailData[size];
     }
   };
-  private Collection<MutationEntry> mutations;
+  private Collection<MutationEntry> mutations = new ArrayList<MutationEntry>();
 
   @Override
   public int describeContents() {

@@ -20,6 +20,12 @@ import android.util.Pair;
 import ch.bergturbenthal.image.provider.store.FileBackend.CommitExecutor;
 
 public class FileStorage {
+  public static enum ReadPolicy {
+    READ_ONLY,
+    READ_IF_EXISTS,
+    READ_OR_CREATE
+  }
+
   private class Transaction {
     private boolean rollbackOnly = false;
     private final Map<Pair<Class<Object>, String>, Date> lastModified = new HashMap<Pair<Class<Object>, String>, Date>();
@@ -155,24 +161,21 @@ public class FileStorage {
     }
   }
 
-  public <D> D getObject(final String relativePath, final Class<D> type) {
-    return currentTransaction.get().getObject(relativePath, type);
-  }
-
-  @SuppressWarnings("unchecked")
-  public <D> D getObjectReadOnly(final String relativePath, final Class<D> type) {
-    final Pair<Class<Object>, String> key = new Pair<Class<Object>, String>((Class<Object>) type, relativePath);
-    final WeakReference<D> existingEntry = (WeakReference<D>) readOnlyCache.get(key);
-    if (existingEntry != null && existingEntry.get() != null)
-      return existingEntry.get();
-    synchronized (readOnlyCache) {
-      final WeakReference<D> betweenLoadedEntry = (WeakReference<D>) readOnlyCache.get(key);
-      if (betweenLoadedEntry != null && betweenLoadedEntry.get() != null)
-        return betweenLoadedEntry.get();
-      final D loaded = getBackend(type).load(relativePath);
-      readOnlyCache.put(key, new WeakReference<Object>(loaded));
-      return loaded;
+  public <D> D getObject(final String relativePath, final Class<D> type, final ReadPolicy policy) {
+    if (policy == ReadPolicy.READ_ONLY)
+      return getObjectReadOnly(relativePath, type);
+    final Transaction transaction = currentTransaction.get();
+    final D currentObject = transaction.getObject(relativePath, type);
+    if (currentObject != null || policy == ReadPolicy.READ_IF_EXISTS)
+      return currentObject;
+    D newInstance;
+    try {
+      newInstance = type.newInstance();
+    } catch (final Throwable e) {
+      throw new RuntimeException("Cannot instanciate " + type + " for storing at " + relativePath);
     }
+    transaction.putObject(relativePath, newInstance);
+    return newInstance;
   }
 
   public <D> Collection<String> listRelativePath(final List<Pattern> pathPatterns, final Class<D> type) {
@@ -186,5 +189,21 @@ public class FileStorage {
   @SuppressWarnings("unchecked")
   private <T> FileBackend<T> getBackend(final Class<T> type) {
     return (FileBackend<T>) registeredBackends.get(type);
+  }
+
+  @SuppressWarnings("unchecked")
+  private <D> D getObjectReadOnly(final String relativePath, final Class<D> type) {
+    final Pair<Class<Object>, String> key = new Pair<Class<Object>, String>((Class<Object>) type, relativePath);
+    final WeakReference<D> existingEntry = (WeakReference<D>) readOnlyCache.get(key);
+    if (existingEntry != null && existingEntry.get() != null)
+      return existingEntry.get();
+    synchronized (readOnlyCache) {
+      final WeakReference<D> betweenLoadedEntry = (WeakReference<D>) readOnlyCache.get(key);
+      if (betweenLoadedEntry != null && betweenLoadedEntry.get() != null)
+        return betweenLoadedEntry.get();
+      final D loaded = getBackend(type).load(relativePath);
+      readOnlyCache.put(key, new WeakReference<Object>(loaded));
+      return loaded;
+    }
   }
 }
