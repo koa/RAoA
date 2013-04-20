@@ -3,7 +3,6 @@
  */
 package ch.bergturbenthal.image.server.model;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -16,5 +15,5 @@ import lombok.Data;
 @Data
 public class ArchiveData {
   private String archiveName;
-  private final Map<String, Collection<String>> albumPerStorage = new TreeMap<String, Collection<String>>();
+  private final Map<String, StorageData> storages = new TreeMap<>();
 }

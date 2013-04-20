@@ -154,6 +154,18 @@ public class AlbumImage {
     return loadedMetaData;
   }
 
+  public long getAllFilesSize() {
+    long totalSize = file.length();
+    final File thumbnailSize = makeCachedFile();
+    if (thumbnailSize.exists()) {
+      totalSize += thumbnailSize.length();
+    }
+    final File xmpSideFile = getXmpSideFile();
+    if (xmpSideFile.exists())
+      totalSize += xmpSideFile.length();
+    return totalSize;
+  }
+
   public String getName() {
     return file.getName();
   }
