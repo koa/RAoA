@@ -304,7 +304,7 @@ public class RepositoryServiceImpl implements RepositoryService {
       existingConfictBranches.add(entry.getKey().substring(CONFLICT_BRANCH_PREFIX.length()));
     }
     while (iterator.hasNext()) {
-      final String nextCandidate = serverName + "/" + iterator.next();
+      final String nextCandidate = serverName.replace(' ', '_') + "/" + iterator.next();
       if (!existingConfictBranches.contains(nextCandidate))
         return nextCandidate;
     }
