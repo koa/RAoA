@@ -83,6 +83,8 @@ import ch.bergturbenthal.image.data.model.AlbumEntry;
 import ch.bergturbenthal.image.data.model.AlbumList;
 import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.data.model.PingResponse;
+import ch.bergturbenthal.image.data.model.StorageEntry;
+import ch.bergturbenthal.image.data.model.StorageList;
 import ch.bergturbenthal.image.data.model.state.ProgressType;
 import ch.bergturbenthal.image.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.image.server.metadata.MetadataWrapper;
@@ -99,10 +101,10 @@ import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
 
-public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveConfiguration, FileNotification, ApplicationContextAware {
+public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfiguration, ArchiveConfiguration, FileNotification,
+    ApplicationContextAware {
   private static final String CLIENTID_FILENAME = ".clientid";
   private static final String SERVICE_TYPE = "_images._tcp.local.";
-  private static final String INSTANCE_NAME_PREFERENCE = "instanceName";
   private static final String ALBUM_PATH_PREFERENCE = "album_path";
   private static final String IMPORT_BASE_PATH_REFERENCE = "import_base_path";
   private static final String META_CACHE = "cache";
@@ -306,6 +308,32 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
   @Override
   public Map<String, Album> listAlbums() {
     return loadAlbums(false);
+  }
+
+  @Override
+  public synchronized StorageList listKnownStorage() {
+    final StorageList storageList = new StorageList();
+    final Map<String, StorageData> storages = archiveData.getStorages();
+    for (final Entry<String, StorageData> storageEntry : storages.entrySet()) {
+      final String name = storageEntry.getKey();
+      final StorageEntry entry = new StorageEntry();
+      entry.setStorageName(name);
+      entry.setStorageId(Util.encodeStringForUrl(name));
+      final StorageData storageData = storageEntry.getValue();
+      final int mBytesAvailable = storageData.getMBytesAvailable();
+      if (mBytesAvailable != Integer.MAX_VALUE)
+        entry.setMBytesAvailable((long) mBytesAvailable);
+      for (final String albumName : storageData.getAlbumList()) {
+        entry.getAlbumList().add(Util.encodeStringForUrl(albumName));
+      }
+      storageList.getClients().add(entry);
+    }
+    try {
+      storageList.setVersion(metaGit.getRepository().getRef("refs/heads/master").getObjectId().name());
+    } catch (final IOException e) {
+      throw new RuntimeException("Cannot read head-reference from metadata-repository");
+    }
+    return storageList;
   }
 
   public ArchiveData loadMetaConfigFile(final File configFile) {
