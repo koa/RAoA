@@ -1091,7 +1091,8 @@ public class FileAlbumAccess implements AlbumAccess, FileConfiguration, ArchiveC
     try {
       mapper.writerWithDefaultPrettyPrinter().writeValue(getConfigFile(), archiveData);
       metaGit.add().addFilepattern(".").call();
-      metaGit.commit().setMessage(message).call();
+      if (!metaGit.status().call().isClean())
+        metaGit.commit().setMessage(message).call();
     } catch (final IOException e) {
       throw new RuntimeException("Cannot update Metadata", e);
     } catch (final GitAPIException e) {
