@@ -195,10 +195,10 @@ public class RepositoryServiceImpl implements RepositoryService {
     try {
       @Cleanup
       final CloseableProgressMonitor monitor = stateManager.makeProgressMonitor();
-      localRepo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("HEAD")).setProgressMonitor(monitor).call();
+      localRepo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("refs/heads/master")).setProgressMonitor(monitor).call();
       final Repository repository = localRepo.getRepository();
       final Ref fetchHead = repository.getRef("FETCH_HEAD");
-      final Ref headBefore = repository.getRef("HEAD");
+      final Ref headBefore = repository.getRef("refs/heads/master");
       final MergeResult mergeResult = localRepo.merge().include(fetchHead).call();
       final MergeStatus mergeStatus = mergeResult.getMergeStatus();
       if (!mergeStatus.isSuccessful()) {
@@ -263,9 +263,7 @@ public class RepositoryServiceImpl implements RepositoryService {
       final boolean localModified = remoteHasHead ? pull(localRepository, externalDir.toURI().toString(), remoteName) : false;
       final String remoteUri = localRepository.getRepository().getWorkTree().toURI().toString();
       if (bare) {
-        final Iterable<PushResult> pushResults =
-                                                 localRepository.push().setRemote(remoteUri)
-                                                                .setRefSpecs(new RefSpec("refs/heads/master:refs/heads/master")).call();
+        final Iterable<PushResult> pushResults = localRepository.push().setRemote(remoteUri).setRefSpecs(new RefSpec("refs/heads/master")).call();
         boolean pushOk = true;
         for (final PushResult pushResult : pushResults) {
           for (final RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
@@ -277,6 +275,12 @@ public class RepositoryServiceImpl implements RepositoryService {
           final String conflictBranchName = findNextFreeConflictBranch(externalRepository, localName, new InfiniteCountIterator());
           localRepository.push().setRemote(remoteUri)
                          .setRefSpecs(new RefSpec("refs/heads/master:refs/heads/conflict/" + localName + "/" + conflictBranchName)).call();
+        } else {
+          final ObjectId localHeadId = localRepository.getRepository().getRef("refs/heads/master").getObjectId();
+          final ObjectId remoteHeadId = externalRepository.getRepository().getRef("refs/heads/master").getObjectId();
+          if (!localHeadId.equals(remoteHeadId)) {
+            logger.error("Push error at " + externalDir);
+          }
         }
       } else {
         pull(externalRepository, remoteUri, localName);
