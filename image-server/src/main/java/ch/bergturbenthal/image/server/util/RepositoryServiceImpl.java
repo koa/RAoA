@@ -195,7 +195,11 @@ public class RepositoryServiceImpl implements RepositoryService {
     try {
       @Cleanup
       final CloseableProgressMonitor monitor = stateManager.makeProgressMonitor();
-      localRepo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("refs/heads/master")).setProgressMonitor(monitor).call();
+      try {
+        localRepo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("refs/heads/master")).setProgressMonitor(monitor).call();
+      } catch (final GitAPIException ex) {
+        logger.warn("Cannte fetch head from " + remoteUri, ex);
+      }
       final Repository repository = localRepo.getRepository();
       final Ref fetchHead = repository.getRef("FETCH_HEAD");
       final Ref headBefore = repository.getRef("refs/heads/master");
@@ -261,9 +265,9 @@ public class RepositoryServiceImpl implements RepositoryService {
       }
       final boolean remoteHasHead = externalRepository.getRepository().resolve("HEAD") != null;
       final boolean localModified = remoteHasHead ? pull(localRepository, externalDir.toURI().toString(), remoteName) : false;
-      final String remoteUri = localRepository.getRepository().getWorkTree().toURI().toString();
+      final String remoteUri = externalDir.toURI().toString();
       if (bare) {
-        final Iterable<PushResult> pushResults = localRepository.push().setRemote(remoteUri).setRefSpecs(new RefSpec("refs/heads/master")).call();
+        final Iterable<PushResult> pushResults = localRepository.push().setRemote(remoteUri).setRefSpecs(new RefSpec("master:master")).call();
         boolean pushOk = true;
         for (final PushResult pushResult : pushResults) {
           for (final RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
