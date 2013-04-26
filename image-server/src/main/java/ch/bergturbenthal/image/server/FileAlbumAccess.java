@@ -34,6 +34,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
@@ -76,6 +77,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.http.HttpStatus.Series;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -117,6 +119,8 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
   @Autowired
   private RepositoryService repositoryService;
   private ExecutorService safeExecutorService;
+  private final ExecutorService syncExecutorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(),
+                                                                                   new CustomizableThreadFactory("sync-thread"));
 
   private File importBaseDir;
   private final String instanceId = UUID.randomUUID().toString();
@@ -663,9 +667,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
   private Collection<String> evaluateRepositoriesToSync(final String instanceName, final Set<String> existingRepositories, final ArchiveData config) {
     final Collection<String> ret = new HashSet<>(existingRepositories);
     if (config != null && config.getStorages().containsKey(instanceName)) {
-      final Collection<String> configuredToFetch = config.getStorages().get(instanceName).getAlbumList();
-      if (configuredToFetch != null) {
-        ret.retainAll(configuredToFetch);
+      final StorageData storageData = config.getStorages().get(instanceName);
+      if (!storageData.isTakeAllRepositories()) {
+        ret.retainAll(storageData.getAlbumList());
       }
     }
     return ret;
@@ -999,36 +1003,49 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
         existingRemoteDirectories.put(relativeName, file);
       }
       final Map<String, Album> existingLocalAlbums = new HashMap<>();
-      for (final Album album : listAlbums().values()) {
+      for (final Album album : loadAlbums(true).values()) {
         existingLocalAlbums.put(album.getName(), album);
       }
       final Collection<String> albumsToSync = evaluateRepositoriesToSync(localName, existingRemoteDirectories.keySet(), archiveData);
       albumsToSync.addAll(evaluateRepositoriesToSync(remoteName, existingLocalAlbums.keySet(), remoteConfig));
       @Cleanup
       final ProgressHandler progress = stateManager.newProgress(albumsToSync.size(), ProgressType.SYNC_LOCAL_DISC, remoteName);
+      final Collection<Callable<Void>> tasks = new ArrayList<>(albumsToSync.size());
       for (final String albumName : albumsToSync) {
-        @Cleanup
-        final Closeable albumStep = progress.notfiyProgress(albumName);
-        final Album localAlbumForRemote = existingLocalAlbums.get(albumName);
-        final File remoteDir = existingRemoteDirectories.get(albumName);
-        if (localAlbumForRemote == null) {
-          if (remoteDir != null) {
-            final File albumDir = new File(getBaseDir(), albumName);
+        tasks.add(new Callable<Void>() {
+
+          @Override
+          public Void call() throws Exception {
             try {
-              appendAlbum(loadedAlbums, albumDir, remoteDir.toURI().toString(), remoteName);
-            } catch (final Exception e) {
-              logger.warn("Cannot read Repository " + path, e);
-              // cleanup failed repository
-              for (final File file : (Collection<File>) FileUtils.listFiles(albumDir, null, true)) {
-                file.setWritable(true, false);
+              @Cleanup
+              final Closeable albumStep = progress.notfiyProgress(albumName);
+              final Album localAlbumForRemote = existingLocalAlbums.get(albumName);
+              final File remoteDir = existingRemoteDirectories.get(albumName);
+              if (localAlbumForRemote == null) {
+                if (remoteDir != null) {
+                  final File albumDir = new File(getBaseDir(), albumName);
+                  try {
+                    appendAlbum(loadedAlbums, albumDir, remoteDir.toURI().toString(), remoteName);
+                  } catch (final Exception e) {
+                    logger.warn("Cannot read Repository " + path, e);
+                    // cleanup failed repository
+                    for (final File file : (Collection<File>) FileUtils.listFiles(albumDir, null, true)) {
+                      file.setWritable(true, false);
+                    }
+                    FileUtils.deleteDirectory(albumDir);
+                  }
+                }
+              } else {
+                localAlbumForRemote.sync(new File(path, makeRepositoryDirectoryName(bare, albumName)), localName, remoteName, bare);
               }
-              FileUtils.deleteDirectory(albumDir);
+            } catch (final IOException ex) {
+              throw new RuntimeException("Cannot synchronize " + albumName + " to " + path, ex);
             }
+            return null;
           }
-        } else {
-          localAlbumForRemote.sync(new File(path, makeRepositoryDirectoryName(bare, albumName)), localName, remoteName, bare);
-        }
+        });
       }
+      syncExecutorService.invokeAll(tasks);
       long syncedSize = 0;
       for (final Album album : listAlbums().values()) {
         if (albumsToSync.contains(album.getName())) {
