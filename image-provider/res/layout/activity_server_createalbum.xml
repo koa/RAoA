@@ -39,18 +39,23 @@
 
     <LinearLayout
         android:id="@+id/timeLayout"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content" >
 
         <CalendarView
             android:id="@+id/selectDate"
-            android:layout_width="120dp"
-            android:layout_height="match_parent" />
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="fill_horizontal"
+            android:layout_weight="1" />
 
         <TimePicker
             android:id="@+id/selectTime"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_weight="1" />
+
     </LinearLayout>
 
     <Button
