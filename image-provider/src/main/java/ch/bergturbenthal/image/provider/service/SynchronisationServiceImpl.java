@@ -485,7 +485,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
     final int updatedCount = callInTransaction(new Callable<Integer>() {
       @Override
       public Integer call() throws Exception {
-        final AlbumDetailData albumMeta = store.getAlbumDetail(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
+        final AlbumMeta albumMeta = store.getAlbumMeta(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
         final AlbumState albumState = store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
         if (albumMeta == null)
           return Integer.valueOf(0);
