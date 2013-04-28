@@ -211,8 +211,8 @@
     </repository>
     <repository>
       <id>manipulated-3rd-party</id>
-      <name>Neptun-releases</name>
-      <url>http://neptun.berg-turbenthal.ch/content/repositories/thirdparty/</url>
+      <name>Manipulated and other downloaded Files</name>
+      <url>http://nexus.berg-turbenthal.ch/content/repositories/thirdparty/</url>
     </repository>
     <repository>
       <id>android-rome-feed-reader-repository</id>
