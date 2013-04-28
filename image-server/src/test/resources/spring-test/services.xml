@@ -22,6 +22,7 @@
         <constructor-arg value="${project.build.testOutputDirectory}/photos"></constructor-arg>
       </bean>
     </property>
+    <property name="instanceName" value="unit-test-server"/>
   </bean>
   <bean class="ch.bergturbenthal.image.server.state.StateManagerImpl" />
   <bean class="ch.bergturbenthal.image.server.util.RepositoryServiceImpl" />
