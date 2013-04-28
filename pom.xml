@@ -10,7 +10,7 @@
     <module>image-server</module>
     <module>image-data</module>
     <module>image-provider</module>
-    <!-- <module>image-provider-test</module> -->
+    <module>image-provider-test</module>
     <module>image-provider-api</module>
     <module>image-server-standalone</module>
     <module>image-server-war</module>
