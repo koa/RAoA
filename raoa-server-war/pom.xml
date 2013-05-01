@@ -2,13 +2,13 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>ch.bergturbenthal.image</groupId>
-    <artifactId>image-main</artifactId>
+    <groupId>ch.bergturbenthal.raoa</groupId>
+    <artifactId>raoa-main</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
-  <artifactId>image-server-war</artifactId>
+  <artifactId>raoa-server-war</artifactId>
   <packaging>war</packaging>
-  <name>Image Server WAR</name>
+  <name>RAoA Server WAR</name>
   <description>War-File for Server-Install</description>
   <build>
     <plugins>
@@ -70,8 +70,8 @@
   </build>
   <dependencies>
     <dependency>
-      <groupId>ch.bergturbenthal.image</groupId>
-      <artifactId>image-server</artifactId>
+      <groupId>ch.bergturbenthal.raoa</groupId>
+      <artifactId>raoa-server</artifactId>
       <version>0.1.0-SNAPSHOT</version>
     </dependency>
   </dependencies>
