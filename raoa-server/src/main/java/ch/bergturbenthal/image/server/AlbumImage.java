@@ -46,6 +46,20 @@ public class AlbumImage {
 
   private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
 
+  private final File cacheDir;
+
+  private final AlbumManager albumManager;
+
+  private final File file;
+
+  @Autowired
+  private ImageThumbnailMaker imageThumbnailMaker;
+
+  private final Date lastModified;
+
+  @Autowired
+  private VideoThumbnailMaker videoThumbnailMaker;
+
   public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
     synchronized (lockFor(file)) {
       final SoftReference<AlbumImage> softReference = loadedImages.get(file);
@@ -68,20 +82,6 @@ public class AlbumImage {
     imageLocks.put(file, newLock);
     return newLock;
   }
-
-  private final File cacheDir;
-
-  private final AlbumManager albumManager;
-
-  private final File file;
-
-  @Autowired
-  private ImageThumbnailMaker imageThumbnailMaker;
-
-  private final Date lastModified;
-
-  @Autowired
-  private VideoThumbnailMaker videoThumbnailMaker;
 
   private AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
     this.file = file;

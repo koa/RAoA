@@ -9,6 +9,14 @@ public class ImageResult {
     InputStream getInputStream() throws IOException;
   }
 
+  private final Date lastModified;
+
+  private final StreamSource dataStream;
+
+  private final Date created;
+  private final boolean modified;
+  private final String mimeType;
+
   public static ImageResult makeModifiedResult(final Date lastModified, final Date created, final StreamSource dataStream, final String mimeType) {
     return new ImageResult(lastModified, created, dataStream, mimeType, true);
   }
@@ -16,12 +24,6 @@ public class ImageResult {
   public static ImageResult makeNotModifiedResult() {
     return new ImageResult(null, null, null, null, false);
   }
-
-  private final Date lastModified;
-  private final StreamSource dataStream;
-  private final Date created;
-  private final boolean modified;
-  private final String mimeType;
 
   private ImageResult(final Date lastModified, final Date created, final StreamSource dataStream, final String mimeType, final boolean modified) {
     super();

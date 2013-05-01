@@ -25,6 +25,12 @@ public class PicasaIniData {
   private static Logger logger = LoggerFactory.getLogger(PicasaIniData.class);
   private static Pattern sectionPattern = Pattern.compile("\\[([a-zA-Z0-9\\.-_]+)\\]");
 
+  private boolean star = false;
+
+  private String caption;
+
+  private Collection<String> keywords = new LinkedHashSet<>();
+
   public static Map<String, PicasaIniData> parseIniFile(final File baseDir) {
     final File[] foundFiles = baseDir.listFiles(new FilenameFilter() {
 
@@ -82,10 +88,6 @@ public class PicasaIniData {
     ret.put(currentGroup, newValue);
     return newValue;
   }
-
-  private boolean star = false;
-  private String caption;
-  private Collection<String> keywords = new LinkedHashSet<>();
 
   public void appendKeywords(final String commaSeparatedKeywords) {
     for (final String word : commaSeparatedKeywords.split(",")) {

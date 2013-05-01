@@ -17,20 +17,20 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 public class FileWatcher implements Closeable {
-  public static FileWatcher createWatcher(final File basePath) {
-    return new FileWatcher(basePath);
-  }
-
   private WatchService watchService;
+
   private Thread watcherThread;
   private static Logger logger = LoggerFactory.getLogger(FileWatcher.class);
   @Autowired
   private ExecutorService executorService;
-
   private final File basePath;
 
   @Autowired
   private DirectoryNotificationService notificationService;
+
+  public static FileWatcher createWatcher(final File basePath) {
+    return new FileWatcher(basePath);
+  }
 
   public FileWatcher(final File basePath) {
     this.basePath = basePath;

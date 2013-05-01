@@ -8,15 +8,15 @@ import ch.bergturbenthal.image.data.model.MutationEntry;
 import ch.bergturbenthal.image.provider.model.dto.AlbumDto;
 
 public interface AlbumConnection {
-  Collection<String> connectedServers();
+	Collection<String> connectedServers();
 
-  AlbumDto getAlbumDetail();
+	AlbumDto getAlbumDetail();
 
-  String getCommId();
+	String getCommId();
 
-  boolean readThumbnail(final String fileId, final File tempFile, final File targetFile);
+	boolean readThumbnail(final String fileId, final File tempFile, final File targetFile);
 
-  Date lastModified();
+	Date lastModified();
 
-  void updateMetadata(final Collection<MutationEntry> updateEntries);
+	void updateMetadata(final Collection<MutationEntry> updateEntries);
 }

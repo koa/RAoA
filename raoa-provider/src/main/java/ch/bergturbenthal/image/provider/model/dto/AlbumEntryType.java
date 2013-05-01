@@ -8,7 +8,6 @@ package ch.bergturbenthal.image.provider.model.dto;
  * 
  */
 public enum AlbumEntryType {
-  VIDEO,
-  IMAGE
+	IMAGE, VIDEO
 
 }

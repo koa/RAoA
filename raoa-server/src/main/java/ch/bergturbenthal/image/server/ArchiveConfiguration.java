@@ -5,7 +5,7 @@ public interface ArchiveConfiguration {
 
   String getInstanceName();
 
-  void setArchiveName(String archiveName);
+  void setArchiveName(final String archiveName);
 
-  void setInstanceName(String instanceName);
+  void setInstanceName(final String instanceName);
 }

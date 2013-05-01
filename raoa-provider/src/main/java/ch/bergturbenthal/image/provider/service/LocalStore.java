@@ -20,63 +20,62 @@ import ch.bergturbenthal.image.provider.store.ParcelableBackend;
 
 public class LocalStore {
 
-  private static final String METADATA_SUFFIX = "-metadata";
-  private final FileStorage store;
+	private static final String METADATA_SUFFIX = "-metadata";
+	private final FileStorage store;
 
-  @SuppressWarnings("unchecked")
-  public LocalStore(final File dataDir) {
-    ParcelableBackend.checkVersion(dataDir, 3);
-    store =
-            new FileStorage(Arrays.asList((FileBackend<?>) new ParcelableBackend<AlbumEntries>(dataDir, AlbumEntries.class),
-                                          (FileBackend<?>) new ParcelableBackend<AlbumMeta>(dataDir, AlbumMeta.class),
-                                          (FileBackend<?>) new ParcelableBackend<AlbumDetailData>(dataDir, AlbumDetailData.class),
-                                          (FileBackend<?>) new JacksonBackend<AlbumState>(dataDir, AlbumState.class)
+	@SuppressWarnings("unchecked")
+	public LocalStore(final File dataDir) {
+		ParcelableBackend.checkVersion(dataDir, 3);
+		store = new FileStorage(Arrays.asList((FileBackend<?>) new ParcelableBackend<AlbumEntries>(dataDir, AlbumEntries.class),
+																					(FileBackend<?>) new ParcelableBackend<AlbumMeta>(dataDir, AlbumMeta.class),
+																					(FileBackend<?>) new ParcelableBackend<AlbumDetailData>(dataDir, AlbumDetailData.class),
+																					(FileBackend<?>) new JacksonBackend<AlbumState>(dataDir, AlbumState.class)
 
-            ));
+		));
 
-  }
+	}
 
-  public <V> V callInTransaction(final Callable<V> callable) {
-    return store.callInTransaction(callable);
-  }
+	public <V> V callInTransaction(final Callable<V> callable) {
+		return store.callInTransaction(callable);
+	}
 
-  public AlbumEntries getAlbumEntries(final String archiveName, final String albumId, final ReadPolicy policy) {
-    return store.getObject(archiveName + "/" + albumId + "-entries", AlbumEntries.class, policy);
-  }
+	public AlbumDetailData getAlbumDetail(final String archiveName, final String albumId, final ReadPolicy policy) {
+		return store.getObject(archiveName + "/" + albumId + "-detail", AlbumDetailData.class, policy);
+	}
 
-  public AlbumDetailData getAlbumDetail(final String archiveName, final String albumId, final ReadPolicy policy) {
-    return store.getObject(archiveName + "/" + albumId + "-detail", AlbumDetailData.class, policy);
-  }
+	public AlbumEntries getAlbumEntries(final String archiveName, final String albumId, final ReadPolicy policy) {
+		return store.getObject(archiveName + "/" + albumId + "-entries", AlbumEntries.class, policy);
+	}
 
-  public AlbumMeta getAlbumMeta(final String archiveName, final String albumId, final ReadPolicy policy) {
-    final AlbumMeta value = store.getObject(archiveName + "/" + albumId + METADATA_SUFFIX, AlbumMeta.class, policy);
-    if (policy == ReadPolicy.READ_OR_CREATE) {
-      value.setArchiveName(archiveName);
-      value.setAlbumId(albumId);
-    }
-    return value;
-  }
+	public AlbumMeta getAlbumMeta(final String archiveName, final String albumId, final ReadPolicy policy) {
+		final AlbumMeta value = store.getObject(archiveName + "/" + albumId + METADATA_SUFFIX, AlbumMeta.class, policy);
+		if (policy == ReadPolicy.READ_OR_CREATE) {
+			value.setArchiveName(archiveName);
+			value.setAlbumId(albumId);
+		}
+		return value;
+	}
 
-  public AlbumState getAlbumState(final String archiveName, final String albumId, final ReadPolicy policy) {
-    final String relativePath = archiveName + "/" + albumId + "-state";
-    return store.getObject(relativePath, AlbumState.class, policy);
-  }
+	public AlbumState getAlbumState(final String archiveName, final String albumId, final ReadPolicy policy) {
+		final String relativePath = archiveName + "/" + albumId + "-state";
+		return store.getObject(relativePath, AlbumState.class, policy);
+	}
 
-  public Collection<Pair<String, String>> listAlbumMeta() {
-    final Collection<String> foundPath =
-                                         store.listRelativePath(Arrays.asList(Pattern.compile(".*"), Pattern.compile(".*" + METADATA_SUFFIX)),
-                                                                AlbumMeta.class);
-    final ArrayList<Pair<String, String>> ret = new ArrayList<Pair<String, String>>(foundPath.size());
-    for (final String string : foundPath) {
-      final String[] parts = string.split("/", 2);
-      if (parts.length != 2)
-        continue;
-      final String filename = parts[1];
-      if (!filename.endsWith(METADATA_SUFFIX))
-        continue;
-      ret.add(new Pair<String, String>(parts[0], filename.substring(0, filename.length() - METADATA_SUFFIX.length())));
-    }
-    return ret;
-  }
+	public Collection<Pair<String, String>> listAlbumMeta() {
+		final Collection<String> foundPath = store.listRelativePath(Arrays.asList(Pattern.compile(".*"), Pattern.compile(".*" + METADATA_SUFFIX)), AlbumMeta.class);
+		final ArrayList<Pair<String, String>> ret = new ArrayList<Pair<String, String>>(foundPath.size());
+		for (final String string : foundPath) {
+			final String[] parts = string.split("/", 2);
+			if (parts.length != 2) {
+				continue;
+			}
+			final String filename = parts[1];
+			if (!filename.endsWith(METADATA_SUFFIX)) {
+				continue;
+			}
+			ret.add(new Pair<String, String>(parts[0], filename.substring(0, filename.length() - METADATA_SUFFIX.length())));
+		}
+		return ret;
+	}
 
 }

@@ -1,13 +1,13 @@
 package ch.bergturbenthal.image.provider.map;
 
 public interface FieldReader<V> {
-  Number getNumber(V value);
+	Number getNumber(final V value);
 
-  String getString(V value);
+	String getString(final V value);
 
-  int getType();
+	int getType();
 
-  Object getValue(V value);
+	Object getValue(final V value);
 
-  boolean isNull(V value);
+	boolean isNull(final V value);
 }

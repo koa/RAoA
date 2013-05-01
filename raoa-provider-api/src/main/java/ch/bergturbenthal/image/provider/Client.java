@@ -110,6 +110,8 @@ public class Client {
   public static final Uri ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
   public static final Uri SERVER_URI = Uri.parse("content://" + AUTHORITY + "/servers");
 
+  private final ContentResolver provider;
+
   public static Uri makeAlbumEntriesUri(final String archiveName, final String albumId) {
     final Builder builder = ALBUM_URI.buildUpon();
     builder.appendPath(archiveName);
@@ -167,8 +169,6 @@ public class Client {
     builder.appendPath("thumbnail");
     return builder.build();
   }
-
-  private final ContentResolver provider;
 
   public Client(final ContentResolver provider) {
     this.provider = provider;

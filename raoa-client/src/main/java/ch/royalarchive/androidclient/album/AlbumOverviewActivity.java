@@ -12,7 +12,6 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import android.widget.SimpleCursorAdapter;
-import android.widget.Toast;
 import ch.bergturbenthal.image.provider.Client;
 import ch.royalarchive.androidclient.R;
 import ch.royalarchive.androidclient.photo.PhotoOverviewActivity;
@@ -23,43 +22,44 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 	private SimpleCursorAdapter cursorAdapter;
 
 	@Override
-	protected void onCreate(Bundle savedInstanceState) {
+	public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
+		return new CursorLoader(this, Client.ALBUM_URI, null, null, null, null);
+	}
+
+	@Override
+	public void onLoaderReset(final Loader<Cursor> loader) {
+		cursorAdapter.swapCursor(null);
+	}
+
+	@Override
+	public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
+		cursorAdapter.swapCursor(data);
+	}
+
+	@Override
+	protected void onCreate(final Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.album_overview);
 
 		// Create the album overview adapter we will use to display the loaded data
 		cursorAdapter = new AlbumOverviewAdapter(this, R.layout.album_overview_item);
-		
-		GridView gridview = (GridView) findViewById(R.id.album_overview);
+
+		final GridView gridview = (GridView) findViewById(R.id.album_overview);
 		gridview.setAdapter(cursorAdapter);
 
 		// Handle clicks on album image
 		gridview.setOnItemClickListener(new OnItemClickListener() {
-			public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
-				Intent intent = new Intent(AlbumOverviewActivity.this, PhotoOverviewActivity.class);
+			@Override
+			public void onItemClick(final AdapterView<?> parent, final View v, final int position, final long id) {
+				final Intent intent = new Intent(AlbumOverviewActivity.this, PhotoOverviewActivity.class);
 				intent.putExtra("album_uri", (String) (v.getTag()));
 				startActivity(intent);
 			}
 		});
-		
+
 		// Prepare the loader. Either re-connect with an existing one,
 		// or start a new one.
 		getLoaderManager().initLoader(0, null, this);
-	}
-
-	@Override
-	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-		return new CursorLoader(this, Client.ALBUM_URI, null, null, null, null);
-	}
-
-	@Override
-	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
-		cursorAdapter.swapCursor(data);
-	}
-
-	@Override
-	public void onLoaderReset(Loader<Cursor> loader) {
-		cursorAdapter.swapCursor(null);
 	}
 
 }

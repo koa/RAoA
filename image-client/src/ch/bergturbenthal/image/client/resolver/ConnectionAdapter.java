@@ -9,70 +9,69 @@ import ch.bergturbenthal.image.client.SelectServerListView;
 import ch.bergturbenthal.image.client.resolver.Resolver.ConnectionUrlListener;
 
 /**
- * A adapter for {@link ConnectionUrlListener} starting automatically the
- * {@link SelectServerListView} if connection fails.
+ * A adapter for {@link ConnectionUrlListener} starting automatically the {@link SelectServerListView} if connection fails.
  * 
  */
 public class ConnectionAdapter implements ConnectionUrlListener {
 
-  private final Context context;
-  private boolean connectionStarted = false;
-  private final Handler handler;
+	private final ConnectedHandler connectedHandler;
+	private boolean connectionStarted = false;
+	private final Context context;
 
-  private ProgressDialog progressDialog;
-  private final ConnectedHandler connectedHandler;
+	private final Handler handler;
+	private ProgressDialog progressDialog;
 
-  public ConnectionAdapter(final Context context, final ConnectedHandler connectedHandler) {
-    this.context = context;
-    this.connectedHandler = connectedHandler;
-    handler = new Handler(context.getMainLooper());
-  }
+	public ConnectionAdapter(final Context context, final ConnectedHandler connectedHandler) {
+		this.context = context;
+		this.connectedHandler = connectedHandler;
+		handler = new Handler(context.getMainLooper());
+	}
 
-  @Override
-  public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
-    hideProgress();
-    connectedHandler.connected(new AlbumService(foundUrl, context), serverName);
-  }
+	@Override
+	public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
+		hideProgress();
+		connectedHandler.connected(new AlbumService(foundUrl, context), serverName);
+	}
 
-  @Override
-  public synchronized void notifyConnectionNotEstablished() {
-    hideProgress();
-    context.startActivity(new Intent(context, SelectServerListView.class));
-  }
+	@Override
+	public synchronized void notifyConnectionNotEstablished() {
+		hideProgress();
+		context.startActivity(new Intent(context, SelectServerListView.class));
+	}
 
-  @Override
-  public synchronized void notifyStartConnection() {
-    if (!connectionStarted) {
-      handler.post(new Runnable() {
+	@Override
+	public synchronized void notifyStartConnection() {
+		if (!connectionStarted) {
+			handler.post(new Runnable() {
 
-        @Override
-        public void run() {
-          if (progressDialog == null)
-            progressDialog =
-                             ProgressDialog.show(context, "ConnectionAdapter.start",
-                                                 context.getResources().getString(R.string.wait_for_server_message), true);
-          else
-            progressDialog.show();
-        }
-      });
-    }
-    connectionStarted = true;
-  }
+				@Override
+				public void run() {
+					if (progressDialog == null) {
+						progressDialog = ProgressDialog.show(context, "ConnectionAdapter.start", context.getResources().getString(R.string.wait_for_server_message), true);
+					} else {
+						progressDialog.show();
+					}
+				}
+			});
+		}
+		connectionStarted = true;
+	}
 
-  @Override
-  protected void finalize() throws Throwable {
-    hideProgress();
-  }
+	@Override
+	protected void finalize() throws Throwable {
+		hideProgress();
+	}
 
-  private void hideProgress() {
-    handler.post(new Runnable() {
-      @Override
-      public void run() {
-        if (progressDialog != null)
-          progressDialog.hide();
-        progressDialog = null;
-      }
-    });
-  }
+	private void hideProgress() {
+		handler.post(new Runnable() {
+			@Override
+			public void run() {
+				if (progressDialog != null) {
+					progressDialog.hide();
+				}
+				progressDialog = null;
+			}
+		});
+	}
 
 }

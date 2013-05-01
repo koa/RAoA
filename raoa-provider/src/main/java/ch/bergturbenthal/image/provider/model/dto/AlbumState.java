@@ -8,45 +8,45 @@ package ch.bergturbenthal.image.provider.model.dto;
  * 
  */
 public class AlbumState {
-  private boolean isSynced;
-  private boolean shouldSync;
+	private boolean isSynced;
+	private boolean shouldSync;
 
-  /**
-   * Returns the shouldSync.
-   * 
-   * @return the shouldSync
-   */
-  public boolean isShouldSync() {
-    return shouldSync;
-  }
+	/**
+	 * Returns the shouldSync.
+	 * 
+	 * @return the shouldSync
+	 */
+	public boolean isShouldSync() {
+		return shouldSync;
+	}
 
-  /**
-   * Returns the isSynced.
-   * 
-   * @return the isSynced
-   */
-  public boolean isSynced() {
-    return isSynced;
-  }
+	/**
+	 * Returns the isSynced.
+	 * 
+	 * @return the isSynced
+	 */
+	public boolean isSynced() {
+		return isSynced;
+	}
 
-  /**
-   * Sets the shouldSync.
-   * 
-   * @param shouldSync
-   *          the shouldSync to set
-   */
-  public void setShouldSync(final boolean shouldSync) {
-    this.shouldSync = shouldSync;
-  }
+	/**
+	 * Sets the shouldSync.
+	 * 
+	 * @param shouldSync
+	 *          the shouldSync to set
+	 */
+	public void setShouldSync(final boolean shouldSync) {
+		this.shouldSync = shouldSync;
+	}
 
-  /**
-   * Sets the isSynced.
-   * 
-   * @param isSynced
-   *          the isSynced to set
-   */
-  public void setSynced(final boolean isSynced) {
-    this.isSynced = isSynced;
-  }
+	/**
+	 * Sets the isSynced.
+	 * 
+	 * @param isSynced
+	 *          the isSynced to set
+	 */
+	public void setSynced(final boolean isSynced) {
+		this.isSynced = isSynced;
+	}
 
 }

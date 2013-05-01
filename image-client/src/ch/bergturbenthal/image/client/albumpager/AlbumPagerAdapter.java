@@ -10,30 +10,30 @@ import android.support.v4.app.FragmentStatePagerAdapter;
 
 public class AlbumPagerAdapter extends FragmentStatePagerAdapter {
 
-  private final List<String> clientNames = new ArrayList<String>();
+	private final List<String> clientNames = new ArrayList<String>();
 
-  public AlbumPagerAdapter(final FragmentManager fm) {
-    super(fm);
-  }
+	public AlbumPagerAdapter(final FragmentManager fm) {
+		super(fm);
+	}
 
-  @Override
-  public int getCount() {
-    return clientNames.size();
-  }
+	@Override
+	public int getCount() {
+		return clientNames.size();
+	}
 
-  @Override
-  public Fragment getItem(final int position) {
-    final Fragment fragment = new AlbumListFragment();
-    final Bundle args = new Bundle();
-    args.putString(AlbumListFragment.CLIENT_TITLE, clientNames.get(position));
-    fragment.setArguments(args);
-    return fragment;
-  }
+	@Override
+	public Fragment getItem(final int position) {
+		final Fragment fragment = new AlbumListFragment();
+		final Bundle args = new Bundle();
+		args.putString(AlbumListFragment.CLIENT_TITLE, clientNames.get(position));
+		fragment.setArguments(args);
+		return fragment;
+	}
 
-  public void setClientList(final List<String> clientNames) {
-    this.clientNames.clear();
-    this.clientNames.addAll(clientNames);
-    notifyDataSetChanged();
-  }
+	public void setClientList(final List<String> clientNames) {
+		this.clientNames.clear();
+		this.clientNames.addAll(clientNames);
+		notifyDataSetChanged();
+	}
 
 }

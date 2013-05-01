@@ -11,13 +11,13 @@ import android.widget.SimpleCursorAdapter.ViewBinder;
 import ch.royalarchive.androidclient.PhotoBinder;
 
 public class PhotoDetailviewAdapter extends PagerAdapter {
-	
-	private final Context context;
-	private final ViewBinder viewBinder;
-	private Cursor cursor;
-	private int currentPosition;
 
-	public PhotoDetailviewAdapter(Context context, Cursor cursor) {
+	private final Context context;
+	private int currentPosition;
+	private Cursor cursor;
+	private final ViewBinder viewBinder;
+
+	public PhotoDetailviewAdapter(final Context context, final Cursor cursor) {
 		this.context = context;
 		this.cursor = cursor;
 
@@ -26,22 +26,8 @@ public class PhotoDetailviewAdapter extends PagerAdapter {
 	}
 
 	@Override
-	public Object instantiateItem(ViewGroup container, int position) {
-		ImageView view = new ImageView(context);
-		cursor.moveToPosition(position);
-		viewBinder.setViewValue(view, cursor, 0);
-		container.addView(view);
-		return view;
-	}
-
-	@Override
-	public void destroyItem(View container, int position, Object object) {
+	public void destroyItem(final View container, final int position, final Object object) {
 		((ViewPager) container).removeView((View) object);
-	}
-	
-	@Override
-	public void setPrimaryItem(View container, int position, Object object) {
-		currentPosition = position;
 	}
 
 	@Override
@@ -52,21 +38,35 @@ public class PhotoDetailviewAdapter extends PagerAdapter {
 			return cursor.getCount();
 	}
 
+	public int getCurrentPosition() {
+		return currentPosition;
+	}
+
 	@Override
-	public boolean isViewFromObject(View view, Object object) {
+	public Object instantiateItem(final ViewGroup container, final int position) {
+		final ImageView view = new ImageView(context);
+		cursor.moveToPosition(position);
+		viewBinder.setViewValue(view, cursor, 0);
+		container.addView(view);
+		return view;
+	}
+
+	@Override
+	public boolean isViewFromObject(final View view, final Object object) {
 		return (view == object);
 	}
 
-	public void swapCursor(Cursor c) {
+	@Override
+	public void setPrimaryItem(final View container, final int position, final Object object) {
+		currentPosition = position;
+	}
+
+	public void swapCursor(final Cursor c) {
 		if (cursor == c)
 			return;
 
 		this.cursor = c;
 		notifyDataSetChanged();
-	}
-
-	public int getCurrentPosition() {
-		return currentPosition;
 	}
 
 }

@@ -5,7 +5,7 @@ package ch.bergturbenthal.image.server.controller;
 
 /**
  * TODO: add type comment.
- *
+ * 
  */
 public class DiskPollingController {
 

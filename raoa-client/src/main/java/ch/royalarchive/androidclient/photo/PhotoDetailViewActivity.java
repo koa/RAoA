@@ -14,23 +14,32 @@ import ch.royalarchive.androidclient.R;
 
 public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks<Cursor> {
 
-	private static final String[] PROJECTION = new String[] { Client.AlbumEntry.THUMBNAIL };
+	private static final String ACTUAL_POS = "actPos";
+
+	private static final String ALBUM_ID = "album_uri";
 
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
-	private PhotoDetailContainer detailContainer;
-
-	private static final String ACTUAL_POS = "actPos";
-	private static final String ALBUM_ID = "album_uri";
-
-	private Uri albumUri;
+	private static final String[] PROJECTION = new String[] { Client.AlbumEntry.THUMBNAIL };
 	private int actPos;
 
 	private PhotoDetailviewAdapter adapter;
+	private Uri albumUri;
+
+	private PhotoDetailContainer detailContainer;
 
 	private ViewPager pager;
 
-	public void onCreate(Bundle savedInstanceState) {
+	@Override
+	public void onBackPressed() {
+		final Intent output = new Intent();
+		output.putExtra(CURR_ITEM_INDEX, ((PhotoDetailviewAdapter) pager.getAdapter()).getCurrentPosition());
+		setResult(RESULT_OK, output);
+		super.onBackPressed();
+	}
+
+	@Override
+	public void onCreate(final Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
 		setContentView(R.layout.photo_detailview);
@@ -39,8 +48,8 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 		pager = detailContainer.getViewPager();
 
 		// get album id and photo id out of intent
-		Bundle bundle = getIntent().getExtras();
-		albumUri = Uri.parse( bundle.getString(ALBUM_ID));
+		final Bundle bundle = getIntent().getExtras();
+		albumUri = Uri.parse(bundle.getString(ALBUM_ID));
 		actPos = bundle.getInt(ACTUAL_POS);
 		adapter = new PhotoDetailviewAdapter(this, null);
 
@@ -56,9 +65,9 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 		// If hardware acceleration is enabled, you should also remove
 		// clipping on the pager for its children.
 		pager.setClipChildren(false);
-		
+
 		if (savedInstanceState != null) {
-      actPos = savedInstanceState.getInt(ACTUAL_POS);
+			actPos = savedInstanceState.getInt(ACTUAL_POS);
 		}
 
 		// Prepare the loader. Either re-connect with an existing one,
@@ -67,26 +76,17 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 	}
 
 	@Override
-	protected void onSaveInstanceState(Bundle outState) {
-		super.onSaveInstanceState(outState);
-		outState.putInt(ACTUAL_POS, ((PhotoDetailviewAdapter) pager.getAdapter()).getCurrentPosition());
-	}
-
-	@Override
-	public void onBackPressed() {
-		Intent output = new Intent();
-		output.putExtra(CURR_ITEM_INDEX, ((PhotoDetailviewAdapter) pager.getAdapter()).getCurrentPosition());
-		setResult(RESULT_OK, output);
-		super.onBackPressed();
-	}
-
-	@Override
-	public Loader<Cursor> onCreateLoader(int id, Bundle args) {
+	public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
 		return new CursorLoader(this, albumUri, PROJECTION, null, null, null);
 	}
 
 	@Override
-	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
+	public void onLoaderReset(final Loader<Cursor> loader) {
+		adapter.swapCursor(null);
+	}
+
+	@Override
+	public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
 		adapter.swapCursor(data);
 
 		// set specific item
@@ -94,8 +94,9 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 	}
 
 	@Override
-	public void onLoaderReset(Loader<Cursor> loader) {
-		adapter.swapCursor(null);
+	protected void onSaveInstanceState(final Bundle outState) {
+		super.onSaveInstanceState(outState);
+		outState.putInt(ACTUAL_POS, ((PhotoDetailviewAdapter) pager.getAdapter()).getCurrentPosition());
 	}
 
 }

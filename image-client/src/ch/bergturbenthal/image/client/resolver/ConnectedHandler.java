@@ -1,5 +1,5 @@
 package ch.bergturbenthal.image.client.resolver;
 
 public interface ConnectedHandler {
-  public void connected(AlbumService service, String serverName);
+	public void connected(final AlbumService service, final String serverName);
 }

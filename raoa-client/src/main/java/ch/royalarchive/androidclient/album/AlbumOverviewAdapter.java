@@ -13,19 +13,13 @@ import ch.royalarchive.androidclient.R;
 
 public class AlbumOverviewAdapter extends SimpleCursorAdapter {
 
-	private static final String[] FROM = new String[] { 
-		Client.Album.NAME, 
-		Client.Album.ENTRY_COUNT,
-		Client.Album.THUMBNAIL };
+	private static final String[] FROM = new String[] { Client.Album.NAME, Client.Album.ENTRY_COUNT, Client.Album.THUMBNAIL };
 
-	private static final int[] TO = new int[] {
-		R.id.album_item_name, 
-		R.id.album_item_size, 
-		R.id.album_item_image };
+	private static final int[] TO = new int[] { R.id.album_item_name, R.id.album_item_size, R.id.album_item_image };
 
-	private Context context;
+	private final Context context;
 
-	public AlbumOverviewAdapter(Context context, int layout) {
+	public AlbumOverviewAdapter(final Context context, final int layout) {
 		super(context, layout, null, FROM, TO, 0);
 		this.context = context;
 		// set album overview view binder
@@ -33,17 +27,17 @@ public class AlbumOverviewAdapter extends SimpleCursorAdapter {
 	}
 
 	@Override
-	public View getView(int position, View convertView, ViewGroup parent) {
-		ViewGroup newView = (ViewGroup) super.getView(position, convertView, parent);		
-		String childrenEntriesUri = getCursor().getString(getCursor().getColumnIndexOrThrow(Client.Album.ALBUM_ENTRIES_URI));
+	public View getView(final int position, final View convertView, final ViewGroup parent) {
+		final ViewGroup newView = (ViewGroup) super.getView(position, convertView, parent);
+		final String childrenEntriesUri = getCursor().getString(getCursor().getColumnIndexOrThrow(Client.Album.ALBUM_ENTRIES_URI));
 		final String entryUri = getCursor().getString(getCursor().getColumnIndexOrThrow(Client.Album.ENTRY_URI));
 		newView.setTag(childrenEntriesUri);
-		View offlineIcon = newView.findViewById(R.id.album_item_icon_offline);
+		final View offlineIcon = newView.findViewById(R.id.album_item_icon_offline);
 		offlineIcon.setTag(entryUri);
 		offlineIcon.setOnClickListener(new OnClickListener() {
 			@Override
-			public void onClick(View v) {
-				ContentValues values=new ContentValues();
+			public void onClick(final View v) {
+				final ContentValues values = new ContentValues();
 				values.put(Client.Album.SHOULD_SYNC, Boolean.TRUE);
 				context.getContentResolver().update(Uri.parse(entryUri), values, null, null);
 			}

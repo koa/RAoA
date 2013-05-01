@@ -5,7 +5,7 @@ package ch.bergturbenthal.image.server.model;
 
 /**
  * TODO: add type comment.
- *
+ * 
  */
 public class AlbumData {
 

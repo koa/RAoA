@@ -9,59 +9,52 @@ import android.view.View;
 import android.widget.FrameLayout;
 
 public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPageChangeListener {
-	private ViewPager mPager;
 	boolean mNeedsRedraw = false;
+	private final Point mCenter = new Point();
 
-	public PhotoDetailContainer(Context context) {
+	private final Point mInitialTouch = new Point();
+
+	private ViewPager mPager;
+
+	public PhotoDetailContainer(final Context context) {
 		super(context);
 		init();
 	}
 
-	public PhotoDetailContainer(Context context, AttributeSet attrs) {
+	public PhotoDetailContainer(final Context context, final AttributeSet attrs) {
 		super(context, attrs);
 		init();
 	}
 
-	public PhotoDetailContainer(Context context, AttributeSet attrs, int defStyle) {
+	public PhotoDetailContainer(final Context context, final AttributeSet attrs, final int defStyle) {
 		super(context, attrs, defStyle);
 		init();
-	}
-
-	private void init() {
-		// Disable clipping of children so non-selected pages are visible
-		setClipChildren(false);
-
-		// Child clipping doesn't work with hardware acceleration in Android 3.x/4.x
-		// You need to set this value here if using hardware acceleration in an
-		// application targeted at these releases.
-		setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-	}
-
-	@Override
-	protected void onFinishInflate() {
-		try {
-			mPager = (ViewPager) getChildAt(0);
-			mPager.setOnPageChangeListener(this);
-		} catch (Exception e) {
-			throw new IllegalStateException("The root child of PagerContainer must be a ViewPager");
-		}
 	}
 
 	public ViewPager getViewPager() {
 		return mPager;
 	}
 
-	private Point mCenter = new Point();
-	private Point mInitialTouch = new Point();
-
 	@Override
-	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-		mCenter.x = w / 2;
-		mCenter.y = h / 2;
+	public void onPageScrolled(final int position, final float positionOffset, final int positionOffsetPixels) {
+		// Force the container to redraw on scrolling.
+		// Without this the outer pages render initially and then stay static
+		if (mNeedsRedraw) {
+			invalidate();
+		}
 	}
 
 	@Override
-	public boolean onTouchEvent(MotionEvent ev) {
+	public void onPageScrollStateChanged(final int state) {
+		mNeedsRedraw = (state != ViewPager.SCROLL_STATE_IDLE);
+	}
+
+	@Override
+	public void onPageSelected(final int position) {
+	}
+
+	@Override
+	public boolean onTouchEvent(final MotionEvent ev) {
 		// We capture any touches not already handled by the ViewPager
 		// to implement scrolling from a touch outside the pager bounds.
 		switch (ev.getAction()) {
@@ -77,19 +70,28 @@ public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPag
 	}
 
 	@Override
-	public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-		// Force the container to redraw on scrolling.
-		// Without this the outer pages render initially and then stay static
-		if (mNeedsRedraw)
-			invalidate();
+	protected void onFinishInflate() {
+		try {
+			mPager = (ViewPager) getChildAt(0);
+			mPager.setOnPageChangeListener(this);
+		} catch (final Exception e) {
+			throw new IllegalStateException("The root child of PagerContainer must be a ViewPager");
+		}
 	}
 
 	@Override
-	public void onPageSelected(int position) {
+	protected void onSizeChanged(final int w, final int h, final int oldw, final int oldh) {
+		mCenter.x = w / 2;
+		mCenter.y = h / 2;
 	}
 
-	@Override
-	public void onPageScrollStateChanged(int state) {
-		mNeedsRedraw = (state != ViewPager.SCROLL_STATE_IDLE);
+	private void init() {
+		// Disable clipping of children so non-selected pages are visible
+		setClipChildren(false);
+
+		// Child clipping doesn't work with hardware acceleration in Android 3.x/4.x
+		// You need to set this value here if using hardware acceleration in an
+		// application targeted at these releases.
+		setLayerType(View.LAYER_TYPE_SOFTWARE, null);
 	}
 }

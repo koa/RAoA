@@ -25,68 +25,71 @@ import ch.bergturbenthal.image.provider.R;
 
 public class ServerStateFragment extends ListFragment {
 
-  private CursorAdapter adapter;
+	private static final Map<String, Integer> iconMap = new HashMap<String, Integer>();
 
-  private static final Map<String, Integer> iconMap = new HashMap<String, Integer>();
-  static {
-    iconMap.put(ProgressType.REFRESH_THUMBNAIL.name(), android.R.drawable.ic_popup_sync);
-    iconMap.put(ProgressType.SYNC_LOCAL_DISC.name(), R.drawable.storage_icon);
-  }
+	private CursorAdapter adapter;
+	static {
+		iconMap.put(ProgressType.REFRESH_THUMBNAIL.name(), android.R.drawable.ic_popup_sync);
+		iconMap.put(ProgressType.SYNC_LOCAL_DISC.name(), R.drawable.storage_icon);
+	}
 
-  @Override
-  public void onCreate(final Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    final Activity activity = getActivity();
+	@Override
+	public void onCreate(final Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		final Activity activity = getActivity();
 
-    adapter = new ResourceCursorAdapter(activity, R.layout.activity_server_list_progress_item, null, true) {
+		adapter = new ResourceCursorAdapter(activity, R.layout.activity_server_list_progress_item, null, true) {
 
-      @Override
-      public void bindView(final View view, final Context context, final Cursor cursor) {
-        ((TextView) view.findViewById(R.id.progress_item_title)).setText(readStringColumn(cursor, Client.ProgressEntry.PROGRESS_DESCRIPTION));
-        ((TextView) view.findViewById(R.id.progress_item_description)).setText(readStringColumn(cursor, Client.ProgressEntry.CURRENT_STATE_DESCRIPTION));
-        final ProgressBar progressBar = (ProgressBar) view.findViewById(R.id.progress_item_progress);
-        progressBar.setProgress(cursor.getInt(cursor.getColumnIndex(Client.ProgressEntry.CURRENT_STEP_NR)));
-        progressBar.setMax(cursor.getInt(cursor.getColumnIndex(Client.ProgressEntry.STEP_COUNT)));
-        final Integer alternateIcon = iconMap.get(cursor.getString(cursor.getColumnIndex(Client.ProgressEntry.PROGRESS_TYPE)));
-        if (alternateIcon != null)
-          ((ImageView) view.findViewById(R.id.progress_item_icon)).setImageResource(alternateIcon.intValue());
-      }
+			@Override
+			public void bindView(final View view, final Context context, final Cursor cursor) {
+				((TextView) view.findViewById(R.id.progress_item_title)).setText(readStringColumn(cursor, Client.ProgressEntry.PROGRESS_DESCRIPTION));
+				((TextView) view.findViewById(R.id.progress_item_description)).setText(readStringColumn(cursor, Client.ProgressEntry.CURRENT_STATE_DESCRIPTION));
+				final ProgressBar progressBar = (ProgressBar) view.findViewById(R.id.progress_item_progress);
+				progressBar.setProgress(cursor.getInt(cursor.getColumnIndex(Client.ProgressEntry.CURRENT_STEP_NR)));
+				progressBar.setMax(cursor.getInt(cursor.getColumnIndex(Client.ProgressEntry.STEP_COUNT)));
+				final Integer alternateIcon = iconMap.get(cursor.getString(cursor.getColumnIndex(Client.ProgressEntry.PROGRESS_TYPE)));
+				if (alternateIcon != null) {
+					((ImageView) view.findViewById(R.id.progress_item_icon)).setImageResource(alternateIcon.intValue());
+				}
+			}
 
-      private String readStringColumn(final Cursor cursor, final String column) {
-        return cursor.getString(cursor.getColumnIndex(column));
-      }
+			private String readStringColumn(final Cursor cursor, final String column) {
+				return cursor.getString(cursor.getColumnIndex(column));
+			}
 
-    };
-    setListAdapter(adapter);
-    final String serverId = getArguments() == null ? null : getArguments().getString(Client.ServerEntry.SERVER_ID);
-    if (serverId != null)
-      getLoaderManager().initLoader(0, null, new LoaderCallbacks<Cursor>() {
+		};
+		setListAdapter(adapter);
+		final String serverId = getArguments() == null ? null : getArguments().getString(Client.ServerEntry.SERVER_ID);
+		if (serverId != null) {
+			getLoaderManager().initLoader(0, null, new LoaderCallbacks<Cursor>() {
 
-        @Override
-        public Loader<Cursor> onCreateLoader(final int arg0, final Bundle arg1) {
-          return new CursorLoader(activity, Client.makeServerProgressUri(serverId), null, null, null, null);
-        }
+				@Override
+				public Loader<Cursor> onCreateLoader(final int arg0, final Bundle arg1) {
+					return new CursorLoader(activity, Client.makeServerProgressUri(serverId), null, null, null, null);
+				}
 
-        @Override
-        public void onLoaderReset(final Loader<Cursor> arg0) {
-          adapter.swapCursor(null);
-        }
+				@Override
+				public void onLoaderReset(final Loader<Cursor> arg0) {
+					adapter.swapCursor(null);
+				}
 
-        @Override
-        public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
-          adapter.swapCursor(data);
-          if (isResumed())
-            setListShown(true);
-          else
-            setListShownNoAnimation(true);
-        }
-      });
-  }
+				@Override
+				public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
+					adapter.swapCursor(data);
+					if (isResumed()) {
+						setListShown(true);
+					} else {
+						setListShownNoAnimation(true);
+					}
+				}
+			});
+		}
+	}
 
-  @Override
-  public View onCreateView(final LayoutInflater inflater, final ViewGroup container, final Bundle savedInstanceState) {
-    // TODO Auto-generated method stub
-    return super.onCreateView(inflater, container, savedInstanceState);
-  }
+	@Override
+	public View onCreateView(final LayoutInflater inflater, final ViewGroup container, final Bundle savedInstanceState) {
+		// TODO Auto-generated method stub
+		return super.onCreateView(inflater, container, savedInstanceState);
+	}
 
 }

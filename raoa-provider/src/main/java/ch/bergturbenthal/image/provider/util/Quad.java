@@ -13,16 +13,16 @@ package ch.bergturbenthal.image.provider.util;
  * 
  */
 public class Quad<A, B, C, D> {
-  public A first;
-  public B second;
-  public C third;
-  public D fourth;
+	public A first;
+	public D fourth;
+	public B second;
+	public C third;
 
-  public Quad(final A first, final B second, final C third, final D fourth) {
-    this.first = first;
-    this.second = second;
-    this.third = third;
-    this.fourth = fourth;
-  }
+	public Quad(final A first, final B second, final C third, final D fourth) {
+		this.first = first;
+		this.second = second;
+		this.third = third;
+		this.fourth = fourth;
+	}
 
 }
