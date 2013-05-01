@@ -147,8 +147,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	@Override
 	public void createAlbumOnServer(final String serverId, final String fullAlbumName, final Date autoAddDate) {
 		final ServerConnection serverConnection = getConnectionForServer(serverId);
-		if (serverConnection == null)
+		if (serverConnection == null) {
 			return;
+		}
 		serverConnection.createAlbum(fullAlbumName, autoAddDate);
 	}
 
@@ -159,11 +160,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public String call() throws Exception {
 				final AlbumEntries entriesReadOnly = store.getAlbumEntries(archive, albumId, ReadPolicy.READ_ONLY);
-				if (entriesReadOnly == null)
+				if (entriesReadOnly == null) {
 					return null;
+				}
 				final AlbumEntryDto entryDto = entriesReadOnly.getEntries().get(image);
-				if (entryDto == null)
+				if (entryDto == null) {
 					return null;
+				}
 				switch (entryDto.getEntryType()) {
 				case IMAGE:
 					return "image/jpeg";
@@ -335,8 +338,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public Cursor call() throws Exception {
 				final AlbumEntries albumDetail = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
-				if (albumDetail.getEntries() == null || albumDetail.getEntries().isEmpty())
+				if (albumDetail.getEntries() == null || albumDetail.getEntries().isEmpty()) {
 					return cursorNotifications.addSingleAlbumCursor(new AlbumIndex(archiveName, albumId), new NotifyableMatrixCursor(new String[] {}));
+				}
 				final Collection<AlbumEntryDto> albumEntries = albumDetail.getEntries().values();
 				return makeCursorForAlbumEntries(albumEntries, archiveName, albumId, projection);
 
@@ -360,8 +364,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	public Cursor readServerIssueList(final String serverId, final String[] projection) {
 
 		final ServerConnection serverConnection = getConnectionForServer(serverId);
-		if (serverConnection == null)
+		if (serverConnection == null) {
 			return null;
+		}
 		final Collection<Issue> progressValues = new ArrayList<Issue>(serverConnection.getServerState().getIssues());
 
 		final Map<String, String> mappedFields = new HashMap<String, String>();
@@ -429,8 +434,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	@Override
 	public Cursor readServerProgresList(final String serverId, final String[] projection) {
 		final ServerConnection serverConnection = getConnectionForServer(serverId);
-		if (serverConnection == null)
+		if (serverConnection == null) {
 			return null;
+		}
 		final Collection<Progress> progressValues = new ArrayList<Progress>(serverConnection.getServerState().getProgress());
 
 		final Map<String, String> mappedFields = new HashMap<String, String>();
@@ -456,10 +462,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public Cursor call() throws Exception {
 				final Collection<AlbumIndex> visible = collectVisibleAlbums();
-				if (visible.contains(new AlbumIndex(archiveName, albumId)))
+				if (visible.contains(new AlbumIndex(archiveName, albumId))) {
 					return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false);
-				else
+				} else {
 					return makeCursorForAlbums(Collections.<AlbumIndex> emptyList(), projection, false);
+				}
 			}
 		});
 	}
@@ -470,8 +477,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public Cursor call() throws Exception {
 				final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
-				if (albumEntries == null || albumEntries.getEntries() == null || albumEntries.getEntries().get(archiveEntryId) == null)
+				if (albumEntries == null || albumEntries.getEntries() == null || albumEntries.getEntries().get(archiveEntryId) == null) {
 					return makeCursorForAlbumEntries(Collections.<AlbumEntryDto> emptyList(), archiveName, albumId, projection);
+				}
 				final AlbumEntryDto entryDto = albumEntries.getEntries().get(archiveEntryId);
 				return makeCursorForAlbumEntries(Collections.singletonList(entryDto), archiveName, albumId, projection);
 			}
@@ -486,8 +494,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			public Integer call() throws Exception {
 				final AlbumMeta albumMeta = store.getAlbumMeta(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
 				final AlbumState albumState = store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
-				if (albumMeta == null)
+				if (albumMeta == null) {
 					return Integer.valueOf(0);
+				}
 				final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
 				if (shouldSync != null && albumState.isShouldSync() != shouldSync.booleanValue()) {
 					albumState.setShouldSync(shouldSync.booleanValue());
@@ -512,14 +521,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public Integer call() throws Exception {
 				final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
-				if (albumEntries == null)
+				if (albumEntries == null) {
 					return Integer.valueOf(0);
+				}
 				final Map<String, AlbumEntryDto> entries = albumEntries.getEntries();
-				if (entries == null || !entries.containsKey(albumEntryId))
+				if (entries == null || !entries.containsKey(albumEntryId)) {
 					return Integer.valueOf(0);
+				}
 				final AlbumEntryDto albumEntryDto = entries.get(albumEntryId);
-				if (albumEntryDto == null)
+				if (albumEntryDto == null) {
 					return Integer.valueOf(0);
+				}
 				final AlbumDetailData mutationList = store.getAlbumDetail(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
 
 				final Collection<MutationEntry> mutations = mutationList.getMutations();
@@ -614,17 +626,20 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	}
 
 	private boolean dateEquals(final Date date1, final Date date2) {
-		if (date1 == null)
+		if (date1 == null) {
 			return date2 == null;
-		if (date2 == null)
+		}
+		if (date2 == null) {
 			return false;
+		}
 		return Math.abs(date1.getTime() - date2.getTime()) < 1000;
 	}
 
 	private String getBasename(final String fileName) {
 		final int lastPt = fileName.lastIndexOf('.');
-		if (lastPt < 0)
+		if (lastPt < 0) {
 			return fileName;
+		}
 		return fileName.substring(0, lastPt);
 	}
 
@@ -663,18 +678,21 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 			@Override
 			protected void entryRemoved(final boolean evicted, final AlbumEntryIndex key, final File oldValue, final File newValue) {
-				if (!thumbnailsTempDir.equals(oldValue.getParentFile()))
+				if (!thumbnailsTempDir.equals(oldValue.getParentFile())) {
 					return;
+				}
 				final boolean deleted = oldValue.delete();
-				if (!deleted)
+				if (!deleted) {
 					throw new RuntimeException("Cannot delete cache-file " + oldValue);
+				}
 			}
 
 			@Override
 			protected int sizeOf(final AlbumEntryIndex key, final File value) {
-				if (!thumbnailsTempDir.equals(value.getParentFile()))
+				if (!thumbnailsTempDir.equals(value.getParentFile())) {
 					// count only temporary entries
 					return 0;
+				}
 				return (int) value.length() / 1024;
 			}
 		};
@@ -712,8 +730,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	}
 
 	private String lastPart(final String[] split) {
-		if (split == null || split.length == 0)
+		if (split == null || split.length == 0) {
 			return null;
+		}
 		return split[split.length - 1];
 	}
 
@@ -722,8 +741,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public Collection<String> call() throws Exception {
 				final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
-				if (albumEntries == null || albumEntries.getEntries() == null)
+				if (albumEntries == null || albumEntries.getEntries() == null) {
 					return Collections.emptyList();
+				}
 				return new ArrayList<String>(albumEntries.getEntries().keySet());
 			}
 		});
@@ -750,14 +770,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			final AlbumDetailData localData = transactionResult.third;
 			final AlbumState albumState = transactionResult.fourth;
 
-			if (albumMeta == null)
+			if (albumMeta == null) {
 				return null;
+			}
 			final boolean permanentDownload = albumState.isShouldSync();
-			if (albumEntries == null || albumEntries.getEntries() == null)
+			if (albumEntries == null || albumEntries.getEntries() == null) {
 				return null;
+			}
 			final AlbumEntryDto albumEntryDto = albumEntries.getEntries().get(albumEntryId);
-			if (albumEntryDto == null)
+			if (albumEntryDto == null) {
 				return null;
+			}
 			final String externalSuffix = albumEntryDto.getEntryType() == AlbumEntryType.IMAGE ? ".jpg" : ".mp4";
 			final File temporaryTargetFile = new File(thumbnailsTempDir, archiveName + "/" + albumId + "/" + albumEntryId + THUMBNAIL_SUFFIX);
 			final String fileName = getBasename(albumEntryDto.getFileName());
@@ -777,8 +800,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					final long oldLastModified = otherTargetFile.lastModified();
 					otherTargetFile.renameTo(targetFile);
 					targetFile.setLastModified(oldLastModified);
-					if (targetFile.exists())
+					if (targetFile.exists()) {
 						return targetFile;
+					}
 
 				}
 				// remove the invalid file of the other cache
@@ -789,14 +813,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				parentDir.mkdirs();
 			}
 			final Map<String, ArchiveConnection> archive = connectionMap.get();
-			if (archive == null)
+			if (archive == null) {
 				return ifExsists(targetFile);
+			}
 			final ArchiveConnection archiveConnection = archive.get(archiveName);
-			if (archiveConnection == null)
+			if (archiveConnection == null) {
 				return ifExsists(targetFile);
+			}
 			final AlbumConnection albumConnection = archiveConnection.getAlbums().get(albumMeta.getName());
-			if (albumConnection == null)
+			if (albumConnection == null) {
 				return ifExsists(targetFile);
+			}
 
 			final File tempFile = new File(parentDir, tempFileId.incrementAndGet() + ".thumbnail-temp");
 			if (tempFile.exists()) {
@@ -867,6 +894,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return Client.makeAlbumEntryUri(archiveName, albumId, value.getCommId()).toString();
 			}
 		});
+		fieldReaders.put("_id", new NumericFieldReader<AlbumEntryDto>(Cursor.FIELD_TYPE_INTEGER) {
+
+			@Override
+			public Number getNumber(final AlbumEntryDto value) {
+				return idCache.get(value.getCommId());
+			}
+		});
 
 		return cursorNotifications.addSingleAlbumCursor(new AlbumIndex(archiveName, albumId), MapperUtil.loadCollectionIntoCursor(values, projection, fieldReaders));
 	}
@@ -905,8 +939,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		fieldReaders.put(Client.Album.THUMBNAIL, new StringFieldReader<AlbumMeta>() {
 			@Override
 			public String getString(final AlbumMeta value) {
-				if (value.getThumbnailId() == null)
+				if (value.getThumbnailId() == null) {
 					return null;
+				}
 				return Client.makeThumbnailUri(value.getArchiveName(), value.getAlbumId(), value.getThumbnailId()).toString();
 			}
 		});
@@ -921,6 +956,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public String getString(final AlbumMeta value) {
 				return Client.makeAlbumEntriesUri(value.getArchiveName(), value.getAlbumId()).toString();
+			}
+		});
+		fieldReaders.put("_id", new NumericFieldReader<AlbumMeta>(Cursor.FIELD_TYPE_INTEGER) {
+
+			@Override
+			public Number getNumber(final AlbumMeta value) {
+				return idCache.get(value.getAlbumId());
 			}
 		});
 
@@ -942,8 +984,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			final InetAddress targetAddress = inetSocketAddress.getAddress();
 			if (targetAddress instanceof Inet6Address) {
 				final int scopedInterface = ((Inet6Address) targetAddress).getScopeId();
-				if (scopedInterface != 0)
+				if (scopedInterface != 0) {
 					return new URL("http", inetSocketAddress.getAddress().getHostAddress(), inetSocketAddress.getPort(), "rest");
+				}
 			}
 			return new URL("http", inetSocketAddress.getAddress().getHostAddress(), inetSocketAddress.getPort(), "rest");
 		} catch (final MalformedURLException e) {
@@ -960,10 +1003,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	}
 
 	private <O> boolean objectEquals(final O v1, final O v2) {
-		if (v1 == v2)
+		if (v1 == v2) {
 			return true;
-		if (v1 == null || v2 == null)
+		}
+		if (v1 == null || v2 == null) {
 			return false;
+		}
 		return v1.equals(v2);
 	}
 
@@ -973,9 +1018,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			try {
 				final ResponseEntity<PingResponse> entity = restTemplate.getForEntity(url + "/ping.json", PingResponse.class);
 				final boolean pingOk = entity.getStatusCode().series() == Series.SUCCESSFUL;
-				if (pingOk)
+				if (pingOk) {
 					return entity.getBody();
-				else {
+				} else {
 					Log.i(SERVICE_TAG, "Error connecting Service at " + url + ", " + entity.getStatusCode() + " " + entity.getStatusCode().getReasonPhrase());
 					return null;
 				}
@@ -988,8 +1033,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				} else if (cause != null && cause instanceof UnknownHostException) {
 					Log.d(SERVICE_TAG, "Connect to " + url + "/ failed cause of spring-bug with ipv6, try more");
 					return null;
-				} else
+				} else {
 					throw ex;
+				}
 			} catch (final RestClientException ex) {
 				Log.d(SERVICE_TAG, "Connect to " + url + "/ failed, try more");
 				return null;
@@ -1032,16 +1078,18 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return store.getAlbumDetail(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
 			}
 		});
-		if (mutations == null || mutations.getMutations().isEmpty())
+		if (mutations == null || mutations.getMutations().isEmpty()) {
 			// no pending mutation found
 			return;
+		}
 		albumConnection.updateMetadata(mutations.getMutations());
 	}
 
 	private <K, V> V putIfNotExists(final ConcurrentMap<K, V> map, final K key, final V emptyValue) {
 		final V existingValue = map.putIfAbsent(key, emptyValue);
-		if (existingValue != null)
+		if (existingValue != null) {
 			return existingValue;
+		}
 		return emptyValue;
 	}
 
@@ -1124,8 +1172,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	}
 
 	private synchronized void startRunning() {
-		if (running.get())
+		if (running.get()) {
 			return;
+		}
 		running.set(true);
 		Log.i(SERVICE_TAG, "Synchronisation started");
 		dnsListener.startListening();

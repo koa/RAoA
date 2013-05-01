@@ -4,7 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import ch.bergturbenthal.image.provider.Client;
-import ch.bergturbenthal.image.provider.R;
+import ch.royalarchive.androidclient.R;
 
 /**
  * An activity representing a list of Servers. This activity has different presentations for handset and tablet-size devices. On handsets, the

@@ -9,7 +9,7 @@
     <module>image-client</module>
     <module>raoa-server</module>
     <module>raoa-data</module>
-    <module>raoa-provider</module>
+    <module>raoa-client</module>
     <module>raoa-provider-test</module>
     <module>raoa-provider-api</module>
     <module>raoa-server-standalone</module>

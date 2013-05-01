@@ -21,7 +21,7 @@ public class Client {
     public static final String ARCHIVE_NAME = "archiveName";
     public static final String AUTOADD_DATE = "autoAddDate";
     public static final String ENTRY_COUNT = "entryCount";
-    public static final String ID = "_id";
+    public static final String ID = "id";
     public static final String NAME = "name";
     public static final String SHOULD_SYNC = "shouldSync";
     public static final String SYNCED = "synced";
@@ -36,7 +36,7 @@ public class Client {
   public static class AlbumEntry {
     public static final String CAPTURE_DATE = "captureDate";
     public static final String ENTRY_TYPE = "entryType";
-    public static final String ID = "_id";
+    public static final String ID = "id";
     public static final String LAST_MODIFIED = "lastModified";
     public static final String NAME = "fileName";
     public static final String THUMBNAIL = "thumbnail";

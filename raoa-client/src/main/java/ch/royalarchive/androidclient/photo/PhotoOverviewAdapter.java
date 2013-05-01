@@ -24,7 +24,7 @@ public class PhotoOverviewAdapter extends SimpleCursorAdapter {
 	@Override
 	public View getView(final int position, final View convertView, final ViewGroup parent) {
 		final View newView = super.getView(position, convertView, parent);
-		newView.setTag(getCursor().getInt(getCursor().getColumnIndexOrThrow(Client.AlbumEntry.ID)));
+		newView.setTag(getCursor().getString(getCursor().getColumnIndexOrThrow(Client.AlbumEntry.ENTRY_URI)));
 		return newView;
 	}
 

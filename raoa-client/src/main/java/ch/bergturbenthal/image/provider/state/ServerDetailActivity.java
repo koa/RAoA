@@ -4,7 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.MenuItem;
-import ch.bergturbenthal.image.provider.R;
+import ch.royalarchive.androidclient.R;
 
 /**
  * An activity representing a single Server detail screen. This activity is only used on handset devices. On tablet-size devices, item details are

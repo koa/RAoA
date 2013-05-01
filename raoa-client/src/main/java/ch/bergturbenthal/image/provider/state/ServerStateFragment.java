@@ -21,7 +21,7 @@ import android.widget.ResourceCursorAdapter;
 import android.widget.TextView;
 import ch.bergturbenthal.image.data.model.state.ProgressType;
 import ch.bergturbenthal.image.provider.Client;
-import ch.bergturbenthal.image.provider.R;
+import ch.royalarchive.androidclient.R;
 
 public class ServerStateFragment extends ListFragment {
 

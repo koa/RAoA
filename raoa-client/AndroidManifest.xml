@@ -8,20 +8,70 @@
         android:minSdkVersion="15"
         android:targetSdkVersion="15" />
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
     <application
-        android:icon="@drawable/icon"
-        android:label="@string/app_name" android:largeHeap="true">
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:largeHeap="true" >
+        <receiver
+            android:name="ch.bergturbenthal.image.provider.service.NetworkReceiver"
+            android:enabled="true" >
+            <intent-filter>
+                <action android:name="android.net.wifi.STATE_CHANGE" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.net.wifi.WIFI_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name="ch.bergturbenthal.image.provider.service.PowerStateReceiver" >
+            <intent-filter>
+                <action android:name="android.intent.action.SCREEN_ON" />
+                <action android:name="android.intent.action.SCREEN_OFF" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name="ch.bergturbenthal.image.provider.service.SynchronisationServiceImpl"
+            android:enabled="true" >
+        </service>
+
         <activity
             android:name=".HelloAndroidActivity"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity android:name=".album.AlbumOverviewActivity" />
         <activity android:name=".photo.PhotoOverviewActivity" />
         <activity android:name=".photo.PhotoDetailViewActivity" />
+
+        <provider
+            android:name="ch.bergturbenthal.image.provider.ArchiveContentProvider"
+            android:authorities="ch.bergturbenthal.image.provider"
+            android:enabled="true"
+            android:exported="true"
+            android:label="RoyalArchiveContentProvider"
+            android:multiprocess="false" />
+
+        <activity
+            android:name="ch.bergturbenthal.image.provider.state.ServerListActivity"
+            android:label="@string/title_server_list" >
+        </activity>
+        <activity
+            android:name="ch.bergturbenthal.image.provider.state.ServerDetailActivity"
+            android:label="@string/title_server_detail" >
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".ServerListActivity" />
+        </activity>
     </application>
 
 </manifest>

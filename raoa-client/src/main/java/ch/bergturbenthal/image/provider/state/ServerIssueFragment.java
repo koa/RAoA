@@ -13,7 +13,7 @@ import android.widget.CursorAdapter;
 import android.widget.ResourceCursorAdapter;
 import android.widget.TextView;
 import ch.bergturbenthal.image.provider.Client;
-import ch.bergturbenthal.image.provider.R;
+import ch.royalarchive.androidclient.R;
 
 public class ServerIssueFragment extends ListFragment {
 	private CursorAdapter adapter;

@@ -29,7 +29,7 @@ import android.widget.Spinner;
 import android.widget.TimePicker;
 import android.widget.Toast;
 import ch.bergturbenthal.image.provider.Client;
-import ch.bergturbenthal.image.provider.R;
+import ch.royalarchive.androidclient.R;
 
 public class ServerCreateAlbumFragment extends Fragment {
 
@@ -100,8 +100,9 @@ public class ServerCreateAlbumFragment extends Fragment {
 					return;
 				}
 				final String serverId = getArguments() == null ? null : getArguments().getString(Client.ServerEntry.SERVER_ID);
-				if (serverId == null)
+				if (serverId == null) {
 					return;
+				}
 				final DateMidnight date = new DateTime(datePicker.getDate()).toDateMidnight();
 
 				final long autoAddDate = date.getMillis() + TimeUnit.HOURS.toMillis(timePicker.getCurrentHour()) + TimeUnit.MINUTES.toMillis(timePicker.getCurrentMinute());

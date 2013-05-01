@@ -1,4 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">RoyalArchiveOnAndroid</string>
+
+    <string name="server_progress">Fortschritt</string>
+    <string name="synchronisation_service_started">Synchronisiere</string>
+    <string name="title_server_detail">Details</string>
+    <string name="title_server_list">Server</string>
+    <string name="server_error">Probleme</string>
+    
+    <string name="server_create_folder">neues Album</string>
+    <string name="create_folder_album_title">neues Album</string>
+    <string name="create_folder_date_title">Startdatum</string>
+    <string name="create_folder_execute_title">erstelle Album</string>
+    <string name="create_folder_parent_title">Verzeichnis</string>    
+    <string name="create_folder_error_no_parent">Bitte ein Verzeichnis auswählen</string>
+    <string name="create_folder_error_no_album_name">Bitte einen Namen für das Album eingeben</string>
+    <string name="create_folder_folder_created">Album erzeugt</string>
+    
 </resources>
