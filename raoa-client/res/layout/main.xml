@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:orientation="vertical" >
+
+    <TextView
+        android:id="@+id/whattodo"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:text="Was möchtest du tun?" />
+
+    <Button
+        android:id="@+id/overview"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/whattodo"
+        android:text="Zur Albumübersicht" />
+
+    <Button
+        android:id="@+id/providertest"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/whattodo"
+        android:layout_toRightOf="@id/overview"
+        android:text="Provider testen" />
+    
+    <Button
+        android:id="@+id/clear_list"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/whattodo"
+        android:layout_toRightOf="@id/providertest"
+        android:text="Liste löschen" />
+
+    <ListView
+        android:id="@android:id/list"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/overview" />
+    
+</RelativeLayout>
