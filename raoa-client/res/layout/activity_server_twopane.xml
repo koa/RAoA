@@ -22,7 +22,7 @@
 
     <fragment
         android:id="@+id/server_list"
-        android:name="ch.bergturbenthal.image.provider.state.ServerListFragment"
+        android:name="ch.bergturbenthal.raoa.provider.state.ServerListFragment"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
@@ -30,7 +30,7 @@
 
     <fragment
         android:id="@+id/server_detail_fragment"
-        android:name="ch.bergturbenthal.image.provider.state.ServerStateFragment"
+        android:name="ch.bergturbenthal.raoa.provider.state.ServerStateFragment"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="3" />

@@ -26,10 +26,10 @@ import android.util.Log;
 import ch.bergturbenthal.image.client.R;
 import ch.bergturbenthal.image.client.resolver.AlbumService;
 import ch.bergturbenthal.image.client.resolver.Resolver;
-import ch.bergturbenthal.image.data.api.ImageResult;
-import ch.bergturbenthal.image.data.model.AlbumDetail;
-import ch.bergturbenthal.image.data.model.AlbumEntry;
-import ch.bergturbenthal.image.data.model.AlbumImageEntry;
+import ch.bergturbenthal.raoa.data.api.ImageResult;
+import ch.bergturbenthal.raoa.data.model.AlbumDetail;
+import ch.bergturbenthal.raoa.data.model.AlbumEntry;
+import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 
 public class DownloadService extends IntentService {
 

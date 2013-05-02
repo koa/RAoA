@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="ch.royalarchive.androidclient"
+    package="ch.bergturbenthal.raoa"
     android:versionCode="1"
     android:versionName="0.0.1-SNAPSHOT" >
 
@@ -16,11 +16,12 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
     <application
+        android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:largeHeap="true" >
         <receiver
-            android:name="ch.bergturbenthal.image.provider.service.NetworkReceiver"
+            android:name=".provider.service.NetworkReceiver"
             android:enabled="true" >
             <intent-filter>
                 <action android:name="android.net.wifi.STATE_CHANGE" />
@@ -28,7 +29,7 @@
                 <action android:name="android.net.wifi.WIFI_STATE_CHANGED" />
             </intent-filter>
         </receiver>
-        <receiver android:name="ch.bergturbenthal.image.provider.service.PowerStateReceiver" >
+        <receiver android:name=".provider.service.PowerStateReceiver" >
             <intent-filter>
                 <action android:name="android.intent.action.SCREEN_ON" />
                 <action android:name="android.intent.action.SCREEN_OFF" />
@@ -36,12 +37,12 @@
         </receiver>
 
         <service
-            android:name="ch.bergturbenthal.image.provider.service.SynchronisationServiceImpl"
+            android:name=".provider.service.SynchronisationServiceImpl"
             android:enabled="true" >
         </service>
 
         <activity
-            android:name=".HelloAndroidActivity"
+            android:name=".client.HelloAndroidActivity"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -49,12 +50,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".album.AlbumOverviewActivity" />
-        <activity android:name=".photo.PhotoOverviewActivity" />
-        <activity android:name=".photo.PhotoDetailViewActivity" />
+        <activity android:name=".client.album.AlbumOverviewActivity" />
+        <activity android:name=".client.photo.PhotoOverviewActivity" />
+        <activity android:name=".client.photo.PhotoDetailViewActivity" />
 
         <provider
-            android:name="ch.bergturbenthal.image.provider.ArchiveContentProvider"
+            android:name=".provider.ArchiveContentProvider"
             android:authorities="ch.bergturbenthal.image.provider"
             android:enabled="true"
             android:exported="true"
@@ -62,11 +63,11 @@
             android:multiprocess="false" />
 
         <activity
-            android:name="ch.bergturbenthal.image.provider.state.ServerListActivity"
+            android:name=".provider.state.ServerListActivity"
             android:label="@string/title_server_list" >
         </activity>
         <activity
-            android:name="ch.bergturbenthal.image.provider.state.ServerDetailActivity"
+            android:name=".provider.state.ServerDetailActivity"
             android:label="@string/title_server_detail" >
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"

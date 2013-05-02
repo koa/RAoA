@@ -31,7 +31,7 @@ import android.content.SharedPreferences.Editor;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.util.Log;
-import ch.bergturbenthal.image.data.model.PingResponse;
+import ch.bergturbenthal.raoa.data.model.PingResponse;
 
 public class Resolver implements Closeable {
 	public static interface ConnectionUrlListener {

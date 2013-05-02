@@ -50,7 +50,7 @@
           <daemons>
             <daemon>
               <id>image-server</id>
-              <mainClass>ch.bergturbenthal.image.server.starter.Starter</mainClass>
+              <mainClass>ch.bergturbenthal.raoa.server.starter.Starter</mainClass>
               <platforms>
                 <platform>jsw</platform>
               </platforms>

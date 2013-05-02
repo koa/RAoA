@@ -23,8 +23,8 @@ import ch.bergturbenthal.image.client.resolver.AlbumService;
 import ch.bergturbenthal.image.client.resolver.ConnectedHandler;
 import ch.bergturbenthal.image.client.resolver.ConnectionAdapter;
 import ch.bergturbenthal.image.client.resolver.Resolver;
-import ch.bergturbenthal.image.data.model.AlbumEntry;
-import ch.bergturbenthal.image.data.model.CreateAlbumRequest;
+import ch.bergturbenthal.raoa.data.model.AlbumEntry;
+import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
 
 public class CreateAlbumActivity extends Activity {
 	private AlbumService service;

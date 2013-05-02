@@ -26,13 +26,13 @@ import org.springframework.web.client.RestTemplate;
 
 import android.content.Context;
 import android.util.Log;
-import ch.bergturbenthal.image.data.api.Album;
-import ch.bergturbenthal.image.data.api.ImageResult;
-import ch.bergturbenthal.image.data.model.AlbumDetail;
-import ch.bergturbenthal.image.data.model.AlbumEntry;
-import ch.bergturbenthal.image.data.model.AlbumList;
-import ch.bergturbenthal.image.data.model.CreateAlbumRequest;
-import ch.bergturbenthal.image.data.model.MutationEntry;
+import ch.bergturbenthal.raoa.data.api.Album;
+import ch.bergturbenthal.raoa.data.api.ImageResult;
+import ch.bergturbenthal.raoa.data.model.AlbumDetail;
+import ch.bergturbenthal.raoa.data.model.AlbumEntry;
+import ch.bergturbenthal.raoa.data.model.AlbumList;
+import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
+import ch.bergturbenthal.raoa.data.model.MutationEntry;
 
 public class AlbumService implements Album {
 	private static final String[] DATE_FORMATS = new String[] { "EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd-MMM-yy HH:mm:ss zzz", "EEE MMM dd HH:mm:ss yyyy" };

@@ -6,13 +6,13 @@
 
   <bean class="org.eclipse.jgit.transport.Daemon">
     <property name="repositoryResolver">
-      <bean class="ch.bergturbenthal.image.server.AlbumRepositoryResolver" />
+      <bean class="ch.bergturbenthal.raoa.server.AlbumRepositoryResolver" />
     </property>
   </bean>
 
-  <bean class="ch.bergturbenthal.image.server.FileAlbumAccess" />
-  <bean class="ch.bergturbenthal.image.server.state.StateManagerImpl" />
-  <bean class="ch.bergturbenthal.image.server.util.RepositoryServiceImpl" />
+  <bean class="ch.bergturbenthal.raoa.server.FileAlbumAccess" />
+  <bean class="ch.bergturbenthal.raoa.server.state.StateManagerImpl" />
+  <bean class="ch.bergturbenthal.raoa.server.util.RepositoryServiceImpl" />
 
   <bean id="executorService" class="java.util.concurrent.Executors"
     factory-method="newScheduledThreadPool">
@@ -20,21 +20,21 @@
     <constructor-arg value="20" />
   </bean>
 
-  <bean name="album" class="ch.bergturbenthal.image.server.Album"
+  <bean name="album" class="ch.bergturbenthal.raoa.server.Album"
     scope="prototype" factory-method="createAlbum">
   </bean>
-  <bean name="albumImage" class="ch.bergturbenthal.image.server.AlbumImage"
+  <bean name="albumImage" class="ch.bergturbenthal.raoa.server.AlbumImage"
     scope="prototype" factory-method="createImage">
   </bean>
-  <bean name="fileWatcher" class="ch.bergturbenthal.image.server.watcher.FileWatcher"
+  <bean name="fileWatcher" class="ch.bergturbenthal.raoa.server.watcher.FileWatcher"
     scope="prototype" factory-method="createWatcher">
   </bean>
 
   <bean
-    class="ch.bergturbenthal.image.server.thumbnails.FfmpegVideoThumbnailMaker">
+    class="ch.bergturbenthal.raoa.server.thumbnails.FfmpegVideoThumbnailMaker">
   </bean>
   <bean
-    class="ch.bergturbenthal.image.server.thumbnails.ImageMagickImageThumbnailMaker">
+    class="ch.bergturbenthal.raoa.server.thumbnails.ImageMagickImageThumbnailMaker">
     <!-- <property name="gmBinary"/> <property name="imConvertBinary"/> -->
     <property name="thumbnailSize" value="1600" />
   </bean>

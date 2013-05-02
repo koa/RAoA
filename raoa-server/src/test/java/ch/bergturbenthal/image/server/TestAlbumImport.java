@@ -11,6 +11,8 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import ch.bergturbenthal.raoa.server.AlbumAccess;
+
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration("classpath:spring-test/services.xml")
 public class TestAlbumImport {

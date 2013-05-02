@@ -18,7 +18,7 @@ import ch.bergturbenthal.image.client.resolver.AlbumService;
 import ch.bergturbenthal.image.client.resolver.ConnectedHandler;
 import ch.bergturbenthal.image.client.resolver.ConnectionAdapter;
 import ch.bergturbenthal.image.client.resolver.Resolver;
-import ch.bergturbenthal.image.data.model.AlbumEntry;
+import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 
 public class AlbumListFragment extends ListFragment {
 	public static final String CLIENT_TITLE = "client_title";

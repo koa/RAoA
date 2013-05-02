@@ -12,6 +12,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import ch.bergturbenthal.raoa.server.Album;
+import ch.bergturbenthal.raoa.server.AlbumAccess;
+import ch.bergturbenthal.raoa.server.AlbumImage;
+
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration("classpath:spring-test/services.xml")
 public class TestAlbumAccess {

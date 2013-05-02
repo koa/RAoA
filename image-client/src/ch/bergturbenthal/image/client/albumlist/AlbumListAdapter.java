@@ -10,7 +10,7 @@ import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import ch.bergturbenthal.image.client.R;
-import ch.bergturbenthal.image.data.model.AlbumEntry;
+import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 
 public class AlbumListAdapter extends ArrayAdapter<AlbumEntry> {
 

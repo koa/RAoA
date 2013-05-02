@@ -1,5 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>ch.bergturbenthal.raoa</groupId>
@@ -33,8 +32,8 @@
                   <overWrite>true</overWrite>
                 </artifactItem>
                 <artifactItem>
-                  <groupId>ch.bergturbenthal.image</groupId>
-                  <artifactId>image-provider</artifactId>
+                  <groupId>ch.bergturbenthal.raoa</groupId>
+                  <artifactId>raoa-client</artifactId>
                   <version>${project.version}</version>
                   <type>apk</type>
                   <overWrite>true</overWrite>

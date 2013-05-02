@@ -4,7 +4,6 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>ch.bergturbenthal.raoa</groupId>
   <artifactId>raoa-client</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
   <packaging>apk</packaging>
   <name>RoyalArchiveOnAndroid Client</name>
   <parent>
@@ -49,7 +48,16 @@
       <groupId>joda-time</groupId>
       <artifactId>joda-time</artifactId>
     </dependency>
-    </dependencies>
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 
   <build>
     <plugins>
