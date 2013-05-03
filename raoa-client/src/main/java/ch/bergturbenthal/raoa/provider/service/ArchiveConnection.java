@@ -25,6 +25,7 @@ import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.MutationEntry;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
+import ch.bergturbenthal.raoa.data.model.StorageList;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryDto;
 import ch.bergturbenthal.raoa.provider.model.dto.ServerStateDto;
@@ -64,8 +65,9 @@ public class ArchiveConnection {
 
 	public Map<String, AlbumConnection> getAlbums() {
 		final Map<String, AlbumConnection> cached = cachedAlbums.get();
-		if (cached != null)
+		if (cached != null) {
 			return cached;
+		}
 		return listAlbums();
 	}
 
@@ -164,8 +166,9 @@ public class ArchiveConnection {
 						if (serverConnection == null) {
 							continue;
 						}
-						if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile))
+						if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile)) {
 							return true;
+						}
 					}
 					return false;
 				}
@@ -189,6 +192,19 @@ public class ArchiveConnection {
 
 	public Map<String, ServerConnection> listServers() {
 		return serverConnections.get();
+	}
+
+	public StorageList listStorages() {
+		StorageList ret = null;
+		Date lastModified = new Date(Long.MIN_VALUE);
+		for (final ServerConnection connection : serverConnections.get().values()) {
+			final StorageList storages = connection.listStorages();
+			if (storages != null && storages.getLastModified().after(lastModified)) {
+				lastModified = storages.getLastModified();
+				ret = storages;
+			}
+		}
+		return ret;
 	}
 
 	public void updateServerConnections(final Map<URL, PingResponse> connections) {

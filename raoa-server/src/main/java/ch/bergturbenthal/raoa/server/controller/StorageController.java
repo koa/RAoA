@@ -14,13 +14,13 @@ import ch.bergturbenthal.raoa.server.StorageAccess;
 @Controller
 @RequestMapping("/storages")
 public class StorageController {
-  private static Logger logger = LoggerFactory.getLogger(AlbumController.class);
-  @Autowired
-  private StorageAccess storageAccess;
+	private static Logger logger = LoggerFactory.getLogger(AlbumController.class);
+	@Autowired
+	private StorageAccess storageAccess;
 
-  @RequestMapping(method = RequestMethod.GET)
-  public @ResponseBody
-  StorageList listClients() {
-    return storageAccess.listKnownStorage();
-  }
+	@RequestMapping(method = RequestMethod.GET)
+	public @ResponseBody
+	StorageList listClients() {
+		return storageAccess.listKnownStorage();
+	}
 }

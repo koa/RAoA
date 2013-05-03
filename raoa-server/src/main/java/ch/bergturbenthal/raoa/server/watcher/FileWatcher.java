@@ -17,92 +17,93 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 public class FileWatcher implements Closeable {
-  private WatchService watchService;
+	private static Logger logger = LoggerFactory.getLogger(FileWatcher.class);
 
-  private Thread watcherThread;
-  private static Logger logger = LoggerFactory.getLogger(FileWatcher.class);
-  @Autowired
-  private ExecutorService executorService;
-  private final File basePath;
+	private final File basePath;
+	@Autowired
+	private ExecutorService executorService;
+	@Autowired
+	private DirectoryNotificationService notificationService;
+	private Thread watcherThread;
 
-  @Autowired
-  private DirectoryNotificationService notificationService;
+	private WatchService watchService;
 
-  public static FileWatcher createWatcher(final File basePath) {
-    return new FileWatcher(basePath);
-  }
+	public static FileWatcher createWatcher(final File basePath) {
+		return new FileWatcher(basePath);
+	}
 
-  public FileWatcher(final File basePath) {
-    this.basePath = basePath;
-  }
+	public FileWatcher(final File basePath) {
+		this.basePath = basePath;
+	}
 
-  @Override
-  public void close() {
-    watcherThread.interrupt();
-  }
+	@Override
+	public void close() {
+		watcherThread.interrupt();
+	}
 
-  @PostConstruct
-  public void init() {
-    try {
-      final Path path = basePath.toPath();
+	@PostConstruct
+	public void init() {
+		try {
+			final Path path = basePath.toPath();
 
-      watchService = path.getFileSystem().newWatchService();
-      path.register(watchService, StandardWatchEventKinds.ENTRY_CREATE);
+			watchService = path.getFileSystem().newWatchService();
+			path.register(watchService, StandardWatchEventKinds.ENTRY_CREATE);
 
-      final Runnable watchRunnable = new Runnable() {
+			final Runnable watchRunnable = new Runnable() {
 
-        @Override
-        public void run() {
-          try {
-            for (;;) {
-              final WatchKey watchKey;
-              try {
-                watchKey = watchService.take();
-              } catch (final InterruptedException e) {
-                return;
-              }
-              try {
-                for (final WatchEvent<?> event : watchKey.pollEvents()) {
-                  final Path changedPath = (Path) event.context();
-                  final File addedDirectory = path.resolve(changedPath).toFile();
-                  processDirectory(addedDirectory);
-                }
-              } catch (final Throwable t) {
-                logger.warn("Cannot process watch-event", t);
-              }
-              final boolean valid = watchKey.reset();
-              if (!valid)
-                break;
+				@Override
+				public void run() {
+					try {
+						for (;;) {
+							final WatchKey watchKey;
+							try {
+								watchKey = watchService.take();
+							} catch (final InterruptedException e) {
+								return;
+							}
+							try {
+								for (final WatchEvent<?> event : watchKey.pollEvents()) {
+									final Path changedPath = (Path) event.context();
+									final File addedDirectory = path.resolve(changedPath).toFile();
+									processDirectory(addedDirectory);
+								}
+							} catch (final Throwable t) {
+								logger.warn("Cannot process watch-event", t);
+							}
+							final boolean valid = watchKey.reset();
+							if (!valid) {
+								break;
+							}
 
-            }
-          } finally {
-            try {
-              watchService.close();
-            } catch (final IOException e) {
-              logger.error("Cannot close watcher for " + basePath, e);
-            }
-          }
-        }
-      };
-      watcherThread = new Thread(watchRunnable, "FileWatcher " + basePath);
-      watcherThread.start();
-      executorService.submit(new Runnable() {
+						}
+					} finally {
+						try {
+							watchService.close();
+						} catch (final IOException e) {
+							logger.error("Cannot close watcher for " + basePath, e);
+						}
+					}
+				}
+			};
+			watcherThread = new Thread(watchRunnable, "FileWatcher " + basePath);
+			watcherThread.start();
+			executorService.submit(new Runnable() {
 
-        @Override
-        public void run() {
-          for (final File existingFile : basePath.listFiles()) {
-            processDirectory(existingFile);
-          }
-        }
-      });
+				@Override
+				public void run() {
+					for (final File existingFile : basePath.listFiles()) {
+						processDirectory(existingFile);
+					}
+				}
+			});
 
-    } catch (final IOException e) {
-      throw new RuntimeException("Cannot watch " + basePath, e);
-    }
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot watch " + basePath, e);
+		}
 
-  }
+	}
 
-  private void processDirectory(final File directory) {
-    notificationService.notifyDirectory(directory);
-  }
+	private void processDirectory(final File directory) {
+		notificationService.notifyDirectory(directory);
+	}
 }

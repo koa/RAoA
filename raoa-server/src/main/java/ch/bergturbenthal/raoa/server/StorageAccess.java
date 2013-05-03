@@ -4,6 +4,6 @@ import ch.bergturbenthal.raoa.data.model.StorageList;
 
 public interface StorageAccess {
 
-  StorageList listKnownStorage();
+	StorageList listKnownStorage();
 
 }

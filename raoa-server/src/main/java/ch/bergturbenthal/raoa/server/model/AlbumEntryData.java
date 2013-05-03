@@ -8,16 +8,16 @@ import ch.bergturbenthal.raoa.data.model.Location;
 
 @Data
 public class AlbumEntryData {
-  private String cameraMake;
-  private String cameraModel;
-  private String caption;
-  private Date creationDate;
-  private Double exposureTime;
-  private Double fNumber;
-  private Double focalLength;
-  private Integer iso;
-  private Collection<String> keywords;
-  private Location location;
-  private Integer rating;
-  private String editableMetadataHash;
+	private String cameraMake;
+	private String cameraModel;
+	private String caption;
+	private Date creationDate;
+	private String editableMetadataHash;
+	private Double exposureTime;
+	private Double fNumber;
+	private Double focalLength;
+	private Integer iso;
+	private Collection<String> keywords;
+	private Location location;
+	private Integer rating;
 }

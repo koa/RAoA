@@ -17,18 +17,18 @@ import ch.bergturbenthal.raoa.server.AlbumAccess;
 @ContextConfiguration("classpath:spring-test/services.xml")
 public class TestAlbumImport {
 
-  @Autowired
-  private AlbumAccess albumAccess;
-  @Autowired
-  private ExecutorService executorService;
-  private final File importBaseDir = new ClassPathResource("photos/testalbum").getFile();
+	@Autowired
+	private AlbumAccess albumAccess;
+	@Autowired
+	private ExecutorService executorService;
+	private final File importBaseDir = new ClassPathResource("photos/testalbum").getFile();
 
-  public TestAlbumImport() throws IOException {
-  }
+	public TestAlbumImport() throws IOException {
+	}
 
-  @Test
-  public void testImport() throws InterruptedException {
-    albumAccess.importFiles(importBaseDir);
-  }
+	@Test
+	public void testImport() throws InterruptedException {
+		albumAccess.importFiles(importBaseDir);
+	}
 
 }

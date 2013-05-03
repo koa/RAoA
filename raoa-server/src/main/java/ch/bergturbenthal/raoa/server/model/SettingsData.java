@@ -10,8 +10,8 @@ import lombok.Data;
  */
 @Data
 public class SettingsData {
-  private File albumPath;
-  private File importBasePath;
-  private String instanceName;
-  private String archiveName;
+	private File albumPath;
+	private String archiveName;
+	private File importBasePath;
+	private String instanceName;
 }

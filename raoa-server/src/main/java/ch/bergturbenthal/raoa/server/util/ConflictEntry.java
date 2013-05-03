@@ -8,7 +8,7 @@ import org.eclipse.jgit.diff.DiffEntry;
 
 @Data
 public class ConflictEntry {
-  private ConflictMeta meta;
-  private Collection<DiffEntry> diffs;
-  private String branch;
+	private String branch;
+	private Collection<DiffEntry> diffs;
+	private ConflictMeta meta;
 }

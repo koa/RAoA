@@ -12,12 +12,12 @@ import ch.bergturbenthal.raoa.server.state.StateManager;
 @Controller
 @RequestMapping("/state")
 public class StateController {
-  @Autowired
-  private StateManager stateManager;
+	@Autowired
+	private StateManager stateManager;
 
-  @RequestMapping(method = RequestMethod.GET)
-  public @ResponseBody
-  ServerState getServerState() {
-    return stateManager.getCurrentState();
-  }
+	@RequestMapping(method = RequestMethod.GET)
+	public @ResponseBody
+	ServerState getServerState() {
+		return stateManager.getCurrentState();
+	}
 }

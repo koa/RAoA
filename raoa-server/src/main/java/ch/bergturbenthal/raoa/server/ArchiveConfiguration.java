@@ -1,11 +1,11 @@
 package ch.bergturbenthal.raoa.server;
 
 public interface ArchiveConfiguration {
-  String getArchiveName();
+	String getArchiveName();
 
-  String getInstanceName();
+	String getInstanceName();
 
-  void setArchiveName(final String archiveName);
+	void setArchiveName(final String archiveName);
 
-  void setInstanceName(final String instanceName);
+	void setInstanceName(final String instanceName);
 }

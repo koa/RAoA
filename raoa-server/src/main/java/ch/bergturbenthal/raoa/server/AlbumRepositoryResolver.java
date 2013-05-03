@@ -20,18 +20,17 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 public class AlbumRepositoryResolver<C> implements RepositoryResolver<C> {
 
-  @Autowired
-  private AlbumAccess albumAccess;
+	@Autowired
+	private AlbumAccess albumAccess;
 
-  @Override
-  public Repository open(final C req, final String name) throws RepositoryNotFoundException, ServiceNotAuthorizedException,
-                                                        ServiceNotEnabledException {
-    if (".meta".equals(name))
-      return albumAccess.getMetaRepository();
-    final Album album = albumAccess.getAlbum(name);
-    if (album == null)
-      throw new RepositoryNotFoundException(name);
-    return album.getRepository();
-  }
+	@Override
+	public Repository open(final C req, final String name) throws RepositoryNotFoundException, ServiceNotAuthorizedException, ServiceNotEnabledException {
+		if (".meta".equals(name))
+			return albumAccess.getMetaRepository();
+		final Album album = albumAccess.getAlbum(name);
+		if (album == null)
+			throw new RepositoryNotFoundException(name);
+		return album.getRepository();
+	}
 
 }

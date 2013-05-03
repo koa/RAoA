@@ -20,28 +20,28 @@ import ch.bergturbenthal.raoa.server.AlbumImage;
 @ContextConfiguration("classpath:spring-test/services.xml")
 public class TestAlbumAccess {
 
-  @Autowired
-  private AlbumAccess albumAccess;
-  @Autowired
-  private ExecutorService executorService;
+	@Autowired
+	private AlbumAccess albumAccess;
+	@Autowired
+	private ExecutorService executorService;
 
-  @Test
-  public void testFindAlbums() throws InterruptedException {
-    final Collection<Callable<Void>> runnables = new ArrayList<Callable<Void>>();
-    for (final Album album : albumAccess.listAlbums().values()) {
-      for (final AlbumImage image : album.listImages().values()) {
-        runnables.add(new Callable<Void>() {
+	@Test
+	public void testFindAlbums() throws InterruptedException {
+		final Collection<Callable<Void>> runnables = new ArrayList<Callable<Void>>();
+		for (final Album album : albumAccess.listAlbums().values()) {
+			for (final AlbumImage image : album.listImages().values()) {
+				runnables.add(new Callable<Void>() {
 
-          @Override
-          public Void call() throws Exception {
-            final File thumbnail = image.getThumbnail();
-            System.out.println(image + ":" + thumbnail.length());
-            return null;
-          }
-        });
-      }
-      System.out.println("- " + album + ":" + album.getRepositorySize());
-    }
-    executorService.invokeAll(runnables);
-  }
+					@Override
+					public Void call() throws Exception {
+						final File thumbnail = image.getThumbnail();
+						System.out.println(image + ":" + thumbnail.length());
+						return null;
+					}
+				});
+			}
+			System.out.println("- " + album + ":" + album.getRepositorySize());
+		}
+		executorService.invokeAll(runnables);
+	}
 }

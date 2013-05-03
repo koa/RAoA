@@ -10,7 +10,7 @@ import lombok.Data;
  */
 @Data
 public class ConflictMeta {
-  private String remoteUri;
-  private String server;
-  private Date conflictDate;
+	private Date conflictDate;
+	private String remoteUri;
+	private String server;
 }
