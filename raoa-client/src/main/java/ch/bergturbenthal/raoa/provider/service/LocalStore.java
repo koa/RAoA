@@ -8,6 +8,7 @@ import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
 import android.util.Pair;
+import ch.bergturbenthal.raoa.data.model.StorageList;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDetailData;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntries;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMeta;
@@ -29,7 +30,8 @@ public class LocalStore {
 		store = new FileStorage(Arrays.asList((FileBackend<?>) new ParcelableBackend<AlbumEntries>(dataDir, AlbumEntries.class),
 																					(FileBackend<?>) new ParcelableBackend<AlbumMeta>(dataDir, AlbumMeta.class),
 																					(FileBackend<?>) new ParcelableBackend<AlbumDetailData>(dataDir, AlbumDetailData.class),
-																					(FileBackend<?>) new JacksonBackend<AlbumState>(dataDir, AlbumState.class)
+																					(FileBackend<?>) new JacksonBackend<AlbumState>(dataDir, AlbumState.class),
+																					(FileBackend<?>) new JacksonBackend<StorageList>(dataDir, StorageList.class)
 
 		));
 
@@ -59,6 +61,10 @@ public class LocalStore {
 	public AlbumState getAlbumState(final String archiveName, final String albumId, final ReadPolicy policy) {
 		final String relativePath = archiveName + "/" + albumId + "-state";
 		return store.getObject(relativePath, AlbumState.class, policy);
+	}
+
+	public StorageList getCurrentStorageList(final ReadPolicy policy) {
+		return store.getObject("storages", StorageList.class, policy);
 	}
 
 	public Collection<Pair<String, String>> listAlbumMeta() {

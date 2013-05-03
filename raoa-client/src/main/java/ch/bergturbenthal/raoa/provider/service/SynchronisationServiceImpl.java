@@ -59,10 +59,11 @@ import android.util.LruCache;
 import android.util.Pair;
 import ch.bergturbenthal.raoa.data.model.CaptionMutationEntry;
 import ch.bergturbenthal.raoa.data.model.KeywordMutationEntry;
+import ch.bergturbenthal.raoa.data.model.KeywordMutationEntry.KeywordMutation;
 import ch.bergturbenthal.raoa.data.model.MutationEntry;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.RatingMutationEntry;
-import ch.bergturbenthal.raoa.data.model.KeywordMutationEntry.KeywordMutation;
+import ch.bergturbenthal.raoa.data.model.StorageList;
 import ch.bergturbenthal.raoa.data.model.state.Issue;
 import ch.bergturbenthal.raoa.data.model.state.Progress;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
@@ -1279,7 +1280,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 						break;
 					}
 					final String archiveName = archive.getKey();
-					final Map<String, AlbumConnection> albums = archive.getValue().listAlbums();
+					final ArchiveConnection archiveConnection = archive.getValue();
+					final Map<String, AlbumConnection> albums = archiveConnection.listAlbums();
 					// remove invisible albums
 					putIfNotExists(visibleAlbums, archiveName, new ConcurrentHashMap<String, String>()).keySet().retainAll(albums.keySet());
 
@@ -1303,6 +1305,22 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 							}
 						});
 					}
+					updateDetailRunnables.add(new Callable<Void>() {
+						@Override
+						public Void call() throws Exception {
+							return callInTransaction(new Callable<Void>() {
+								@Override
+								public Void call() throws Exception {
+									final StorageList foundStorages = archiveConnection.listStorages();
+									if (foundStorages == null) {
+										return null;
+									}
+									store.getCurrentStorageList(ReadPolicy.READ_OR_CREATE).updateFrom(foundStorages);
+									return null;
+								}
+							});
+						}
+					});
 				}
 				wrappedExecutorService.invokeAll(updateDetailRunnables);
 			} catch (final Throwable t) {
