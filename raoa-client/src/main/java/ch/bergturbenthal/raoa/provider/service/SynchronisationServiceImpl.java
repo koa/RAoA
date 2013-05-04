@@ -697,37 +697,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return (int) value.length() / 1024;
 			}
 		};
-		for (final File archiveDir : thumbnailsTempDir.listFiles(new FileFilter() {
-
+		executorService.execute(new Runnable() {
 			@Override
-			public boolean accept(final File pathname) {
-				return pathname.isDirectory();
+			public void run() {
+				refreshThumbnailsFromFiles();
 			}
-		})) {
-			final String archiveName = archiveDir.getName();
-			for (final File albumDir : archiveDir.listFiles(new FileFilter() {
-				@Override
-				public boolean accept(final File pathname) {
-					return pathname.isDirectory();
-				}
-			})) {
-				final String albumId = albumDir.getName();
-				for (final File thumbnailFile : albumDir.listFiles(new FileFilter() {
-
-					@Override
-					public boolean accept(final File pathname) {
-						return pathname.isFile() && pathname.getName().endsWith(THUMBNAIL_SUFFIX);
-					}
-				})) {
-					final String filename = thumbnailFile.getName();
-					final String albumEntryId = filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length());
-					final File loadedFile = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
-					if (loadedFile == null) {
-						thumbnailFile.delete();
-					}
-				}
-			}
-		}
+		});
 	}
 
 	private String lastPart(final String[] split) {
@@ -1145,6 +1120,40 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return null;
 			}
 		});
+	}
+
+	private void refreshThumbnailsFromFiles() {
+		for (final File archiveDir : thumbnailsTempDir.listFiles(new FileFilter() {
+
+			@Override
+			public boolean accept(final File pathname) {
+				return pathname.isDirectory();
+			}
+		})) {
+			final String archiveName = archiveDir.getName();
+			for (final File albumDir : archiveDir.listFiles(new FileFilter() {
+				@Override
+				public boolean accept(final File pathname) {
+					return pathname.isDirectory();
+				}
+			})) {
+				final String albumId = albumDir.getName();
+				for (final File thumbnailFile : albumDir.listFiles(new FileFilter() {
+
+					@Override
+					public boolean accept(final File pathname) {
+						return pathname.isFile() && pathname.getName().endsWith(THUMBNAIL_SUFFIX);
+					}
+				})) {
+					final String filename = thumbnailFile.getName();
+					final String albumEntryId = filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length());
+					final File loadedFile = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
+					if (loadedFile == null) {
+						thumbnailFile.delete();
+					}
+				}
+			}
+		}
 	}
 
 	private void registerScreenOnOff() {
