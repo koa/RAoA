@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.provider.service;
 
 import java.lang.ref.WeakReference;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -21,13 +22,17 @@ public class CursorNotification {
 	};
 	private final Collection<WeakReference<NotifyableMatrixCursor>> allAlbumCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableMatrixCursor>>();
 
-	private final ThreadLocal<Collection<Integer>> singleAlbumCursorModified = new ThreadLocal<Collection<Integer>>() {
-
+	private final ThreadLocal<Boolean> collectingNotifications = new ThreadLocal<Boolean>() {
 		@Override
-		protected Collection<Integer> initialValue() {
-			return new HashSet<Integer>();
+		protected Boolean initialValue() {
+			return Boolean.FALSE;
 		}
-
+	};
+	private final ThreadLocal<Collection<AlbumIndex>> singleAlbumCursorModified = new ThreadLocal<Collection<AlbumIndex>>() {
+		@Override
+		protected Collection<AlbumIndex> initialValue() {
+			return new HashSet<AlbumIndex>();
+		}
 	};
 
 	private final ConcurrentMap<AlbumIndex, Collection<WeakReference<NotifyableMatrixCursor>>> singleAlbumCursors = new ConcurrentHashMap<AlbumIndex, Collection<WeakReference<NotifyableMatrixCursor>>>();
@@ -55,41 +60,44 @@ public class CursorNotification {
 
 	public <V> V doWithNotify(final Callable<V> callable) {
 		allAlbumCursorModified.set(Boolean.FALSE);
-		singleAlbumCursorModified.get().clear();
+		final Collection<AlbumIndex> modifiedCursors = singleAlbumCursorModified.get();
+		modifiedCursors.clear();
+		collectingNotifications.set(Boolean.TRUE);
 		try {
 			return callable.call();
 		} catch (final Exception e) {
 			throw new RuntimeException(e);
 		} finally {
+			collectingNotifications.set(Boolean.FALSE);
 			if (allAlbumCursorModified.get().booleanValue()) {
-				notifyCursors(allAlbumCursors);
-				for (final Collection<WeakReference<NotifyableMatrixCursor>> cursors : singleAlbumCursors.values()) {
-					notifyCursors(cursors);
-				}
+				notifyAllAlbumCursorsChanged();
 			} else {
-				if (singleAlbumCursorModified.get().size() > 0) {
-					notifyCursors(allAlbumCursors);
-					for (final Integer albumId : singleAlbumCursorModified.get()) {
-						final Collection<WeakReference<NotifyableMatrixCursor>> registeresCursors = singleAlbumCursors.get(albumId);
-						if (registeresCursors != null) {
-							notifyCursors(registeresCursors);
-						}
-					}
-				}
+				notifyModifiedAlbums(modifiedCursors);
 			}
 		}
 	}
 
 	public void notifyAllAlbumCursorsChanged() {
-		allAlbumCursorModified.set(Boolean.TRUE);
+		if (collectingNotifications.get().booleanValue()) {
+			allAlbumCursorModified.set(Boolean.TRUE);
+		} else {
+			notifyCursors(allAlbumCursors);
+			for (final Collection<WeakReference<NotifyableMatrixCursor>> cursors : singleAlbumCursors.values()) {
+				notifyCursors(cursors);
+			}
+		}
 	}
 
 	public void notifyServerStateModified() {
 		notifyCursors(stateCursors);
 	}
 
-	public void notifySingleAlbumCursorChanged(final int albumId) {
-		singleAlbumCursorModified.get().add(Integer.valueOf(albumId));
+	public void notifySingleAlbumCursorChanged(final AlbumIndex albumId) {
+		if (collectingNotifications.get().booleanValue()) {
+			singleAlbumCursorModified.get().add(albumId);
+		} else {
+			notifyModifiedAlbums(Arrays.asList(albumId));
+		}
 	}
 
 	private void notifyCursors(final Collection<WeakReference<NotifyableMatrixCursor>> cursors) {
@@ -100,6 +108,18 @@ public class CursorNotification {
 				cursor.onChange(false);
 			} else {
 				i.remove();
+			}
+		}
+	}
+
+	private void notifyModifiedAlbums(final Collection<AlbumIndex> modifiedCursors) {
+		if (modifiedCursors.size() > 0) {
+			notifyCursors(allAlbumCursors);
+			for (final AlbumIndex albumId : modifiedCursors) {
+				final Collection<WeakReference<NotifyableMatrixCursor>> registeresCursors = singleAlbumCursors.get(albumId);
+				if (registeresCursors != null) {
+					notifyCursors(registeresCursors);
+				}
 			}
 		}
 	}

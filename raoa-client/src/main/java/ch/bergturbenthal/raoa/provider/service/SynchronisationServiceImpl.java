@@ -995,7 +995,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		}
 	}
 
-	private void notifyAlbumChanged(final int id) {
+	private void notifyAlbumChanged(final AlbumIndex id) {
 		cursorNotifications.notifySingleAlbumCursorChanged(id);
 	}
 
@@ -1141,6 +1141,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				if (dateCount.get() > 0) {
 					albumMeta.setAlbumDate(new Date(dateSum.longValue() / dateCount.longValue()));
 				}
+				notifyAlbumChanged(new AlbumIndex(archiveName, albumId));
 				return null;
 			}
 		});
@@ -1244,10 +1245,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				shouldUpdateMeta.set(albumModified);
 				if (albumModified) {
 					mutationList.setSynced(false);
+					notifyAlbumListChanged();
 				}
 				shouldLoadThumbnails.set(mutationList.isShouldSync() && !mutationList.isSynced());
 
-				visibleAlbumsOfArchive.put(albumName, commId);
+				final boolean visibleAlbumsModified = visibleAlbumsOfArchive.put(albumName, commId) == null;
+				if (visibleAlbumsModified) {
+					notifyAlbumListChanged();
+				}
 				albumId.set(commId);
 				return null;
 			}
@@ -1271,7 +1276,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				notificationManager.notify(NOTIFICATION, builder.getNotification());
 
 				// remove invisible archives
-				visibleAlbums.keySet().retainAll(connectionMap.get().keySet());
+				boolean visibleAlbumsModified = visibleAlbums.keySet().retainAll(connectionMap.get().keySet());
 
 				final Collection<Callable<Void>> updateDetailRunnables = new ArrayList<Callable<Void>>();
 
@@ -1283,7 +1288,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					final ArchiveConnection archiveConnection = archive.getValue();
 					final Map<String, AlbumConnection> albums = archiveConnection.listAlbums();
 					// remove invisible albums
-					putIfNotExists(visibleAlbums, archiveName, new ConcurrentHashMap<String, String>()).keySet().retainAll(albums.keySet());
+					visibleAlbumsModified |= putIfNotExists(visibleAlbums, archiveName, new ConcurrentHashMap<String, String>()).keySet().retainAll(albums.keySet());
 
 					final AtomicInteger albumCounter = new AtomicInteger();
 					builder.setContentText("Downloading from " + archiveName);
@@ -1321,6 +1326,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 							});
 						}
 					});
+				}
+				if (visibleAlbumsModified) {
+					notifyAlbumListChanged();
 				}
 				wrappedExecutorService.invokeAll(updateDetailRunnables);
 			} catch (final Throwable t) {
