@@ -9,6 +9,8 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.view.ViewPager;
+import android.view.Window;
+import android.view.WindowManager;
 import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.provider.Client;
 
@@ -41,6 +43,9 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 	@Override
 	public void onCreate(final Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+
+		requestWindowFeature(Window.FEATURE_NO_TITLE);
+		setFullscreen(true);
 
 		setContentView(R.layout.photo_detailview);
 		detailContainer = (PhotoDetailContainer) findViewById(R.id.photo_detailview_container);
@@ -97,6 +102,10 @@ public class PhotoDetailViewActivity extends Activity implements LoaderCallbacks
 	protected void onSaveInstanceState(final Bundle outState) {
 		super.onSaveInstanceState(outState);
 		outState.putInt(ACTUAL_POS, ((PhotoDetailviewAdapter) pager.getAdapter()).getCurrentPosition());
+	}
+
+	private void setFullscreen(final boolean fullscreen) {
+		getWindow().setFlags(fullscreen ? WindowManager.LayoutParams.FLAG_FULLSCREEN : 0, WindowManager.LayoutParams.FLAG_FULLSCREEN);
 	}
 
 }
