@@ -14,12 +14,12 @@ import ch.bergturbenthal.raoa.data.model.MutationEntry;
  * TODO: add type comment.
  * 
  */
-public class AlbumDetailData implements Parcelable {
-	public static Parcelable.Creator<AlbumDetailData> CREATOR = new Creator<AlbumDetailData>() {
+public class AlbumMutationData implements Parcelable {
+	public static Parcelable.Creator<AlbumMutationData> CREATOR = new Creator<AlbumMutationData>() {
 
 		@Override
-		public AlbumDetailData createFromParcel(final Parcel source) {
-			final AlbumDetailData ret = new AlbumDetailData();
+		public AlbumMutationData createFromParcel(final Parcel source) {
+			final AlbumMutationData ret = new AlbumMutationData();
 			final ArrayList<MutationEntry> mutationList = new ArrayList<MutationEntry>();
 			source.readList(mutationList, ret.getClass().getClassLoader());
 			ret.setMutations(mutationList);
@@ -27,8 +27,8 @@ public class AlbumDetailData implements Parcelable {
 		}
 
 		@Override
-		public AlbumDetailData[] newArray(final int size) {
-			return new AlbumDetailData[size];
+		public AlbumMutationData[] newArray(final int size) {
+			return new AlbumMutationData[size];
 		}
 	};
 	private Collection<MutationEntry> mutations = new ArrayList<MutationEntry>();
@@ -47,7 +47,7 @@ public class AlbumDetailData implements Parcelable {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		final AlbumDetailData other = (AlbumDetailData) obj;
+		final AlbumMutationData other = (AlbumMutationData) obj;
 		if (mutations == null) {
 			if (other.mutations != null)
 				return false;

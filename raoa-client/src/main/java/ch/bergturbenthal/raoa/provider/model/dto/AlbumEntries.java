@@ -3,8 +3,9 @@
  */
 package ch.bergturbenthal.raoa.provider.model.dto;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.TreeSet;
 
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -17,9 +18,10 @@ public class AlbumEntries implements Parcelable {
 	public static final Parcelable.Creator<AlbumEntries> CREATOR = new Parcelable.Creator<AlbumEntries>() {
 
 		@Override
+		@SuppressWarnings("unchecked")
 		public AlbumEntries createFromParcel(final Parcel source) {
 			final AlbumEntries ret = new AlbumEntries();
-			source.readMap(ret.entries, ret.getClass().getClassLoader());
+			ret.entries.addAll(source.readArrayList(ret.getClass().getClassLoader()));
 			return ret;
 		}
 
@@ -29,7 +31,15 @@ public class AlbumEntries implements Parcelable {
 		}
 	};
 
-	private final Map<String, AlbumEntryDto> entries = new HashMap<String, AlbumEntryDto>();
+	private final Collection<AlbumEntryDto> entries = new TreeSet<AlbumEntryDto>();
+
+	public Collection<String> collectEntryIds() {
+		final ArrayList<String> ret = new ArrayList<String>();
+		for (final AlbumEntryDto entry : entries) {
+			ret.add(entry.getCommId());
+		}
+		return ret;
+	}
 
 	@Override
 	public int describeContents() {
@@ -39,19 +49,33 @@ public class AlbumEntries implements Parcelable {
 
 	@Override
 	public boolean equals(final Object obj) {
-		if (this == obj)
+		if (this == obj) {
 			return true;
-		if (obj == null)
+		}
+		if (obj == null) {
 			return false;
-		if (getClass() != obj.getClass())
+		}
+		if (getClass() != obj.getClass()) {
 			return false;
+		}
 		final AlbumEntries other = (AlbumEntries) obj;
 		if (entries == null) {
-			if (other.entries != null)
+			if (other.entries != null) {
 				return false;
-		} else if (!entries.equals(other.entries))
+			}
+		} else if (!entries.equals(other.entries)) {
 			return false;
+		}
 		return true;
+	}
+
+	public AlbumEntryDto findEntryById(final String entryId) {
+		for (final AlbumEntryDto entry : entries) {
+			if (entry.getCommId().equals(entryId)) {
+				return entry;
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -59,7 +83,7 @@ public class AlbumEntries implements Parcelable {
 	 * 
 	 * @return the entries
 	 */
-	public Map<String, AlbumEntryDto> getEntries() {
+	public Collection<AlbumEntryDto> getEntries() {
 		return entries;
 	}
 
@@ -78,7 +102,7 @@ public class AlbumEntries implements Parcelable {
 
 	@Override
 	public void writeToParcel(final Parcel dest, final int flags) {
-		dest.writeMap(entries);
+		dest.writeList(new ArrayList<AlbumEntryDto>(entries));
 	}
 
 }

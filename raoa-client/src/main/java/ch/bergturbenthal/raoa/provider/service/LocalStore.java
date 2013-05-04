@@ -9,9 +9,9 @@ import java.util.regex.Pattern;
 
 import android.util.Pair;
 import ch.bergturbenthal.raoa.data.model.StorageList;
-import ch.bergturbenthal.raoa.provider.model.dto.AlbumDetailData;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntries;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMeta;
+import ch.bergturbenthal.raoa.provider.model.dto.AlbumMutationData;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumState;
 import ch.bergturbenthal.raoa.provider.store.FileBackend;
 import ch.bergturbenthal.raoa.provider.store.FileStorage;
@@ -26,10 +26,10 @@ public class LocalStore {
 
 	@SuppressWarnings("unchecked")
 	public LocalStore(final File dataDir) {
-		ParcelableBackend.checkVersion(dataDir, 3);
+		ParcelableBackend.checkVersion(dataDir, 4);
 		store = new FileStorage(Arrays.asList((FileBackend<?>) new ParcelableBackend<AlbumEntries>(dataDir, AlbumEntries.class),
 																					(FileBackend<?>) new ParcelableBackend<AlbumMeta>(dataDir, AlbumMeta.class),
-																					(FileBackend<?>) new ParcelableBackend<AlbumDetailData>(dataDir, AlbumDetailData.class),
+																					(FileBackend<?>) new ParcelableBackend<AlbumMutationData>(dataDir, AlbumMutationData.class),
 																					(FileBackend<?>) new JacksonBackend<AlbumState>(dataDir, AlbumState.class),
 																					(FileBackend<?>) new JacksonBackend<StorageList>(dataDir, StorageList.class)
 
@@ -39,10 +39,6 @@ public class LocalStore {
 
 	public <V> V callInTransaction(final Callable<V> callable) {
 		return store.callInTransaction(callable);
-	}
-
-	public AlbumDetailData getAlbumDetail(final String archiveName, final String albumId, final ReadPolicy policy) {
-		return store.getObject(archiveName + "/" + albumId + "-detail", AlbumDetailData.class, policy);
 	}
 
 	public AlbumEntries getAlbumEntries(final String archiveName, final String albumId, final ReadPolicy policy) {
@@ -56,6 +52,10 @@ public class LocalStore {
 			value.setAlbumId(albumId);
 		}
 		return value;
+	}
+
+	public AlbumMutationData getAlbumMutationData(final String archiveName, final String albumId, final ReadPolicy policy) {
+		return store.getObject(archiveName + "/" + albumId + "-detail", AlbumMutationData.class, policy);
 	}
 
 	public AlbumState getAlbumState(final String archiveName, final String albumId, final ReadPolicy policy) {

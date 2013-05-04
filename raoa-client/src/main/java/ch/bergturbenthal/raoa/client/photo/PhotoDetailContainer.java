@@ -5,7 +5,6 @@ import android.graphics.Point;
 import android.support.v4.view.ViewPager;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
-import android.view.View;
 import android.widget.FrameLayout;
 
 public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPageChangeListener {
@@ -92,6 +91,6 @@ public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPag
 		// Child clipping doesn't work with hardware acceleration in Android 3.x/4.x
 		// You need to set this value here if using hardware acceleration in an
 		// application targeted at these releases.
-		setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+		// setLayerType(View.LAYER_TYPE_SOFTWARE, null);
 	}
 }
