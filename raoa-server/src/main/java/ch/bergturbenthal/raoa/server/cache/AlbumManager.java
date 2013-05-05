@@ -1,12 +1,12 @@
 package ch.bergturbenthal.raoa.server.cache;
 
-import ch.bergturbenthal.raoa.server.metadata.PicasaIniData;
+import ch.bergturbenthal.raoa.server.metadata.PicasaIniEntryData;
 import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 
 public interface AlbumManager {
 	AlbumEntryData getCachedData();
 
-	PicasaIniData getPicasaData();
+	PicasaIniEntryData getPicasaData();
 
 	void updateCache(final AlbumEntryData entryData);
 

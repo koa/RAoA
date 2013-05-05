@@ -6,9 +6,7 @@ import java.io.FileInputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,16 +20,15 @@ import org.slf4j.LoggerFactory;
 
 @Data
 public class PicasaIniData {
-	private static Logger logger = LoggerFactory.getLogger(PicasaIniData.class);
-	private static Pattern sectionPattern = Pattern.compile("\\[([a-zA-Z0-9\\.-_]+)\\]");
+	private static final Logger logger = LoggerFactory.getLogger(PicasaIniData.class);
+	private static final Pattern sectionPattern = Pattern.compile("\\[([a-zA-Z0-9\\.-_]+)\\]");
 
-	private String caption;
+	private final Map<String, PicasaIniEntryData> entries = new HashMap<>();
+	private String name;
 
-	private Collection<String> keywords = new LinkedHashSet<>();
+	public static PicasaIniData parseIniFile(final File baseDir) {
+		final PicasaIniData ret = new PicasaIniData();
 
-	private boolean star = false;
-
-	public static Map<String, PicasaIniData> parseIniFile(final File baseDir) {
 		final File[] foundFiles = baseDir.listFiles(new FilenameFilter() {
 
 			@Override
@@ -40,7 +37,7 @@ public class PicasaIniData {
 				return lowerCaseName.equals("picasa.ini") || lowerCaseName.equals(".picasa.ini");
 			}
 		});
-		final HashMap<String, PicasaIniData> ret = new HashMap<String, PicasaIniData>();
+		final Map<String, PicasaIniEntryData> entryMap = ret.entries;
 		for (final File file : foundFiles) {
 			try {
 				@Cleanup
@@ -60,7 +57,7 @@ public class PicasaIniData {
 						currentGroup = sectionMatcher.group(1);
 						continue;
 					}
-					if (currentGroup == null || currentGroup.equals("Picasa") || currentGroup.equals("Contacts")) {
+					if (currentGroup == null) {
 						continue;
 					}
 					final String[] keyValue = nonCommentData.split("=", 2);
@@ -69,33 +66,38 @@ public class PicasaIniData {
 					}
 					final String key = keyValue[0].trim();
 					final String value = keyValue[1].trim();
-					if (key.equals("star") && value.equals("yes")) {
-						getCurrentData(ret, currentGroup).setStar(true);
-					} else if (key.equals("caption")) {
-						getCurrentData(ret, currentGroup).setCaption(value);
-					} else if (key.equals("keywords")) {
-						getCurrentData(ret, key).appendKeywords(value);
+					if (currentGroup.equals("Picasa")) {
+						if (key.equals("name")) {
+							ret.name = value;
+						}
+					} else if (currentGroup.equals("Contacts")) {
+						continue;
+					} else {
+						if (key.equals("star") && value.equals("yes")) {
+							getCurrentData(entryMap, currentGroup).setStar(true);
+						} else if (key.equals("caption")) {
+							getCurrentData(entryMap, currentGroup).setCaption(value);
+						} else if (key.equals("keywords")) {
+							getCurrentData(entryMap, key).appendKeywords(value);
+						}
 					}
 				}
 			} catch (final IOException e) {
 				logger.warn("Cannot parse " + file, e);
 			}
 		}
+
 		return ret;
 	}
 
-	private static PicasaIniData getCurrentData(final HashMap<String, PicasaIniData> ret, final String currentGroup) {
-		final PicasaIniData currentValue = ret.get(currentGroup);
-		if (currentValue != null)
+	private static final PicasaIniEntryData getCurrentData(final Map<String, PicasaIniEntryData> ret, final String currentGroup) {
+		final PicasaIniEntryData currentValue = ret.get(currentGroup);
+		if (currentValue != null) {
 			return currentValue;
-		final PicasaIniData newValue = new PicasaIniData();
+		}
+		final PicasaIniEntryData newValue = new PicasaIniEntryData();
 		ret.put(currentGroup, newValue);
 		return newValue;
 	}
 
-	public void appendKeywords(final String commaSeparatedKeywords) {
-		for (final String word : commaSeparatedKeywords.split(",")) {
-			keywords.add(word.trim());
-		}
-	}
 }

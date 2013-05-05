@@ -32,6 +32,7 @@ public class AlbumMeta implements Parcelable {
 			ret.setThumbnailSize(source.readLong());
 			ret.setRepositorySize(source.readLong());
 			ret.setOriginalsSize(source.readLong());
+			ret.setAlbumTitle(source.readString());
 			return ret;
 		}
 
@@ -42,6 +43,7 @@ public class AlbumMeta implements Parcelable {
 	};
 	private Date albumDate;
 	private String albumId;
+	private String albumTitle;
 	private String archiveName;
 	private Date autoAddDate;
 	private int entryCount;
@@ -50,7 +52,6 @@ public class AlbumMeta implements Parcelable {
 	private long originalsSize;
 	private long repositorySize;
 	private String thumbnailId;
-
 	private long thumbnailSize;
 
 	@Override
@@ -61,56 +62,84 @@ public class AlbumMeta implements Parcelable {
 
 	@Override
 	public boolean equals(final Object obj) {
-		if (this == obj)
+		if (this == obj) {
 			return true;
-		if (obj == null)
+		}
+		if (obj == null) {
 			return false;
-		if (getClass() != obj.getClass())
+		}
+		if (getClass() != obj.getClass()) {
 			return false;
+		}
 		final AlbumMeta other = (AlbumMeta) obj;
 		if (albumDate == null) {
-			if (other.albumDate != null)
+			if (other.albumDate != null) {
 				return false;
-		} else if (!albumDate.equals(other.albumDate))
+			}
+		} else if (!albumDate.equals(other.albumDate)) {
 			return false;
+		}
 		if (albumId == null) {
-			if (other.albumId != null)
+			if (other.albumId != null) {
 				return false;
-		} else if (!albumId.equals(other.albumId))
+			}
+		} else if (!albumId.equals(other.albumId)) {
 			return false;
+		}
+		if (albumTitle == null) {
+			if (other.albumTitle != null) {
+				return false;
+			}
+		} else if (!albumTitle.equals(other.albumTitle)) {
+			return false;
+		}
 		if (archiveName == null) {
-			if (other.archiveName != null)
+			if (other.archiveName != null) {
 				return false;
-		} else if (!archiveName.equals(other.archiveName))
+			}
+		} else if (!archiveName.equals(other.archiveName)) {
 			return false;
+		}
 		if (autoAddDate == null) {
-			if (other.autoAddDate != null)
+			if (other.autoAddDate != null) {
 				return false;
-		} else if (!autoAddDate.equals(other.autoAddDate))
+			}
+		} else if (!autoAddDate.equals(other.autoAddDate)) {
 			return false;
-		if (entryCount != other.entryCount)
+		}
+		if (entryCount != other.entryCount) {
 			return false;
+		}
 		if (lastModified == null) {
-			if (other.lastModified != null)
+			if (other.lastModified != null) {
 				return false;
-		} else if (!lastModified.equals(other.lastModified))
+			}
+		} else if (!lastModified.equals(other.lastModified)) {
 			return false;
+		}
 		if (name == null) {
-			if (other.name != null)
+			if (other.name != null) {
 				return false;
-		} else if (!name.equals(other.name))
+			}
+		} else if (!name.equals(other.name)) {
 			return false;
-		if (originalsSize != other.originalsSize)
+		}
+		if (originalsSize != other.originalsSize) {
 			return false;
-		if (repositorySize != other.repositorySize)
+		}
+		if (repositorySize != other.repositorySize) {
 			return false;
+		}
 		if (thumbnailId == null) {
-			if (other.thumbnailId != null)
+			if (other.thumbnailId != null) {
 				return false;
-		} else if (!thumbnailId.equals(other.thumbnailId))
+			}
+		} else if (!thumbnailId.equals(other.thumbnailId)) {
 			return false;
-		if (thumbnailSize != other.thumbnailSize)
+		}
+		if (thumbnailSize != other.thumbnailSize) {
 			return false;
+		}
 		return true;
 	}
 
@@ -132,6 +161,10 @@ public class AlbumMeta implements Parcelable {
 	@CursorField(Client.Album.ID)
 	public String getAlbumId() {
 		return albumId;
+	}
+
+	public String getAlbumTitle() {
+		return albumTitle;
 	}
 
 	/**
@@ -228,6 +261,7 @@ public class AlbumMeta implements Parcelable {
 		int result = 1;
 		result = prime * result + ((albumDate == null) ? 0 : albumDate.hashCode());
 		result = prime * result + ((albumId == null) ? 0 : albumId.hashCode());
+		result = prime * result + ((albumTitle == null) ? 0 : albumTitle.hashCode());
 		result = prime * result + ((archiveName == null) ? 0 : archiveName.hashCode());
 		result = prime * result + ((autoAddDate == null) ? 0 : autoAddDate.hashCode());
 		result = prime * result + entryCount;
@@ -258,6 +292,10 @@ public class AlbumMeta implements Parcelable {
 	 */
 	public void setAlbumId(final String albumId) {
 		this.albumId = albumId;
+	}
+
+	public void setAlbumTitle(final String albumTitle) {
+		this.albumTitle = albumTitle;
 	}
 
 	/**
@@ -389,6 +427,7 @@ public class AlbumMeta implements Parcelable {
 		dest.writeLong(thumbnailSize);
 		dest.writeLong(repositorySize);
 		dest.writeLong(originalsSize);
+		dest.writeString(albumTitle);
 	}
 
 }

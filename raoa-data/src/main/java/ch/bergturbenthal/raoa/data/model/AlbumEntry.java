@@ -10,14 +10,15 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 public class AlbumEntry {
-  private String id;
-  private String name;
-  private final Collection<String> clients = new ArrayList<String>();
-  private Date lastModified;
-  private long repositorySize;
+	private final Collection<String> clients = new ArrayList<String>();
+	private String id;
+	private Date lastModified;
+	private String name;
+	private long repositorySize;
+	private String title;
 
-  public AlbumEntry(final String id, final String name) {
-    this.id = id;
-    this.name = name;
-  }
+	public AlbumEntry(final String id, final String name) {
+		this.id = id;
+		this.name = name;
+	}
 }

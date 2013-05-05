@@ -137,6 +137,8 @@ public class ArchiveConnection {
 						if (albumDetail.getAutoAddDate() != null) {
 							ret.setAutoAddDate(albumDetail.getAutoAddDate());
 						}
+						ret.setAlbumTitle(albumDetail.getTitle());
+						ret.setAlbumTitleEntry(albumDetail.getTitleEntry());
 						ret.setLastModified(albumDetail.getLastModified());
 						for (final AlbumImageEntry entry : albumDetail.getImages()) {
 							final String key = entry.getId();

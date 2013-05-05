@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import ch.bergturbenthal.raoa.server.cache.AlbumManager;
 import ch.bergturbenthal.raoa.server.metadata.MetadataWrapper;
-import ch.bergturbenthal.raoa.server.metadata.PicasaIniData;
+import ch.bergturbenthal.raoa.server.metadata.PicasaIniEntryData;
 import ch.bergturbenthal.raoa.server.metadata.XmpWrapper;
 import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.thumbnails.ImageThumbnailMaker;
@@ -114,7 +114,7 @@ public class AlbumImage {
 		if (metadata != null) {
 			new MetadataWrapper(metadata).fill(loadedMetaData);
 		}
-		final PicasaIniData picasaData = albumManager.getPicasaData();
+		final PicasaIniEntryData picasaData = albumManager.getPicasaData();
 		if (picasaData != null) {
 			if (loadedMetaData.getRating() == null && picasaData.isStar()) {
 				loadedMetaData.setRating(STAR_RATING);

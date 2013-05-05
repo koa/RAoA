@@ -1098,7 +1098,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				final AtomicLong dateSum = new AtomicLong(0);
 				final AtomicInteger dateCount = new AtomicInteger(0);
 
-				String thumbnailId = albumMeta.getThumbnailId();
 				for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
 
 					final AlbumEntryDto entryDto = albumImageEntry.getValue();
@@ -1110,16 +1109,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 							entryIterator.remove();
 						}
 					}
-					if (thumbnailId == null) {
-						thumbnailId = albumImageEntry.getKey();
-					}
-
 					if (entryDto.getCaptureDate() != null) {
 						dateCount.incrementAndGet();
 						dateSum.addAndGet(entryDto.getCaptureDate().getTime());
 					}
 				}
-				albumMeta.setThumbnailId(thumbnailId);
+				albumMeta.setThumbnailId(albumDto.getAlbumTitleEntry());
+				albumMeta.setAlbumTitle(albumDto.getAlbumTitle());
 				if (dateCount.get() > 0) {
 					albumMeta.setAlbumDate(new Date(dateSum.longValue() / dateCount.longValue()));
 				}

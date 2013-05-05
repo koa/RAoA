@@ -36,6 +36,7 @@ import ch.bergturbenthal.raoa.server.Album;
 import ch.bergturbenthal.raoa.server.AlbumAccess;
 import ch.bergturbenthal.raoa.server.AlbumImage;
 import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
+import ch.bergturbenthal.raoa.server.model.AlbumMetadata;
 import ch.bergturbenthal.raoa.server.watcher.DirectoryNotificationService;
 
 @Controller
@@ -70,8 +71,10 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@Override
 	public AlbumDetail listAlbumContent(final String albumid) {
 		final Album album = albumAccess.listAlbums().get(albumid);
-		if (album == null)
+		if (album == null) {
 			return null;
+		}
+		final AlbumMetadata albumMetadata = album.getAlbumMetadata();
 		final AlbumDetail ret = new AlbumDetail();
 		ret.setId(albumid);
 		ret.setName(album.getName());
@@ -79,10 +82,15 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		ret.setAutoAddDate(album.getAutoAddBeginDate());
 		ret.setLastModified(album.getLastModified());
 		ret.setRepositorySize(album.getRepositorySize());
+		ret.setTitle(albumMetadata.getAlbumTitle());
+		final String titleEntry = albumMetadata.getTitleEntry();
 		final Map<String, AlbumImage> images = album.listImages();
 		for (final Entry<String, AlbumImage> albumImageEntry : images.entrySet()) {
 			final AlbumImageEntry entry = new AlbumImageEntry();
 			final AlbumImage albumImage = albumImageEntry.getValue();
+			if (titleEntry != null && albumImage.getName().equals(titleEntry)) {
+				ret.setTitleEntry(albumImageEntry.getKey());
+			}
 			entry.setId(albumImageEntry.getKey());
 			fillAlbumImageEntry(albumImage, entry);
 			ret.getImages().add(entry);
@@ -116,14 +124,17 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@Override
 	public ImageResult readImage(final String albumId, final String imageId, final Date ifModifiedSince) throws IOException {
 		final Album album = albumAccess.getAlbum(albumId);
-		if (album == null)
+		if (album == null) {
 			return null;
+		}
 		final AlbumImage image = album.getImage(imageId);
-		if (image == null)
+		if (image == null) {
 			return null;
+		}
 		final File thumbnailImage = image.getThumbnail();
-		if (thumbnailImage != null)
+		if (thumbnailImage != null) {
 			return makeImageResult(thumbnailImage, image, ifModifiedSince);
+		}
 		return null;
 	}
 
@@ -182,8 +193,9 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@Override
 	public void setAutoAddDate(final String albumId, final Date autoAddDate) {
 		final Album album = albumAccess.getAlbum(albumId);
-		if (album == null)
+		if (album == null) {
 			return;
+		}
 		album.setAutoAddBeginDate(autoAddDate);
 	}
 
@@ -250,7 +262,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 
 	private ImageResult makeImageResult(final File sourceFile, final AlbumImage image, final Date ifModifiedSince) {
 		final Date lastModified = new Date(sourceFile.lastModified());
-		if (ifModifiedSince == null || ifModifiedSince.before(lastModified))
+		if (ifModifiedSince == null || ifModifiedSince.before(lastModified)) {
 			return ImageResult.makeModifiedResult(lastModified, image.captureDate(), new ImageResult.StreamSource() {
 
 				@Override
@@ -258,7 +270,8 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 					return new FileInputStream(sourceFile);
 				}
 			}, image.isVideo() ? "video/mp4" : "image/jpeg");
-		else
+		} else {
 			return ImageResult.makeNotModifiedResult();
+		}
 	}
 }
