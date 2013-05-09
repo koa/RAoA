@@ -8,7 +8,7 @@ import java.util.Collection;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-import ch.bergturbenthal.raoa.data.model.MutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 
 /**
  * TODO: add type comment.
@@ -20,7 +20,7 @@ public class AlbumMutationData implements Parcelable {
 		@Override
 		public AlbumMutationData createFromParcel(final Parcel source) {
 			final AlbumMutationData ret = new AlbumMutationData();
-			final ArrayList<MutationEntry> mutationList = new ArrayList<MutationEntry>();
+			final ArrayList<Mutation> mutationList = new ArrayList<Mutation>();
 			source.readList(mutationList, ret.getClass().getClassLoader());
 			ret.setMutations(mutationList);
 			return ret;
@@ -31,7 +31,7 @@ public class AlbumMutationData implements Parcelable {
 			return new AlbumMutationData[size];
 		}
 	};
-	private Collection<MutationEntry> mutations = new ArrayList<MutationEntry>();
+	private Collection<Mutation> mutations = new ArrayList<Mutation>();
 
 	@Override
 	public int describeContents() {
@@ -41,18 +41,23 @@ public class AlbumMutationData implements Parcelable {
 
 	@Override
 	public boolean equals(final Object obj) {
-		if (this == obj)
+		if (this == obj) {
 			return true;
-		if (obj == null)
+		}
+		if (obj == null) {
 			return false;
-		if (getClass() != obj.getClass())
+		}
+		if (getClass() != obj.getClass()) {
 			return false;
+		}
 		final AlbumMutationData other = (AlbumMutationData) obj;
 		if (mutations == null) {
-			if (other.mutations != null)
+			if (other.mutations != null) {
 				return false;
-		} else if (!mutations.equals(other.mutations))
+			}
+		} else if (!mutations.equals(other.mutations)) {
 			return false;
+		}
 		return true;
 	}
 
@@ -61,7 +66,7 @@ public class AlbumMutationData implements Parcelable {
 	 * 
 	 * @return the mutations
 	 */
-	public Collection<MutationEntry> getMutations() {
+	public Collection<Mutation> getMutations() {
 		return mutations;
 	}
 
@@ -79,7 +84,7 @@ public class AlbumMutationData implements Parcelable {
 	 * @param mutations
 	 *          the mutations to set
 	 */
-	public void setMutations(final Collection<MutationEntry> mutations) {
+	public void setMutations(final Collection<Mutation> mutations) {
 		this.mutations = mutations;
 	}
 
@@ -90,6 +95,6 @@ public class AlbumMutationData implements Parcelable {
 
 	@Override
 	public void writeToParcel(final Parcel dest, final int flags) {
-		dest.writeList(new ArrayList<MutationEntry>(mutations));
+		dest.writeList(new ArrayList<Mutation>(mutations));
 	}
 }

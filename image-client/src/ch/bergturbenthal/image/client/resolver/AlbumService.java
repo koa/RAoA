@@ -32,7 +32,7 @@ import ch.bergturbenthal.raoa.data.model.AlbumDetail;
 import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
-import ch.bergturbenthal.raoa.data.model.MutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 
 public class AlbumService implements Album {
 	private static final String[] DATE_FORMATS = new String[] { "EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd-MMM-yy HH:mm:ss zzz", "EEE MMM dd HH:mm:ss yyyy" };
@@ -71,24 +71,27 @@ public class AlbumService implements Album {
 	@Override
 	public AlbumEntry createAlbum(final CreateAlbumRequest request) {
 		final ResponseEntity<AlbumEntry> response = restTemplate.postForEntity(baseUrl + "/albums", request, AlbumEntry.class);
-		if (response.hasBody())
+		if (response.hasBody()) {
 			return response.getBody();
+		}
 		throw new RuntimeException("Response without body. Status: " + response.getStatusCode());
 	}
 
 	@Override
 	public AlbumDetail listAlbumContent(final String albumid) {
 		final ResponseEntity<AlbumDetail> response = restTemplate.getForEntity(baseUrl + "/albums/{id}.json", AlbumDetail.class, albumid);
-		if (response.hasBody())
+		if (response.hasBody()) {
 			return response.getBody();
+		}
 		throw new RuntimeException("Response without body while calling " + baseUrl + " status: " + response.getStatusCode());
 	}
 
 	@Override
 	public AlbumList listAlbums() {
 		final ResponseEntity<AlbumList> response = restTemplate.getForEntity(baseUrl + "/albums.json", AlbumList.class);
-		if (response.hasBody())
+		if (response.hasBody()) {
 			return response.getBody();
+		}
 		throw new RuntimeException("Response without body while calling " + baseUrl + " status: " + response.getStatusCode());
 	}
 
@@ -112,8 +115,9 @@ public class AlbumService implements Album {
 		}, new ResponseExtractor<ImageResult>() {
 			@Override
 			public ImageResult extractData(final ClientHttpResponse response) throws IOException {
-				if (response.getStatusCode() == HttpStatus.NOT_MODIFIED)
+				if (response.getStatusCode() == HttpStatus.NOT_MODIFIED) {
 					return ImageResult.makeNotModifiedResult();
+				}
 				final HttpHeaders headers = response.getHeaders();
 				final String mimeType = headers.getContentType().toString();
 				final long lastModified = headers.getLastModified();
@@ -136,8 +140,9 @@ public class AlbumService implements Album {
 							// ignore
 						}
 					}
-					if (createDate == null)
+					if (createDate == null) {
 						throw new IllegalArgumentException("Cannot parse date value \"" + createDateString + "\" for \"created-at\" header");
+					}
 				}
 				final String tempFilename = UUID.randomUUID().toString();
 				final OutputStream arrayOutputStream = context.openFileOutput(tempFilename, Context.MODE_PRIVATE);
@@ -192,7 +197,7 @@ public class AlbumService implements Album {
 	}
 
 	@Override
-	public void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries) {
+	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
 		restTemplate.put(baseUrl + "/albums/{albumId}/updateMeta", updateEntries, albumId);
 	}
 

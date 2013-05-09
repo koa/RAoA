@@ -85,10 +85,10 @@ import org.springframework.web.client.RestTemplate;
 
 import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
-import ch.bergturbenthal.raoa.data.model.MutationEntry;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.StorageEntry;
 import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.raoa.server.metadata.MetadataWrapper;
@@ -509,7 +509,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	@Override
-	public void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries) {
+	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
 		final Map<String, Album> albums = loadAlbums(false);
 		final Album foundAlbum = albums.get(albumId);
 		if (foundAlbum == null) {

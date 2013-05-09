@@ -6,7 +6,7 @@ import java.util.Map;
 
 import org.eclipse.jgit.lib.Repository;
 
-import ch.bergturbenthal.raoa.data.model.MutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 
 public interface AlbumAccess {
 	/**
@@ -60,5 +60,5 @@ public interface AlbumAccess {
 
 	void unRegisterClient(final String albumId, final String clientId);
 
-	void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries);
+	void updateMetadata(final String albumId, final Collection<Mutation> updateEntries);
 }

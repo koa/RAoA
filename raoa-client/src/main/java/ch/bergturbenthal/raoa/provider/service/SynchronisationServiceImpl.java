@@ -57,13 +57,14 @@ import android.os.IBinder;
 import android.util.Log;
 import android.util.LruCache;
 import android.util.Pair;
-import ch.bergturbenthal.raoa.data.model.CaptionMutationEntry;
-import ch.bergturbenthal.raoa.data.model.KeywordMutationEntry;
-import ch.bergturbenthal.raoa.data.model.KeywordMutationEntry.KeywordMutation;
-import ch.bergturbenthal.raoa.data.model.MutationEntry;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
-import ch.bergturbenthal.raoa.data.model.RatingMutationEntry;
 import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.mutation.CaptionMutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.EntryMutation;
+import ch.bergturbenthal.raoa.data.model.mutation.KeywordMutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.KeywordMutationEntry.KeywordMutation;
+import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
+import ch.bergturbenthal.raoa.data.model.mutation.RatingMutationEntry;
 import ch.bergturbenthal.raoa.data.model.state.Issue;
 import ch.bergturbenthal.raoa.data.model.state.Progress;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
@@ -553,11 +554,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				}
 				final AlbumMutationData mutationList = store.getAlbumMutationData(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
 
-				final Collection<MutationEntry> mutations = mutationList.getMutations();
+				final Collection<Mutation> mutations = mutationList.getMutations();
 				if (values.containsKey(Client.AlbumEntry.META_RATING)) {
-					for (final Iterator<MutationEntry> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
-						final MutationEntry mutationEntry = entryIterator.next();
-						if (mutationEntry instanceof RatingMutationEntry && mutationEntry.getAlbumEntryId().equals(albumEntryId)) {
+					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+						final Mutation mutationEntry = entryIterator.next();
+						if (mutationEntry instanceof RatingMutationEntry && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(albumEntryId)) {
 							entryIterator.remove();
 						}
 					}
@@ -571,9 +572,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					}
 				}
 				if (values.containsKey(Client.AlbumEntry.META_CAPTION)) {
-					for (final Iterator<MutationEntry> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
-						final MutationEntry mutationEntry = entryIterator.next();
-						if (mutationEntry instanceof CaptionMutationEntry && mutationEntry.getAlbumEntryId().equals(albumEntryId)) {
+					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+						final Mutation mutationEntry = entryIterator.next();
+						if (mutationEntry instanceof CaptionMutationEntry && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(albumEntryId)) {
 							entryIterator.remove();
 						}
 					}
@@ -588,9 +589,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				}
 
 				if (values.containsKey(Client.AlbumEntry.META_KEYWORDS)) {
-					for (final Iterator<MutationEntry> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
-						final MutationEntry mutationEntry = entryIterator.next();
-						if (mutationEntry instanceof KeywordMutationEntry && mutationEntry.getAlbumEntryId().equals(albumEntryId)) {
+					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+						final Mutation mutationEntry = entryIterator.next();
+						if (mutationEntry instanceof KeywordMutationEntry && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(albumEntryId)) {
 							entryIterator.remove();
 						}
 					}
@@ -1085,8 +1086,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			public Void call() throws Exception {
 				// clear pending mutation-data if it exists
 				final AlbumMutationData mutationList = store.getAlbumMutationData(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
-				final Collection<MutationEntry> mutations = mutationList != null && mutationList.getMutations() != null ? mutationList.getMutations()
-						: Collections.<MutationEntry> emptyList();
+				final Collection<Mutation> mutations = mutationList != null && mutationList.getMutations() != null ? mutationList.getMutations()
+						: Collections.<Mutation> emptyList();
 				final AlbumMeta albumMeta = store.getAlbumMeta(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
 				final Collection<AlbumEntryDto> entries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_OR_CREATE).getEntries();
 				entries.clear();
@@ -1103,9 +1104,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					final AlbumEntryDto entryDto = albumImageEntry.getValue();
 					final String imageId = albumImageEntry.getKey();
 					final String editableMetadataHash = entryDto.getEditableMetadataHash();
-					for (final Iterator<MutationEntry> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
-						final MutationEntry mutationEntry = entryIterator.next();
-						if (mutationEntry.getAlbumEntryId().equals(imageId) && !mutationEntry.getBaseVersion().equals(editableMetadataHash)) {
+					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+						final Mutation mutationEntry = entryIterator.next();
+						if (mutationEntry instanceof EntryMutation && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(imageId)
+								&& !((EntryMutation) mutationEntry).getBaseVersion().equals(editableMetadataHash)) {
 							entryIterator.remove();
 						}
 					}

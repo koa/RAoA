@@ -23,9 +23,9 @@ import ch.bergturbenthal.raoa.data.model.AlbumDetail;
 import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
-import ch.bergturbenthal.raoa.data.model.MutationEntry;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryDto;
 import ch.bergturbenthal.raoa.provider.model.dto.ServerStateDto;
@@ -176,7 +176,7 @@ public class ArchiveConnection {
 				}
 
 				@Override
-				public void updateMetadata(final Collection<MutationEntry> updateEntries) {
+				public void updateMetadata(final Collection<Mutation> updateEntries) {
 					for (final String serverId : servers) {
 						final ServerConnection serverConnection = serverConnections.get().get(serverId);
 						if (serverConnection == null) {

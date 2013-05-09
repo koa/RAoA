@@ -31,7 +31,7 @@ import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
-import ch.bergturbenthal.raoa.data.model.MutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.server.Album;
 import ch.bergturbenthal.raoa.server.AlbumAccess;
 import ch.bergturbenthal.raoa.server.AlbumImage;
@@ -215,12 +215,12 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	}
 
 	@Override
-	public void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries) {
+	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
 		albumAccess.updateMetadata(albumId, updateEntries);
 	}
 
 	@RequestMapping(value = "{albumId}/updateMeta", method = RequestMethod.PUT)
-	public void updateMetadata(@PathVariable("albumId") final String albumId, @RequestBody final Collection<MutationEntry> updateEntries, final HttpServletResponse response) {
+	public void updateMetadata(@PathVariable("albumId") final String albumId, @RequestBody final Collection<Mutation> updateEntries, final HttpServletResponse response) {
 		updateMetadata(albumId, updateEntries);
 	}
 

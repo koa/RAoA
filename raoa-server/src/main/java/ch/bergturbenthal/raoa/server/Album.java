@@ -38,6 +38,8 @@ import lombok.Data;
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
+import org.codehaus.jackson.JsonGenerationException;
+import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.ObjectReader;
 import org.codehaus.jackson.map.type.MapType;
@@ -62,10 +64,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
-import ch.bergturbenthal.raoa.data.model.CaptionMutationEntry;
-import ch.bergturbenthal.raoa.data.model.KeywordMutationEntry;
-import ch.bergturbenthal.raoa.data.model.MutationEntry;
-import ch.bergturbenthal.raoa.data.model.RatingMutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.CaptionMutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.EntryMutation;
+import ch.bergturbenthal.raoa.data.model.mutation.KeywordMutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
+import ch.bergturbenthal.raoa.data.model.mutation.RatingMutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.TitleImageMutation;
+import ch.bergturbenthal.raoa.data.model.mutation.TitleMutation;
 import ch.bergturbenthal.raoa.server.cache.AlbumManager;
 import ch.bergturbenthal.raoa.server.metadata.PicasaIniData;
 import ch.bergturbenthal.raoa.server.metadata.PicasaIniEntryData;
@@ -398,46 +403,68 @@ public class Album implements ApplicationContextAware {
 		return "Album [" + getName() + "]";
 	}
 
-	public synchronized void updateMetadata(final Collection<MutationEntry> updateEntries) {
+	public synchronized void updateMetadata(final Collection<Mutation> updateEntries) {
 		final Map<String, AlbumImage> loadedImages = loadCache().getImages();
 		final Set<String> modifiedImages = new HashSet<>();
-		for (final MutationEntry mutationEntry : updateEntries) {
-			final AlbumImage albumImage = loadedImages.get(mutationEntry.getAlbumEntryId());
-			if (albumImage == null) {
-				continue;
-			}
-			final AlbumEntryData oldMetadata = albumImage.getAlbumEntryData();
-			if (!StringUtils.equals(oldMetadata.getEditableMetadataHash(), mutationEntry.getBaseVersion())) {
-				continue;
-			}
-			modifiedImages.add(mutationEntry.getAlbumEntryId());
-			try {
-				if (mutationEntry instanceof RatingMutationEntry) {
-					final RatingMutationEntry ratingMutationEntry = (RatingMutationEntry) mutationEntry;
-					albumImage.setRating(ratingMutationEntry.getRating());
+		boolean metadataModified = false;
+		final AlbumMetadata metadata = getAlbumMetadata();
+		for (final Mutation entry : updateEntries) {
+			if (entry instanceof EntryMutation) {
+				final EntryMutation mutationEntry = (EntryMutation) entry;
+
+				final AlbumImage albumImage = loadedImages.get(mutationEntry.getAlbumEntryId());
+				if (albumImage == null) {
+					continue;
 				}
-				if (mutationEntry instanceof CaptionMutationEntry) {
-					final CaptionMutationEntry captionMutationEntry = (CaptionMutationEntry) mutationEntry;
-					albumImage.setCaption(captionMutationEntry.getCaption());
+				final AlbumEntryData oldMetadata = albumImage.getAlbumEntryData();
+				if (!StringUtils.equals(oldMetadata.getEditableMetadataHash(), mutationEntry.getBaseVersion())) {
+					continue;
 				}
-				if (mutationEntry instanceof KeywordMutationEntry) {
-					final KeywordMutationEntry keywordMutationEntry = (KeywordMutationEntry) mutationEntry;
-					switch (keywordMutationEntry.getMutation()) {
-					case ADD:
-						albumImage.addKeyword(keywordMutationEntry.getKeyword());
-						break;
-					case REMOVE:
-						albumImage.removeKeyword(keywordMutationEntry.getKeyword());
-						break;
+				modifiedImages.add(mutationEntry.getAlbumEntryId());
+				try {
+					if (entry instanceof RatingMutationEntry) {
+						final RatingMutationEntry ratingMutationEntry = (RatingMutationEntry) entry;
+						albumImage.setRating(ratingMutationEntry.getRating());
 					}
+					if (entry instanceof CaptionMutationEntry) {
+						final CaptionMutationEntry captionMutationEntry = (CaptionMutationEntry) entry;
+						albumImage.setCaption(captionMutationEntry.getCaption());
+					}
+					if (entry instanceof KeywordMutationEntry) {
+						final KeywordMutationEntry keywordMutationEntry = (KeywordMutationEntry) entry;
+						switch (keywordMutationEntry.getMutation()) {
+						case ADD:
+							albumImage.addKeyword(keywordMutationEntry.getKeyword());
+							break;
+						case REMOVE:
+							albumImage.removeKeyword(keywordMutationEntry.getKeyword());
+							break;
+						}
+					}
+				} catch (final Exception e) {
+					logger.error("Cannot execute update " + entry + " at album " + getName(), e);
 				}
-			} catch (final Exception e) {
-				logger.error("Cannot execute update " + mutationEntry + " at album " + getName(), e);
+			}
+			if (entry instanceof TitleImageMutation) {
+				final String titleImage = ((TitleImageMutation) entry).getTitleImage();
+				final AlbumImage foundImage = loadedImages.get(titleImage);
+				if (foundImage != null) {
+					metadata.setTitleEntry(foundImage.getName());
+					metadataModified = true;
+				}
+			}
+			if (entry instanceof TitleMutation) {
+				metadata.setAlbumTitle(((TitleMutation) entry).getTitle());
+				metadataModified = true;
 			}
 		}
-		if (!modifiedImages.isEmpty()) {
+		if (!modifiedImages.isEmpty() || metadataModified) {
 			try {
 				final AddCommand addCommand = git.add();
+				if (metadataModified) {
+					saveMetadataWithoutCommit(metadata);
+					addCommand.addFilepattern(metadataFile().getName());
+				}
 				for (final String imageId : modifiedImages) {
 					addCommand.addFilepattern(loadedImages.get(imageId).getXmpSideFile().getName());
 				}
@@ -447,6 +474,8 @@ public class Album implements ApplicationContextAware {
 				commitCommand.call();
 			} catch (final GitAPIException e) {
 				logger.error("Cannot update git", e);
+			} catch (final IOException e) {
+				logger.error("Cannot update metadata", e);
 			}
 		}
 	}
@@ -786,6 +815,10 @@ public class Album implements ApplicationContextAware {
 		return albumEntriesMetadataCache.get(filename);
 	}
 
+	private void saveMetadataWithoutCommit(final AlbumMetadata metadata) throws IOException, JsonGenerationException, JsonMappingException {
+		mapper.writer().writeValue(metadataFile(), metadata);
+	}
+
 	private void updateAlbumEntryInCache(final String filename, final AlbumEntryData entryData) {
 		final AlbumEntryData oldValue = albumEntriesMetadataCache.putIfAbsent(filename, entryData);
 		if (entryData.equals(oldValue)) {
@@ -819,7 +852,7 @@ public class Album implements ApplicationContextAware {
 	private void writeMetadata(final AlbumMetadata metadata) {
 		final File metadataFile = metadataFile();
 		try {
-			mapper.writer().writeValue(metadataFile, metadata);
+			saveMetadataWithoutCommit(metadata);
 
 			final AddCommand addCommand = git.add();
 			addCommand.addFilepattern(metadataFile.getName());

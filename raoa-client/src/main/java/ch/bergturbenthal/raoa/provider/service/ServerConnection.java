@@ -40,8 +40,8 @@ import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
-import ch.bergturbenthal.raoa.data.model.MutationEntry;
 import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.data.model.state.ServerState;
 
 public class ServerConnection {
@@ -216,7 +216,7 @@ public class ServerConnection {
 		this.serverName = serverName;
 	}
 
-	public void updateMetadata(final String albumId, final Collection<MutationEntry> updateEntries) {
+	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
 		callOne(new ConnectionCallable<Void>() {
 
 			@Override

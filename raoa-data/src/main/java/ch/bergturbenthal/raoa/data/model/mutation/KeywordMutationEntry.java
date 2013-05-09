@@ -1,11 +1,11 @@
-package ch.bergturbenthal.raoa.data.model;
+package ch.bergturbenthal.raoa.data.model.mutation;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class KeywordMutationEntry extends MutationEntry {
+public class KeywordMutationEntry extends EntryMutation {
   public static enum KeywordMutation {
     ADD,
     REMOVE

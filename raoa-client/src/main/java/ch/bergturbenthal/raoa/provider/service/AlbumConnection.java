@@ -4,7 +4,7 @@ import java.io.File;
 import java.util.Collection;
 import java.util.Date;
 
-import ch.bergturbenthal.raoa.data.model.MutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto;
 
 public interface AlbumConnection {
@@ -18,5 +18,5 @@ public interface AlbumConnection {
 
 	Date lastModified();
 
-	void updateMetadata(final Collection<MutationEntry> updateEntries);
+	void updateMetadata(final Collection<Mutation> updateEntries);
 }
