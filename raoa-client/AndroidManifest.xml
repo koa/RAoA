@@ -56,7 +56,7 @@
 
         <provider
             android:name=".provider.ArchiveContentProvider"
-            android:authorities="ch.bergturbenthal.image.provider"
+            android:authorities="ch.bergturbenthal.raoa.provider"
             android:enabled="true"
             android:exported="true"
             android:label="RoyalArchiveContentProvider"
