@@ -51,6 +51,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
 import android.database.SQLException;
+import android.net.Uri;
 import android.os.Binder;
 import android.os.Environment;
 import android.os.IBinder;
@@ -91,6 +92,8 @@ import ch.bergturbenthal.raoa.provider.state.ServerListActivity;
 import ch.bergturbenthal.raoa.provider.store.FileStorage.ReadPolicy;
 import ch.bergturbenthal.raoa.provider.util.ObjectUtils;
 import ch.bergturbenthal.raoa.provider.util.Quad;
+import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser;
+import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser.ThumbnailUriReceiver;
 
 public class SynchronisationServiceImpl extends Service implements ResultListener, SynchronisationService {
 
@@ -520,18 +523,56 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		final int updatedCount = callInTransaction(new Callable<Integer>() {
 			@Override
 			public Integer call() throws Exception {
-				final AlbumMeta albumMeta = store.getAlbumMeta(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
-				final AlbumState albumState = store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
+				final AlbumMeta albumMeta = store.getAlbumMeta(archiveName, albumId, ReadPolicy.READ_ONLY);
 				if (albumMeta == null) {
 					return Integer.valueOf(0);
 				}
+				// Handling of synchronization flag
 				final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
-				if (shouldSync != null && albumState.isShouldSync() != shouldSync.booleanValue()) {
-					albumState.setShouldSync(shouldSync.booleanValue());
-					final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
-					if (albumEntries != null && albumEntries.getEntries() != null) {
-						albumEntriesToClear.addAll(albumEntries.collectEntryIds());
+				if (shouldSync != null) {
+					final AlbumState albumState = store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
+					if (albumState.isShouldSync() != shouldSync.booleanValue()) {
+						albumState.setShouldSync(shouldSync.booleanValue());
+						final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
+						if (albumEntries != null && albumEntries.getEntries() != null) {
+							albumEntriesToClear.addAll(albumEntries.collectEntryIds());
+						}
 					}
+				}
+
+				// handling of thumbnail image
+				final String thumbnailUri = values.getAsString(Client.Album.THUMBNAIL);
+				if (thumbnailUri != null) {
+					final String thumbnailId = ThumbnailUriParser.parseUri(Uri.parse(thumbnailUri), new ThumbnailUriReceiver<String>() {
+
+						@Override
+						public String execute(final String parsedArchiveName, final String parsedAlbumId, final String thumbnailId) {
+							if (!parsedArchiveName.equals(archiveName)) {
+								return null;
+							}
+							if (!parsedAlbumId.equals(albumId)) {
+								return null;
+							}
+							return thumbnailId;
+						}
+					});
+					if (thumbnailId != null) {
+						final AlbumMutationData mutationData = store.getAlbumMutationData(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
+						final TitleImageMutation mutation = new TitleImageMutation();
+						mutation.setAlbumLastModified(albumMeta.getLastModified());
+						mutation.setTitleImage(thumbnailId);
+						mutationData.getMutations().add(mutation);
+					}
+				}
+
+				// handling of album title
+				final String title = values.getAsString(Client.Album.TITLE);
+				if (title != null) {
+					final AlbumMutationData mutationData = store.getAlbumMutationData(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
+					final TitleMutation mutation = new TitleMutation();
+					mutation.setAlbumLastModified(albumMeta.getLastModified());
+					mutation.setTitle(title);
+					mutationData.getMutations().add(mutation);
 				}
 				return Integer.valueOf(1);
 			}

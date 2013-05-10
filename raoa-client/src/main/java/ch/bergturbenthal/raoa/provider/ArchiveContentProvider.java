@@ -18,12 +18,13 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
-import ch.bergturbenthal.raoa.provider.Client;
 import ch.bergturbenthal.raoa.provider.service.SynchronisationService;
 import ch.bergturbenthal.raoa.provider.service.SynchronisationServiceImpl;
 import ch.bergturbenthal.raoa.provider.service.SynchronisationServiceImpl.LocalBinder;
 import ch.bergturbenthal.raoa.provider.util.EnumUriMatcher;
 import ch.bergturbenthal.raoa.provider.util.Path;
+import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser;
+import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser.ThumbnailUriReceiver;
 
 public class ArchiveContentProvider extends ContentProvider {
 	public static enum UriType {
@@ -127,18 +128,21 @@ public class ArchiveContentProvider extends ContentProvider {
 	public ParcelFileDescriptor openFile(final Uri uri, final String mode) throws FileNotFoundException {
 		Log.i(TAG, "Open called for " + uri);
 		final UriType match = matcher.match(uri);
-		if (match == null)
+		if (match == null) {
 			return super.openFile(uri, mode);
+		}
 		switch (match) {
 		case ALBUM_ENTRY_THUMBNAIL:
-			final List<String> segments = uri.getPathSegments();
-			final String archive = segments.get(1);
-			final String albumId = segments.get(2);
-			final String image = segments.get(4);
-			Log.i(TAG, "Selected Entry: " + archive + ":" + albumId + ":" + image);
-			final File thumbnail = service.getLoadedThumbnail(archive, albumId, image);
-			if (thumbnail == null)
+
+			final File thumbnail = ThumbnailUriParser.parseUri(uri, new ThumbnailUriReceiver<File>() {
+				@Override
+				public File execute(final String archiveName, final String albumId, final String thumbnailId) {
+					return service.getLoadedThumbnail(archiveName, albumId, thumbnailId);
+				}
+			});
+			if (thumbnail == null) {
 				throw new FileNotFoundException("Thumbnail-Image " + uri + " not found");
+			}
 			return ParcelFileDescriptor.open(thumbnail, ParcelFileDescriptor.MODE_READ_ONLY);
 		default:
 			break;
