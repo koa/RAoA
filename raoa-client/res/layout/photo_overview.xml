@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <GridView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/photo_overview"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
@@ -9,4 +10,5 @@
     android:numColumns="auto_fit"
     android:padding="8dp"
     android:stretchMode="columnWidth"
-    android:verticalSpacing="10dp" />
+    android:verticalSpacing="10dp"
+    tools:listitem="@layout/photo_overview_item" />

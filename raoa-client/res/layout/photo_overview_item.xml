@@ -6,8 +6,9 @@
     <ImageView
         android:id="@+id/photos_item_image"
         android:layout_width="@dimen/image_width"
-        android:layout_height="@dimen/image_width" 
-        android:scaleType="centerCrop" />
+        android:layout_height="@dimen/image_width"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_launcher" />
 
     <RelativeLayout
         android:id="@+id/photos_item_statusbar"
