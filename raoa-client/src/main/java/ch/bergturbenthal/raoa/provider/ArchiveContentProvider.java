@@ -2,8 +2,13 @@ package ch.bergturbenthal.raoa.provider;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import android.content.ComponentName;
 import android.content.ContentProvider;
@@ -18,6 +23,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
+import ch.bergturbenthal.raoa.provider.map.NotifyableMatrixCursor;
 import ch.bergturbenthal.raoa.provider.service.SynchronisationService;
 import ch.bergturbenthal.raoa.provider.service.SynchronisationServiceImpl;
 import ch.bergturbenthal.raoa.provider.service.SynchronisationServiceImpl.LocalBinder;
@@ -42,6 +48,7 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	static final String TAG = "Content Provider";
 
+	private static final Map<Class, NotifyableMatrixCursor> emptyCursors = new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
 	private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
 
 	private SynchronisationService service = null;
@@ -53,12 +60,12 @@ public class ArchiveContentProvider extends ContentProvider {
 			// We've bound to LocalService, cast the IBinder and get LocalService
 			// instance
 			final LocalBinder binder = (LocalBinder) service;
-			ArchiveContentProvider.this.service = binder.getService();
+			setService(binder.getService());
 		}
 
 		@Override
 		public void onServiceDisconnected(final ComponentName arg0) {
-			service = null;
+			setService(null);
 		}
 	};
 
@@ -68,7 +75,7 @@ public class ArchiveContentProvider extends ContentProvider {
 			final String server = arg;
 			final String fullAlbumName = extras.getString(Client.PARAMETER_FULL_ALBUM_NAME);
 			final Date autoAddDate = extras.containsKey(Client.PARAMETER_AUTOADD_DATE) ? new Date(extras.getLong(Client.PARAMETER_AUTOADD_DATE)) : null;
-			service.createAlbumOnServer(server, fullAlbumName, autoAddDate);
+			getService().createAlbumOnServer(server, fullAlbumName, autoAddDate);
 		}
 		return null;
 	}
@@ -95,7 +102,7 @@ public class ArchiveContentProvider extends ContentProvider {
 			final String archive = segments.get(1);
 			final String albumId = segments.get(2);
 			final String image = segments.get(4);
-			return service.getContenttype(archive, albumId, image);
+			return getService().getContenttype(archive, albumId, image);
 		}
 		case SERVER_LIST:
 			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server";
@@ -137,7 +144,7 @@ public class ArchiveContentProvider extends ContentProvider {
 			final File thumbnail = ThumbnailUriParser.parseUri(uri, new ThumbnailUriReceiver<File>() {
 				@Override
 				public File execute(final String archiveName, final String albumId, final String thumbnailId) {
-					return service.getLoadedThumbnail(archiveName, albumId, thumbnailId);
+					return getService().getLoadedThumbnail(archiveName, albumId, thumbnailId);
 				}
 			});
 			if (thumbnail == null) {
@@ -157,19 +164,19 @@ public class ArchiveContentProvider extends ContentProvider {
 			final List<String> segments = uri.getPathSegments();
 			switch (matcher.match(uri)) {
 			case ALBUM_LIST:
-				return service.readAlbumList(projection);
+				return getService().readAlbumList(projection);
 			case ALBUM:
-				return service.readSingleAlbum(segments.get(1), segments.get(2), projection);
+				return getService().readSingleAlbum(segments.get(1), segments.get(2), projection);
 			case ALBUM_ENTRY_LIST:
-				return service.readAlbumEntryList(segments.get(1), segments.get(2), projection);
+				return getService().readAlbumEntryList(segments.get(1), segments.get(2), projection);
 			case ALBUM_ENTRY:
-				return service.readSingleAlbumEntry(segments.get(1), segments.get(2), segments.get(4), projection);
+				return getService().readSingleAlbumEntry(segments.get(1), segments.get(2), segments.get(4), projection);
 			case SERVER_LIST:
-				return service.readServerList(projection);
+				return getService().readServerList(projection);
 			case SERVER_PROGRESS_LIST:
-				return service.readServerProgresList(segments.get(1), projection);
+				return getService().readServerProgresList(segments.get(1), projection);
 			case SERVER_ISSUE_LIST:
-				return service.readServerIssueList(segments.get(1), projection);
+				return getService().readServerIssueList(segments.get(1), projection);
 			case ALBUM_ENTRY_THUMBNAIL:
 			}
 			throw new UnsupportedOperationException("Query of " + uri + " is not supported");
@@ -184,9 +191,9 @@ public class ArchiveContentProvider extends ContentProvider {
 		final List<String> segments = uri.getPathSegments();
 		switch (matcher.match(uri)) {
 		case ALBUM:
-			return service.updateAlbum(segments.get(1), segments.get(2), values);
+			return getService().updateAlbum(segments.get(1), segments.get(2), values);
 		case ALBUM_ENTRY:
-			return service.updateAlbumEntry(segments.get(1), segments.get(2), segments.get(4), values);
+			return getService().updateAlbumEntry(segments.get(1), segments.get(2), segments.get(4), values);
 		case ALBUM_ENTRY_LIST:
 		case ALBUM_ENTRY_THUMBNAIL:
 		case ALBUM_LIST:
@@ -195,5 +202,112 @@ public class ArchiveContentProvider extends ContentProvider {
 		case SERVER_ISSUE_LIST:
 		}
 		throw new UnsupportedOperationException("Update of " + uri + " is not supported");
+	}
+
+	protected Cursor getEmptyCursor(final Class<?> klass) {
+		synchronized (emptyCursors) {
+			final NotifyableMatrixCursor existingEntry = emptyCursors.get(klass);
+			if (existingEntry != null) {
+				return existingEntry;
+			}
+			final ArrayList<String> columns = new ArrayList<String>();
+			for (final Field field : klass.getDeclaredFields()) {
+				final int modifiers = field.getModifiers();
+				if (!Modifier.isStatic(modifiers) || !Modifier.isPublic(modifiers)) {
+					continue;
+				}
+				if (!String.class.equals(field.getType())) {
+					continue;
+				}
+				try {
+					columns.add((String) field.get(null));
+				} catch (final Throwable e) {
+					throw new RuntimeException("Cannot read static field " + field, e);
+				}
+			}
+			final NotifyableMatrixCursor newCursor = new NotifyableMatrixCursor(columns.toArray(new String[columns.size()]));
+			emptyCursors.put(klass, newCursor);
+			return newCursor;
+		}
+	}
+
+	private SynchronisationService getService() {
+		if (service == null) {
+			return new SynchronisationService() {
+
+				@Override
+				public void createAlbumOnServer(final String server, final String fullAlbumName, final Date autoAddDate) {
+					// TODO Auto-generated method stub
+
+				}
+
+				@Override
+				public String getContenttype(final String archive, final String albumId, final String image) {
+					// TODO Auto-generated method stub
+					return null;
+				}
+
+				@Override
+				public File getLoadedThumbnail(final String archiveName, final String albumName, final String albumEntryName) {
+					// TODO Auto-generated method stub
+					return null;
+				}
+
+				@Override
+				public Cursor readAlbumEntryList(final String archiveName, final String albumName, final String[] projection) {
+					return getEmptyCursor(Client.AlbumEntry.class);
+				}
+
+				@Override
+				public Cursor readAlbumList(final String[] projection) {
+					return getEmptyCursor(Client.Album.class);
+				}
+
+				@Override
+				public Cursor readServerIssueList(final String server, final String[] projection) {
+					return getEmptyCursor(Client.IssueEntry.class);
+				}
+
+				@Override
+				public Cursor readServerList(final String[] projection) {
+					return getEmptyCursor(Client.ServerEntry.class);
+				}
+
+				@Override
+				public Cursor readServerProgresList(final String server, final String[] projection) {
+					return getEmptyCursor(Client.ProgressEntry.class);
+				}
+
+				@Override
+				public Cursor readSingleAlbum(final String archiveName, final String albumName, final String[] projection) {
+					return getEmptyCursor(Client.Album.class);
+				}
+
+				@Override
+				public Cursor readSingleAlbumEntry(final String archiveName, final String albumName, final String albumEntryName, final String[] projection) {
+					return getEmptyCursor(Client.AlbumEntry.class);
+				}
+
+				@Override
+				public int updateAlbum(final String archiveName, final String albumName, final ContentValues values) {
+					// TODO Auto-generated method stub
+					return 0;
+				}
+
+				@Override
+				public int updateAlbumEntry(final String archiveName, final String albumName, final String albumEntryName, final ContentValues values) {
+					// TODO Auto-generated method stub
+					return 0;
+				}
+			};
+		}
+		return service;
+	}
+
+	private void setService(final SynchronisationService service) {
+		this.service = service;
+		for (final NotifyableMatrixCursor cursor : emptyCursors.values()) {
+			cursor.onChange(false);
+		}
 	}
 }
