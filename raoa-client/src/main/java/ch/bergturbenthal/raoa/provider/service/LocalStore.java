@@ -55,7 +55,7 @@ public class LocalStore {
 	}
 
 	public AlbumMutationData getAlbumMutationData(final String archiveName, final String albumId, final ReadPolicy policy) {
-		return store.getObject(archiveName + "/" + albumId + "-detail", AlbumMutationData.class, policy);
+		return store.getObject(makeAlbumMutationDataPath(archiveName, albumId), AlbumMutationData.class, policy);
 	}
 
 	public AlbumState getAlbumState(final String archiveName, final String albumId, final ReadPolicy policy) {
@@ -82,6 +82,14 @@ public class LocalStore {
 			ret.add(new Pair<String, String>(parts[0], filename.substring(0, filename.length() - METADATA_SUFFIX.length())));
 		}
 		return ret;
+	}
+
+	public void removeMutationData(final String archiveName, final String albumId) {
+		store.removeObject(makeAlbumMutationDataPath(archiveName, albumId), AlbumMutationData.class);
+	}
+
+	private String makeAlbumMutationDataPath(final String archiveName, final String albumId) {
+		return archiveName + "/" + albumId + "-detail";
 	}
 
 }
