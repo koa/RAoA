@@ -687,6 +687,10 @@ public class Album implements ApplicationContextAware {
 			metadata.setTitleEntry(filenames.iterator().next());
 			metadataModified = true;
 		}
+		if (metadata.getAlbumTitle() == null) {
+			metadata.setAlbumTitle(baseDir.getName());
+			metadataModified = true;
+		}
 		if (metadataModified) {
 			writeMetadata(metadata);
 		}
