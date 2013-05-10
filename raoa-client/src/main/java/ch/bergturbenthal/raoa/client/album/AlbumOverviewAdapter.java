@@ -13,7 +13,7 @@ import ch.bergturbenthal.raoa.provider.Client;
 
 public class AlbumOverviewAdapter extends SimpleCursorAdapter {
 
-	private static final String[] FROM = new String[] { Client.Album.NAME, Client.Album.ENTRY_COUNT, Client.Album.THUMBNAIL };
+	private static final String[] FROM = new String[] { Client.Album.TITLE, Client.Album.ENTRY_COUNT, Client.Album.THUMBNAIL };
 
 	private static final int[] TO = new int[] { R.id.album_item_name, R.id.album_item_size, R.id.album_item_image };
 
