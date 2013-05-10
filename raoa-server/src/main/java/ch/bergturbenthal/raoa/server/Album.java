@@ -64,6 +64,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
+import ch.bergturbenthal.raoa.data.model.mutation.AlbumMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.CaptionMutationEntry;
 import ch.bergturbenthal.raoa.data.model.mutation.EntryMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.KeywordMutationEntry;
@@ -445,17 +446,22 @@ public class Album implements ApplicationContextAware {
 					logger.error("Cannot execute update " + entry + " at album " + getName(), e);
 				}
 			}
-			if (entry instanceof TitleImageMutation) {
-				final String titleImage = ((TitleImageMutation) entry).getTitleImage();
-				final AlbumImage foundImage = loadedImages.get(titleImage);
-				if (foundImage != null) {
-					metadata.setTitleEntry(foundImage.getName());
+			if (entry instanceof AlbumMutation) {
+				if (!getLastModified().equals(((AlbumMutation) entry).getAlbumLastModified())) {
+					continue;
+				}
+				if (entry instanceof TitleImageMutation) {
+					final String titleImage = ((TitleImageMutation) entry).getTitleImage();
+					final AlbumImage foundImage = loadedImages.get(titleImage);
+					if (foundImage != null) {
+						metadata.setTitleEntry(foundImage.getName());
+						metadataModified = true;
+					}
+				}
+				if (entry instanceof TitleMutation) {
+					metadata.setAlbumTitle(((TitleMutation) entry).getTitle());
 					metadataModified = true;
 				}
-			}
-			if (entry instanceof TitleMutation) {
-				metadata.setAlbumTitle(((TitleMutation) entry).getTitle());
-				metadataModified = true;
 			}
 		}
 		if (!modifiedImages.isEmpty() || metadataModified) {

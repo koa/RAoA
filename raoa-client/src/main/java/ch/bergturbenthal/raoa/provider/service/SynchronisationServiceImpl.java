@@ -59,12 +59,15 @@ import android.util.LruCache;
 import android.util.Pair;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.mutation.AlbumMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.CaptionMutationEntry;
 import ch.bergturbenthal.raoa.data.model.mutation.EntryMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.KeywordMutationEntry;
 import ch.bergturbenthal.raoa.data.model.mutation.KeywordMutationEntry.KeywordMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.data.model.mutation.RatingMutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.TitleImageMutation;
+import ch.bergturbenthal.raoa.data.model.mutation.TitleMutation;
 import ch.bergturbenthal.raoa.data.model.state.Issue;
 import ch.bergturbenthal.raoa.data.model.state.Progress;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
@@ -86,6 +89,7 @@ import ch.bergturbenthal.raoa.provider.model.dto.AlbumState;
 import ch.bergturbenthal.raoa.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.raoa.provider.state.ServerListActivity;
 import ch.bergturbenthal.raoa.provider.store.FileStorage.ReadPolicy;
+import ch.bergturbenthal.raoa.provider.util.ObjectUtils;
 import ch.bergturbenthal.raoa.provider.util.Quad;
 
 public class SynchronisationServiceImpl extends Service implements ResultListener, SynchronisationService {
@@ -923,10 +927,35 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		fieldReaders.put(Client.Album.THUMBNAIL, new StringFieldReader<AlbumMeta>() {
 			@Override
 			public String getString(final AlbumMeta value) {
-				if (value.getThumbnailId() == null) {
+				String thumbnailId = value.getThumbnailId();
+				final AlbumMutationData mutationData = store.getAlbumMutationData(value.getArchiveName(), value.getAlbumId(), ReadPolicy.READ_IF_EXISTS);
+				if (mutationData != null) {
+					for (final Mutation mutation : mutationData.getMutations()) {
+						if (mutation instanceof TitleImageMutation) {
+							thumbnailId = ((TitleImageMutation) mutation).getTitleImage();
+						}
+					}
+				}
+				if (thumbnailId == null) {
 					return null;
 				}
-				return Client.makeThumbnailUri(value.getArchiveName(), value.getAlbumId(), value.getThumbnailId()).toString();
+				return Client.makeThumbnailUri(value.getArchiveName(), value.getAlbumId(), thumbnailId).toString();
+			}
+		});
+		fieldReaders.put(Client.Album.TITLE, new StringFieldReader<AlbumMeta>() {
+
+			@Override
+			public String getString(final AlbumMeta value) {
+				String albumTitle = value.getAlbumTitle();
+				final AlbumMutationData mutationData = store.getAlbumMutationData(value.getArchiveName(), value.getAlbumId(), ReadPolicy.READ_IF_EXISTS);
+				if (mutationData != null) {
+					for (final Mutation mutation : mutationData.getMutations()) {
+						if (mutation instanceof TitleMutation) {
+							albumTitle = ((TitleMutation) mutation).getTitle();
+						}
+					}
+				}
+				return albumTitle;
 			}
 		});
 		fieldReaders.put(Client.Album.ENTRY_URI, new StringFieldReader<AlbumMeta>() {
@@ -1095,6 +1124,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				albumMeta.setLastModified(albumDto.getLastModified());
 				albumMeta.setAutoAddDate(albumDto.getAutoAddDate());
 				albumMeta.setEntryCount(albumDto.getEntries().size());
+				for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+					final Mutation mutation = entryIterator.next();
+					if (mutation instanceof AlbumMutation && ObjectUtils.objectEquals(((AlbumMutation) mutation).getAlbumLastModified(), albumDto.getLastModified())) {
+						entryIterator.remove();
+					}
+				}
 
 				final AtomicLong dateSum = new AtomicLong(0);
 				final AtomicInteger dateCount = new AtomicInteger(0);
@@ -1122,6 +1157,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					albumMeta.setAlbumDate(new Date(dateSum.longValue() / dateCount.longValue()));
 				}
 				notifyAlbumChanged(new AlbumIndex(archiveName, albumId));
+				if (mutations.isEmpty()) {
+					store.removeMutationData(archiveName, albumId);
+				}
 				return null;
 			}
 		});

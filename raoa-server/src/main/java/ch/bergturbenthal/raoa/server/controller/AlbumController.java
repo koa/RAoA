@@ -77,7 +77,6 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		final AlbumMetadata albumMetadata = album.getAlbumMetadata();
 		final AlbumDetail ret = new AlbumDetail();
 		ret.setId(albumid);
-		ret.setName(album.getName());
 		ret.getClients().addAll(albumAccess.clientsPerAlbum(albumid));
 		ret.setAutoAddDate(album.getAutoAddBeginDate());
 		ret.setLastModified(album.getLastModified());
