@@ -923,7 +923,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return Client.makeAlbumEntryUri(archiveName, albumId, value.getCommId()).toString();
 			}
 		});
-		fieldReaders.put("_id", new NumericFieldReader<AlbumEntryDto>(Cursor.FIELD_TYPE_INTEGER) {
+		fieldReaders.put(Client.AlbumEntry.NUMERIC_ID, new NumericFieldReader<AlbumEntryDto>(Cursor.FIELD_TYPE_INTEGER) {
 
 			@Override
 			public Number getNumber(final AlbumEntryDto value) {
@@ -1012,7 +1012,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return Client.makeAlbumEntriesUri(value.getArchiveName(), value.getAlbumId()).toString();
 			}
 		});
-		fieldReaders.put("_id", new NumericFieldReader<AlbumMeta>(Cursor.FIELD_TYPE_INTEGER) {
+		fieldReaders.put(Client.Album.NUMERIC_ID, new NumericFieldReader<AlbumMeta>(Cursor.FIELD_TYPE_INTEGER) {
 
 			@Override
 			public Number getNumber(final AlbumMeta value) {
@@ -1397,7 +1397,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 								try {
 									updateAlbumDetail(archiveName, albumName, albumConnection, albums.size(), albumCounter);
 								} catch (final Throwable t) {
-									Log.e(SERVICE_TAG, "Exception while updateing data", t);
+									Log.i(SERVICE_TAG, "Exception while updateing data", t);
 								}
 								return null;
 							}

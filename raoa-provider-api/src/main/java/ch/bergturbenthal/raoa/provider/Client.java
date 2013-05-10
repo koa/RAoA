@@ -25,6 +25,7 @@ public class Client {
 		public static final String ENTRY_URI = "entryUri";
 		public static final String ID = "id";
 		public static final String NAME = "name";
+		public static final String NUMERIC_ID = "_id";
 		public static final String ORIGINALS_SIZE = "originalsSize";
 		public static final String REPOSITORY_SIZE = "repositorySize";
 		public static final String SHOULD_SYNC = "shouldSync";
@@ -50,6 +51,7 @@ public class Client {
 		public static final String META_KEYWORDS = "metaKeywords";
 		public static final String META_RATING = "metaRating";
 		public static final String NAME = "fileName";
+		public static final String NUMERIC_ID = "_id";
 		public static final String ORIGINAL_SIZE = "originalSize";
 		public static final String THUMBNAIL = "thumbnail";
 		public static final String THUMBNAIL_SIZE = "thumbnailSize";
