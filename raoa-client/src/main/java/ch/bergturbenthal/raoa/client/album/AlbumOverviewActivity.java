@@ -7,6 +7,9 @@ import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
@@ -27,6 +30,13 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 	}
 
 	@Override
+	public boolean onCreateOptionsMenu(final Menu menu) {
+		final MenuInflater inflater = getMenuInflater();
+		inflater.inflate(R.menu.album_overview_menu, menu);
+		return true;
+	}
+
+	@Override
 	public void onLoaderReset(final Loader<Cursor> loader) {
 		cursorAdapter.swapCursor(null);
 	}
@@ -34,6 +44,17 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 	@Override
 	public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
 		cursorAdapter.swapCursor(data);
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(final MenuItem item) {
+		switch (item.getItemId()) {
+		case R.id.createAlbumMenuItem:
+			startActivity(new Intent(this, CreateAlbumActivity.class));
+			return true;
+		default:
+			return super.onOptionsItemSelected(item);
+		}
 	}
 
 	@Override

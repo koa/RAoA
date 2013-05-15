@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="ch.bergturbenthal.raoa"
     android:versionCode="1"
-    android:versionName="0.0.1-SNAPSHOT" >
+    android:versionName="0.1.0-SNAPSHOT" >
 
     <uses-sdk
         android:minSdkVersion="15"
@@ -41,9 +41,11 @@
             android:name=".provider.service.SynchronisationServiceImpl"
             android:enabled="true" >
         </service>
+
         <activity android:name=".client.album.AlbumOverviewActivity" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -69,6 +71,7 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".ServerListActivity" />
         </activity>
+        <activity android:name=".client.album.CreateAlbumActivity" />
     </application>
 
 </manifest>
