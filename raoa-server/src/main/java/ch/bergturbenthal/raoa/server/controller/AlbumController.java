@@ -35,6 +35,7 @@ import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.server.Album;
 import ch.bergturbenthal.raoa.server.AlbumAccess;
 import ch.bergturbenthal.raoa.server.AlbumImage;
+import ch.bergturbenthal.raoa.server.Util;
 import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.model.AlbumMetadata;
 import ch.bergturbenthal.raoa.server.watcher.DirectoryNotificationService;
@@ -53,13 +54,12 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@RequestMapping(method = RequestMethod.POST)
 	public @ResponseBody
 	AlbumEntry createAlbum(@RequestBody final CreateAlbumRequest request) {
-		final String newKey = albumAccess.createAlbum(request.getPathComps());
-		final Album album = albumAccess.getAlbum(newKey);
+		final Album album = albumAccess.createAlbum(request.getPathComps());
 		final Date autoAddDate = request.getAutoAddDate();
 		if (autoAddDate != null) {
 			album.setAutoAddBeginDate(autoAddDate);
 		}
-		return makeAlbumEntry(newKey, album);
+		return makeAlbumEntry(Util.encodeStringForUrl(album.getName()), album);
 	}
 
 	@RequestMapping(value = "import", method = RequestMethod.GET)

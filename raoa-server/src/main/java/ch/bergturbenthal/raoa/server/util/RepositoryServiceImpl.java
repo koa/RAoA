@@ -50,6 +50,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import ch.bergturbenthal.raoa.data.model.state.IssueType;
 import ch.bergturbenthal.raoa.server.state.CloseableProgressMonitor;
 import ch.bergturbenthal.raoa.server.state.StateManager;
 
@@ -273,7 +274,20 @@ public class RepositoryServiceImpl implements RepositoryService {
 				}
 				if (!pushOk) {
 					final String conflictBranchName = findNextFreeConflictBranch(externalRepository, localName, new InfiniteCountIterator());
-					localRepository.push().setRemote(remoteUri).setRefSpecs(new RefSpec("refs/heads/master:refs/heads/conflict/" + localName + "/" + conflictBranchName)).call();
+					final Iterable<PushResult> pushToFreeBranchResult = localRepository.push()
+																																							.setRemote(remoteUri)
+																																							.setRefSpecs(new RefSpec("refs/heads/master:refs/heads/conflict/" + localName
+																																																				+ "/"
+																																																				+ conflictBranchName))
+																																							.call();
+					for (final PushResult pushResult : pushToFreeBranchResult) {
+						for (final RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
+							final Status status = update.getStatus();
+							if (status != Status.OK && status != Status.UP_TO_DATE) {
+								stateManager.appendIssue(IssueType.UNKNOWN, null, null, "Cannot Push to " + remoteName + ": " + update.getMessage(), null);
+							}
+						}
+					}
 				} else {
 					final ObjectId localHeadId = localRepository.getRepository().getRef("refs/heads/master").getObjectId();
 					final ObjectId remoteHeadId = externalRepository.getRepository().getRef("refs/heads/master").getObjectId();
@@ -308,8 +322,9 @@ public class RepositoryServiceImpl implements RepositoryService {
 		}
 		while (iterator.hasNext()) {
 			final String nextCandidate = serverName.replace(' ', '_') + "/" + iterator.next();
-			if (!existingConfictBranches.contains(nextCandidate))
+			if (!existingConfictBranches.contains(nextCandidate)) {
 				return nextCandidate;
+			}
 		}
 		return null;
 	}

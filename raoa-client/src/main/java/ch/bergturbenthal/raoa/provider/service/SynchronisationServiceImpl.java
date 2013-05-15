@@ -1038,7 +1038,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			final InetAddress targetAddress = inetSocketAddress.getAddress();
 			if (targetAddress instanceof Inet6Address) {
 				final int scopedInterface = ((Inet6Address) targetAddress).getScopeId();
-				if (scopedInterface != 0) {
+				if (scopedInterface != 0 && targetAddress.isLinkLocalAddress()) {
 					return new URL("http", inetSocketAddress.getAddress().getHostAddress(), inetSocketAddress.getPort(), "rest");
 				}
 			}

@@ -130,8 +130,9 @@ public class StateManagerImpl implements StateManager {
 		}
 
 		private void updateState(final int startedCounter, final int doneCounter, final String description) {
-			if (closed)
+			if (closed) {
 				return;
+			}
 			final Progress progress = new Progress();
 			progress.setProgressId(progressId);
 			progress.setStepCount(totalCount * 2);
@@ -149,10 +150,37 @@ public class StateManagerImpl implements StateManager {
 		private final IssueType issueType;
 	}
 
+	private final ConcurrentMap<String, Issue> acknowledgableIssues = new ConcurrentHashMap<>();
 	private final ConcurrentMap<String, Issue> conflictTroubles = new ConcurrentHashMap<>();
 	private final ConcurrentMap<String, Collection<Issue>> exceptionTroublesPerAlbum = new ConcurrentHashMap<>();
 	private final ConcurrentMap<String, Collection<Issue>> exceptionTroublesPerThumbnail = new ConcurrentHashMap<>();
 	private final ConcurrentMap<String, Progress> runningProgress = new ConcurrentHashMap<String, Progress>();
+
+	@Override
+	public void acknowledgeIssue(final String issueId) {
+		acknowledgableIssues.remove(issueId);
+	}
+
+	@Override
+	public void appendIssue(final IssueType type, final String album, final String image, final String message, final Throwable exception) {
+		final String id = UUID.randomUUID().toString();
+		final Issue issue = new Issue();
+		issue.setAcknowledgable(true);
+		issue.setIssueId(id);
+		issue.setAlbumName(album);
+		issue.setImageName(image);
+		issue.setIssueTime(new Date());
+		issue.setType(type);
+		final StringBuffer messageBuffer = new StringBuffer();
+		if (message != null) {
+			messageBuffer.append(message);
+		}
+		if (exception != null) {
+			messageBuffer.append(takeStacktrace(exception));
+		}
+		issue.setStackTrace(messageBuffer.toString());
+		acknowledgableIssues.put(id, issue);
+	}
 
 	@Override
 	public void clearException(final String relativePath) {
@@ -176,6 +204,7 @@ public class StateManagerImpl implements StateManager {
 			issues.addAll(exceptionIssues);
 		}
 		issues.addAll(conflictTroubles.values());
+		issues.addAll(acknowledgableIssues.values());
 		serverState.setIssues(issues);
 		return serverState;
 	}
@@ -196,9 +225,7 @@ public class StateManagerImpl implements StateManager {
 	public void recordException(final String relativePath, final Throwable ex) {
 		final ArrayList<TroubleOrigin> troubles = new ArrayList<>();
 		decodeException(ex, troubles);
-		final StringWriter stackTraceWriter = new StringWriter();
-		ex.printStackTrace(new PrintWriter(stackTraceWriter));
-		final String stackTrace = stackTraceWriter.toString();
+		final String stackTrace = takeStacktrace(ex);
 		final Collection<Issue> issues = new ArrayList<>();
 		for (final TroubleOrigin origin : troubles) {
 			final Issue issue = new Issue();
@@ -217,9 +244,7 @@ public class StateManagerImpl implements StateManager {
 	public void recordThumbnailException(final String name, final String image, final Throwable ex) {
 		final ArrayList<TroubleOrigin> troubles = new ArrayList<>();
 		decodeException(ex, troubles);
-		final StringWriter stackTraceWriter = new StringWriter();
-		ex.printStackTrace(new PrintWriter(stackTraceWriter));
-		final String stackTrace = stackTraceWriter.toString();
+		final String stackTrace = takeStacktrace(ex);
 		final Collection<Issue> issues = new ArrayList<>();
 		for (final TroubleOrigin origin : troubles) {
 			final Issue issue = new Issue();
@@ -287,6 +312,13 @@ public class StateManagerImpl implements StateManager {
 		// System.out.println(progress);
 		// }
 		// System.out.println("------------------------------------------");
+	}
+
+	private String takeStacktrace(final Throwable ex) {
+		final StringWriter stackTraceWriter = new StringWriter();
+		ex.printStackTrace(new PrintWriter(stackTraceWriter));
+		final String stackTrace = stackTraceWriter.toString();
+		return stackTrace;
 	}
 
 }

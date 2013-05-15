@@ -160,7 +160,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	@Override
-	public synchronized String createAlbum(final String[] pathNames) {
+	public synchronized Album createAlbum(final String[] pathNames) {
 		final Map<String, Album> albums = loadAlbums(true);
 		final File basePath = getBasePath();
 		File newAlbumPath = basePath;
@@ -175,7 +175,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				final Album existingAlbum = albumEntry.getValue();
 				if (Arrays.asList(pathNames).equals(existingAlbum.getNameComps())) {
 					// album already exists
-					return albumEntry.getKey();
+					return albumEntry.getValue();
 				}
 			}
 			throw new RuntimeException("Directory " + newAlbumPath + " already exsists");
@@ -541,7 +541,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		}, 60, 2 * 60, TimeUnit.MINUTES);
 	}
 
-	private String appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri, final String serverName) {
+	private Album appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri, final String serverName) {
 		final String[] nameComps = evaluateNameComps(albumDir);
 		final String albumId = makeAlbumId(nameComps);
 		synchronized (getAlbumLock(albumDir)) {
@@ -550,7 +550,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				albumMap.put(albumId, newAlbum);
 			}
 		}
-		return albumId;
+		return albumMap.get(albumId);
 	}
 
 	private String cleanAlbumName(final boolean bare, final String relativeDirectoryName) {
@@ -1054,6 +1054,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			@Cleanup
 			final ProgressHandler progress = stateManager.newProgress(albumsToSync.size(), ProgressType.SYNC_LOCAL_DISC, remoteName);
 			final Collection<Callable<Void>> tasks = new ArrayList<>(albumsToSync.size());
+			final AtomicLong syncedSize = new AtomicLong(0);
 			for (final String albumName : albumsToSync) {
 				tasks.add(new Callable<Void>() {
 
@@ -1068,7 +1069,15 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 								if (remoteDir != null) {
 									final File albumDir = new File(getBaseDir(), albumName);
 									try {
-										appendAlbum(loadedAlbums, albumDir, remoteDir.toURI().toString(), remoteName);
+										final Album album = appendAlbum(loadedAlbums, albumDir, remoteDir.toURI().toString(), remoteName);
+										if (albumsToSync.contains(album.getName())) {
+											syncedSize.addAndGet(album.getRepositorySize());
+											if (!bare) {
+												for (final AlbumImage albumEntry : album.listImages().values()) {
+													syncedSize.addAndGet(albumEntry.getAllFilesSize());
+												}
+											}
+										}
 									} catch (final Exception e) {
 										logger.warn("Cannot read Repository " + path, e);
 										// cleanup failed repository
@@ -1089,18 +1098,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				});
 			}
 			syncExecutorService.invokeAll(tasks);
-			long syncedSize = 0;
-			for (final Album album : listAlbums().values()) {
-				if (albumsToSync.contains(album.getName())) {
-					syncedSize += album.getRepositorySize();
-					if (!bare) {
-						for (final AlbumImage albumEntry : album.listImages().values()) {
-							syncedSize += albumEntry.getAllFilesSize();
-						}
-					}
-				}
-			}
-			final long bytesAvailable = (path.getFreeSpace() + syncedSize);
+			final long bytesAvailable = (path.getFreeSpace() + syncedSize.get());
 			final int mBytesAvailable = (int) (bytesAvailable / 1024 / 1024);
 
 			final Map<String, StorageData> storages = archiveData.getStorages();

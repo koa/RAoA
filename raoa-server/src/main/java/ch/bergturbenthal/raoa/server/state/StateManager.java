@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.server.state;
 
 import java.util.Collection;
 
+import ch.bergturbenthal.raoa.data.model.state.IssueType;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.model.state.ServerState;
 import ch.bergturbenthal.raoa.server.util.ConflictEntry;
@@ -22,4 +23,8 @@ public interface StateManager {
 	void clearThumbnailException(final String name, final String image);
 
 	void reportConflict(final String albumName, final Collection<ConflictEntry> conflicts);
+
+	void appendIssue(final IssueType type, final String album, final String image, final String message, final Throwable exception);
+
+	void acknowledgeIssue(final String issueId);
 }
