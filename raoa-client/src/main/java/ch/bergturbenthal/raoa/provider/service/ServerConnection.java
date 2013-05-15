@@ -52,7 +52,7 @@ public class ServerConnection {
 	private static final String[] DATE_FORMATS = new String[] { "EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd-MMM-yy HH:mm:ss zzz", "EEE MMM dd HH:mm:ss yyyy" };
 	private static TimeZone GMT = TimeZone.getTimeZone("GMT");
 	private static ObjectMapper mapper = new ObjectMapper();
-	private static Set<HttpStatus> okStates = new HashSet<HttpStatus>(Arrays.asList(HttpStatus.OK, HttpStatus.CREATED, HttpStatus.ACCEPTED));
+	private static Set<HttpStatus> okStates = new HashSet<HttpStatus>(Arrays.asList(HttpStatus.OK, HttpStatus.CREATED, HttpStatus.ACCEPTED, HttpStatus.NOT_MODIFIED));
 	private final Map<String, SoftReference<AlbumDetail>> albumDetailCache = new HashMap<String, SoftReference<AlbumDetail>>();
 
 	private final AtomicReference<SoftReference<AlbumList>> albumIds = new AtomicReference<SoftReference<AlbumList>>();
