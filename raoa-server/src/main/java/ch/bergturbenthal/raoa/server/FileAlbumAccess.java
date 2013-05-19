@@ -125,26 +125,23 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private File importBaseDir;
 	private final String instanceId = UUID.randomUUID().toString();
 	private String instanceName;
-
+	private final Object instanceNameLoadLock = new Object();
 	private JmmDNS jmmDNS;
 	private final AtomicLong lastLoadedDate = new AtomicLong(0);
 	private Map<String, Album> loadedAlbums = new HashMap<>();
 	private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
 	private Git metaGit;
-	private Preferences preferences = null;
-
-	private final Semaphore refreshThumbnailsSemaphore = new Semaphore(1);;
-
+	private Preferences preferences = null;;
+	private final Semaphore refreshThumbnailsSemaphore = new Semaphore(1);
 	@Autowired
 	private RepositoryService repositoryService;
-
 	private final RestTemplate restTemplate = new RestTemplate();
 	private ExecutorService safeExecutorService;
-
 	@Autowired
 	private StateManager stateManager;
 	private final ExecutorService syncExecutorService = Executors.newFixedThreadPool(	Runtime.getRuntime().availableProcessors(),
 																																										new CustomizableThreadFactory("sync-thread"));
+
 	private final Semaphore updateAlbumListSemaphore = new Semaphore(1);
 
 	@Override
@@ -223,7 +220,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	@Override
 	public String getInstanceName() {
 		if (instanceName == null) {
-			synchronized (this) {
+			synchronized (instanceNameLoadLock) {
 				final File inFile = makeClientIdFile();
 				if (!inFile.exists()) {
 					return null;
