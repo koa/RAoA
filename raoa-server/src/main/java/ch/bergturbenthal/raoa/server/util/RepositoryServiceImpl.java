@@ -296,7 +296,8 @@ public class RepositoryServiceImpl implements RepositoryService {
 					}
 				}
 			} else {
-				pull(externalRepository, remoteUri, localName);
+				final String localUri = localRepository.getRepository().getDirectory().toURI().toString();
+				pull(externalRepository, localUri, localName);
 			}
 
 			return localModified;
