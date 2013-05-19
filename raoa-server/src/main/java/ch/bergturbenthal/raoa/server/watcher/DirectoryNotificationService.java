@@ -26,12 +26,14 @@ public class DirectoryNotificationService {
 	private FileNotification notification;
 
 	public synchronized Future<?> notifyDirectory(final File directory) {
-		if (!directory.isDirectory())
+		if (!directory.isDirectory()) {
 			return new AsyncResult<Object>(new Object());
+		}
 		final String absolutePath = directory.getAbsolutePath();
 		final Future<?> pendingFuture = currentFutures.get(absolutePath);
-		if (pendingFuture != null && !pendingFuture.isDone())
-			return new AsyncResult<Object>(new Object());
+		if (pendingFuture != null && !pendingFuture.isDone()) {
+			return pendingFuture;
+		}
 		final File clientIdFile = new File(directory, ".clientid");
 		final File bareIdFile = new File(directory, ".bareid");
 		if (clientIdFile.exists() && clientIdFile.canRead()) {
