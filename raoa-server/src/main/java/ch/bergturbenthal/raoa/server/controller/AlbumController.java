@@ -180,7 +180,8 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	}
 
 	@Override
-	public void registerClient(final String albumId, final String clientId) {
+	@RequestMapping(value = "{albumId}/registerClient", method = RequestMethod.GET)
+	public void registerClient(@PathVariable("albumId") final String albumId, @RequestParam("clientId") final String clientId) {
 		albumAccess.registerClient(albumId, clientId);
 	}
 
@@ -204,7 +205,8 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	}
 
 	@Override
-	public void unRegisterClient(final String albumId, final String clientId) {
+	@RequestMapping(value = "{albumId}/unRegisterClient", method = RequestMethod.GET)
+	public void unRegisterClient(@PathVariable("albumId") final String albumId, @RequestParam("clientId") final String clientId) {
 		albumAccess.unRegisterClient(albumId, clientId);
 	}
 
