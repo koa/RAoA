@@ -15,5 +15,5 @@ import lombok.Data;
 @Data
 public class ArchiveData {
 	private String archiveName;
-	private final Map<String, StorageData> storages = new TreeMap<>();
+	private Map<String, StorageData> storages = new TreeMap<>();
 }

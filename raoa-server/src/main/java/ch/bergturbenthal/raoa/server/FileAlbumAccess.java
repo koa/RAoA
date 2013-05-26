@@ -661,6 +661,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					}
 					final long availableSize = archiveSize + baseDir.getFreeSpace();
 					final int availableMBytes = (int) (availableSize / 1024 / 1024);
+					if (archiveData.getStorages() == null) {
+						archiveData.setStorages(new HashMap<String, StorageData>());
+					}
 					final Map<String, StorageData> storages = archiveData.getStorages();
 					final String storageName = getInstanceName();
 					if (storages.containsKey(storageName)) {
