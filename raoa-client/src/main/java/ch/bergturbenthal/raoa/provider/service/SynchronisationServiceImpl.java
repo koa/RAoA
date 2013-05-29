@@ -75,7 +75,6 @@ import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.raoa.provider.Client;
 import ch.bergturbenthal.raoa.provider.map.FieldReader;
 import ch.bergturbenthal.raoa.provider.map.MapperUtil;
-import ch.bergturbenthal.raoa.provider.map.NotifyableMatrixCursor;
 import ch.bergturbenthal.raoa.provider.map.NumericFieldReader;
 import ch.bergturbenthal.raoa.provider.map.StringFieldReader;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto;
@@ -96,7 +95,6 @@ import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser;
 import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser.ThumbnailUriReceiver;
 
 public class SynchronisationServiceImpl extends Service implements ResultListener, SynchronisationService {
-
 	/**
 	 * Class used for the client Binder. Because we know this service always runs in the same process as its clients, we don't need to deal with IPC.
 	 */
@@ -105,6 +103,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			// Return this instance of LocalService so clients can call public methods
 			return SynchronisationServiceImpl.this;
 		}
+	}
+
+	private static class ThumbnailEntry {
+		private boolean confirmedByServer;
+		private File referencedFile;
 	}
 
 	private static final Comparator<AlbumEntryDto> ALBUM_ENTRY_COMPARATOR = new Comparator<AlbumEntryDto>() {
@@ -124,14 +127,19 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	private final static String SERVICE_TAG = "Synchronisation Service";
 	private static final String THUMBNAIL_SUFFIX = ".thumbnail";
+
+	private static int dateCompare(final Date date1, final Date date2) {
+		return (date1 == null ? new Date(0) : date1).compareTo(date2 == null ? new Date(0) : date2);
+	}
+
 	// Binder given to clients
 	private final IBinder binder = new LocalBinder();
-	private final AtomicReference<Map<String, ArchiveConnection>> connectionMap = new AtomicReference<Map<String, ArchiveConnection>>(Collections.<String, ArchiveConnection> emptyMap());
 
+	private final AtomicReference<Map<String, ArchiveConnection>> connectionMap = new AtomicReference<Map<String, ArchiveConnection>>(Collections.<String, ArchiveConnection> emptyMap());
 	private final CursorNotification cursorNotifications = new CursorNotification();
 	private File dataDir;
-	private MDnsListener dnsListener;
 
+	private MDnsListener dnsListener;
 	private ScheduledThreadPoolExecutor executorService;
 	private ScheduledFuture<?> fastUpdatePollingFuture;
 	private final LruCache<String, Long> idCache = new LruCache<String, Long>(100) {
@@ -147,16 +155,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private final int NOTIFICATION = 0;
 	private NotificationManager notificationManager;
 	private final Semaphore pollServerSemaphore = new Semaphore(1);
-	private final AtomicBoolean running = new AtomicBoolean(false);
 
+	private final AtomicBoolean running = new AtomicBoolean(false);
 	private ScheduledFuture<?> slowUpdatePollingFuture = null;
+
 	private LocalStore store;
 
 	private File tempDir;
 
 	private final AtomicInteger tempFileId = new AtomicInteger();
 
-	private LruCache<AlbumEntryIndex, File> thumbnailCache;
+	private LruCache<AlbumEntryIndex, ThumbnailEntry> thumbnailCache;
 
 	private File thumbnailsSyncDir;
 
@@ -167,10 +176,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private final ConcurrentMap<String, ConcurrentMap<String, String>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, String>>();
 
 	private ExecutorService wrappedExecutorService;
-
-	private static int dateCompare(final Date date1, final Date date2) {
-		return (date1 == null ? new Date(0) : date1).compareTo(date2 == null ? new Date(0) : date2);
-	}
 
 	@Override
 	public void createAlbumOnServer(final String serverId, final String fullAlbumName, final Date autoAddDate) {
@@ -212,7 +217,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		final long startTime = System.currentTimeMillis();
 		Log.i("Performance", "Start load Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId);
 		try {
-			return thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
+			final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
+			if (thumbnailEntry == null) {
+				return null;
+			}
+			return thumbnailEntry.referencedFile;
 		} finally {
 			Log.i("Performance", "Returned Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId + " in " + (System.currentTimeMillis() - startTime) + " ms");
 		}
@@ -366,10 +375,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public Cursor call() throws Exception {
 				final AlbumEntries albumDetail = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
-				if (albumDetail.getEntries() == null || albumDetail.getEntries().isEmpty()) {
-					return cursorNotifications.addSingleAlbumCursor(new AlbumIndex(archiveName, albumId), new NotifyableMatrixCursor(new String[] {}));
+				final Collection<AlbumEntryDto> albumEntries;
+				if (albumDetail.getEntries() == null) {
+					albumEntries = Collections.emptyList();
+				} else {
+					albumEntries = albumDetail.getEntries();
 				}
-				final Collection<AlbumEntryDto> albumEntries = albumDetail.getEntries();
 				return makeCursorForAlbumEntries(albumEntries, archiveName, albumId, projection);
 
 			}
@@ -718,8 +729,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return serverConnection;
 	}
 
-	private File ifExsists(final File file) {
-		return file.exists() ? file : null;
+	private ThumbnailEntry ifExsists(final File file, final boolean confirmed) {
+		if (!file.exists()) {
+			return null;
+		}
+		final ThumbnailEntry ret = new ThumbnailEntry();
+		ret.referencedFile = file;
+		ret.confirmedByServer = confirmed;
+		return ret;
 	}
 
 	/**
@@ -730,31 +747,40 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	 *          Cache-Size in kB
 	 */
 	private void initThumbnailCache(final int size) {
-		thumbnailCache = new LruCache<AlbumEntryIndex, File>(size) {
+		thumbnailCache = new LruCache<AlbumEntryIndex, ThumbnailEntry>(size) {
 
 			@Override
-			protected File create(final AlbumEntryIndex key) {
+			protected ThumbnailEntry create(final AlbumEntryIndex key) {
 				return loadThumbnail(key.getArchiveName(), key.getAlbumId(), key.getAlbumEntryId());
 			}
 
 			@Override
-			protected void entryRemoved(final boolean evicted, final AlbumEntryIndex key, final File oldValue, final File newValue) {
-				if (!thumbnailsTempDir.equals(oldValue.getParentFile())) {
+			protected void entryRemoved(final boolean evicted, final AlbumEntryIndex key, final ThumbnailEntry oldValue, final ThumbnailEntry newValue) {
+				final File referencedFile = oldValue.referencedFile;
+				if (referencedFile == null) {
+					// no file referenced
 					return;
 				}
-				final boolean deleted = oldValue.delete();
+				if (!thumbnailsTempDir.equals(referencedFile.getParentFile())) {
+					return;
+				}
+				final boolean deleted = referencedFile.delete();
 				if (!deleted) {
 					throw new RuntimeException("Cannot delete cache-file " + oldValue);
 				}
 			}
 
 			@Override
-			protected int sizeOf(final AlbumEntryIndex key, final File value) {
-				if (!thumbnailsTempDir.equals(value.getParentFile())) {
+			protected int sizeOf(final AlbumEntryIndex key, final ThumbnailEntry value) {
+				final File referencedFile = value.referencedFile;
+				if (referencedFile == null) {
+					return 0;
+				}
+				if (!thumbnailsTempDir.equals(referencedFile.getParentFile())) {
 					// count only temporary entries
 					return 0;
 				}
-				return (int) value.length() / 1024;
+				return (int) referencedFile.length() / 1024;
 			}
 		};
 		executorService.execute(new Runnable() {
@@ -786,7 +812,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return albumEntries;
 	}
 
-	private File loadThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
+	private ThumbnailEntry loadThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
 		final long startTime = System.currentTimeMillis();
 		try {
 			final Quad<AlbumMeta, AlbumEntries, AlbumMutationData, AlbumState> transactionResult;
@@ -828,7 +854,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				if (otherTargetFile.exists()) {
 					otherTargetFile.delete();
 				}
-				return targetFile;
+				return ifExsists(targetFile, true);
 			}
 			// check if there is a valid file in the other cache
 			if (otherTargetFile.exists()) {
@@ -837,7 +863,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					otherTargetFile.renameTo(targetFile);
 					targetFile.setLastModified(oldLastModified);
 					if (targetFile.exists()) {
-						return targetFile;
+						return ifExsists(targetFile, true);
 					}
 
 				}
@@ -850,15 +876,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			}
 			final Map<String, ArchiveConnection> archive = connectionMap.get();
 			if (archive == null) {
-				return ifExsists(targetFile);
+				return ifExsists(targetFile, false);
 			}
 			final ArchiveConnection archiveConnection = archive.get(archiveName);
 			if (archiveConnection == null) {
-				return ifExsists(targetFile);
+				return ifExsists(targetFile, false);
 			}
 			final AlbumConnection albumConnection = archiveConnection.getAlbums().get(albumMeta.getName());
 			if (albumConnection == null) {
-				return ifExsists(targetFile);
+				return ifExsists(targetFile, false);
 			}
 
 			final File tempFile = new File(parentDir, tempFileId.incrementAndGet() + ".thumbnail-temp");
@@ -866,13 +892,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				tempFile.delete();
 			}
 			try {
-				albumConnection.readThumbnail(albumEntryId, tempFile, targetFile);
+				final boolean readOk = albumConnection.readThumbnail(albumEntryId, tempFile, targetFile);
+				return ifExsists(targetFile, readOk);
 			} finally {
 				if (tempFile.exists()) {
 					tempFile.delete();
 				}
 			}
-			return ifExsists(targetFile);
 		} finally {
 			Log.i("Performance", "Loaded Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId + " in " + (System.currentTimeMillis() - startTime) + " ms");
 		}
@@ -882,7 +908,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		final Collection<String> albumEntries = listAllAlbumEntries(archiveName, albumId);
 		boolean allOk = true;
 		for (final String thumbnailId : albumEntries) {
-			allOk &= thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, thumbnailId)) != null;
+			final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, thumbnailId));
+			allOk &= thumbnailEntry != null && thumbnailEntry.confirmedByServer;
 		}
 		if (allOk) {
 			callInTransaction(new Callable<Void>() {
@@ -1231,7 +1258,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				})) {
 					final String filename = thumbnailFile.getName();
 					final String albumEntryId = filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length());
-					final File loadedFile = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
+					final ThumbnailEntry loadedFile = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
 					if (loadedFile == null) {
 						thumbnailFile.delete();
 					}
