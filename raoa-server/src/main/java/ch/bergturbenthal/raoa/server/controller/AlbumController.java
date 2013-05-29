@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import ch.bergturbenthal.raoa.data.api.ImageResult;
+import ch.bergturbenthal.raoa.data.api.ImageResult.ResultCode;
 import ch.bergturbenthal.raoa.data.model.AlbumDetail;
 import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
@@ -130,7 +131,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		if (image == null) {
 			return null;
 		}
-		final File thumbnailImage = image.getThumbnail();
+		final File thumbnailImage = image.getThumbnail(true);
 		if (thumbnailImage != null) {
 			return makeImageResult(thumbnailImage, image, ifModifiedSince);
 		}
@@ -145,12 +146,16 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		final long modifiedTime = request.getDateHeader("If-Modified-Since");
 		final ImageResult foundImage = readImage(albumId, imageId, modifiedTime > 0 ? new Date(modifiedTime) : null);
 		if (foundImage == null) {
-			response.setStatus(404);
+			response.setStatus(HttpServletResponse.SC_NOT_FOUND);
 			return;
 		}
 
-		if (!foundImage.isModified()) {
+		if (foundImage.getStatus() == ResultCode.NOT_MODIFIED) {
 			response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+			return;
+		}
+		if (foundImage.getStatus() == ResultCode.TRY_LATER) {
+			response.setStatus(HttpServletResponse.SC_ACCEPTED);
 			return;
 		}
 		response.setContentType(foundImage.getMimeType());
@@ -230,7 +235,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		entry.setVideo(albumImage.isVideo());
 		entry.setLastModified(albumImage.lastModified());
 		entry.setOriginalFileSize(albumImage.getOriginalFileSize());
-		final File thumbnail = albumImage.getThumbnail();
+		final File thumbnail = albumImage.getThumbnail(true);
 		if (thumbnail != null) {
 			entry.setThumbnailFileSize(thumbnail.length());
 		}

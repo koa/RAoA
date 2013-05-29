@@ -46,9 +46,36 @@ public class AlbumImage {
 
 	private static final Integer STAR_RATING = Integer.valueOf(5);
 
+	public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
+		synchronized (lockFor(file)) {
+			final SoftReference<AlbumImage> softReference = loadedImages.get(file);
+			if (softReference != null) {
+				final AlbumImage cachedImage = softReference.get();
+				if (cachedImage != null && cachedImage.lastModified.equals(lastModified)) {
+					return cachedImage;
+				}
+			}
+			final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified, cacheManager);
+			loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
+			return newImage;
+		}
+	}
+
+	private static synchronized Object lockFor(final File file) {
+		final Object existingLock = imageLocks.get(file);
+		if (existingLock != null) {
+			return existingLock;
+		}
+		final Object newLock = new Object();
+		imageLocks.put(file, newLock);
+		return newLock;
+	}
+
 	private final AlbumManager albumManager;
 
 	private final File cacheDir;
+
+	private final Object entryDataLock = new Object();
 
 	private final File file;
 
@@ -59,29 +86,6 @@ public class AlbumImage {
 
 	@Autowired
 	private VideoThumbnailMaker videoThumbnailMaker;
-
-	public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
-		synchronized (lockFor(file)) {
-			final SoftReference<AlbumImage> softReference = loadedImages.get(file);
-			if (softReference != null) {
-				final AlbumImage cachedImage = softReference.get();
-				if (cachedImage != null && cachedImage.lastModified.equals(lastModified))
-					return cachedImage;
-			}
-			final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified, cacheManager);
-			loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
-			return newImage;
-		}
-	}
-
-	private static synchronized Object lockFor(final File file) {
-		final Object existingLock = imageLocks.get(file);
-		if (existingLock != null)
-			return existingLock;
-		final Object newLock = new Object();
-		imageLocks.put(file, newLock);
-		return newLock;
-	}
 
 	private AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
 		this.file = file;
@@ -104,59 +108,63 @@ public class AlbumImage {
 		return getAlbumEntryData().getCreationDate();
 	}
 
-	public synchronized AlbumEntryData getAlbumEntryData() {
-		AlbumEntryData loadedMetaData = albumManager.getCachedData();
-		if (loadedMetaData != null)
+	public AlbumEntryData getAlbumEntryData() {
+		synchronized (entryDataLock) {
+
+			AlbumEntryData loadedMetaData = albumManager.getCachedData();
+			if (loadedMetaData != null) {
+				return loadedMetaData;
+			}
+
+			loadedMetaData = new AlbumEntryData();
+			final Metadata metadata = getExifMetadata();
+			if (metadata != null) {
+				new MetadataWrapper(metadata).fill(loadedMetaData);
+			}
+			final PicasaIniEntryData picasaData = albumManager.getPicasaData();
+			if (picasaData != null) {
+				if (loadedMetaData.getRating() == null && picasaData.isStar()) {
+					loadedMetaData.setRating(STAR_RATING);
+				}
+				loadedMetaData.getKeywords().addAll(picasaData.getKeywords());
+				if (loadedMetaData.getCaption() == null) {
+					loadedMetaData.setCaption(picasaData.getCaption());
+				}
+			}
+			final File xmpSideFile = getXmpSideFile();
+			if (xmpSideFile.exists()) {
+				try {
+					{
+						@Cleanup
+						final FileInputStream fis = new FileInputStream(xmpSideFile);
+						final XmpWrapper xmp = new XmpWrapper(XMPMetaFactory.parse(fis));
+						final Integer rating = xmp.readRating();
+						if (rating != null) {
+							loadedMetaData.setRating(rating);
+						}
+						loadedMetaData.getKeywords().addAll(xmp.readKeywords());
+						final String description = xmp.readDescription();
+						if (description != null) {
+							loadedMetaData.setCaption(description);
+						}
+					}
+					{
+						@Cleanup
+						final FileInputStream fis = new FileInputStream(xmpSideFile);
+						loadedMetaData.setEditableMetadataHash(DigestUtils.shaHex(fis));
+					}
+				} catch (final IOException e) {
+					logger.error("Cannot read XMP-Sidefile: " + xmpSideFile, e);
+				} catch (final XMPException e) {
+					logger.error("Cannot read XMP-Sidefile: " + xmpSideFile, e);
+				}
+			} else {
+				loadedMetaData.setEditableMetadataHash("original-data");
+			}
+
+			albumManager.updateCache(loadedMetaData);
 			return loadedMetaData;
-
-		loadedMetaData = new AlbumEntryData();
-		final Metadata metadata = getExifMetadata();
-		if (metadata != null) {
-			new MetadataWrapper(metadata).fill(loadedMetaData);
 		}
-		final PicasaIniEntryData picasaData = albumManager.getPicasaData();
-		if (picasaData != null) {
-			if (loadedMetaData.getRating() == null && picasaData.isStar()) {
-				loadedMetaData.setRating(STAR_RATING);
-			}
-			loadedMetaData.getKeywords().addAll(picasaData.getKeywords());
-			if (loadedMetaData.getCaption() == null) {
-				loadedMetaData.setCaption(picasaData.getCaption());
-			}
-		}
-		final File xmpSideFile = getXmpSideFile();
-		if (xmpSideFile.exists()) {
-			try {
-				{
-					@Cleanup
-					final FileInputStream fis = new FileInputStream(xmpSideFile);
-					final XmpWrapper xmp = new XmpWrapper(XMPMetaFactory.parse(fis));
-					final Integer rating = xmp.readRating();
-					if (rating != null) {
-						loadedMetaData.setRating(rating);
-					}
-					loadedMetaData.getKeywords().addAll(xmp.readKeywords());
-					final String description = xmp.readDescription();
-					if (description != null) {
-						loadedMetaData.setCaption(description);
-					}
-				}
-				{
-					@Cleanup
-					final FileInputStream fis = new FileInputStream(xmpSideFile);
-					loadedMetaData.setEditableMetadataHash(DigestUtils.shaHex(fis));
-				}
-			} catch (final IOException e) {
-				logger.error("Cannot read XMP-Sidefile: " + xmpSideFile, e);
-			} catch (final XMPException e) {
-				logger.error("Cannot read XMP-Sidefile: " + xmpSideFile, e);
-			}
-		} else {
-			loadedMetaData.setEditableMetadataHash("original-data");
-		}
-
-		albumManager.updateCache(loadedMetaData);
-		return loadedMetaData;
 	}
 
 	public long getAllFilesSize() {
@@ -181,12 +189,19 @@ public class AlbumImage {
 	}
 
 	public File getThumbnail() {
+		return getThumbnail(false);
+	}
+
+	public File getThumbnail(final boolean onlyFromCache) {
 		try {
 			final File cachedFile = makeCachedFile();
 			final long originalLastModified = file.lastModified();
 			if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified) {
 				albumManager.clearThumbnailException(getName());
 				return cachedFile;
+			}
+			if (onlyFromCache) {
+				return null;
 			}
 			synchronized (this) {
 				if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified) {
@@ -227,6 +242,9 @@ public class AlbumImage {
 	}
 
 	public Date lastModified() {
+		if (getThumbnail(true) == null) {
+			return new Date(lastModified.getTime() - 1);
+		}
 		return lastModified;
 	}
 
@@ -282,8 +300,9 @@ public class AlbumImage {
 
 	private File makeCachedFile() {
 		final String name = file.getName();
-		if (isVideo())
+		if (isVideo()) {
 			return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
+		}
 		return new File(cacheDir, name);
 	}
 

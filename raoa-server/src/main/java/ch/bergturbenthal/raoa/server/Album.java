@@ -92,14 +92,13 @@ public class Album implements ApplicationContextAware {
 
 	private static class ImportEntry {
 
-		private final String filename;
-
-		private final String hash;
-
 		static ImportEntry parseLine(final String line) {
 			final String[] comps = line.split(";", 2);
 			return new ImportEntry(comps[0], comps[1]);
 		}
+
+		private final String filename;
+		private final String hash;
 
 		public ImportEntry(final String filename, final String hash) {
 			super();
@@ -126,10 +125,14 @@ public class Album implements ApplicationContextAware {
 	private static String INDEX_FILE = ".index";
 	private static Logger logger = LoggerFactory.getLogger(Album.class);
 	private static ObjectMapper mapper = new ObjectMapper();
+
+	public static Album createAlbum(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
+		return new Album(baseDir, nameComps, remoteUri, serverName);
+	}
+
 	private final ConcurrentMap<String, AlbumEntryData> albumEntriesMetadataCache = new ConcurrentHashMap<String, AlbumEntryData>();
 
 	private ApplicationContext applicationContext;
-
 	private final File baseDir;
 	private SoftReference<AlbumCache> cache = null;
 	private File cacheDir;
@@ -137,20 +140,17 @@ public class Album implements ApplicationContextAware {
 	private Collection<ImportEntry> importEntries = null;
 	private final String initRemoteServerName;
 	private final String initRemoteUri;
-	private final AtomicBoolean metadataModified = new AtomicBoolean(false);
 
+	private final AtomicBoolean metadataModified = new AtomicBoolean(false);
 	private final String[] nameComps;
 	@Autowired
 	private RepositoryService repositoryService;
-	private Long repositorySize = null;
 
+	private Long repositorySize = null;
 	@Autowired
 	private StateManager stateManager;
-	private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
 
-	public static Album createAlbum(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
-		return new Album(baseDir, nameComps, remoteUri, serverName);
-	}
+	private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
 
 	private Album(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
 		this.baseDir = baseDir;
@@ -203,23 +203,13 @@ public class Album implements ApplicationContextAware {
 	}
 
 	public Date getLastModified() {
-		try {
-			if (!isMaster()) {
-				return new Date(1);
+		int missingThumbnailCount = 0;
+		for (final AlbumImage image : listImages().values()) {
+			if (image.getThumbnail(true) == null) {
+				missingThumbnailCount += 1;
 			}
-			final LogCommand log = git.log().setMaxCount(1);
-			final Iterable<RevCommit> commitIterable = log.call();
-			final Iterator<RevCommit> iterator = commitIterable.iterator();
-			if (iterator.hasNext()) {
-				final RevCommit lastCommit = iterator.next();
-				return new Date(lastCommit.getCommitTime() * 1000l);
-			}
-		} catch (final NoHeadException e) {
-			// no head -> return zero date
-		} catch (final GitAPIException e) {
-			logger.warn("Cannot query log from " + git.getRepository(), e);
 		}
-		return new Date(0);
+		return new Date(evaluateLastModifiedTime() - missingThumbnailCount);
 	}
 
 	public String getName() {
@@ -569,6 +559,26 @@ public class Album implements ApplicationContextAware {
 		return modified;
 	}
 
+	private long evaluateLastModifiedTime() {
+		try {
+			if (!isMaster()) {
+				return 1;
+			}
+			final LogCommand log = git.log().setMaxCount(1);
+			final Iterable<RevCommit> commitIterable = log.call();
+			final Iterator<RevCommit> iterator = commitIterable.iterator();
+			if (iterator.hasNext()) {
+				final RevCommit lastCommit = iterator.next();
+				return lastCommit.getCommitTime() * 1000l;
+			}
+		} catch (final NoHeadException e) {
+			// no head -> return zero date
+		} catch (final GitAPIException e) {
+			logger.warn("Cannot query log from " + git.getRepository(), e);
+		}
+		return 0;
+	}
+
 	private synchronized ImportEntry findExistingImportEntry(final String sha1OfFile) {
 		if (importEntries == null) {
 			loadImportEntries();
@@ -622,7 +632,7 @@ public class Album implements ApplicationContextAware {
 	}
 
 	private synchronized AlbumCache loadCache() {
-		final Date lastModified = getLastModified();
+		final Date lastModified = new Date(evaluateLastModifiedTime());
 		final long dirLastModified = lastModified.getTime();
 		if (cache != null) {
 			final AlbumCache cachedImageMap = cache.get();
