@@ -28,8 +28,9 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 	@Override
 	public boolean makeVideoThumbnail(final File originalFile, final File thumbnailFile, final File tempDir) {
 		// no valid binary found -> cannot convert
-		if (binary == null)
+		if (binary == null) {
 			return false;
+		}
 		final File tempFile = new File(tempDir, originalFile.getName() + "-tmp.mp4");
 		if (tempFile.exists()) {
 			tempFile.delete();
@@ -64,7 +65,7 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 			@Cleanup
 			final FileOutputStream logOutput = new FileOutputStream(logfile);
 			logOutput.write((cmdLine.toString() + "\n").getBytes());
-			converted = execute(cmdLine, TimeUnit.HOURS.toMillis(2), logOutput);
+			converted = execute(cmdLine, TimeUnit.HOURS.toMillis(8), logOutput);
 		} catch (final IOException e) {
 			throw new RuntimeException("Cannot write to logfile " + logfile);
 		} finally {
@@ -106,9 +107,10 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 
 	@PostConstruct
 	private void init() {
-		if (binary != null && testExecutable(binary))
+		if (binary != null && testExecutable(binary)) {
 			// binary is already configured and valid
 			return;
+		}
 		for (final String candidate : binaryCandiates) {
 			if (testExecutable(candidate)) {
 				binary = candidate;
@@ -119,8 +121,9 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 	}
 
 	private boolean testExecutable(final String executable) {
-		if (executable.trim().length() == 0)
+		if (executable.trim().length() == 0) {
 			return false;
+		}
 		final CommandLine cmdLine = new CommandLine(executable);
 		cmdLine.addArgument("-version");
 		try {
