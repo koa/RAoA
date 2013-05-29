@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.client;
+package ch.bergturbenthal.raoa.client.binding;
 
 import java.io.InputStream;
 import java.lang.ref.SoftReference;

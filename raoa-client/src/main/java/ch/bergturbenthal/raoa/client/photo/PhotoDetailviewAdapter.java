@@ -8,7 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.SimpleCursorAdapter.ViewBinder;
-import ch.bergturbenthal.raoa.client.PhotoBinder;
+import ch.bergturbenthal.raoa.client.binding.PhotoBinder;
 
 public class PhotoDetailviewAdapter extends PagerAdapter {
 

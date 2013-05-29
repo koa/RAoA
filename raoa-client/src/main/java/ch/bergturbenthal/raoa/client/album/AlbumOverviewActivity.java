@@ -1,5 +1,7 @@
 package ch.bergturbenthal.raoa.client.album;
 
+import java.util.Arrays;
+
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.CursorLoader;
@@ -13,16 +15,20 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
+import android.widget.CursorAdapter;
 import android.widget.GridView;
-import android.widget.SimpleCursorAdapter;
 import ch.bergturbenthal.raoa.R;
+import ch.bergturbenthal.raoa.client.binding.ComplexCursorAdapter;
+import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
+import ch.bergturbenthal.raoa.client.binding.SetTagViewHandler;
+import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.photo.PhotoOverviewActivity;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<Cursor> {
 
 	private static String TAG = AlbumOverviewActivity.class.getSimpleName();
-	private SimpleCursorAdapter cursorAdapter;
+	private CursorAdapter cursorAdapter;
 
 	@Override
 	public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
@@ -62,9 +68,15 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.album_overview);
 
-		// Create the album overview adapter we will use to display the loaded data
-		cursorAdapter = new AlbumOverviewAdapter(this, R.layout.album_overview_item);
-
+		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(	getLoaderManager(),
+																																this,
+																																Client.ALBUM_URI,
+																																R.layout.album_overview_item,
+																																Arrays.<ViewHandler<? extends View>> asList(new PhotoViewHandler(	R.id.album_item_image,
+																																																																	Client.Album.THUMBNAIL,
+																																																																	Client.Album.ALBUM_ENTRIES_URI),
+																																																						new SetTagViewHandler(R.id.album_overview_grid_item,
+																																																																	Client.Album.ALBUM_ENTRIES_URI)));
 		final GridView gridview = (GridView) findViewById(R.id.album_overview);
 		gridview.setAdapter(cursorAdapter);
 
@@ -77,10 +89,6 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 				startActivity(intent);
 			}
 		});
-
-		// Prepare the loader. Either re-connect with an existing one,
-		// or start a new one.
-		getLoaderManager().initLoader(0, null, this);
 	}
 
 }

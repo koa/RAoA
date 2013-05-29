@@ -8,7 +8,7 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.SimpleCursorAdapter;
 import ch.bergturbenthal.raoa.R;
-import ch.bergturbenthal.raoa.client.PhotoBinder;
+import ch.bergturbenthal.raoa.client.binding.PhotoBinder;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class AlbumOverviewAdapter extends SimpleCursorAdapter {

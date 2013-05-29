@@ -5,7 +5,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.SimpleCursorAdapter;
 import ch.bergturbenthal.raoa.R;
-import ch.bergturbenthal.raoa.client.PhotoBinder;
+import ch.bergturbenthal.raoa.client.binding.PhotoBinder;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoOverviewAdapter extends SimpleCursorAdapter {
