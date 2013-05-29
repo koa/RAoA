@@ -61,7 +61,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
                 android:clickable="true"
-                android:src="@drawable/ic_menu_refresh" />
+                android:src="@drawable/ic_icon_offline_online" />
         </LinearLayout>
     </LinearLayout>
 

@@ -5,6 +5,7 @@ package ch.bergturbenthal.raoa.client.binding;
 
 import java.util.Map;
 
+import android.content.Context;
 import android.widget.TextView;
 
 public class TextViewHandler extends AbstractViewHandler<TextView> {
@@ -20,7 +21,7 @@ public class TextViewHandler extends AbstractViewHandler<TextView> {
 	}
 
 	@Override
-	public void bindView(final TextView view, final Map<String, Object> values) {
+	public void bindView(final TextView view, final Context context, final Map<String, Object> values) {
 		view.setText(String.valueOf(values.get(column)));
 	}
 

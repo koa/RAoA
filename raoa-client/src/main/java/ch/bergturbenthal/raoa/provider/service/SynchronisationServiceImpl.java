@@ -73,6 +73,7 @@ import ch.bergturbenthal.raoa.data.model.state.Issue;
 import ch.bergturbenthal.raoa.data.model.state.Progress;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.raoa.provider.Client;
+import ch.bergturbenthal.raoa.provider.map.BooleanFieldReader;
 import ch.bergturbenthal.raoa.provider.map.FieldReader;
 import ch.bergturbenthal.raoa.provider.map.MapperUtil;
 import ch.bergturbenthal.raoa.provider.map.NumericFieldReader;
@@ -89,6 +90,8 @@ import ch.bergturbenthal.raoa.provider.model.dto.AlbumState;
 import ch.bergturbenthal.raoa.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.raoa.provider.state.ServerListActivity;
 import ch.bergturbenthal.raoa.provider.store.FileStorage.ReadPolicy;
+import ch.bergturbenthal.raoa.provider.util.LazyLoader;
+import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 import ch.bergturbenthal.raoa.provider.util.ObjectUtils;
 import ch.bergturbenthal.raoa.provider.util.Quad;
 import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser;
@@ -538,6 +541,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				if (albumMeta == null) {
 					return Integer.valueOf(0);
 				}
+				cursorNotifications.notifySingleAlbumCursorChanged(new AlbumIndex(archiveName, albumId));
 				// Handling of synchronization flag
 				final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
 				if (shouldSync != null) {
@@ -916,6 +920,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				@Override
 				public Void call() throws Exception {
 					store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE).setSynced(true);
+					cursorNotifications.notifySingleAlbumCursorChanged(new AlbumIndex(archiveName, albumId));
 					return null;
 				}
 			});
@@ -990,7 +995,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return rightDate.compareTo(leftDate);
 			}
 		});
-
+		final Lookup<AlbumIndex, AlbumState> albumStateLoader = LazyLoader.loadLazy(new Lookup<AlbumIndex, AlbumState>() {
+			@Override
+			public AlbumState get(final AlbumIndex key) {
+				return store.getAlbumState(key.getArchiveName(), key.getAlbumId(), ReadPolicy.READ_IF_EXISTS);
+			}
+		});
 		final Map<String, FieldReader<AlbumMeta>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumMeta.class);
 		fieldReaders.put(Client.Album.THUMBNAIL, new StringFieldReader<AlbumMeta>() {
 			@Override
@@ -1044,6 +1054,22 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public Number getNumber(final AlbumMeta value) {
 				return idCache.get(value.getAlbumId());
+			}
+		});
+		fieldReaders.put(Client.Album.SHOULD_SYNC, new BooleanFieldReader<AlbumMeta>() {
+
+			@Override
+			public Boolean getBooleanValue(final AlbumMeta value) {
+				final AlbumState albumState = albumStateLoader.get(new AlbumIndex(value.getArchiveName(), value.getAlbumId()));
+				return Boolean.valueOf(albumState.isShouldSync());
+			}
+		});
+		fieldReaders.put(Client.Album.SYNCED, new BooleanFieldReader<AlbumMeta>() {
+
+			@Override
+			public Boolean getBooleanValue(final AlbumMeta value) {
+				final AlbumState albumState = albumStateLoader.get(new AlbumIndex(value.getArchiveName(), value.getAlbumId()));
+				return Boolean.valueOf(albumState.isSynced());
 			}
 		});
 

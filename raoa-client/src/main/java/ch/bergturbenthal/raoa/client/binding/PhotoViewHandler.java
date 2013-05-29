@@ -46,7 +46,7 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 	}
 
 	@Override
-	public void bindView(final ImageView view, final Map<String, Object> values) {
+	public void bindView(final ImageView view, final Context context, final Map<String, Object> values) {
 		final String thumbnailUriString = (String) values.get(uriColumn);
 
 		final AsyncTask<Void, Void, Void> runningOldTask = runningBgTasks.get(view);

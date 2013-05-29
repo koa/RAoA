@@ -3,7 +3,6 @@
  */
 package ch.bergturbenthal.raoa.client.binding;
 
-import android.content.Context;
 import android.view.View;
 
 /**
@@ -14,10 +13,6 @@ import android.view.View;
  */
 public abstract class AbstractViewHandler<V extends View> implements ViewHandler<V> {
 
-	/**
-	 * current Context to render this View
-	 */
-	protected Context context;
 	private final int affectedView;
 
 	protected AbstractViewHandler(final int affectedView) {
@@ -29,8 +24,4 @@ public abstract class AbstractViewHandler<V extends View> implements ViewHandler
 		return affectedView;
 	}
 
-	@Override
-	public void setContext(final Context context) {
-		this.context = context;
-	}
 }

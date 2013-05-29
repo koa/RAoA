@@ -5,6 +5,7 @@ package ch.bergturbenthal.raoa.client.binding;
 
 import java.util.Map;
 
+import android.content.Context;
 import android.view.View;
 
 /**
@@ -22,7 +23,7 @@ public class SetTagViewHandler extends AbstractViewHandler<View> {
 	}
 
 	@Override
-	public void bindView(final View view, final Map values) {
+	public void bindView(final View view, final Context context, final Map values) {
 		final Object value = values.get(columnName);
 		view.setTag(value);
 	}

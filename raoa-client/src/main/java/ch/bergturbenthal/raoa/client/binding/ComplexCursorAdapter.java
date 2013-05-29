@@ -89,6 +89,7 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 	public ComplexCursorAdapter(final Context context, final int layout, final Collection<ViewHandler<? extends View>> handlers) {
 		super(context, layout, null, true);
 		this.handlers = (Collection<ViewHandler<View>>) (Collection<?>) handlers;
+
 	}
 
 	@Override
@@ -97,7 +98,7 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 		for (final ViewHandler<View> handler : handlers) {
 			final View foundView = view.findViewById(handler.affectedView());
 			final Map<String, Object> fieldsMap = makeMapForFields(cursor, handler.usedFields());
-			handler.bindView(foundView, fieldsMap);
+			handler.bindView(foundView, context, fieldsMap);
 		}
 	}
 
