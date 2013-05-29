@@ -548,6 +548,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					final AlbumState albumState = store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
 					if (albumState.isShouldSync() != shouldSync.booleanValue()) {
 						albumState.setShouldSync(shouldSync.booleanValue());
+						if (!shouldSync.booleanValue()) {
+							albumState.setSynced(false);
+						}
 						final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
 						if (albumEntries != null && albumEntries.getEntries() != null) {
 							albumEntriesToClear.addAll(albumEntries.collectEntryIds());

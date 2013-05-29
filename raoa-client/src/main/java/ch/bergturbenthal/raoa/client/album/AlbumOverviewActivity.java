@@ -110,10 +110,10 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 																														if (shouldSync) {
 																															view.setImageResource(R.drawable.ic_icon_offline_online);
 																															if (synced) {
+																																view.clearAnimation();
+																															} else {
 																																final Animation animation = AnimationUtils.loadAnimation(context, R.anim.rotate_infinitely);
 																																view.startAnimation(animation);
-																															} else {
-																																view.clearAnimation();
 																															}
 																														} else {
 																															view.clearAnimation();
