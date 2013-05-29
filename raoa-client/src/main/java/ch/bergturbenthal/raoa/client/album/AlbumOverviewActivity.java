@@ -21,6 +21,7 @@ import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.binding.ComplexCursorAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.SetTagViewHandler;
+import ch.bergturbenthal.raoa.client.binding.TextViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.photo.PhotoOverviewActivity;
 import ch.bergturbenthal.raoa.provider.Client;
@@ -76,7 +77,8 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 																																																																	Client.Album.THUMBNAIL,
 																																																																	Client.Album.ALBUM_ENTRIES_URI),
 																																																						new SetTagViewHandler(R.id.album_overview_grid_item,
-																																																																	Client.Album.ALBUM_ENTRIES_URI)));
+																																																																	Client.Album.ALBUM_ENTRIES_URI),
+																																																						new TextViewHandler(R.id.album_item_name, Client.Album.NAME)));
 		final GridView gridview = (GridView) findViewById(R.id.album_overview);
 		gridview.setAdapter(cursorAdapter);
 
@@ -90,5 +92,4 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 			}
 		});
 	}
-
 }
