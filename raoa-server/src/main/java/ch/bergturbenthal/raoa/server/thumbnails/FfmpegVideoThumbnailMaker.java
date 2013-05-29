@@ -62,10 +62,12 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 		}
 		boolean converted = false;
 		try {
+			// give approximatly 1 hour per gigabyte input-length
+			final long maximumTime = originalFile.length() * 3600 / 1024 / 1024 + TimeUnit.MINUTES.toMillis(5);
 			@Cleanup
 			final FileOutputStream logOutput = new FileOutputStream(logfile);
 			logOutput.write((cmdLine.toString() + "\n").getBytes());
-			converted = execute(cmdLine, TimeUnit.HOURS.toMillis(8), logOutput);
+			converted = execute(cmdLine, maximumTime, logOutput);
 		} catch (final IOException e) {
 			throw new RuntimeException("Cannot write to logfile " + logfile);
 		} finally {
