@@ -88,9 +88,8 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 	 */
 	private Collection<ViewHandler<? extends View>> makeHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL));
+		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
 		ret.add(new TextViewHandler(R.id.photo_name, Client.AlbumEntry.NAME));
 		return ret;
 	}
-
 }

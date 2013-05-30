@@ -20,10 +20,10 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.Pair;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
-import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.util.BitmapUtil;
 
 /**
@@ -31,16 +31,64 @@ import ch.bergturbenthal.raoa.client.util.BitmapUtil;
  * 
  */
 public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
+	public static class DimensionCalculator implements TargetSizeCalculator {
+		private final int dimension;
+
+		public DimensionCalculator(final int dimension) {
+			this.dimension = dimension;
+
+		}
+
+		@Override
+		public Pair<Integer, Integer> evaluateTargetSize(final Context context) {
+			final Integer length = Integer.valueOf(context.getResources().getDimensionPixelSize(dimension));
+			return new Pair<Integer, Integer>(length, length);
+		}
+
+	}
+
+	/**
+	 * Interface for Handler to calculate image size while reading from ContentProvider.
+	 * 
+	 */
+	public static interface TargetSizeCalculator {
+		/**
+		 * Calculating the width and height
+		 * 
+		 * @param context
+		 *          Context
+		 * @return a {@link Pair} with has width as first and height as second value.
+		 */
+		Pair<Integer, Integer> evaluateTargetSize(final Context context);
+	}
+
+	/**
+	 * Scales the image to Fullscreen
+	 */
+	public static TargetSizeCalculator FULLSCREEN_CALCULATOR = new TargetSizeCalculator() {
+
+		@Override
+		public Pair<Integer, Integer> evaluateTargetSize(final Context context) {
+			// Get window manager
+			final WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+			// Get display size
+			final DisplayMetrics displaymetrics = new DisplayMetrics();
+			wm.getDefaultDisplay().getMetrics(displaymetrics);
+			return new Pair<Integer, Integer>(Integer.valueOf(displaymetrics.widthPixels), Integer.valueOf(displaymetrics.heightPixels));
+		}
+	};
 
 	private static final String TAG = "PhotoViewHandler";
 	private final Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
 	private final Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
+	private final TargetSizeCalculator targetSizeCalculator;
 	private final Executor THREAD_POOL_EXECUTOR = new ThreadPoolExecutor(5, 15, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1000));
 	private final String uriColumn;
 
-	public PhotoViewHandler(final int viewId, final String uriColumn) {
+	public PhotoViewHandler(final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator) {
 		super(viewId);
 		this.uriColumn = uriColumn;
+		this.targetSizeCalculator = targetSizeCalculator;
 	}
 
 	@Override
@@ -82,27 +130,17 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 					// get the real image
 					InputStream imageStream = view.getContext().getContentResolver().openInputStream(uri);
 					try {
-						final int width;
-						final int heigth;
-						// Calculate inSampleSize
-						if (isDetailView) {
-							// Get window manager
-							final WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-							// Get display size
-							final DisplayMetrics displaymetrics = new DisplayMetrics();
-							wm.getDefaultDisplay().getMetrics(displaymetrics);
-							width = displaymetrics.widthPixels;
-							heigth = displaymetrics.heightPixels;
-						} else {
-							width = heigth = view.getContext().getResources().getDimensionPixelSize(R.dimen.image_width);
-						}
 
 						// First decode with inJustDecodeBounds=true to check dimensions
 						final BitmapFactory.Options options = new BitmapFactory.Options();
 						options.inJustDecodeBounds = true;
 						BitmapFactory.decodeStream(imageStream, null, options);
-
-						options.inSampleSize = BitmapUtil.calculateInSampleSize(options, width, heigth);
+						if (targetSizeCalculator != null) {
+							final Pair<Integer, Integer> targetSize = targetSizeCalculator.evaluateTargetSize(context);
+							if (targetSize != null && targetSize.first != null && targetSize.second != null) {
+								options.inSampleSize = BitmapUtil.calculateInSampleSize(options, targetSize.first.intValue(), targetSize.second.intValue());
+							}
+						}
 
 						imageStream.close();
 						imageStream = view.getContext().getContentResolver().openInputStream(uri);
@@ -143,4 +181,5 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 	public String[] usedFields() {
 		return new String[] { uriColumn };
 	}
+
 }

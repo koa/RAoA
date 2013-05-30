@@ -1,6 +1,6 @@
 package ch.bergturbenthal.raoa.client.album;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -94,48 +94,49 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		});
 	}
 
-	@SuppressWarnings("unchecked")
 	private List<ViewHandler<? extends View>> makeViewHandlers() {
-		return Arrays.<ViewHandler<? extends View>> asList(	new PhotoViewHandler(R.id.album_item_image, Client.Album.THUMBNAIL),
-																												new SetTagViewHandler(R.id.album_overview_grid_item, Client.Album.ALBUM_ENTRIES_URI),
-																												new TextViewHandler(R.id.album_item_name, Client.Album.TITLE),
-																												new TextViewHandler(R.id.album_item_size, Client.Album.ENTRY_COUNT),
-																												new AbstractViewHandler<ImageView>(R.id.album_item_icon_offline) {
+		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
+		ret.add(new PhotoViewHandler(R.id.album_item_image, Client.Album.THUMBNAIL, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
+		ret.add(new SetTagViewHandler(R.id.album_overview_grid_item, Client.Album.ALBUM_ENTRIES_URI));
+		ret.add(new TextViewHandler(R.id.album_item_name, Client.Album.TITLE));
+		ret.add(new TextViewHandler(R.id.album_item_size, Client.Album.ENTRY_COUNT));
+		ret.add(new AbstractViewHandler<ImageView>(R.id.album_item_icon_offline) {
 
-																													@Override
-																													public void bindView(final ImageView view, final Context context, final Map<String, Object> values) {
+			@Override
+			public void bindView(final ImageView view, final Context context, final Map<String, Object> values) {
 
-																														final boolean shouldSync = ((Number) values.get(Client.Album.SHOULD_SYNC)).intValue() != 0;
-																														final boolean synced = ((Number) values.get(Client.Album.SYNCED)).intValue() != 0;
-																														if (shouldSync) {
-																															view.setImageResource(R.drawable.ic_icon_offline_online);
-																															if (synced) {
-																																view.clearAnimation();
-																															} else {
-																																final Animation animation = AnimationUtils.loadAnimation(context, R.anim.rotate_infinitely);
-																																view.startAnimation(animation);
-																															}
-																														} else {
-																															view.clearAnimation();
-																															view.setImageResource(R.drawable.ic_icon_offline_offline);
-																														}
-																														final String entryUri = (String) values.get(Client.Album.ENTRY_URI);
-																														view.setOnClickListener(new OnClickListener() {
+				final boolean shouldSync = ((Number) values.get(Client.Album.SHOULD_SYNC)).intValue() != 0;
+				final boolean synced = ((Number) values.get(Client.Album.SYNCED)).intValue() != 0;
+				if (shouldSync) {
+					view.setImageResource(R.drawable.ic_icon_offline_online);
+					if (synced) {
+						view.clearAnimation();
+					} else {
+						final Animation animation = AnimationUtils.loadAnimation(context, R.anim.rotate_infinitely);
+						view.startAnimation(animation);
+					}
+				} else {
+					view.clearAnimation();
+					view.setImageResource(R.drawable.ic_icon_offline_offline);
+				}
+				final String entryUri = (String) values.get(Client.Album.ENTRY_URI);
+				view.setOnClickListener(new OnClickListener() {
 
-																															@Override
-																															public void onClick(final View v) {
-																																final ContentValues values = new ContentValues();
-																																values.put(Client.Album.SHOULD_SYNC, Boolean.valueOf(!shouldSync));
-																																context.getContentResolver().update(Uri.parse(entryUri), values, null, null);
+					@Override
+					public void onClick(final View v) {
+						final ContentValues values = new ContentValues();
+						values.put(Client.Album.SHOULD_SYNC, Boolean.valueOf(!shouldSync));
+						context.getContentResolver().update(Uri.parse(entryUri), values, null, null);
 
-																															}
-																														});
-																													}
+					}
+				});
+			}
 
-																													@Override
-																													public String[] usedFields() {
-																														return new String[] { Client.Album.SHOULD_SYNC, Client.Album.SYNCED, Client.Album.ENTRY_URI };
-																													}
-																												});
+			@Override
+			public String[] usedFields() {
+				return new String[] { Client.Album.SHOULD_SYNC, Client.Album.SYNCED, Client.Album.ENTRY_URI };
+			}
+		});
+		return ret;
 	}
 }
