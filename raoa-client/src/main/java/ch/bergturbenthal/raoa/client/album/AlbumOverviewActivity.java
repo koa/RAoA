@@ -96,7 +96,7 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 
 	@SuppressWarnings("unchecked")
 	private List<ViewHandler<? extends View>> makeViewHandlers() {
-		return Arrays.<ViewHandler<? extends View>> asList(	new PhotoViewHandler(R.id.album_item_image, Client.Album.THUMBNAIL, Client.Album.ALBUM_ENTRIES_URI),
+		return Arrays.<ViewHandler<? extends View>> asList(	new PhotoViewHandler(R.id.album_item_image, Client.Album.THUMBNAIL),
 																												new SetTagViewHandler(R.id.album_overview_grid_item, Client.Album.ALBUM_ENTRIES_URI),
 																												new TextViewHandler(R.id.album_item_name, Client.Album.TITLE),
 																												new TextViewHandler(R.id.album_item_size, Client.Album.ENTRY_COUNT),

@@ -35,14 +35,12 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 	private static final String TAG = "PhotoViewHandler";
 	private final Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
 	private final Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
-	private final String tagColumn;
 	private final Executor THREAD_POOL_EXECUTOR = new ThreadPoolExecutor(5, 15, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1000));
 	private final String uriColumn;
 
-	public PhotoViewHandler(final int viewId, final String uriColumn, final String tagColumn) {
+	public PhotoViewHandler(final int viewId, final String uriColumn) {
 		super(viewId);
 		this.uriColumn = uriColumn;
-		this.tagColumn = tagColumn;
 	}
 
 	@Override
@@ -143,6 +141,6 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 
 	@Override
 	public String[] usedFields() {
-		return new String[] { uriColumn, tagColumn };
+		return new String[] { uriColumn };
 	}
 }

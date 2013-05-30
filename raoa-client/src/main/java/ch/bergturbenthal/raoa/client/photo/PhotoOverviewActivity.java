@@ -1,5 +1,8 @@
 package ch.bergturbenthal.raoa.client.photo;
 
+import java.util.ArrayList;
+import java.util.Collection;
+
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.CursorLoader;
@@ -12,8 +15,12 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
-import android.widget.SimpleCursorAdapter;
 import ch.bergturbenthal.raoa.R;
+import ch.bergturbenthal.raoa.client.binding.ComplexCursorAdapter;
+import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
+import ch.bergturbenthal.raoa.client.binding.TextViewHandler;
+import ch.bergturbenthal.raoa.client.binding.ViewHandler;
+import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<Cursor> {
 
@@ -21,7 +28,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 
 	private Uri albumUri;
 	private int currentItemIndex;
-	private SimpleCursorAdapter cursorAdapter;
+	private ComplexCursorAdapter cursorAdapter;
 
 	private GridView gridview;
 
@@ -58,7 +65,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 		setContentView(R.layout.photo_overview);
 
 		// Create an empty adapter we will use to display the loaded data.
-		cursorAdapter = new PhotoOverviewAdapter(this, R.layout.photo_overview_item);
+		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(getLoaderManager(), this, albumUri, R.layout.photo_overview_item, makeHandlers());
 
 		gridview = (GridView) findViewById(R.id.photo_overview);
 		gridview.setAdapter(cursorAdapter);
@@ -74,10 +81,16 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 			}
 		});
 		gridview.setWillNotCacheDrawing(false);
+	}
 
-		// Prepare the loader. Either re-connect with an existing one,
-		// or start a new one.
-		getLoaderManager().initLoader(0, null, this);
+	/**
+	 * @return
+	 */
+	private Collection<ViewHandler<? extends View>> makeHandlers() {
+		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
+		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL));
+		ret.add(new TextViewHandler(R.id.photo_name, Client.AlbumEntry.NAME));
+		return ret;
 	}
 
 }
