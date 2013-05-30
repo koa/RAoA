@@ -79,7 +79,7 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.album_overview);
 
-		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(getLoaderManager(), this, Client.ALBUM_URI, R.layout.album_overview_item, makeViewHandlers());
+		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(getLoaderManager(), this, Client.ALBUM_URI, R.layout.album_overview_item, makeViewHandlers(), null);
 		final GridView gridview = (GridView) findViewById(R.id.album_overview);
 		gridview.setAdapter(cursorAdapter);
 

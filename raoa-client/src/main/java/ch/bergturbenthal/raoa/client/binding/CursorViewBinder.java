@@ -17,8 +17,26 @@ import android.view.View;
  * 
  */
 public class CursorViewBinder {
+	private static Object getColumnValue(final Cursor cursor, final int index) {
+		final int type = cursor.getType(index);
+		switch (type) {
+		case Cursor.FIELD_TYPE_NULL:
+			return null;
+		case Cursor.FIELD_TYPE_BLOB:
+			return cursor.getBlob(index);
+		case Cursor.FIELD_TYPE_FLOAT:
+			return Double.valueOf(cursor.getDouble(index));
+		case Cursor.FIELD_TYPE_INTEGER:
+			return Long.valueOf(cursor.getLong(index));
+		case Cursor.FIELD_TYPE_STRING:
+			return cursor.getString(index);
+		}
+		throw new RuntimeException("Unknown type " + type);
+	}
+
 	private final Map<String, Integer> columnIndizes = new HashMap<String, Integer>();
 	private Cursor cursor;
+
 	private final Collection<ViewHandler<View>> handlers;
 
 	public CursorViewBinder(final Collection<ViewHandler<View>> handlers) {
@@ -32,6 +50,12 @@ public class CursorViewBinder {
 			final Map<String, Object> fieldsMap = makeMapForFields(cursor, handler.usedFields());
 			handler.bindView(foundView, context, fieldsMap);
 		}
+	}
+
+	public Object getValueOfColumn(final Cursor cursor, final String fieldName) {
+		final int index = columnIndizes.get(fieldName).intValue();
+		final Object columnValue = getColumnValue(cursor, index);
+		return columnValue;
 	}
 
 	/**
@@ -64,24 +88,8 @@ public class CursorViewBinder {
 	private Map<String, Object> makeMapForFields(final Cursor cursor, final String[] usedFields) {
 		final HashMap<String, Object> ret = new HashMap<String, Object>();
 		for (final String fieldName : usedFields) {
-			final int index = columnIndizes.get(fieldName).intValue();
-			switch (cursor.getType(index)) {
-			case Cursor.FIELD_TYPE_NULL:
-				ret.put(fieldName, null);
-				break;
-			case Cursor.FIELD_TYPE_BLOB:
-				ret.put(fieldName, cursor.getBlob(index));
-				break;
-			case Cursor.FIELD_TYPE_FLOAT:
-				ret.put(fieldName, Double.valueOf(cursor.getDouble(index)));
-				break;
-			case Cursor.FIELD_TYPE_INTEGER:
-				ret.put(fieldName, Long.valueOf(cursor.getLong(index)));
-				break;
-			case Cursor.FIELD_TYPE_STRING:
-				ret.put(fieldName, cursor.getString(index));
-				break;
-			}
+			final Object columnValue = getValueOfColumn(cursor, fieldName);
+			ret.put(fieldName, columnValue);
 		}
 		return ret;
 	}

@@ -49,7 +49,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".client.photo.PhotoOverviewActivity" />
+        <activity
+            android:name=".client.photo.PhotoOverviewActivity"
+            android:windowActionBarOverlay="true" />
         <activity android:name=".client.photo.PhotoDetailViewActivity" />
 
         <provider
