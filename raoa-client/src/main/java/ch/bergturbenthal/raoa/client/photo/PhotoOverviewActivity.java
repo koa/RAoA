@@ -4,25 +4,23 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import android.app.Activity;
-import android.app.LoaderManager.LoaderCallbacks;
-import android.content.CursorLoader;
 import android.content.Intent;
-import android.content.Loader;
-import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import ch.bergturbenthal.raoa.R;
+import ch.bergturbenthal.raoa.client.album.AlbumOverviewActivity;
 import ch.bergturbenthal.raoa.client.binding.ComplexCursorAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.TextViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.provider.Client;
 
-public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<Cursor> {
+public class PhotoOverviewActivity extends Activity {
 
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
@@ -33,18 +31,23 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 	private GridView gridview;
 
 	@Override
-	public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
-		return new CursorLoader(this, albumUri, null, null, null, null);
-	}
-
-	@Override
-	public void onLoaderReset(final Loader<Cursor> loader) {
-		cursorAdapter.swapCursor(null);
-	}
-
-	@Override
-	public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
-		cursorAdapter.swapCursor(data);
+	public boolean onOptionsItemSelected(final MenuItem item) {
+		switch (item.getItemId()) {
+		case android.R.id.home:
+			// This ID represents the Home or Up button. In the case of this
+			// activity, the Up button is shown. Use NavUtils to allow users
+			// to navigate up one level in the application structure. For
+			// more details, see the Navigation pattern on Android Design:
+			//
+			// http://developer.android.com/design/patterns/navigation.html#up-vs-back
+			//
+			final Intent upIntent = new Intent(this, AlbumOverviewActivity.class);
+			upIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+			startActivity(upIntent);
+			finish();
+			return true;
+		}
+		return super.onOptionsItemSelected(item);
 	}
 
 	@Override
@@ -58,7 +61,7 @@ public class PhotoOverviewActivity extends Activity implements LoaderCallbacks<C
 	@Override
 	protected void onCreate(final Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-
+		getActionBar().setDisplayHomeAsUpEnabled(true);
 		// get album id out of intent
 		final Bundle bundle = getIntent().getExtras();
 		albumUri = Uri.parse(bundle.getString("album_uri"));
