@@ -4,22 +4,24 @@ import android.content.Context;
 import android.database.Cursor;
 import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.SimpleCursorAdapter.ViewBinder;
+import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.binding.PhotoBinder;
 
 public class PhotoDetailviewAdapter extends PagerAdapter {
 
 	private final Context context;
 	private int currentPosition;
-	private Cursor cursor;
+	private Cursor cursor = null;
+	private final LayoutInflater inflater;
 	private final ViewBinder viewBinder;
 
-	public PhotoDetailviewAdapter(final Context context, final Cursor cursor) {
+	public PhotoDetailviewAdapter(final Context context) {
 		this.context = context;
-		this.cursor = cursor;
+		inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 
 		// set photo detail view binder
 		viewBinder = new PhotoBinder(true, context);
@@ -32,10 +34,11 @@ public class PhotoDetailviewAdapter extends PagerAdapter {
 
 	@Override
 	public int getCount() {
-		if (cursor == null)
+		if (cursor == null) {
 			return 0;
-		else
+		} else {
 			return cursor.getCount();
+		}
 	}
 
 	public int getCurrentPosition() {
@@ -43,10 +46,11 @@ public class PhotoDetailviewAdapter extends PagerAdapter {
 	}
 
 	@Override
-	public Object instantiateItem(final ViewGroup container, final int position) {
-		final ImageView view = new ImageView(context);
+	public View instantiateItem(final ViewGroup container, final int position) {
 		cursor.moveToPosition(position);
-		viewBinder.setViewValue(view, cursor, 0);
+		final View view = inflater.inflate(R.layout.photo_detailview_item, null);
+		final View imageView = view.findViewById(R.id.photos_item_image);
+		viewBinder.setViewValue(imageView, cursor, 0);
 		container.addView(view);
 		return view;
 	}
@@ -62,8 +66,9 @@ public class PhotoDetailviewAdapter extends PagerAdapter {
 	}
 
 	public void swapCursor(final Cursor c) {
-		if (cursor == c)
+		if (cursor == c) {
 			return;
+		}
 
 		this.cursor = c;
 		notifyDataSetChanged();
