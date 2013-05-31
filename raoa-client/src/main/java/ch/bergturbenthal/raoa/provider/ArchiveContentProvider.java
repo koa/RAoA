@@ -39,17 +39,18 @@ public class ArchiveContentProvider extends ContentProvider {
 		ALBUM_ENTRY, @Path("albums/*/*/entries")
 		ALBUM_ENTRY_LIST, @Path("albums/*/*/entries/*/thumbnail")
 		ALBUM_ENTRY_THUMBNAIL, @Path("albums")
-		ALBUM_LIST, @Path("servers/*/issues")
+		ALBUM_LIST, @Path("keywords")
+		KEYWORD, @Path("servers/*/issues")
 		SERVER_ISSUE_LIST, @Path("servers")
 		SERVER_LIST, @Path("servers/*/progress")
 		SERVER_PROGRESS_LIST
 
 	}
 
-	static final String TAG = "Content Provider";
-
 	private static final Map<Class, NotifyableMatrixCursor> emptyCursors = new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
+
 	private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
+	static final String TAG = "Content Provider";
 
 	private SynchronisationService service = null;
 	/** Defines callbacks for service binding, passed to bindService() */
@@ -110,6 +111,8 @@ public class ArchiveContentProvider extends ContentProvider {
 			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server/progress";
 		case SERVER_ISSUE_LIST:
 			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server/issues";
+		case KEYWORD:
+			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/keyword";
 		}
 		throw new SQLException("Unknown Uri: " + uri);
 	}
@@ -177,6 +180,8 @@ public class ArchiveContentProvider extends ContentProvider {
 				return getService().readServerProgresList(segments.get(1), projection);
 			case SERVER_ISSUE_LIST:
 				return getService().readServerIssueList(segments.get(1), projection);
+			case KEYWORD:
+				return getService().readKeywordStatistics(projection);
 			case ALBUM_ENTRY_THUMBNAIL:
 			}
 			throw new UnsupportedOperationException("Query of " + uri + " is not supported");
@@ -261,6 +266,11 @@ public class ArchiveContentProvider extends ContentProvider {
 				@Override
 				public Cursor readAlbumList(final String[] projection) {
 					return getEmptyCursor(Client.Album.class);
+				}
+
+				@Override
+				public Cursor readKeywordStatistics(final String[] projection) {
+					return getEmptyCursor(Client.KeywordEntry.class);
 				}
 
 				@Override

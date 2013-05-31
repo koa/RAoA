@@ -221,7 +221,7 @@ public class ServerConnection {
 
 			@Override
 			public ResponseEntity<Void> call(final URL baseUrl) throws Exception {
-				return executePut(baseUrl.toExternalForm() + "/albums/{albumId}/updateMeta", updateEntries, albumId);
+				return executePut(baseUrl.toExternalForm() + "/albums/{albumId}/updateMeta.json", updateEntries, albumId);
 			}
 		});
 	}

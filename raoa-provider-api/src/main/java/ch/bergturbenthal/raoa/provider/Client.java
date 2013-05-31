@@ -86,6 +86,11 @@ public class Client {
 		public static final String STACK_TRACE = "stackTrace";
 	}
 
+	public static class KeywordEntry {
+		public static final String COUNT = "count";
+		public static final String KEYWORD = "keyword";
+	}
+
 	public static class ProgressEntry {
 		public static final String CURRENT_STATE_DESCRIPTION = "currentStateDescription";
 		public static final String CURRENT_STEP_NR = "currentStepNr";
@@ -105,17 +110,17 @@ public class Client {
 
 	public static final Uri ALBUM_URI;
 	public static final String AUTHORITY = "ch.bergturbenthal.raoa.provider";
+	public static final Uri KEYWORDS_URI;
 	public static final String METHOD_CREATE_ALBUM_ON_SERVER = "createAlbumOnServer";
 	public static final String PARAMETER_AUTOADD_DATE = "autoaddDate";
 	public static final String PARAMETER_FULL_ALBUM_NAME = "fullAlbumName";
 	public static final Uri SERVER_URI;
 	private static final ObjectMapper mapper = new ObjectMapper();
 	private static final CollectionType stringListType = CollectionType.construct(List.class, SimpleType.construct(String.class));
-	private final ContentResolver provider;
-
 	static {
 		ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
 		SERVER_URI = Uri.parse("content://" + AUTHORITY + "/servers");
+		KEYWORDS_URI = Uri.parse("content://" + AUTHORITY + "/keywords");
 	}
 
 	public static Uri makeAlbumEntriesUri(final String archiveName, final String albumId) {
@@ -174,6 +179,8 @@ public class Client {
 		builder.appendPath("thumbnail");
 		return builder.build();
 	}
+
+	private final ContentResolver provider;
 
 	public Client(final ContentResolver provider) {
 		this.provider = provider;
