@@ -8,6 +8,7 @@ import java.util.Map;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.MenuItem;
@@ -32,7 +33,7 @@ public class PhotoOverviewActivity extends Activity {
 
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
-	private Uri albumUri;
+	private Uri albumEntriesUri;
 
 	private int currentItemIndex;
 	private UiMode currentMode = UiMode.NAVIGATION;
@@ -78,13 +79,15 @@ public class PhotoOverviewActivity extends Activity {
 		getActionBar().setDisplayHomeAsUpEnabled(true);
 		// get album id out of intent
 		final Bundle bundle = getIntent().getExtras();
-		albumUri = Uri.parse(bundle.getString("album_uri"));
+		albumEntriesUri = Uri.parse(bundle.getString("album_entries_uri"));
+		final Uri albumUri = Uri.parse(bundle.getString("album_uri"));
+		Uri.parse(bundle.getString("album_uri"));
 		setContentView(R.layout.photo_overview);
 
 		// Create an empty adapter we will use to display the loaded data.
 		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(	getLoaderManager(),
 																																this,
-																																albumUri,
+																																albumEntriesUri,
 																																R.layout.photo_overview_item,
 																																makeHandlers(),
 																																new String[] { Client.AlbumEntry.ENTRY_URI });
@@ -108,6 +111,17 @@ public class PhotoOverviewActivity extends Activity {
 			}
 		});
 		gridview.setWillNotCacheDrawing(false);
+
+		final Cursor cursor = getContentResolver().query(albumUri, new String[] { Client.Album.TITLE }, null, null, null);
+		if (cursor.moveToFirst()) {
+			final String albumTitle = cursor.getString(0);
+			getActionBar().setTitle(albumTitle);
+		}
+	}
+
+	private void activateSelectionMode() {
+
+		currentMode = UiMode.SELECTION;
 	}
 
 	private boolean longClick(final int position) {
@@ -123,7 +137,9 @@ public class PhotoOverviewActivity extends Activity {
 		}
 		final String entryUri = readCurrentEntryUri(position);
 		selectedEntries.add(entryUri);
-		currentMode = UiMode.SELECTION;
+		if (currentMode != UiMode.SELECTION) {
+			activateSelectionMode();
+		}
 		redraw();
 		return true;
 	}
@@ -157,7 +173,7 @@ public class PhotoOverviewActivity extends Activity {
 
 	private void openDetailView(final int position) {
 		final Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailViewActivity.class);
-		intent.putExtra("album_uri", albumUri.toString());
+		intent.putExtra("album_uri", albumEntriesUri.toString());
 		intent.putExtra("actPos", position);
 		startActivityForResult(intent, 1);
 	}
