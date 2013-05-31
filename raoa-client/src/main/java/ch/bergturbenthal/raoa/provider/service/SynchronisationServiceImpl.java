@@ -503,12 +503,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return callInTransaction(new Callable<Cursor>() {
 			@Override
 			public Cursor call() throws Exception {
-				final Collection<AlbumIndex> visible = collectVisibleAlbums();
-				if (visible.contains(new AlbumIndex(archiveName, albumId))) {
-					return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false);
-				} else {
-					return makeCursorForAlbums(Collections.<AlbumIndex> emptyList(), projection, false);
-				}
+				return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false);
 			}
 		});
 	}
