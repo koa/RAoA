@@ -14,6 +14,7 @@ import java.util.concurrent.Semaphore;
 import lombok.Cleanup;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -112,11 +113,13 @@ public class AlbumImage {
 		synchronized (entryDataLock) {
 
 			AlbumEntryData loadedMetaData = albumManager.getCachedData();
-			if (loadedMetaData != null) {
+			final Date lastModifiedMetadata = getMetadataLastModifiedTime();
+			if (loadedMetaData != null && ObjectUtils.equals(loadedMetaData.getLastModifiedMetadata(), lastModifiedMetadata)) {
 				return loadedMetaData;
 			}
 
 			loadedMetaData = new AlbumEntryData();
+			loadedMetaData.setLastModifiedMetadata(lastModifiedMetadata);
 			final Metadata metadata = getExifMetadata();
 			if (metadata != null) {
 				new MetadataWrapper(metadata).fill(loadedMetaData);
@@ -296,6 +299,17 @@ public class AlbumImage {
 			logger.warn("Cannot reade metadata from " + file, e);
 		}
 		return null;
+	}
+
+	/**
+	 * @return
+	 */
+	private Date getMetadataLastModifiedTime() {
+		final File xmpSideFile = getXmpSideFile();
+		if (!xmpSideFile.exists()) {
+			return null;
+		}
+		return new Date(xmpSideFile.lastModified());
 	}
 
 	private File makeCachedFile() {
