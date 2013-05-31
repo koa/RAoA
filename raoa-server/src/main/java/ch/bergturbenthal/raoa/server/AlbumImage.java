@@ -232,7 +232,16 @@ public class AlbumImage {
 	}
 
 	public File getXmpSideFile() {
-		return new File(file.getParent(), file.getName() + ".xmp");
+		final String name = file.getName();
+		final int lastPt = name.lastIndexOf('.');
+		final String baseName;
+		if (lastPt > 0) {
+			baseName = name.substring(0, lastPt);
+		} else {
+			baseName = name;
+		}
+
+		return new File(file.getParent(), baseName + ".xmp");
 	}
 
 	/**
