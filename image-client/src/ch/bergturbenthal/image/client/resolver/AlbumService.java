@@ -32,7 +32,7 @@ import ch.bergturbenthal.raoa.data.model.AlbumDetail;
 import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
-import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
+import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 
 public class AlbumService implements Album {
 	private static final String[] DATE_FORMATS = new String[] { "EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd-MMM-yy HH:mm:ss zzz", "EEE MMM dd HH:mm:ss yyyy" };
@@ -197,8 +197,8 @@ public class AlbumService implements Album {
 	}
 
 	@Override
-	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
-		restTemplate.put(baseUrl + "/albums/{albumId}/updateMeta", updateEntries, albumId);
+	public void updateMetadata(final String albumId, final UpdateMetadataRequest request) {
+		restTemplate.put(baseUrl + "/albums/{albumId}/updateMeta", request, albumId);
 	}
 
 	@Override
