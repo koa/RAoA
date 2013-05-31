@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import com.adobe.xmp.XMPConst;
 import com.adobe.xmp.XMPException;
 import com.adobe.xmp.XMPMeta;
+import com.adobe.xmp.options.PropertyOptions;
 import com.adobe.xmp.properties.XMPProperty;
 
 public class XmpWrapper {
@@ -27,11 +28,13 @@ public class XmpWrapper {
 	public String readDescription() {
 		try {
 			final int entryCount = meta.countArrayItems(XMPConst.NS_DC, "description");
-			if (entryCount < 1)
+			if (entryCount < 1) {
 				return null;
+			}
 			final XMPProperty arrayItem = meta.getArrayItem(XMPConst.NS_DC, "description", 1);
-			if (arrayItem == null)
+			if (arrayItem == null) {
 				return null;
+			}
 			return arrayItem.getValue();
 		} catch (final XMPException e) {
 			throw new RuntimeException("Cannot read Description", e);
@@ -112,7 +115,7 @@ public class XmpWrapper {
 
 	private void appendStringEntry(final String propertyNs, final String property, final String keyword) {
 		try {
-			meta.appendArrayItem(propertyNs, property, keyword);
+			meta.appendArrayItem(propertyNs, property, new PropertyOptions(PropertyOptions.ARRAY), keyword, null);
 		} catch (final XMPException e) {
 			throw new RuntimeException("Cannot append entry " + propertyNs + ":" + keyword, e);
 		}

@@ -29,7 +29,7 @@ public class LocalStore {
 		ParcelableBackend.checkVersion(dataDir, 6);
 		store = new FileStorage(Arrays.asList((FileBackend<?>) new ParcelableBackend<AlbumEntries>(dataDir, AlbumEntries.class),
 																					(FileBackend<?>) new ParcelableBackend<AlbumMeta>(dataDir, AlbumMeta.class),
-																					(FileBackend<?>) new ParcelableBackend<AlbumMutationData>(dataDir, AlbumMutationData.class),
+																					(FileBackend<?>) new JacksonBackend<AlbumMutationData>(dataDir, AlbumMutationData.class),
 																					(FileBackend<?>) new JacksonBackend<AlbumState>(dataDir, AlbumState.class),
 																					(FileBackend<?>) new JacksonBackend<StorageList>(dataDir, StorageList.class)
 

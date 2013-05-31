@@ -95,6 +95,7 @@ import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.raoa.server.metadata.MetadataWrapper;
+import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.model.ArchiveData;
 import ch.bergturbenthal.raoa.server.model.StorageData;
 import ch.bergturbenthal.raoa.server.model.StorageStatistics;
@@ -1016,9 +1017,12 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 										image.captureDate();
 										// read Thumbnail
 										image.getThumbnail();
-										for (final String keyword : image.getAlbumEntryData().getKeywords()) {
-											countByTag.putIfAbsent(keyword, new AtomicInteger(0));
-											countByTag.get(keyword).incrementAndGet();
+										final AlbumEntryData albumEntryData = image.getAlbumEntryData();
+										if (albumEntryData != null && albumEntryData.getKeywords() != null) {
+											for (final String keyword : albumEntryData.getKeywords()) {
+												countByTag.putIfAbsent(keyword, new AtomicInteger(0));
+												countByTag.get(keyword).incrementAndGet();
+											}
 										}
 									} finally {
 										imageCount.incrementAndGet();

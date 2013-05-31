@@ -309,14 +309,18 @@ public class AlbumImage {
 	private void updateXmp(final XmpRunnable runnable) {
 		final File xmpSideFile = getXmpSideFile();
 		final XMPMeta xmpMeta;
-		try {
-			@Cleanup
-			final FileInputStream fis = new FileInputStream(xmpSideFile);
-			xmpMeta = XMPMetaFactory.parse(fis);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot parse " + xmpSideFile, e);
-		} catch (final XMPException e) {
-			throw new RuntimeException("Cannot parse " + xmpSideFile, e);
+		if (xmpSideFile.exists()) {
+			try {
+				@Cleanup
+				final FileInputStream fis = new FileInputStream(xmpSideFile);
+				xmpMeta = XMPMetaFactory.parse(fis);
+			} catch (final IOException e) {
+				throw new RuntimeException("Cannot parse " + xmpSideFile, e);
+			} catch (final XMPException e) {
+				throw new RuntimeException("Cannot parse " + xmpSideFile, e);
+			}
+		} else {
+			xmpMeta = XMPMetaFactory.create();
 		}
 		final XmpWrapper xmp = new XmpWrapper(xmpMeta);
 		runnable.run(xmp);
