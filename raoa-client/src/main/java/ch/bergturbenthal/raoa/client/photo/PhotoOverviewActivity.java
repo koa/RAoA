@@ -25,6 +25,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.SubMenu;
 import android.view.View;
 import android.widget.AdapterView;
@@ -71,7 +72,20 @@ public class PhotoOverviewActivity extends Activity {
 			final MenuItem tagsMenu = menu.findItem(R.id.photo_overview_menu_tag_list_menu);
 			final SubMenu tagsSubmenu = tagsMenu.getSubMenu();
 			tagsSubmenu.removeGroup(R.id.photo_overview_menu_existing_tag);
-			tagsSubmenu.add(R.id.photo_overview_menu_existing_tag, Menu.NONE, Menu.NONE, "TestTag");
+			final Cursor cursor = getContentResolver().query(Client.KEYWORDS_URI, new String[] { Client.KeywordEntry.KEYWORD, Client.KeywordEntry.COUNT }, null, null, null);
+			final List<String> keywordsFromCursor = readOrderedKeywordsFromCursor(cursor);
+			for (final String keyword : keywordsFromCursor) {
+				final MenuItem item = tagsSubmenu.add(R.id.photo_overview_menu_existing_tag, Menu.NONE, Menu.NONE, keyword);
+				item.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+
+					@Override
+					public boolean onMenuItemClick(final MenuItem item) {
+						setTagToSelectedEntries(keyword);
+						return true;
+					}
+				});
+			}
+
 			// final SubMenu subMenu = findItem.getSubMenu();
 			// subMenu.clear();
 			// subMenu.add("Hello Tag");
