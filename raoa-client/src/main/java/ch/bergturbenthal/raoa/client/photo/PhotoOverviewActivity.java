@@ -44,6 +44,10 @@ import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoOverviewActivity extends Activity {
+	private static interface KeywordsHandler {
+		void handleKeywords(final Collection<String> keywords);
+	}
+
 	private enum UiMode {
 		NAVIGATION, SELECTION
 	}
@@ -51,10 +55,10 @@ public class PhotoOverviewActivity extends Activity {
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
 	private Uri albumEntriesUri;
-
 	private String albumTitle = null;
 	private int currentItemIndex;
 	private UiMode currentMode = UiMode.NAVIGATION;
+
 	private ComplexCursorAdapter cursorAdapter;
 
 	private GridView gridview;
@@ -70,8 +74,8 @@ public class PhotoOverviewActivity extends Activity {
 		switch (currentMode) {
 		case SELECTION:
 			getMenuInflater().inflate(R.menu.photo_overview_selection_menu, menu);
-			final MenuItem tagsMenu = menu.findItem(R.id.photo_overview_menu_tag_list_menu);
-			final SubMenu tagsSubmenu = tagsMenu.getSubMenu();
+			final MenuItem addTagsMenu = menu.findItem(R.id.photo_overview_menu_add_tag_menu);
+			final SubMenu tagsSubmenu = addTagsMenu.getSubMenu();
 			tagsSubmenu.removeGroup(R.id.photo_overview_menu_existing_tag);
 			final Map<String, Integer> selectedKeywordCounts = new HashMap<String, Integer>();
 			for (final Collection<String> keywordsPerImage : selectedEntries.values()) {
@@ -81,6 +85,9 @@ public class PhotoOverviewActivity extends Activity {
 						selectedKeywordCounts.put(keyword, Integer.valueOf(existingKeyword.intValue() + 1));
 					} else {
 						selectedKeywordCounts.put(keyword, Integer.valueOf(1));
+					}
+					if (!knownKeywords.contains(keyword)) {
+						knownKeywords.add(keyword);
 					}
 				}
 			}
@@ -95,6 +102,23 @@ public class PhotoOverviewActivity extends Activity {
 						setTagToSelectedEntries(keyword);
 						return true;
 					}
+				});
+			}
+
+			final MenuItem removeTagsMenu = menu.findItem(R.id.photo_overview_remove_tag_menu);
+			final SubMenu removeTagsSubmenu = removeTagsMenu.getSubMenu();
+			removeTagsSubmenu.clear();
+			final ArrayList<String> keywordsByCount = orderByCount(selectedKeywordCounts);
+			for (final String keyword : keywordsByCount) {
+				final String keywordDisplay = keyword + " (" + selectedKeywordCounts.get(keyword) + ")";
+				final MenuItem removeTagItem = removeTagsSubmenu.add(keywordDisplay);
+				removeTagItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+					@Override
+					public boolean onMenuItemClick(final MenuItem item) {
+						removeTagFromSelectedEntries(keyword);
+						return true;
+					}
+
 				});
 			}
 
@@ -304,6 +328,17 @@ public class PhotoOverviewActivity extends Activity {
 		startActivityForResult(intent, 1);
 	}
 
+	private ArrayList<String> orderByCount(final Map<String, Integer> countOrder) {
+		final ArrayList<String> keyWords = new ArrayList<String>(countOrder.keySet());
+		Collections.sort(keyWords, new Comparator<String>() {
+			@Override
+			public int compare(final String lhs, final String rhs) {
+				return -countOrder.get(lhs).compareTo(countOrder.get(rhs));
+			}
+		});
+		return keyWords;
+	}
+
 	private Pair<String, Collection<String>> readCurrentEntry(final int position) {
 		final Object[] additionalValues = cursorAdapter.getAdditionalValues(position);
 		final String uri = (String) additionalValues[0];
@@ -321,19 +356,21 @@ public class PhotoOverviewActivity extends Activity {
 			final int count = data.getInt(1);
 			countOrder.put(keyword, Integer.valueOf(count));
 		} while (data.moveToNext());
-		final ArrayList<String> keyWords = new ArrayList<String>(countOrder.keySet());
-		Collections.sort(keyWords, new Comparator<String>() {
-			@Override
-			public int compare(final String lhs, final String rhs) {
-				return -countOrder.get(lhs).compareTo(countOrder.get(rhs));
-			}
-		});
-		return keyWords;
+		return orderByCount(countOrder);
 	}
 
 	private void redraw() {
 		gridview.requestLayout();
 		gridview.invalidateViews();
+	}
+
+	private void removeTagFromSelectedEntries(final String keyword) {
+		updateSelectedEntries(new KeywordsHandler() {
+			@Override
+			public void handleKeywords(final Collection<String> keywords) {
+				keywords.remove(keyword);
+			}
+		});
 	}
 
 	/**
@@ -355,23 +392,12 @@ public class PhotoOverviewActivity extends Activity {
 	}
 
 	private void setTagToSelectedEntries(final String tagValue) {
-		for (final String entryUri : selectedEntries.keySet()) {
-			final ContentResolver resolver = getContentResolver();
-			final Uri uri = Uri.parse(entryUri);
-			final Cursor queryCursor = resolver.query(uri, new String[] { Client.AlbumEntry.META_KEYWORDS }, null, null, null);
-			try {
-				if (!queryCursor.moveToFirst()) {
-					continue;
-				}
-				final Collection<String> keywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(queryCursor.getString(0)));
+		updateSelectedEntries(new KeywordsHandler() {
+			@Override
+			public void handleKeywords(final Collection<String> keywords) {
 				keywords.add(tagValue);
-				final ContentValues values = new ContentValues();
-				values.put(Client.AlbumEntry.META_KEYWORDS, Client.AlbumEntry.encodeKeywords(keywords));
-				resolver.update(uri, values, null, null);
-			} finally {
-				queryCursor.close();
 			}
-		}
+		});
 	}
 
 	private void shortClick(final int position) {
@@ -394,6 +420,27 @@ public class PhotoOverviewActivity extends Activity {
 			selectedEntries.put(currentEntry.first, currentEntry.second);
 		}
 		redraw();
+		invalidateOptionsMenu();
+	}
+
+	private void updateSelectedEntries(final KeywordsHandler handler) {
+		for (final String entryUri : selectedEntries.keySet()) {
+			final ContentResolver resolver = getContentResolver();
+			final Uri uri = Uri.parse(entryUri);
+			final Cursor queryCursor = resolver.query(uri, new String[] { Client.AlbumEntry.META_KEYWORDS }, null, null, null);
+			try {
+				if (!queryCursor.moveToFirst()) {
+					continue;
+				}
+				final Collection<String> keywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(queryCursor.getString(0)));
+				handler.handleKeywords(keywords);
+				final ContentValues values = new ContentValues();
+				values.put(Client.AlbumEntry.META_KEYWORDS, Client.AlbumEntry.encodeKeywords(keywords));
+				resolver.update(uri, values, null, null);
+			} finally {
+				queryCursor.close();
+			}
+		}
 		invalidateOptionsMenu();
 	}
 }
