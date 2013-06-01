@@ -128,7 +128,7 @@ public class PhotoOverviewActivity extends Activity {
 				});
 			}
 
-			final MenuItem removeTagsMenu = menu.findItem(R.id.photo_overview_remove_tag_menu);
+			final MenuItem removeTagsMenu = menu.findItem(R.id.photo_overview_menu_remove_tag_menu);
 			final SubMenu removeTagsSubmenu = removeTagsMenu.getSubMenu();
 			removeTagsSubmenu.clear();
 			final ArrayList<String> keywordsByCount = orderByCount(selectedKeywordCounts);

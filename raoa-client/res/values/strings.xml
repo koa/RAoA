@@ -17,5 +17,10 @@
     <string name="create_folder_error_no_album_name">please input a album name</string>
     <string name="create_folder_folder_created">Album created</string>
     <string name="menu_create_album">New Album</string>
-    <string name="create_folder_server_title">Server</string>    
+    <string name="create_folder_server_title">Server</string>
+    <string name="photo_overview_menu_close_title">Close</string>
+    <string name="photo_overview_menu_share_title">Share</string>
+    <string name="photo_overview_menu_add_tag_title">Add Tag</string>
+    <string name="photo_overview_menu_remove_tag_title">Remove Tag</string>
+    <string name="photo_overview_menu_new_tag_item">new tag ...</string>    
 </resources>
