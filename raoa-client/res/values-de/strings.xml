@@ -14,7 +14,7 @@
     <string name="create_folder_error_no_album_name">Bitte einen Namen für das Album eingeben</string>
     <string name="create_folder_folder_created">Album erzeugt</string>
     <string name="menu_create_album">Neues Album</string>
-    <string name="photo_overview_menu_close_title">Schliessen</string>
+    <string name="photo_overview_menu_close_title">Fertig</string>
     <string name="photo_overview_menu_share_title">Teilen</string>
     <string name="photo_overview_menu_add_tag_title">Tag hinzufügen</string>
     <string name="photo_overview_menu_remove_tag_title">Tag entfernen</string>

@@ -4,7 +4,7 @@
     <item
         android:id="@+id/photo_overview_menu_close_selection"
         android:icon="@drawable/ic_action_close_selection_mode"
-        android:showAsAction="always"
+        android:showAsAction="always|withText"
         android:title="@string/photo_overview_menu_close_title">
     </item>
     <item
