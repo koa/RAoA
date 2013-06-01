@@ -22,5 +22,5 @@
     <string name="photo_overview_menu_share_title">Share</string>
     <string name="photo_overview_menu_add_tag_title">Add Tag</string>
     <string name="photo_overview_menu_remove_tag_title">Remove Tag</string>
-    <string name="photo_overview_menu_new_tag_item">new tag ...</string>    
+    <string name="photo_overview_menu_new_tag_item">new tag &#8230;</string>    
 </resources>
