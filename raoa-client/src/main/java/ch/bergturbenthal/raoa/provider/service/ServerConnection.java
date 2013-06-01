@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.SoftReference;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -15,6 +16,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -30,6 +32,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.json.MappingJacksonHttpMessageConverter;
 import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
@@ -41,7 +45,7 @@ import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
 import ch.bergturbenthal.raoa.data.model.StorageList;
-import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
+import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.data.model.state.ServerState;
 
 public class ServerConnection {
@@ -59,12 +63,13 @@ public class ServerConnection {
 	private final AtomicReference<Collection<URL>> connections = new AtomicReference<Collection<URL>>(Collections.<URL> emptyList());
 
 	private final String instanceId;
-	private final RestTemplate restTemplate = new RestTemplate(true);
+	private final RestTemplate restTemplate = new RestTemplate(false);
 
 	private String serverName;
 
 	public ServerConnection(final String instanceId) {
 		this.instanceId = instanceId;
+		restTemplate.setMessageConverters((List<HttpMessageConverter<?>>) (List<?>) Collections.singletonList((HttpMessageConverter<?>) new MappingJacksonHttpMessageConverter()));
 	}
 
 	public AlbumEntry createAlbum(final String albumName, final Date autoaddDate) {
@@ -216,12 +221,12 @@ public class ServerConnection {
 		this.serverName = serverName;
 	}
 
-	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
+	public void updateMetadata(final String albumId, final UpdateMetadataRequest request) {
 		callOne(new ConnectionCallable<Void>() {
 
 			@Override
 			public ResponseEntity<Void> call(final URL baseUrl) throws Exception {
-				return executePut(baseUrl.toExternalForm() + "/albums/{albumId}/updateMeta", updateEntries, albumId);
+				return executePut(baseUrl.toExternalForm() + "/albums/{albumId}/updateMeta", request, albumId);
 			}
 		});
 	}
@@ -261,7 +266,8 @@ public class ServerConnection {
 
 		final HttpHeaders headers = new HttpHeaders();
 		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-		headers.setContentType(MediaType.APPLICATION_JSON);
+		headers.setContentType(new MediaType("application", "json", Charset.defaultCharset()));
+
 		return restTemplate.exchange(url, HttpMethod.PUT, new HttpEntity<Object>(data, headers), Void.class, urlVariables);
 	}
 

@@ -840,7 +840,7 @@ public class Album implements ApplicationContextAware {
 	}
 
 	private void updateAlbumEntryInCache(final String filename, final AlbumEntryData entryData) {
-		final AlbumEntryData oldValue = albumEntriesMetadataCache.putIfAbsent(filename, entryData);
+		final AlbumEntryData oldValue = albumEntriesMetadataCache.put(filename, entryData);
 		if (entryData.equals(oldValue)) {
 			return;
 		}

@@ -23,14 +23,12 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
-import android.widget.CursorAdapter;
 import android.widget.GridView;
 import android.widget.ImageView;
 import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.binding.AbstractViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ComplexCursorAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
-import ch.bergturbenthal.raoa.client.binding.SetTagViewHandler;
 import ch.bergturbenthal.raoa.client.binding.TextViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.photo.PhotoOverviewActivity;
@@ -39,7 +37,7 @@ import ch.bergturbenthal.raoa.provider.Client;
 public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<Cursor> {
 
 	private static String TAG = AlbumOverviewActivity.class.getSimpleName();
-	private CursorAdapter cursorAdapter;
+	private ComplexCursorAdapter cursorAdapter;
 
 	@Override
 	public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
@@ -79,7 +77,12 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.album_overview);
 
-		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(getLoaderManager(), this, Client.ALBUM_URI, R.layout.album_overview_item, makeViewHandlers());
+		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(	getLoaderManager(),
+																																this,
+																																Client.ALBUM_URI,
+																																R.layout.album_overview_item,
+																																makeViewHandlers(),
+																																new String[] { Client.Album.ENTRY_URI, Client.Album.ALBUM_ENTRIES_URI });
 		final GridView gridview = (GridView) findViewById(R.id.album_overview);
 		gridview.setAdapter(cursorAdapter);
 
@@ -88,7 +91,9 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 			@Override
 			public void onItemClick(final AdapterView<?> parent, final View v, final int position, final long id) {
 				final Intent intent = new Intent(AlbumOverviewActivity.this, PhotoOverviewActivity.class);
-				intent.putExtra("album_uri", (String) (v.getTag()));
+				final Object[] additionalValues = cursorAdapter.getAdditionalValues(position);
+				intent.putExtra("album_entries_uri", (String) (additionalValues[1]));
+				intent.putExtra("album_uri", (String) (additionalValues[0]));
 				startActivity(intent);
 			}
 		});
@@ -97,7 +102,6 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 	private List<ViewHandler<? extends View>> makeViewHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
 		ret.add(new PhotoViewHandler(R.id.album_item_image, Client.Album.THUMBNAIL, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
-		ret.add(new SetTagViewHandler(R.id.album_overview_grid_item, Client.Album.ALBUM_ENTRIES_URI));
 		ret.add(new TextViewHandler(R.id.album_item_name, Client.Album.TITLE));
 		ret.add(new TextViewHandler(R.id.album_item_size, Client.Album.ENTRY_COUNT));
 		ret.add(new AbstractViewHandler<ImageView>(R.id.album_item_icon_offline) {

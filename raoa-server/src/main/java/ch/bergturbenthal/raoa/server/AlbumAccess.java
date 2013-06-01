@@ -7,6 +7,7 @@ import java.util.Map;
 import org.eclipse.jgit.lib.Repository;
 
 import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
+import ch.bergturbenthal.raoa.server.model.StorageStatistics;
 
 public interface AlbumAccess {
 	/**
@@ -61,4 +62,11 @@ public interface AlbumAccess {
 	void unRegisterClient(final String albumId, final String clientId);
 
 	void updateMetadata(final String albumId, final Collection<Mutation> updateEntries);
+
+	/**
+	 * Read Statistical information
+	 * 
+	 * @return Statistics
+	 */
+	StorageStatistics getStatistics();
 }

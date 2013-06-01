@@ -14,6 +14,7 @@ import java.util.concurrent.Semaphore;
 import lombok.Cleanup;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -112,11 +113,13 @@ public class AlbumImage {
 		synchronized (entryDataLock) {
 
 			AlbumEntryData loadedMetaData = albumManager.getCachedData();
-			if (loadedMetaData != null) {
+			final Date lastModifiedMetadata = getMetadataLastModifiedTime();
+			if (loadedMetaData != null && ObjectUtils.equals(loadedMetaData.getLastModifiedMetadata(), lastModifiedMetadata)) {
 				return loadedMetaData;
 			}
 
 			loadedMetaData = new AlbumEntryData();
+			loadedMetaData.setLastModifiedMetadata(lastModifiedMetadata);
 			final Metadata metadata = getExifMetadata();
 			if (metadata != null) {
 				new MetadataWrapper(metadata).fill(loadedMetaData);
@@ -229,7 +232,16 @@ public class AlbumImage {
 	}
 
 	public File getXmpSideFile() {
-		return new File(file.getParent(), file.getName() + ".xmp");
+		final String name = file.getName();
+		final int lastPt = name.lastIndexOf('.');
+		final String baseName;
+		if (lastPt > 0) {
+			baseName = name.substring(0, lastPt);
+		} else {
+			baseName = name;
+		}
+
+		return new File(file.getParent(), baseName + ".xmp");
 	}
 
 	/**
@@ -298,6 +310,17 @@ public class AlbumImage {
 		return null;
 	}
 
+	/**
+	 * @return
+	 */
+	private Date getMetadataLastModifiedTime() {
+		final File xmpSideFile = getXmpSideFile();
+		if (!xmpSideFile.exists()) {
+			return null;
+		}
+		return new Date(xmpSideFile.lastModified());
+	}
+
 	private File makeCachedFile() {
 		final String name = file.getName();
 		if (isVideo()) {
@@ -309,14 +332,18 @@ public class AlbumImage {
 	private void updateXmp(final XmpRunnable runnable) {
 		final File xmpSideFile = getXmpSideFile();
 		final XMPMeta xmpMeta;
-		try {
-			@Cleanup
-			final FileInputStream fis = new FileInputStream(xmpSideFile);
-			xmpMeta = XMPMetaFactory.parse(fis);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot parse " + xmpSideFile, e);
-		} catch (final XMPException e) {
-			throw new RuntimeException("Cannot parse " + xmpSideFile, e);
+		if (xmpSideFile.exists()) {
+			try {
+				@Cleanup
+				final FileInputStream fis = new FileInputStream(xmpSideFile);
+				xmpMeta = XMPMetaFactory.parse(fis);
+			} catch (final IOException e) {
+				throw new RuntimeException("Cannot parse " + xmpSideFile, e);
+			} catch (final XMPException e) {
+				throw new RuntimeException("Cannot parse " + xmpSideFile, e);
+			}
+		} else {
+			xmpMeta = XMPMetaFactory.create();
 		}
 		final XmpWrapper xmp = new XmpWrapper(xmpMeta);
 		runnable.run(xmp);

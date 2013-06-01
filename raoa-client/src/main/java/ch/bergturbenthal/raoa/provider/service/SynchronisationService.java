@@ -30,4 +30,6 @@ public interface SynchronisationService {
 	void createAlbumOnServer(final String server, final String fullAlbumName, final Date autoAddDate);
 
 	String getContenttype(final String archive, final String albumId, final String image);
+
+	Cursor readKeywordStatistics(final String[] projection);
 }

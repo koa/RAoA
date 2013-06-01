@@ -25,6 +25,7 @@ import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryDto;
@@ -182,7 +183,9 @@ public class ArchiveConnection {
 						if (serverConnection == null) {
 							continue;
 						}
-						serverConnection.updateMetadata(albumId, updateEntries);
+						final UpdateMetadataRequest request = new UpdateMetadataRequest();
+						request.getMutationEntries().addAll(updateEntries);
+						serverConnection.updateMetadata(albumId, request);
 					}
 
 				}

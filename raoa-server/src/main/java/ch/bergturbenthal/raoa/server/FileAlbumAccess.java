@@ -62,8 +62,11 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
+import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.map.DeserializationConfig;
+import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.util.DefaultPrettyPrinter;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
@@ -92,8 +95,10 @@ import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.raoa.server.metadata.MetadataWrapper;
+import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.model.ArchiveData;
 import ch.bergturbenthal.raoa.server.model.StorageData;
+import ch.bergturbenthal.raoa.server.model.StorageStatistics;
 import ch.bergturbenthal.raoa.server.state.ProgressHandler;
 import ch.bergturbenthal.raoa.server.state.StateManager;
 import ch.bergturbenthal.raoa.server.util.ConcurrentUtil;
@@ -241,6 +246,19 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	@Override
 	public Repository getMetaRepository() {
 		return metaGit.getRepository();
+	}
+
+	@Override
+	public StorageStatistics getStatistics() {
+		try {
+			final File statFile = new File(getServercacheDir(), "statistics.json");
+			if (!statFile.exists()) {
+				return null;
+			}
+			return mapper.readValue(statFile, StorageStatistics.class);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot read Statistics data", e);
+		}
 	}
 
 	@Override
@@ -759,6 +777,14 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		return metaDir;
 	}
 
+	private File getServercacheDir() {
+		final File cacheDir = new File(getMetaDir(), ".servercache");
+		if (!cacheDir.exists()) {
+			cacheDir.mkdirs();
+		}
+		return cacheDir;
+	}
+
 	@PostConstruct
 	private void init() {
 		configureFromPreferences();
@@ -834,6 +860,16 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				metaGit = Git.init().setDirectory(metaDir).call();
 			} catch (final GitAPIException e) {
 				throw new RuntimeException("Cannot create meta repository", e);
+			}
+		}
+		final File gitignore = new File(metaDir, ".gitignore");
+		if (!gitignore.exists()) {
+			try {
+				@Cleanup
+				final PrintWriter ignoreWriter = new PrintWriter(gitignore);
+				ignoreWriter.println(".servercache");
+			} catch (final FileNotFoundException e) {
+				throw new RuntimeException("Cannot creare .gitignore", e);
 			}
 		}
 		final File cacheDir = new File(metaDir, META_CACHE);
@@ -954,6 +990,8 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			public Void call() throws Exception {
 				try {
 					final AtomicInteger imageCount = new AtomicInteger();
+					final ConcurrentMap<String, AtomicInteger> countByTag = new ConcurrentHashMap<>();
+
 					// limit the queue size for take not too much memory
 					final Semaphore queueLimitSemaphore = new Semaphore(100);
 					final long startTime = System.currentTimeMillis();
@@ -979,6 +1017,13 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 										image.captureDate();
 										// read Thumbnail
 										image.getThumbnail();
+										final AlbumEntryData albumEntryData = image.getAlbumEntryData();
+										if (albumEntryData != null && albumEntryData.getKeywords() != null) {
+											for (final String keyword : albumEntryData.getKeywords()) {
+												countByTag.putIfAbsent(keyword, new AtomicInteger(0));
+												countByTag.get(keyword).incrementAndGet();
+											}
+										}
 									} finally {
 										imageCount.incrementAndGet();
 										queueLimitSemaphore.release();
@@ -998,6 +1043,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					buf.append(imageCount.intValue());
 					buf.append(" Images");
 					logger.info(buf.toString());
+					updateStatistics(countByTag);
 				} catch (final InterruptedException e) {
 					logger.info("cache refresh interrupted");
 				}
@@ -1187,5 +1233,13 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		} catch (final GitAPIException e) {
 			throw new RuntimeException("Cannot update Metadata", e);
 		}
+	}
+
+	private void updateStatistics(final ConcurrentMap<String, AtomicInteger> countByTag) throws IOException, JsonGenerationException, JsonMappingException {
+		final StorageStatistics statistics = new StorageStatistics();
+		for (final Entry<String, AtomicInteger> keywordEntry : countByTag.entrySet()) {
+			statistics.getKeywordCount().put(keywordEntry.getKey(), Integer.valueOf(keywordEntry.getValue().intValue()));
+		}
+		mapper.writer().withPrettyPrinter(new DefaultPrettyPrinter()).writeValue(new File(getServercacheDir(), "statistics.json"), statistics);
 	}
 }

@@ -21,6 +21,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -403,6 +404,46 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	}
 
 	@Override
+	public Cursor readKeywordStatistics(final String[] projection) {
+		return callInTransaction(new Callable<Cursor>() {
+
+			@Override
+			public Cursor call() throws Exception {
+				final Map<String, Integer> keywordCounts = new TreeMap<String, Integer>();
+				for (final Pair<String, String> entry : store.listAlbumMeta()) {
+					final AlbumMeta albumMeta = store.getAlbumMeta(entry.first, entry.second, ReadPolicy.READ_IF_EXISTS);
+					if (albumMeta == null) {
+						continue;
+					}
+					for (final Entry<String, Integer> keywordEntry : albumMeta.getKeywordCounts().entrySet()) {
+						final Integer oldCount = keywordCounts.get(keywordEntry.getKey());
+						if (oldCount == null) {
+							keywordCounts.put(keywordEntry.getKey(), keywordEntry.getValue());
+						} else {
+							keywordCounts.put(keywordEntry.getKey(), Integer.valueOf(keywordEntry.getValue().intValue() + oldCount.intValue()));
+						}
+					}
+				}
+				final Map<String, FieldReader<Entry<String, Integer>>> fieldReaders = new HashMap<String, FieldReader<Entry<String, Integer>>>();
+				fieldReaders.put(Client.KeywordEntry.KEYWORD, new StringFieldReader<Map.Entry<String, Integer>>() {
+					@Override
+					public String getString(final Entry<String, Integer> value) {
+						return value.getKey();
+					}
+				});
+				fieldReaders.put(Client.KeywordEntry.COUNT, new NumericFieldReader<Map.Entry<String, Integer>>(Cursor.FIELD_TYPE_INTEGER) {
+
+					@Override
+					public Number getNumber(final Entry<String, Integer> value) {
+						return value.getValue();
+					}
+				});
+				return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(keywordCounts.entrySet(), projection, fieldReaders));
+			}
+		});
+	}
+
+	@Override
 	public Cursor readServerIssueList(final String serverId, final String[] projection) {
 
 		final ServerConnection serverConnection = getConnectionForServer(serverId);
@@ -503,12 +544,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return callInTransaction(new Callable<Cursor>() {
 			@Override
 			public Cursor call() throws Exception {
-				final Collection<AlbumIndex> visible = collectVisibleAlbums();
-				if (visible.contains(new AlbumIndex(archiveName, albumId))) {
-					return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false);
-				} else {
-					return makeCursorForAlbums(Collections.<AlbumIndex> emptyList(), projection, false);
-				}
+				return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false);
 			}
 		});
 	}
@@ -1230,6 +1266,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 				final AtomicLong dateSum = new AtomicLong(0);
 				final AtomicInteger dateCount = new AtomicInteger(0);
+				final Map<String, Integer> keywordCounts = albumMeta.getKeywordCounts();
+				keywordCounts.clear();
 
 				for (final Entry<String, AlbumEntryDto> albumImageEntry : albumDto.getEntries().entrySet()) {
 
@@ -1246,6 +1284,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					if (entryDto.getCaptureDate() != null) {
 						dateCount.incrementAndGet();
 						dateSum.addAndGet(entryDto.getCaptureDate().getTime());
+					}
+					for (final String keywordEntry : entryDto.getKeywords()) {
+						final Integer oldCount = keywordCounts.get(keywordEntry);
+						if (oldCount != null) {
+							keywordCounts.put(keywordEntry, Integer.valueOf(oldCount.intValue() + 1));
+						} else {
+							keywordCounts.put(keywordEntry, Integer.valueOf(1));
+						}
 					}
 				}
 				albumMeta.setThumbnailId(albumDto.getAlbumTitleEntry());

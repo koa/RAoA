@@ -4,6 +4,8 @@
 package ch.bergturbenthal.raoa.provider.model.dto;
 
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -33,6 +35,9 @@ public class AlbumMeta implements Parcelable {
 			ret.setRepositorySize(source.readLong());
 			ret.setOriginalsSize(source.readLong());
 			ret.setAlbumTitle(source.readString());
+			final HashMap<String, Integer> map = new HashMap<String, Integer>();
+			source.readMap(map, ret.getClass().getClassLoader());
+			ret.getKeywordCounts().putAll(map);
 			return ret;
 		}
 
@@ -41,12 +46,14 @@ public class AlbumMeta implements Parcelable {
 			return new AlbumMeta[size];
 		}
 	};
+
 	private Date albumDate;
 	private String albumId;
 	private String albumTitle;
 	private String archiveName;
 	private Date autoAddDate;
 	private int entryCount;
+	private final Map<String, Integer> keywordCounts = new HashMap<String, Integer>();
 	private Date lastModified;
 	private String name;
 	private long originalsSize;
@@ -108,6 +115,13 @@ public class AlbumMeta implements Parcelable {
 			return false;
 		}
 		if (entryCount != other.entryCount) {
+			return false;
+		}
+		if (keywordCounts == null) {
+			if (other.keywordCounts != null) {
+				return false;
+			}
+		} else if (!keywordCounts.equals(other.keywordCounts)) {
 			return false;
 		}
 		if (lastModified == null) {
@@ -198,6 +212,15 @@ public class AlbumMeta implements Parcelable {
 	}
 
 	/**
+	 * Returns the keywordCounts.
+	 * 
+	 * @return the keywordCounts
+	 */
+	public Map<String, Integer> getKeywordCounts() {
+		return keywordCounts;
+	}
+
+	/**
 	 * Returns the lastModified.
 	 * 
 	 * @return the lastModified
@@ -265,6 +288,7 @@ public class AlbumMeta implements Parcelable {
 		result = prime * result + ((archiveName == null) ? 0 : archiveName.hashCode());
 		result = prime * result + ((autoAddDate == null) ? 0 : autoAddDate.hashCode());
 		result = prime * result + entryCount;
+		result = prime * result + ((keywordCounts == null) ? 0 : keywordCounts.hashCode());
 		result = prime * result + ((lastModified == null) ? 0 : lastModified.hashCode());
 		result = prime * result + ((name == null) ? 0 : name.hashCode());
 		result = prime * result + (int) (originalsSize ^ (originalsSize >>> 32));
@@ -390,27 +414,31 @@ public class AlbumMeta implements Parcelable {
 
 	@Override
 	public String toString() {
-		return "AlbumMeta [lastModified=" + lastModified
-						+ ", name="
-						+ name
-						+ ", autoAddDate="
-						+ autoAddDate
-						+ ", thumbnailId="
-						+ thumbnailId
-						+ ", albumDate="
-						+ albumDate
-						+ ", archiveName="
-						+ archiveName
+		return "AlbumMeta [albumDate=" + albumDate
 						+ ", albumId="
 						+ albumId
+						+ ", albumTitle="
+						+ albumTitle
+						+ ", archiveName="
+						+ archiveName
+						+ ", autoAddDate="
+						+ autoAddDate
 						+ ", entryCount="
 						+ entryCount
-						+ ", thumbnailSize="
-						+ thumbnailSize
-						+ ", repositorySize="
-						+ repositorySize
+						+ ", keywordCounts="
+						+ keywordCounts
+						+ ", lastModified="
+						+ lastModified
+						+ ", name="
+						+ name
 						+ ", originalsSize="
 						+ originalsSize
+						+ ", repositorySize="
+						+ repositorySize
+						+ ", thumbnailId="
+						+ thumbnailId
+						+ ", thumbnailSize="
+						+ thumbnailSize
 						+ "]";
 	}
 
@@ -428,6 +456,7 @@ public class AlbumMeta implements Parcelable {
 		dest.writeLong(repositorySize);
 		dest.writeLong(originalsSize);
 		dest.writeString(albumTitle);
+		dest.writeMap(keywordCounts);
 	}
 
 }

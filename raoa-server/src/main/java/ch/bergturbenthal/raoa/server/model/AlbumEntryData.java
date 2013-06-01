@@ -18,6 +18,7 @@ public class AlbumEntryData {
 	private Double focalLength;
 	private Integer iso;
 	private Collection<String> keywords;
+	private Date lastModifiedMetadata;
 	private Location location;
 	private Integer rating;
 }

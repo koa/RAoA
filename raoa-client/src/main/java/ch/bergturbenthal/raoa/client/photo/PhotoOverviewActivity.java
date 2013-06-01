@@ -2,18 +2,41 @@ package ch.bergturbenthal.raoa.client.photo;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.LoaderManager.LoaderCallbacks;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.Context;
+import android.content.CursorLoader;
+import android.content.DialogInterface;
+import android.content.DialogInterface.OnClickListener;
 import android.content.Intent;
+import android.content.Loader;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Pair;
+import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MenuItem.OnMenuItemClickListener;
+import android.view.SubMenu;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
+import android.widget.AdapterView.OnItemLongClickListener;
+import android.widget.EditText;
 import android.widget.GridView;
 import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.album.AlbumOverviewActivity;
+import ch.bergturbenthal.raoa.client.binding.AbstractViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ComplexCursorAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.TextViewHandler;
@@ -21,14 +44,72 @@ import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoOverviewActivity extends Activity {
+	private enum UiMode {
+		NAVIGATION, SELECTION
+	}
 
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
-	private Uri albumUri;
+	private Uri albumEntriesUri;
+
+	private String albumTitle = null;
 	private int currentItemIndex;
+	private UiMode currentMode = UiMode.NAVIGATION;
 	private ComplexCursorAdapter cursorAdapter;
 
 	private GridView gridview;
+
+	private List<String> knownKeywords;
+
+	private int lastLongClickposition = -1;
+
+	private final Map<String, Collection<String>> selectedEntries = new HashMap<String, Collection<String>>();
+
+	private void activateNavigationMode() {
+		currentMode = UiMode.NAVIGATION;
+		if (albumTitle != null) {
+			getActionBar().setTitle(albumTitle);
+		}
+		selectedEntries.clear();
+		lastLongClickposition = -1;
+		redraw();
+		invalidateOptionsMenu();
+	}
+
+	private void activateSelectionMode() {
+		currentMode = UiMode.SELECTION;
+		invalidateOptionsMenu();
+	}
+
+	private void addEntryToSelection(final Pair<String, Collection<String>> entry) {
+		selectedEntries.put(entry.first, entry.second);
+		invalidateOptionsMenu();
+	}
+
+	private List<String> getKnownKeywords() {
+		final Cursor cursor = getContentResolver().query(Client.KEYWORDS_URI, new String[] { Client.KeywordEntry.KEYWORD, Client.KeywordEntry.COUNT }, null, null, null);
+		final List<String> keywordsFromCursor = readOrderedKeywordsFromCursor(cursor);
+		return keywordsFromCursor;
+	}
+
+	private boolean longClick(final int position) {
+		if (lastLongClickposition >= 0) {
+			final int lower = Math.min(position, lastLongClickposition);
+			final int upper = Math.max(position, lastLongClickposition);
+			for (int i = lower; i <= upper; i++) {
+				addEntryToSelection(readCurrentEntry(i));
+			}
+			lastLongClickposition = -1;
+		} else {
+			lastLongClickposition = position;
+			addEntryToSelection(readCurrentEntry(position));
+		}
+		if (currentMode != UiMode.SELECTION) {
+			activateSelectionMode();
+		}
+		redraw();
+		return true;
+	}
 
 	/**
 	 * @return
@@ -37,6 +118,23 @@ public class PhotoOverviewActivity extends Activity {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
 		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
 		ret.add(new TextViewHandler(R.id.photo_name, Client.AlbumEntry.NAME));
+		ret.add(new AbstractViewHandler<View>(R.id.photos_overview_grid_item) {
+
+			@Override
+			public void bindView(final View view, final Context context, final Map<String, Object> values) {
+				final String entryUri = (String) values.get(Client.AlbumEntry.ENTRY_URI);
+				if (selectedEntries.containsKey(entryUri)) {
+					view.setBackgroundResource(R.drawable.layout_border);
+				} else {
+					view.setBackgroundResource(R.drawable.layout_no_border);
+				}
+			}
+
+			@Override
+			public String[] usedFields() {
+				return new String[] { Client.AlbumEntry.ENTRY_URI };
+			}
+		});
 		return ret;
 	}
 
@@ -51,14 +149,53 @@ public class PhotoOverviewActivity extends Activity {
 	@Override
 	protected void onCreate(final Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		currentMode = UiMode.NAVIGATION;
 		getActionBar().setDisplayHomeAsUpEnabled(true);
 		// get album id out of intent
 		final Bundle bundle = getIntent().getExtras();
-		albumUri = Uri.parse(bundle.getString("album_uri"));
+		albumEntriesUri = Uri.parse(bundle.getString("album_entries_uri"));
+		final Uri albumUri = Uri.parse(bundle.getString("album_uri"));
+		Uri.parse(bundle.getString("album_uri"));
 		setContentView(R.layout.photo_overview);
+		final ComplexCursorAdapter adapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
+																																																																		Client.AlbumEntry.META_KEYWORDS });
+		getLoaderManager().initLoader(0, null, new LoaderCallbacks<Cursor>() {
+
+			@Override
+			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
+				return new CursorLoader(PhotoOverviewActivity.this, albumEntriesUri, adapter.requiredFields(), null, null, null);
+			}
+
+			@Override
+			public void onLoaderReset(final Loader<Cursor> loader) {
+				adapter.swapCursor(null);
+			}
+
+			@Override
+			public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
+				final Collection<String> oldSelectedEntries = new HashSet<String>(selectedEntries.keySet());
+				selectedEntries.clear();
+				try {
+					if (data == null || !data.moveToFirst()) {
+						return;
+					}
+					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
+					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
+					for (int i = 0; i < data.getCount(); i++) {
+						final String uri = data.getString(entryColumn);
+						if (oldSelectedEntries.contains(uri)) {
+							selectedEntries.put(uri, Client.AlbumEntry.decodeKeywords(data.getString(keywordsColumn)));
+						}
+					}
+				} finally {
+					adapter.swapCursor(data);
+					invalidateOptionsMenu();
+				}
+			}
+		});
 
 		// Create an empty adapter we will use to display the loaded data.
-		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(getLoaderManager(), this, albumUri, R.layout.photo_overview_item, makeHandlers());
+		cursorAdapter = adapter;
 
 		gridview = (GridView) findViewById(R.id.photo_overview);
 		gridview.setAdapter(cursorAdapter);
@@ -67,13 +204,71 @@ public class PhotoOverviewActivity extends Activity {
 		gridview.setOnItemClickListener(new OnItemClickListener() {
 			@Override
 			public void onItemClick(final AdapterView<?> parent, final View v, final int position, final long id) {
-				final Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailViewActivity.class);
-				intent.putExtra("album_uri", albumUri.toString());
-				intent.putExtra("actPos", position);
-				startActivityForResult(intent, 1);
+				shortClick(position);
+			}
+
+		});
+		gridview.setOnItemLongClickListener(new OnItemLongClickListener() {
+
+			@Override
+			public boolean onItemLongClick(final AdapterView<?> parent, final View view, final int position, final long id) {
+				return longClick(position);
 			}
 		});
 		gridview.setWillNotCacheDrawing(false);
+
+		final Cursor cursor = getContentResolver().query(albumUri, new String[] { Client.Album.TITLE }, null, null, null);
+		if (cursor.moveToFirst()) {
+			albumTitle = cursor.getString(0);
+		}
+		knownKeywords = getKnownKeywords();
+
+		activateNavigationMode();
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(final Menu menu) {
+		switch (currentMode) {
+		case SELECTION:
+			getMenuInflater().inflate(R.menu.photo_overview_selection_menu, menu);
+			final MenuItem tagsMenu = menu.findItem(R.id.photo_overview_menu_tag_list_menu);
+			final SubMenu tagsSubmenu = tagsMenu.getSubMenu();
+			tagsSubmenu.removeGroup(R.id.photo_overview_menu_existing_tag);
+			final Map<String, Integer> selectedKeywordCounts = new HashMap<String, Integer>();
+			for (final Collection<String> keywordsPerImage : selectedEntries.values()) {
+				for (final String keyword : keywordsPerImage) {
+					final Integer existingKeyword = selectedKeywordCounts.get(keyword);
+					if (existingKeyword != null) {
+						selectedKeywordCounts.put(keyword, Integer.valueOf(existingKeyword.intValue() + 1));
+					} else {
+						selectedKeywordCounts.put(keyword, Integer.valueOf(1));
+					}
+				}
+			}
+			for (final String keyword : knownKeywords) {
+				final Integer count = selectedKeywordCounts.get(keyword);
+				final String keywordDisplay = count != null ? keyword + " (" + count + ")" : keyword;
+				final MenuItem item = tagsSubmenu.add(R.id.photo_overview_menu_existing_tag, Menu.NONE, Menu.NONE, keywordDisplay);
+				item.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+
+					@Override
+					public boolean onMenuItemClick(final MenuItem item) {
+						setTagToSelectedEntries(keyword);
+						return true;
+					}
+				});
+			}
+
+			// final SubMenu subMenu = findItem.getSubMenu();
+			// subMenu.clear();
+			// subMenu.add("Hello Tag");
+			break;
+		case NAVIGATION:
+			menu.clear();
+			break;
+		}
+
+		return true;
 	}
 
 	@Override
@@ -92,7 +287,113 @@ public class PhotoOverviewActivity extends Activity {
 			startActivity(upIntent);
 			finish();
 			return true;
+		case R.id.photo_overview_menu_add_new_tag:
+			setNewTag();
+			return true;
+		case R.id.photo_overview_menu_close_selection:
+			activateNavigationMode();
+			return true;
 		}
 		return super.onOptionsItemSelected(item);
+	}
+
+	private void openDetailView(final int position) {
+		final Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailViewActivity.class);
+		intent.putExtra("album_uri", albumEntriesUri.toString());
+		intent.putExtra("actPos", position);
+		startActivityForResult(intent, 1);
+	}
+
+	private Pair<String, Collection<String>> readCurrentEntry(final int position) {
+		final Object[] additionalValues = cursorAdapter.getAdditionalValues(position);
+		final String uri = (String) additionalValues[0];
+		final Collection<String> keywords = Client.AlbumEntry.decodeKeywords((String) additionalValues[1]);
+		return new Pair<String, Collection<String>>(uri, keywords);
+	}
+
+	private List<String> readOrderedKeywordsFromCursor(final Cursor data) {
+		if (data == null || !data.moveToFirst()) {
+			return Collections.emptyList();
+		}
+		final Map<String, Integer> countOrder = new HashMap<String, Integer>();
+		do {
+			final String keyword = data.getString(0);
+			final int count = data.getInt(1);
+			countOrder.put(keyword, Integer.valueOf(count));
+		} while (data.moveToNext());
+		final ArrayList<String> keyWords = new ArrayList<String>(countOrder.keySet());
+		Collections.sort(keyWords, new Comparator<String>() {
+			@Override
+			public int compare(final String lhs, final String rhs) {
+				return -countOrder.get(lhs).compareTo(countOrder.get(rhs));
+			}
+		});
+		return keyWords;
+	}
+
+	private void redraw() {
+		gridview.requestLayout();
+		gridview.invalidateViews();
+	}
+
+	/**
+	 * 
+	 */
+	private void setNewTag() {
+		final EditText newTagValue = new EditText(this);
+		new AlertDialog.Builder(this).setTitle("Input new Tag").setView(newTagValue).setPositiveButton("Ok", new OnClickListener() {
+
+			@Override
+			public void onClick(final DialogInterface dialog, final int which) {
+				setTagToSelectedEntries(newTagValue.getText().toString());
+			}
+		}).setNegativeButton("Cancel", new OnClickListener() {
+			@Override
+			public void onClick(final DialogInterface dialog, final int which) {
+			}
+		}).show();
+	}
+
+	private void setTagToSelectedEntries(final String tagValue) {
+		for (final String entryUri : selectedEntries.keySet()) {
+			final ContentResolver resolver = getContentResolver();
+			final Uri uri = Uri.parse(entryUri);
+			final Cursor queryCursor = resolver.query(uri, new String[] { Client.AlbumEntry.META_KEYWORDS }, null, null, null);
+			try {
+				if (!queryCursor.moveToFirst()) {
+					continue;
+				}
+				final Collection<String> keywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(queryCursor.getString(0)));
+				keywords.add(tagValue);
+				final ContentValues values = new ContentValues();
+				values.put(Client.AlbumEntry.META_KEYWORDS, Client.AlbumEntry.encodeKeywords(keywords));
+				resolver.update(uri, values, null, null);
+			} finally {
+				queryCursor.close();
+			}
+		}
+	}
+
+	private void shortClick(final int position) {
+		switch (currentMode) {
+		case NAVIGATION:
+			openDetailView(position);
+			break;
+		case SELECTION:
+			toggleSelection(position);
+			break;
+		}
+	}
+
+	/**
+	 * @param position
+	 */
+	private void toggleSelection(final int position) {
+		final Pair<String, Collection<String>> currentEntry = readCurrentEntry(position);
+		if (selectedEntries.remove(currentEntry.first) == null) {
+			selectedEntries.put(currentEntry.first, currentEntry.second);
+		}
+		redraw();
+		invalidateOptionsMenu();
 	}
 }

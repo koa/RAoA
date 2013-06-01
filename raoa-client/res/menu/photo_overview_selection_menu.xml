@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android" >
+    <item android:id="@+id/photo_overview_menu_close_selection" android:title="Ok" android:showAsAction="always"></item>
+    <item android:id="@+id/photo_overview_menu_tag_list_menu" android:title="Set Tag" android:showAsAction="always">
+        <menu>
+            <item android:id="@+id/photo_overview_menu_add_new_tag" android:title="new Tag ..."/>
+            <group android:id="@+id/photo_overview_menu_existing_tag">
+                <item android:id="@+id/item1" android:title="Dummy Tag"/>
+            </group>
+        </menu>
+    </item>
+    
+
+</menu>
