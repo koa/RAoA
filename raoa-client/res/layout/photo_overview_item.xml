@@ -1,29 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/photos_overview_grid_item"
-    android:layout_width="@dimen/image_width"
-    android:layout_height="@dimen/image_width"
-    android:background="@drawable/layout_no_border" >
+<ch.bergturbenthal.raoa.client.widget.SquareLinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" >
 
-    <ImageView
-        android:id="@+id/photos_item_image"
-        android:layout_width="@dimen/image_width"
-        android:layout_height="@dimen/image_width"
-        android:scaleType="centerCrop"
-        android:src="@drawable/ic_launcher" />
+    <FrameLayout
+        android:id="@+id/photos_overview_grid_item"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/layout_no_border"
+        android:orientation="vertical" >
 
-    <RelativeLayout
-        android:id="@+id/photos_item_statusbar"
-        android:layout_width="@dimen/image_width"
-        android:layout_height="48dp"
-        android:layout_gravity="bottom"
-        android:background="#88000000" >
+        <ImageView
+            android:id="@+id/photos_item_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:adjustViewBounds="false"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_launcher" />
 
-        <TextView
-            android:id="@+id/photo_name"
-            android:layout_width="fill_parent"
+        <LinearLayout
+            android:id="@+id/photos_item_statusbar"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginLeft="4dp" />
-    </RelativeLayout>
+            android:layout_gravity="bottom"
+            android:background="#88000000"
+            android:orientation="vertical" >
 
-</FrameLayout>
+            <TextView
+                android:id="@+id/photo_name"
+                android:layout_width="fill_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="4dp" />
+        </LinearLayout>
+    </FrameLayout>
+</ch.bergturbenthal.raoa.client.widget.SquareLinearLayout>

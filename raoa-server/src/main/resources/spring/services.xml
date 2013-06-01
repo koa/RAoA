@@ -36,7 +36,7 @@
   <bean
     class="ch.bergturbenthal.raoa.server.thumbnails.ImageMagickImageThumbnailMaker">
 <!--     <property name="gmBinary" />  -->
-    <property name="imConvertBinary" value="/usr/local/bin/convert"/>
+<!--     <property name="imConvertBinary" value="/usr/local/bin/convert"/> -->
     <property name="thumbnailSize" value="1600" />
   </bean>
 </beans>

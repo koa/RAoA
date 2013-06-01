@@ -26,9 +26,4 @@
     <string name="edit_tags">Tags</string>
     <string name="plain_photo_view">None</string>
     <string name="tag">Tag</string>
-    <string name="photo_overview_menu_close_title">Close</string>
-    <string name="photo_overview_menu_share_title">Share</string>
-    <string name="photo_overview_menu_add_tag_title">Add Tag</string>
-    <string name="photo_overview_menu_remove_tag_title">Remove Tag</string>
-    <string name="photo_overview_menu_new_tag_item">new tag </string>
 </resources>
