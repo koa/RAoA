@@ -18,4 +18,5 @@
     <string name="create_folder_folder_created">Album created</string>
     <string name="menu_create_album">New Album</string>
     <string name="create_folder_server_title">Server</string>    
+    <string name="edit_tags">Tags</string>    
 </resources>

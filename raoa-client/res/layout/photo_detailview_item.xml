@@ -1,13 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/FrameLayout1"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical" >
+    android:layout_height="match_parent" >
 
     <ImageView
         android:id="@+id/photos_item_image"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:src="@android:drawable/gallery_thumb" />
+        android:src="@drawable/ic_launcher" />
 
-</LinearLayout>
+    <RelativeLayout
+        android:id="@+id/photo_edit_overlay_layout"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:background="#88000000"
+        android:gravity="bottom" >
+
+        <TextView
+            android:id="@+id/photo_edit_overlay_text"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+    </RelativeLayout>
+
+</FrameLayout>

@@ -30,24 +30,14 @@ public class PhotoOverviewActivity extends Activity {
 
 	private GridView gridview;
 
-	@Override
-	public boolean onOptionsItemSelected(final MenuItem item) {
-		switch (item.getItemId()) {
-		case android.R.id.home:
-			// This ID represents the Home or Up button. In the case of this
-			// activity, the Up button is shown. Use NavUtils to allow users
-			// to navigate up one level in the application structure. For
-			// more details, see the Navigation pattern on Android Design:
-			//
-			// http://developer.android.com/design/patterns/navigation.html#up-vs-back
-			//
-			final Intent upIntent = new Intent(this, AlbumOverviewActivity.class);
-			upIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-			startActivity(upIntent);
-			finish();
-			return true;
-		}
-		return super.onOptionsItemSelected(item);
+	/**
+	 * @return
+	 */
+	private Collection<ViewHandler<? extends View>> makeHandlers() {
+		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
+		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
+		ret.add(new TextViewHandler(R.id.photo_name, Client.AlbumEntry.NAME));
+		return ret;
 	}
 
 	@Override
@@ -86,13 +76,23 @@ public class PhotoOverviewActivity extends Activity {
 		gridview.setWillNotCacheDrawing(false);
 	}
 
-	/**
-	 * @return
-	 */
-	private Collection<ViewHandler<? extends View>> makeHandlers() {
-		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
-		ret.add(new TextViewHandler(R.id.photo_name, Client.AlbumEntry.NAME));
-		return ret;
+	@Override
+	public boolean onOptionsItemSelected(final MenuItem item) {
+		switch (item.getItemId()) {
+		case android.R.id.home:
+			// This ID represents the Home or Up button. In the case of this
+			// activity, the Up button is shown. Use NavUtils to allow users
+			// to navigate up one level in the application structure. For
+			// more details, see the Navigation pattern on Android Design:
+			//
+			// http://developer.android.com/design/patterns/navigation.html#up-vs-back
+			//
+			final Intent upIntent = new Intent(this, AlbumOverviewActivity.class);
+			upIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+			startActivity(upIntent);
+			finish();
+			return true;
+		}
+		return super.onOptionsItemSelected(item);
 	}
 }
