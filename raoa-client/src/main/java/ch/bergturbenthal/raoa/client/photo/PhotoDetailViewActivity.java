@@ -88,6 +88,7 @@ public class PhotoDetailViewActivity extends Activity {
 						} else {
 							toggleButton.setBackgroundColor(Color.GRAY);
 						}
+
 						toggleButton.setOnClickListener(new OnClickListener() {
 
 							@Override
