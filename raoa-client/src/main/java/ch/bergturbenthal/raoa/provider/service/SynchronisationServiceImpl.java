@@ -1013,7 +1013,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				final AlbumMeta albumEntry = store.getAlbumMeta(entry.first, entry.second, ReadPolicy.READ_IF_EXISTS);
 				final String archiveName = albumEntry.getArchiveName();
 				final String albumId = albumEntry.getAlbumId();
-				if (!store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE).isSynced()) {
+				if (!store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE).isShouldSync()) {
 					continue;
 				}
 				loadedAlbums.put(new AlbumIndex(archiveName, albumId), albumEntry);
