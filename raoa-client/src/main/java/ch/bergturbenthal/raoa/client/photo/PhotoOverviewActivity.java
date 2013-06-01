@@ -34,6 +34,7 @@ import android.widget.AdapterView.OnItemClickListener;
 import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.EditText;
 import android.widget.GridView;
+import android.widget.ShareActionProvider;
 import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.album.AlbumOverviewActivity;
 import ch.bergturbenthal.raoa.client.binding.AbstractViewHandler;
@@ -44,6 +45,11 @@ import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoOverviewActivity extends Activity {
+	private static class EntryValues {
+		Collection<String> keywords = new HashSet<String>();
+		Uri thumbnailUri;
+	}
+
 	private static interface KeywordsHandler {
 		void handleKeywords(final Collection<String> keywords);
 	}
@@ -67,19 +73,26 @@ public class PhotoOverviewActivity extends Activity {
 
 	private int lastLongClickposition = -1;
 
-	private final Map<String, Collection<String>> selectedEntries = new HashMap<String, Collection<String>>();
+	private final Map<String, EntryValues> selectedEntries = new HashMap<String, EntryValues>();
 
 	@Override
 	public boolean onCreateOptionsMenu(final Menu menu) {
 		switch (currentMode) {
 		case SELECTION:
 			getMenuInflater().inflate(R.menu.photo_overview_selection_menu, menu);
+
+			final ShareActionProvider shareActionProvider = (ShareActionProvider) menu.findItem(R.id.photo_overview_menu_share).getActionProvider();
+			final Intent shareIntent = new Intent(Intent.ACTION_SEND_MULTIPLE);
+			shareIntent.setType("image/jpeg");
+			shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, makeCurrentSelectedUris());
+			shareActionProvider.setShareIntent(shareIntent);
+
 			final MenuItem addTagsMenu = menu.findItem(R.id.photo_overview_menu_add_tag_menu);
 			final SubMenu tagsSubmenu = addTagsMenu.getSubMenu();
 			tagsSubmenu.removeGroup(R.id.photo_overview_menu_existing_tag);
 			final Map<String, Integer> selectedKeywordCounts = new HashMap<String, Integer>();
-			for (final Collection<String> keywordsPerImage : selectedEntries.values()) {
-				for (final String keyword : keywordsPerImage) {
+			for (final EntryValues entryValues : selectedEntries.values()) {
+				for (final String keyword : entryValues.keywords) {
 					final Integer existingKeyword = selectedKeywordCounts.get(keyword);
 					if (existingKeyword != null) {
 						selectedKeywordCounts.put(keyword, Integer.valueOf(existingKeyword.intValue() + 1));
@@ -180,7 +193,8 @@ public class PhotoOverviewActivity extends Activity {
 		Uri.parse(bundle.getString("album_uri"));
 		setContentView(R.layout.photo_overview);
 		final ComplexCursorAdapter adapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
-																																																																		Client.AlbumEntry.META_KEYWORDS });
+																																																																		Client.AlbumEntry.META_KEYWORDS,
+																																																																		Client.AlbumEntry.THUMBNAIL });
 		getLoaderManager().initLoader(0, null, new LoaderCallbacks<Cursor>() {
 
 			@Override
@@ -203,10 +217,11 @@ public class PhotoOverviewActivity extends Activity {
 					}
 					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
 					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
+					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL);
 					for (int i = 0; i < data.getCount(); i++) {
 						final String uri = data.getString(entryColumn);
 						if (oldSelectedEntries.contains(uri)) {
-							selectedEntries.put(uri, Client.AlbumEntry.decodeKeywords(data.getString(keywordsColumn)));
+							selectedEntries.put(uri, makeEntry(data.getString(keywordsColumn), data.getString(thumbnailColumn)));
 						}
 					}
 				} finally {
@@ -264,8 +279,8 @@ public class PhotoOverviewActivity extends Activity {
 		invalidateOptionsMenu();
 	}
 
-	private void addEntryToSelection(final Pair<String, Collection<String>> entry) {
-		selectedEntries.put(entry.first, entry.second);
+	private void addEntryToSelection(final Pair<String, EntryValues> pair) {
+		selectedEntries.put(pair.first, pair.second);
 		invalidateOptionsMenu();
 	}
 
@@ -292,6 +307,25 @@ public class PhotoOverviewActivity extends Activity {
 		}
 		redraw();
 		return true;
+	}
+
+	/**
+	 * @return
+	 */
+	private ArrayList<Uri> makeCurrentSelectedUris() {
+		final ArrayList<Uri> ret = new ArrayList<Uri>();
+		for (final EntryValues value : selectedEntries.values()) {
+			ret.add(value.thumbnailUri);
+		}
+		return ret;
+	}
+
+	private EntryValues makeEntry(final String keywordValue, final String uriString) {
+		final EntryValues values = new EntryValues();
+		final Collection<String> keywords = Client.AlbumEntry.decodeKeywords(keywordValue);
+		values.keywords = keywords;
+		values.thumbnailUri = Uri.parse(uriString);
+		return values;
 	}
 
 	/**
@@ -339,11 +373,12 @@ public class PhotoOverviewActivity extends Activity {
 		return keyWords;
 	}
 
-	private Pair<String, Collection<String>> readCurrentEntry(final int position) {
+	private Pair<String, EntryValues> readCurrentEntry(final int position) {
 		final Object[] additionalValues = cursorAdapter.getAdditionalValues(position);
 		final String uri = (String) additionalValues[0];
-		final Collection<String> keywords = Client.AlbumEntry.decodeKeywords((String) additionalValues[1]);
-		return new Pair<String, Collection<String>>(uri, keywords);
+		final String keywordValue = (String) additionalValues[1];
+		final String uriString = (String) additionalValues[2];
+		return new Pair<String, EntryValues>(uri, makeEntry(keywordValue, uriString));
 	}
 
 	private List<String> readOrderedKeywordsFromCursor(final Cursor data) {
@@ -415,7 +450,7 @@ public class PhotoOverviewActivity extends Activity {
 	 * @param position
 	 */
 	private void toggleSelection(final int position) {
-		final Pair<String, Collection<String>> currentEntry = readCurrentEntry(position);
+		final Pair<String, EntryValues> currentEntry = readCurrentEntry(position);
 		if (selectedEntries.remove(currentEntry.first) == null) {
 			selectedEntries.put(currentEntry.first, currentEntry.second);
 		}

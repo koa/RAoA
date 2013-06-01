@@ -8,6 +8,13 @@
         android:title="Ok">
     </item>
     <item
+        android:id="@+id/photo_overview_menu_share"
+        android:actionProviderClass="android.widget.ShareActionProvider"
+        android:icon="@drawable/ic_action_share"
+        android:showAsAction="ifRoom"
+        android:title="Share">
+    </item>
+    <item
         android:id="@+id/photo_overview_menu_add_tag_menu"
         android:icon="@drawable/ic_action_add_tag_icon"
         android:showAsAction="ifRoom"
