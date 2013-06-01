@@ -95,6 +95,7 @@ public class PhotoDetailViewActivity extends Activity {
 								final boolean isChecked = ((ToggleButton) v).isChecked();
 								if (isChecked) {
 									((ToggleButton) v).setBackgroundColor(Color.GREEN);
+
 								} else {
 									((ToggleButton) v).setBackgroundColor(Color.GRAY);
 								}

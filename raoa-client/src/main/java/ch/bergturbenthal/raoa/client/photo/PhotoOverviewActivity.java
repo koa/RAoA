@@ -2,6 +2,8 @@ package ch.bergturbenthal.raoa.client.photo;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -32,6 +34,7 @@ import android.widget.AdapterView.OnItemClickListener;
 import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.EditText;
 import android.widget.GridView;
+import android.widget.ShareActionProvider;
 import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.album.AlbumOverviewActivity;
 import ch.bergturbenthal.raoa.client.binding.AbstractViewHandler;
@@ -39,21 +42,39 @@ import ch.bergturbenthal.raoa.client.binding.ComplexCursorAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.TextViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
-import ch.bergturbenthal.raoa.client.util.KeywordUtil;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoOverviewActivity extends Activity {
+	private static class EntryValues {
+		Collection<String> keywords = new HashSet<String>();
+		Uri thumbnailUri;
+	}
+
+	private static interface KeywordsHandler {
+		void handleKeywords(final Collection<String> keywords);
+	}
+
 	private enum UiMode {
 		NAVIGATION, SELECTION
 	}
 
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
-	private Uri albumEntriesUri;
+	/**
+	 * 
+	 */
+	private static final String MODE_KEY = PhotoOverviewActivity.class.getName() + "-mode";
 
+	/**
+	 * 
+	 */
+	private static final String SELECTION_KEY = PhotoOverviewActivity.class.getName() + "-selection";
+
+	private Uri albumEntriesUri;
 	private String albumTitle = null;
 	private int currentItemIndex;
 	private UiMode currentMode = UiMode.NAVIGATION;
+
 	private ComplexCursorAdapter cursorAdapter;
 
 	private GridView gridview;
@@ -62,7 +83,7 @@ public class PhotoOverviewActivity extends Activity {
 
 	private int lastLongClickposition = -1;
 
-	private final Map<String, Collection<String>> selectedEntries = new HashMap<String, Collection<String>>();
+	private final Map<String, EntryValues> selectedEntries = new HashMap<String, EntryValues>();
 
 	private void activateNavigationMode() {
 		currentMode = UiMode.NAVIGATION;
@@ -80,9 +101,15 @@ public class PhotoOverviewActivity extends Activity {
 		invalidateOptionsMenu();
 	}
 
-	private void addEntryToSelection(final Pair<String, Collection<String>> entry) {
-		selectedEntries.put(entry.first, entry.second);
+	private void addEntryToSelection(final Pair<String, EntryValues> pair) {
+		selectedEntries.put(pair.first, pair.second);
 		invalidateOptionsMenu();
+	}
+
+	private List<String> getKnownKeywords() {
+		final Cursor cursor = getContentResolver().query(Client.KEYWORDS_URI, new String[] { Client.KeywordEntry.KEYWORD, Client.KeywordEntry.COUNT }, null, null, null);
+		final List<String> keywordsFromCursor = readOrderedKeywordsFromCursor(cursor);
+		return keywordsFromCursor;
 	}
 
 	private boolean longClick(final int position) {
@@ -102,6 +129,25 @@ public class PhotoOverviewActivity extends Activity {
 		}
 		redraw();
 		return true;
+	}
+
+	/**
+	 * @return
+	 */
+	private ArrayList<Uri> makeCurrentSelectedUris() {
+		final ArrayList<Uri> ret = new ArrayList<Uri>();
+		for (final EntryValues value : selectedEntries.values()) {
+			ret.add(value.thumbnailUri);
+		}
+		return ret;
+	}
+
+	private EntryValues makeEntry(final String keywordValue, final String uriString) {
+		final EntryValues values = new EntryValues();
+		final Collection<String> keywords = Client.AlbumEntry.decodeKeywords(keywordValue);
+		values.keywords = keywords;
+		values.thumbnailUri = Uri.parse(uriString);
+		return values;
 	}
 
 	/**
@@ -142,7 +188,6 @@ public class PhotoOverviewActivity extends Activity {
 	@Override
 	protected void onCreate(final Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		currentMode = UiMode.NAVIGATION;
 		getActionBar().setDisplayHomeAsUpEnabled(true);
 		// get album id out of intent
 		final Bundle bundle = getIntent().getExtras();
@@ -150,8 +195,19 @@ public class PhotoOverviewActivity extends Activity {
 		final Uri albumUri = Uri.parse(bundle.getString("album_uri"));
 		Uri.parse(bundle.getString("album_uri"));
 		setContentView(R.layout.photo_overview);
+
+		if (savedInstanceState != null) {
+			final String[] savedSelection = savedInstanceState.getStringArray(SELECTION_KEY);
+			if (savedSelection != null) {
+				for (final String selectedEntry : savedSelection) {
+					selectedEntries.put(selectedEntry, new EntryValues());
+				}
+			}
+		}
+
 		final ComplexCursorAdapter adapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
-																																																																		Client.AlbumEntry.META_KEYWORDS });
+																																																																		Client.AlbumEntry.META_KEYWORDS,
+																																																																		Client.AlbumEntry.THUMBNAIL });
 		getLoaderManager().initLoader(0, null, new LoaderCallbacks<Cursor>() {
 
 			@Override
@@ -174,12 +230,13 @@ public class PhotoOverviewActivity extends Activity {
 					}
 					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
 					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
-					for (int i = 0; i < data.getCount(); i++) {
+					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL);
+					do {
 						final String uri = data.getString(entryColumn);
 						if (oldSelectedEntries.contains(uri)) {
-							selectedEntries.put(uri, Client.AlbumEntry.decodeKeywords(data.getString(keywordsColumn)));
+							selectedEntries.put(uri, makeEntry(data.getString(keywordsColumn), data.getString(thumbnailColumn)));
 						}
-					}
+					} while (data.moveToNext());
 				} finally {
 					adapter.swapCursor(data);
 					invalidateOptionsMenu();
@@ -214,9 +271,17 @@ public class PhotoOverviewActivity extends Activity {
 		if (cursor.moveToFirst()) {
 			albumTitle = cursor.getString(0);
 		}
-		knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
+		knownKeywords = getKnownKeywords();
 
-		activateNavigationMode();
+		final UiMode mode = savedInstanceState == null ? UiMode.NAVIGATION : UiMode.valueOf(savedInstanceState.getString(MODE_KEY, UiMode.NAVIGATION.name()));
+		switch (mode) {
+		case NAVIGATION:
+			activateNavigationMode();
+			break;
+		case SELECTION:
+			activateSelectionMode();
+			break;
+		}
 	}
 
 	@Override
@@ -224,17 +289,27 @@ public class PhotoOverviewActivity extends Activity {
 		switch (currentMode) {
 		case SELECTION:
 			getMenuInflater().inflate(R.menu.photo_overview_selection_menu, menu);
-			final MenuItem tagsMenu = menu.findItem(R.id.photo_overview_menu_tag_list_menu);
-			final SubMenu tagsSubmenu = tagsMenu.getSubMenu();
+
+			final ShareActionProvider shareActionProvider = (ShareActionProvider) menu.findItem(R.id.photo_overview_menu_share).getActionProvider();
+			final Intent shareIntent = new Intent(Intent.ACTION_SEND_MULTIPLE);
+			shareIntent.setType("image/jpeg");
+			shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, makeCurrentSelectedUris());
+			shareActionProvider.setShareIntent(shareIntent);
+
+			final MenuItem addTagsMenu = menu.findItem(R.id.photo_overview_menu_add_tag_menu);
+			final SubMenu tagsSubmenu = addTagsMenu.getSubMenu();
 			tagsSubmenu.removeGroup(R.id.photo_overview_menu_existing_tag);
 			final Map<String, Integer> selectedKeywordCounts = new HashMap<String, Integer>();
-			for (final Collection<String> keywordsPerImage : selectedEntries.values()) {
-				for (final String keyword : keywordsPerImage) {
+			for (final EntryValues entryValues : selectedEntries.values()) {
+				for (final String keyword : entryValues.keywords) {
 					final Integer existingKeyword = selectedKeywordCounts.get(keyword);
 					if (existingKeyword != null) {
 						selectedKeywordCounts.put(keyword, Integer.valueOf(existingKeyword.intValue() + 1));
 					} else {
 						selectedKeywordCounts.put(keyword, Integer.valueOf(1));
+					}
+					if (!knownKeywords.contains(keyword)) {
+						knownKeywords.add(keyword);
 					}
 				}
 			}
@@ -249,6 +324,23 @@ public class PhotoOverviewActivity extends Activity {
 						setTagToSelectedEntries(keyword);
 						return true;
 					}
+				});
+			}
+
+			final MenuItem removeTagsMenu = menu.findItem(R.id.photo_overview_menu_remove_tag_menu);
+			final SubMenu removeTagsSubmenu = removeTagsMenu.getSubMenu();
+			removeTagsSubmenu.clear();
+			final ArrayList<String> keywordsByCount = orderByCount(selectedKeywordCounts);
+			for (final String keyword : keywordsByCount) {
+				final String keywordDisplay = keyword + " (" + selectedKeywordCounts.get(keyword) + ")";
+				final MenuItem removeTagItem = removeTagsSubmenu.add(keywordDisplay);
+				removeTagItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+					@Override
+					public boolean onMenuItemClick(final MenuItem item) {
+						removeTagFromSelectedEntries(keyword);
+						return true;
+					}
+
 				});
 			}
 
@@ -290,6 +382,13 @@ public class PhotoOverviewActivity extends Activity {
 		return super.onOptionsItemSelected(item);
 	}
 
+	@Override
+	protected void onSaveInstanceState(final Bundle outState) {
+		super.onSaveInstanceState(outState);
+		outState.putCharSequence(MODE_KEY, currentMode.name());
+		outState.putStringArray(SELECTION_KEY, selectedEntries.keySet().toArray(new String[0]));
+	}
+
 	private void openDetailView(final int position) {
 		final Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailViewActivity.class);
 		intent.putExtra("album_uri", albumEntriesUri.toString());
@@ -297,16 +396,50 @@ public class PhotoOverviewActivity extends Activity {
 		startActivityForResult(intent, 1);
 	}
 
-	private Pair<String, Collection<String>> readCurrentEntry(final int position) {
+	private ArrayList<String> orderByCount(final Map<String, Integer> countOrder) {
+		final ArrayList<String> keyWords = new ArrayList<String>(countOrder.keySet());
+		Collections.sort(keyWords, new Comparator<String>() {
+			@Override
+			public int compare(final String lhs, final String rhs) {
+				return -countOrder.get(lhs).compareTo(countOrder.get(rhs));
+			}
+		});
+		return keyWords;
+	}
+
+	private Pair<String, EntryValues> readCurrentEntry(final int position) {
 		final Object[] additionalValues = cursorAdapter.getAdditionalValues(position);
 		final String uri = (String) additionalValues[0];
-		final Collection<String> keywords = Client.AlbumEntry.decodeKeywords((String) additionalValues[1]);
-		return new Pair<String, Collection<String>>(uri, keywords);
+		final String keywordValue = (String) additionalValues[1];
+		final String uriString = (String) additionalValues[2];
+		return new Pair<String, EntryValues>(uri, makeEntry(keywordValue, uriString));
+	}
+
+	private List<String> readOrderedKeywordsFromCursor(final Cursor data) {
+		if (data == null || !data.moveToFirst()) {
+			return Collections.emptyList();
+		}
+		final Map<String, Integer> countOrder = new HashMap<String, Integer>();
+		do {
+			final String keyword = data.getString(0);
+			final int count = data.getInt(1);
+			countOrder.put(keyword, Integer.valueOf(count));
+		} while (data.moveToNext());
+		return orderByCount(countOrder);
 	}
 
 	private void redraw() {
 		gridview.requestLayout();
 		gridview.invalidateViews();
+	}
+
+	private void removeTagFromSelectedEntries(final String keyword) {
+		updateSelectedEntries(new KeywordsHandler() {
+			@Override
+			public void handleKeywords(final Collection<String> keywords) {
+				keywords.remove(keyword);
+			}
+		});
 	}
 
 	/**
@@ -328,23 +461,12 @@ public class PhotoOverviewActivity extends Activity {
 	}
 
 	private void setTagToSelectedEntries(final String tagValue) {
-		for (final String entryUri : selectedEntries.keySet()) {
-			final ContentResolver resolver = getContentResolver();
-			final Uri uri = Uri.parse(entryUri);
-			final Cursor queryCursor = resolver.query(uri, new String[] { Client.AlbumEntry.META_KEYWORDS }, null, null, null);
-			try {
-				if (!queryCursor.moveToFirst()) {
-					continue;
-				}
-				final Collection<String> keywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(queryCursor.getString(0)));
+		updateSelectedEntries(new KeywordsHandler() {
+			@Override
+			public void handleKeywords(final Collection<String> keywords) {
 				keywords.add(tagValue);
-				final ContentValues values = new ContentValues();
-				values.put(Client.AlbumEntry.META_KEYWORDS, Client.AlbumEntry.encodeKeywords(keywords));
-				resolver.update(uri, values, null, null);
-			} finally {
-				queryCursor.close();
 			}
-		}
+		});
 	}
 
 	private void shortClick(final int position) {
@@ -362,11 +484,32 @@ public class PhotoOverviewActivity extends Activity {
 	 * @param position
 	 */
 	private void toggleSelection(final int position) {
-		final Pair<String, Collection<String>> currentEntry = readCurrentEntry(position);
+		final Pair<String, EntryValues> currentEntry = readCurrentEntry(position);
 		if (selectedEntries.remove(currentEntry.first) == null) {
 			selectedEntries.put(currentEntry.first, currentEntry.second);
 		}
 		redraw();
+		invalidateOptionsMenu();
+	}
+
+	private void updateSelectedEntries(final KeywordsHandler handler) {
+		for (final String entryUri : selectedEntries.keySet()) {
+			final ContentResolver resolver = getContentResolver();
+			final Uri uri = Uri.parse(entryUri);
+			final Cursor queryCursor = resolver.query(uri, new String[] { Client.AlbumEntry.META_KEYWORDS }, null, null, null);
+			try {
+				if (!queryCursor.moveToFirst()) {
+					continue;
+				}
+				final Collection<String> keywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(queryCursor.getString(0)));
+				handler.handleKeywords(keywords);
+				final ContentValues values = new ContentValues();
+				values.put(Client.AlbumEntry.META_KEYWORDS, Client.AlbumEntry.encodeKeywords(keywords));
+				resolver.update(uri, values, null, null);
+			} finally {
+				queryCursor.close();
+			}
+		}
 		invalidateOptionsMenu();
 	}
 }
