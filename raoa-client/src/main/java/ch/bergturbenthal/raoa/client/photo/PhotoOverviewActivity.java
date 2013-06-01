@@ -60,6 +60,16 @@ public class PhotoOverviewActivity extends Activity {
 
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
+	/**
+	 * 
+	 */
+	private static final String MODE_KEY = PhotoOverviewActivity.class.getName() + "-mode";
+
+	/**
+	 * 
+	 */
+	private static final String SELECTION_KEY = PhotoOverviewActivity.class.getName() + "-selection";
+
 	private Uri albumEntriesUri;
 	private String albumTitle = null;
 	private int currentItemIndex;
@@ -184,7 +194,6 @@ public class PhotoOverviewActivity extends Activity {
 	@Override
 	protected void onCreate(final Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		currentMode = UiMode.NAVIGATION;
 		getActionBar().setDisplayHomeAsUpEnabled(true);
 		// get album id out of intent
 		final Bundle bundle = getIntent().getExtras();
@@ -192,6 +201,16 @@ public class PhotoOverviewActivity extends Activity {
 		final Uri albumUri = Uri.parse(bundle.getString("album_uri"));
 		Uri.parse(bundle.getString("album_uri"));
 		setContentView(R.layout.photo_overview);
+
+		if (savedInstanceState != null) {
+			final String[] savedSelection = savedInstanceState.getStringArray(SELECTION_KEY);
+			if (savedSelection != null) {
+				for (final String selectedEntry : savedSelection) {
+					selectedEntries.put(selectedEntry, new EntryValues());
+				}
+			}
+		}
+
 		final ComplexCursorAdapter adapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
 																																																																		Client.AlbumEntry.META_KEYWORDS,
 																																																																		Client.AlbumEntry.THUMBNAIL });
@@ -218,12 +237,12 @@ public class PhotoOverviewActivity extends Activity {
 					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
 					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
 					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL);
-					for (int i = 0; i < data.getCount(); i++) {
+					do {
 						final String uri = data.getString(entryColumn);
 						if (oldSelectedEntries.contains(uri)) {
 							selectedEntries.put(uri, makeEntry(data.getString(keywordsColumn), data.getString(thumbnailColumn)));
 						}
-					}
+					} while (data.moveToNext());
 				} finally {
 					adapter.swapCursor(data);
 					invalidateOptionsMenu();
@@ -260,7 +279,22 @@ public class PhotoOverviewActivity extends Activity {
 		}
 		knownKeywords = getKnownKeywords();
 
-		activateNavigationMode();
+		final UiMode mode = savedInstanceState == null ? UiMode.NAVIGATION : UiMode.valueOf(savedInstanceState.getString(MODE_KEY, UiMode.NAVIGATION.name()));
+		switch (mode) {
+		case NAVIGATION:
+			activateNavigationMode();
+			break;
+		case SELECTION:
+			activateSelectionMode();
+			break;
+		}
+	}
+
+	@Override
+	protected void onSaveInstanceState(final Bundle outState) {
+		super.onSaveInstanceState(outState);
+		outState.putCharSequence(MODE_KEY, currentMode.name());
+		outState.putStringArray(SELECTION_KEY, selectedEntries.keySet().toArray(new String[0]));
 	}
 
 	private void activateNavigationMode() {
