@@ -30,6 +30,11 @@ public class AlbumPagerAdapter extends FragmentStatePagerAdapter {
 		return fragment;
 	}
 
+	@Override
+	public int getItemPosition(final Object object) {
+		return POSITION_NONE;
+	}
+
 	public void setClientList(final List<String> clientNames) {
 		this.clientNames.clear();
 		this.clientNames.addAll(clientNames);

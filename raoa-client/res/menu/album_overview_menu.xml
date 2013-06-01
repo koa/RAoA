@@ -3,6 +3,7 @@
 
     <item
         android:id="@+id/createAlbumMenuItem"
+        android:showAsAction="ifRoom"
         android:title="@string/menu_create_album">
     </item>
 
