@@ -1,16 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android" >
-    <item android:id="@+id/photo_overview_menu_close_selection" android:title="Ok" android:showAsAction="always"></item>
-    <item android:id="@+id/photo_overview_menu_add_tag_menu" android:title="Set Tag" android:showAsAction="ifRoom">
+
+    <item
+        android:id="@+id/photo_overview_menu_close_selection"
+        android:icon="@drawable/ic_action_close_selection_mode"
+        android:showAsAction="always"
+        android:title="Ok">
+    </item>
+    <item
+        android:id="@+id/photo_overview_menu_add_tag_menu"
+        android:icon="@drawable/ic_action_add_tag_icon"
+        android:showAsAction="ifRoom"
+        android:title="Set Tag">
         <menu>
-            <item android:id="@+id/photo_overview_menu_add_new_tag" android:title="new Tag ..."/>
-            <group android:id="@+id/photo_overview_menu_existing_tag">
+            <item
+                android:id="@+id/photo_overview_menu_add_new_tag"
+                android:title="new Tag ..."/>
+
+            <group android:id="@+id/photo_overview_menu_existing_tag" >
             </group>
         </menu>
     </item>
-    <item android:id="@+id/photo_overview_remove_tag_menu" android:title="Remove Tag" android:showAsAction="ifRoom">
-        <menu></menu>
+    <item
+        android:id="@+id/photo_overview_remove_tag_menu"
+        android:icon="@drawable/ic_action_remove_tag_icon"
+        android:showAsAction="ifRoom"
+        android:title="Remove Tag">
+        <menu>
+        </menu>
     </item>
-    
 
 </menu>
