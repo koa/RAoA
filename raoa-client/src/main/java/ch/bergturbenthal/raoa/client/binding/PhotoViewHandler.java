@@ -13,9 +13,11 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import android.content.ContentResolver;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.DisplayMetrics;
@@ -117,7 +119,6 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 			}
 		}
 		imageView.setImageResource(android.R.drawable.picture_frame);
-		final Uri uri = Uri.parse(thumbnailUriString);
 
 		final AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
 
@@ -126,39 +127,60 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 
 			@Override
 			protected Void doInBackground(final Void... params) {
+				final Uri uri = Uri.parse(thumbnailUriString);
 				try {
 					// get the real image
-					InputStream imageStream = view.getContext().getContentResolver().openInputStream(uri);
-					try {
-
-						// First decode with inJustDecodeBounds=true to check dimensions
-						final BitmapFactory.Options options = new BitmapFactory.Options();
-						options.inJustDecodeBounds = true;
-						BitmapFactory.decodeStream(imageStream, null, options);
-						if (targetSizeCalculator != null) {
-							final Pair<Integer, Integer> targetSize = targetSizeCalculator.evaluateTargetSize(context);
-							if (targetSize != null && targetSize.first != null && targetSize.second != null) {
-								options.inSampleSize = BitmapUtil.calculateInSampleSize(options, targetSize.first.intValue(), targetSize.second.intValue());
+					final ContentResolver contentResolver = view.getContext().getContentResolver();
+					final String contentType = contentResolver.getType(uri);
+					if (contentType.startsWith("video")) {
+						final MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+						try {
+							retriever.setDataSource(context, uri);
+							bitmap = retriever.getFrameAtTime(-1, MediaMetadataRetriever.OPTION_PREVIOUS_SYNC);
+						} catch (final IllegalArgumentException ex) {
+							// Assume this is a corrupt video file
+						} catch (final RuntimeException ex) {
+							// Assume this is a corrupt video file.
+						} finally {
+							try {
+								retriever.release();
+							} catch (final RuntimeException ex) {
+								// Ignore failures while cleaning up.
 							}
 						}
+					} else {
+						InputStream imageStream = contentResolver.openInputStream(uri);
+						try {
 
-						imageStream.close();
-						imageStream = view.getContext().getContentResolver().openInputStream(uri);
+							// First decode with inJustDecodeBounds=true to check dimensions
+							final BitmapFactory.Options options = new BitmapFactory.Options();
+							options.inJustDecodeBounds = true;
+							BitmapFactory.decodeStream(imageStream, null, options);
+							if (targetSizeCalculator != null) {
+								final Pair<Integer, Integer> targetSize = targetSizeCalculator.evaluateTargetSize(context);
+								if (targetSize != null && targetSize.first != null && targetSize.second != null) {
+									options.inSampleSize = BitmapUtil.calculateInSampleSize(options, targetSize.first.intValue(), targetSize.second.intValue());
+								}
+							}
 
-						// Decode bitmap with inSampleSize set
-						options.inJustDecodeBounds = false;
-						options.inPurgeable = true;
-						options.inInputShareable = true;
-						bitmap = BitmapFactory.decodeStream(imageStream, null, options);
-
-						bitmapCache.put(thumbnailUriString, new SoftReference<Bitmap>(bitmap));
-					} finally {
-						if (imageStream != null) {
 							imageStream.close();
+							imageStream = contentResolver.openInputStream(uri);
+
+							// Decode bitmap with inSampleSize set
+							options.inJustDecodeBounds = false;
+							options.inPurgeable = true;
+							options.inInputShareable = true;
+							bitmap = BitmapFactory.decodeStream(imageStream, null, options);
+
+						} finally {
+							if (imageStream != null) {
+								imageStream.close();
+							}
 						}
 					}
+					bitmapCache.put(thumbnailUriString, new SoftReference<Bitmap>(bitmap));
 				} catch (final Throwable t) {
-					Log.i(TAG, "Cannot load image", t);
+					Log.i(TAG, "Cannot load image from " + uri, t);
 					bitmap = null;
 				}
 				return null;
