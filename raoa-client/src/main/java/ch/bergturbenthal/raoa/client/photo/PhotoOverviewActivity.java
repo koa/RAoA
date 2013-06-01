@@ -23,6 +23,7 @@ import android.content.Loader;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Pair;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MenuItem.OnMenuItemClickListener;
@@ -31,7 +32,6 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.AdapterView.OnItemLongClickListener;
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.GridView;
 import ch.bergturbenthal.raoa.R;
@@ -59,23 +59,35 @@ public class PhotoOverviewActivity extends Activity {
 
 	private GridView gridview;
 
+	private List<String> knownKeywords;
+
 	private int lastLongClickposition = -1;
 
-	private final Collection<String> selectedEntries = new HashSet<String>();
+	private final Map<String, Collection<String>> selectedEntries = new HashMap<String, Collection<String>>();
 
 	@Override
 	public boolean onCreateOptionsMenu(final Menu menu) {
 		switch (currentMode) {
 		case SELECTION:
 			getMenuInflater().inflate(R.menu.photo_overview_selection_menu, menu);
-
 			final MenuItem tagsMenu = menu.findItem(R.id.photo_overview_menu_tag_list_menu);
 			final SubMenu tagsSubmenu = tagsMenu.getSubMenu();
 			tagsSubmenu.removeGroup(R.id.photo_overview_menu_existing_tag);
-			final Cursor cursor = getContentResolver().query(Client.KEYWORDS_URI, new String[] { Client.KeywordEntry.KEYWORD, Client.KeywordEntry.COUNT }, null, null, null);
-			final List<String> keywordsFromCursor = readOrderedKeywordsFromCursor(cursor);
-			for (final String keyword : keywordsFromCursor) {
-				final MenuItem item = tagsSubmenu.add(R.id.photo_overview_menu_existing_tag, Menu.NONE, Menu.NONE, keyword);
+			final Map<String, Integer> selectedKeywordCounts = new HashMap<String, Integer>();
+			for (final Collection<String> keywordsPerImage : selectedEntries.values()) {
+				for (final String keyword : keywordsPerImage) {
+					final Integer existingKeyword = selectedKeywordCounts.get(keyword);
+					if (existingKeyword != null) {
+						selectedKeywordCounts.put(keyword, Integer.valueOf(existingKeyword.intValue() + 1));
+					} else {
+						selectedKeywordCounts.put(keyword, Integer.valueOf(1));
+					}
+				}
+			}
+			for (final String keyword : knownKeywords) {
+				final Integer count = selectedKeywordCounts.get(keyword);
+				final String keywordDisplay = count != null ? keyword + " (" + count + ")" : keyword;
+				final MenuItem item = tagsSubmenu.add(R.id.photo_overview_menu_existing_tag, Menu.NONE, Menu.NONE, keywordDisplay);
 				item.setOnMenuItemClickListener(new OnMenuItemClickListener() {
 
 					@Override
@@ -143,14 +155,45 @@ public class PhotoOverviewActivity extends Activity {
 		final Uri albumUri = Uri.parse(bundle.getString("album_uri"));
 		Uri.parse(bundle.getString("album_uri"));
 		setContentView(R.layout.photo_overview);
+		final ComplexCursorAdapter adapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
+																																																																		Client.AlbumEntry.META_KEYWORDS });
+		getLoaderManager().initLoader(0, null, new LoaderCallbacks<Cursor>() {
+
+			@Override
+			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
+				return new CursorLoader(PhotoOverviewActivity.this, albumEntriesUri, adapter.requiredFields(), null, null, null);
+			}
+
+			@Override
+			public void onLoaderReset(final Loader<Cursor> loader) {
+				adapter.swapCursor(null);
+			}
+
+			@Override
+			public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
+				final Collection<String> oldSelectedEntries = new HashSet<String>(selectedEntries.keySet());
+				selectedEntries.clear();
+				try {
+					if (data == null || !data.moveToFirst()) {
+						return;
+					}
+					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
+					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
+					for (int i = 0; i < data.getCount(); i++) {
+						final String uri = data.getString(entryColumn);
+						if (oldSelectedEntries.contains(uri)) {
+							selectedEntries.put(uri, Client.AlbumEntry.decodeKeywords(data.getString(keywordsColumn)));
+						}
+					}
+				} finally {
+					adapter.swapCursor(data);
+					invalidateOptionsMenu();
+				}
+			}
+		});
 
 		// Create an empty adapter we will use to display the loaded data.
-		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(	getLoaderManager(),
-																																this,
-																																albumEntriesUri,
-																																R.layout.photo_overview_item,
-																																makeHandlers(),
-																																new String[] { Client.AlbumEntry.ENTRY_URI });
+		cursorAdapter = adapter;
 
 		gridview = (GridView) findViewById(R.id.photo_overview);
 		gridview.setAdapter(cursorAdapter);
@@ -176,6 +219,8 @@ public class PhotoOverviewActivity extends Activity {
 		if (cursor.moveToFirst()) {
 			albumTitle = cursor.getString(0);
 		}
+		knownKeywords = getKnownKeywords();
+
 		activateNavigationMode();
 	}
 
@@ -191,36 +236,19 @@ public class PhotoOverviewActivity extends Activity {
 	}
 
 	private void activateSelectionMode() {
-		final ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item);
-		getLoaderManager().initLoader(1, null, new LoaderCallbacks<Cursor>() {
-
-			@Override
-			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
-				return new CursorLoader(PhotoOverviewActivity.this,
-																Client.KEYWORDS_URI,
-																new String[] { Client.KeywordEntry.KEYWORD, Client.KeywordEntry.COUNT },
-																null,
-																null,
-																null);
-			}
-
-			@Override
-			public void onLoaderReset(final Loader<Cursor> loader) {
-				adapter.clear();
-			}
-
-			@Override
-			public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
-				fillTagsFromCursor(adapter, data);
-			}
-		});
 		currentMode = UiMode.SELECTION;
 		invalidateOptionsMenu();
 	}
 
-	private void fillTagsFromCursor(final ArrayAdapter<String> adapter, final Cursor data) {
-		adapter.clear();
-		adapter.addAll(readOrderedKeywordsFromCursor(data));
+	private void addEntryToSelection(final Pair<String, Collection<String>> entry) {
+		selectedEntries.put(entry.first, entry.second);
+		invalidateOptionsMenu();
+	}
+
+	private List<String> getKnownKeywords() {
+		final Cursor cursor = getContentResolver().query(Client.KEYWORDS_URI, new String[] { Client.KeywordEntry.KEYWORD, Client.KeywordEntry.COUNT }, null, null, null);
+		final List<String> keywordsFromCursor = readOrderedKeywordsFromCursor(cursor);
+		return keywordsFromCursor;
 	}
 
 	private boolean longClick(final int position) {
@@ -228,14 +256,13 @@ public class PhotoOverviewActivity extends Activity {
 			final int lower = Math.min(position, lastLongClickposition);
 			final int upper = Math.max(position, lastLongClickposition);
 			for (int i = lower; i <= upper; i++) {
-				selectedEntries.add(readCurrentEntryUri(i));
+				addEntryToSelection(readCurrentEntry(i));
 			}
 			lastLongClickposition = -1;
 		} else {
 			lastLongClickposition = position;
+			addEntryToSelection(readCurrentEntry(position));
 		}
-		final String entryUri = readCurrentEntryUri(position);
-		selectedEntries.add(entryUri);
 		if (currentMode != UiMode.SELECTION) {
 			activateSelectionMode();
 		}
@@ -255,7 +282,7 @@ public class PhotoOverviewActivity extends Activity {
 			@Override
 			public void bindView(final View view, final Context context, final Map<String, Object> values) {
 				final String entryUri = (String) values.get(Client.AlbumEntry.ENTRY_URI);
-				if (selectedEntries.contains(entryUri)) {
+				if (selectedEntries.containsKey(entryUri)) {
 					view.setBackgroundResource(R.drawable.layout_border);
 				} else {
 					view.setBackgroundResource(R.drawable.layout_no_border);
@@ -277,8 +304,11 @@ public class PhotoOverviewActivity extends Activity {
 		startActivityForResult(intent, 1);
 	}
 
-	private String readCurrentEntryUri(final int position) {
-		return (String) cursorAdapter.getAdditionalValues(position)[0];
+	private Pair<String, Collection<String>> readCurrentEntry(final int position) {
+		final Object[] additionalValues = cursorAdapter.getAdditionalValues(position);
+		final String uri = (String) additionalValues[0];
+		final Collection<String> keywords = Client.AlbumEntry.decodeKeywords((String) additionalValues[1]);
+		return new Pair<String, Collection<String>>(uri, keywords);
 	}
 
 	private List<String> readOrderedKeywordsFromCursor(final Cursor data) {
@@ -325,7 +355,7 @@ public class PhotoOverviewActivity extends Activity {
 	}
 
 	private void setTagToSelectedEntries(final String tagValue) {
-		for (final String entryUri : selectedEntries) {
+		for (final String entryUri : selectedEntries.keySet()) {
 			final ContentResolver resolver = getContentResolver();
 			final Uri uri = Uri.parse(entryUri);
 			final Cursor queryCursor = resolver.query(uri, new String[] { Client.AlbumEntry.META_KEYWORDS }, null, null, null);
@@ -359,10 +389,11 @@ public class PhotoOverviewActivity extends Activity {
 	 * @param position
 	 */
 	private void toggleSelection(final int position) {
-		final String uri = readCurrentEntryUri(position);
-		if (!selectedEntries.remove(uri)) {
-			selectedEntries.add(uri);
+		final Pair<String, Collection<String>> currentEntry = readCurrentEntry(position);
+		if (selectedEntries.remove(currentEntry.first) == null) {
+			selectedEntries.put(currentEntry.first, currentEntry.second);
 		}
 		redraw();
+		invalidateOptionsMenu();
 	}
 }

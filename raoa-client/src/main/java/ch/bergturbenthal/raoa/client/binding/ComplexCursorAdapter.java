@@ -50,7 +50,7 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 
 	}
 
-	private static ComplexCursorAdapter registerLoaderManager(final LoaderManager loaderManager,
+	public static ComplexCursorAdapter registerLoaderManager(	final LoaderManager loaderManager,
 																														final Context context,
 																														final Uri uri,
 																														final String selection,
