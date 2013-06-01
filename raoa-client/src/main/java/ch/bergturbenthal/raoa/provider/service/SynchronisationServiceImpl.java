@@ -948,21 +948,27 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	}
 
 	private void loadThumbnailsOfAlbum(final String archiveName, final String albumId) {
-		final Collection<String> albumEntries = listAllAlbumEntries(archiveName, albumId);
-		boolean allOk = true;
-		for (final String thumbnailId : albumEntries) {
-			final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, thumbnailId));
-			allOk &= thumbnailEntry != null && thumbnailEntry.confirmedByServer;
-		}
-		if (allOk) {
-			callInTransaction(new Callable<Void>() {
-				@Override
-				public Void call() throws Exception {
-					store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE).setSynced(true);
-					cursorNotifications.notifySingleAlbumCursorChanged(new AlbumIndex(archiveName, albumId));
-					return null;
+		for (int i = 0; i < 2; i++) {
+			final Collection<String> albumEntries = listAllAlbumEntries(archiveName, albumId);
+			boolean allOk = true;
+			for (final String thumbnailId : albumEntries) {
+				final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, thumbnailId));
+				if (thumbnailEntry != null && !thumbnailEntry.confirmedByServer && i == 0) {
+					thumbnailCache.remove(new AlbumEntryIndex(archiveName, albumId, thumbnailId));
 				}
-			});
+				allOk &= thumbnailEntry != null && thumbnailEntry.confirmedByServer;
+			}
+			if (allOk) {
+				callInTransaction(new Callable<Void>() {
+					@Override
+					public Void call() throws Exception {
+						store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE).setSynced(true);
+						cursorNotifications.notifySingleAlbumCursorChanged(new AlbumIndex(archiveName, albumId));
+						return null;
+					}
+				});
+				return;
+			}
 		}
 	}
 
