@@ -2,8 +2,6 @@ package ch.bergturbenthal.raoa.client.photo;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -41,6 +39,7 @@ import ch.bergturbenthal.raoa.client.binding.ComplexCursorAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.TextViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
+import ch.bergturbenthal.raoa.client.util.KeywordUtil;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoOverviewActivity extends Activity {
@@ -84,12 +83,6 @@ public class PhotoOverviewActivity extends Activity {
 	private void addEntryToSelection(final Pair<String, Collection<String>> entry) {
 		selectedEntries.put(entry.first, entry.second);
 		invalidateOptionsMenu();
-	}
-
-	private List<String> getKnownKeywords() {
-		final Cursor cursor = getContentResolver().query(Client.KEYWORDS_URI, new String[] { Client.KeywordEntry.KEYWORD, Client.KeywordEntry.COUNT }, null, null, null);
-		final List<String> keywordsFromCursor = readOrderedKeywordsFromCursor(cursor);
-		return keywordsFromCursor;
 	}
 
 	private boolean longClick(final int position) {
@@ -221,7 +214,7 @@ public class PhotoOverviewActivity extends Activity {
 		if (cursor.moveToFirst()) {
 			albumTitle = cursor.getString(0);
 		}
-		knownKeywords = getKnownKeywords();
+		knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
 
 		activateNavigationMode();
 	}
@@ -309,26 +302,6 @@ public class PhotoOverviewActivity extends Activity {
 		final String uri = (String) additionalValues[0];
 		final Collection<String> keywords = Client.AlbumEntry.decodeKeywords((String) additionalValues[1]);
 		return new Pair<String, Collection<String>>(uri, keywords);
-	}
-
-	private List<String> readOrderedKeywordsFromCursor(final Cursor data) {
-		if (data == null || !data.moveToFirst()) {
-			return Collections.emptyList();
-		}
-		final Map<String, Integer> countOrder = new HashMap<String, Integer>();
-		do {
-			final String keyword = data.getString(0);
-			final int count = data.getInt(1);
-			countOrder.put(keyword, Integer.valueOf(count));
-		} while (data.moveToNext());
-		final ArrayList<String> keyWords = new ArrayList<String>(countOrder.keySet());
-		Collections.sort(keyWords, new Comparator<String>() {
-			@Override
-			public int compare(final String lhs, final String rhs) {
-				return -countOrder.get(lhs).compareTo(countOrder.get(rhs));
-			}
-		});
-		return keyWords;
 	}
 
 	private void redraw() {

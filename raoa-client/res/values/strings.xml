@@ -19,4 +19,6 @@
     <string name="menu_create_album">New Album</string>
     <string name="create_folder_server_title">Server</string>    
     <string name="edit_tags">Tags</string>    
+    <string name="plain_photo_view">None</string>    
+    <string name="tag">Tag</string>    
 </resources>

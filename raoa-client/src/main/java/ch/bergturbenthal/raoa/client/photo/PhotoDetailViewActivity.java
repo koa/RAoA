@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.client.photo;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import android.app.ActionBar;
@@ -10,19 +11,24 @@ import android.app.Activity;
 import android.app.FragmentTransaction;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.view.ViewPager;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.RelativeLayout;
+import android.widget.FrameLayout.LayoutParams;
+import android.widget.LinearLayout;
+import android.widget.ToggleButton;
 import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.binding.AbstractViewHandler;
 import ch.bergturbenthal.raoa.client.binding.CurserPagerAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
+import ch.bergturbenthal.raoa.client.util.KeywordUtil;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoDetailViewActivity extends Activity {
@@ -62,25 +68,49 @@ public class PhotoDetailViewActivity extends Activity {
 
 			@Override
 			public void bindView(final View view, final Context context, final Map<String, Object> values) {
-				final RelativeLayout overlayLayout = (RelativeLayout) view.findViewById(R.id.photo_edit_overlay_layout);
+				final LinearLayout overlayLayout = (LinearLayout) view.findViewById(R.id.photo_edit_overlay_layout);
 
 				if (isOverlayVisible) {
+					// overlayLayout.removeAllViewsInLayout();
 					overlayLayout.setVisibility(View.VISIBLE);
-					// final LinearLayout ll = new LinearLayout(context);
-					// final TextView tag1 = new TextView(context);
-					// tag1.setText("Tag 1");
-					// ll.addView(tag1);
-					// final TextView tag2 = new TextView(context);
-					// tag1.setText("Tag 2");
-					// ll.addView(tag2);
-					// final TextView tag3 = new TextView(context);
-					// tag1.setText("Tag 3");
-					// ll.addView(tag3);
-					// overlayLayout.addView(ll);
+					final List<String> knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
+					final int max = knownKeywords.size() < 5 ? knownKeywords.size() : 5;
+					for (int i = 0; i < max; i++) {
+						final ToggleButton toggleButton = new ToggleButton(context);
+						final String tag = knownKeywords.get(i);
+						toggleButton.setSingleLine();
+						toggleButton.setText(tag);
+						toggleButton.setTextOff(tag);
+						toggleButton.setTextOn(tag);
+						toggleButton.setLayoutParams(new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+						if (toggleButton.isChecked()) {
+							toggleButton.setBackgroundColor(Color.GREEN);
+						} else {
+							toggleButton.setBackgroundColor(Color.GRAY);
+						}
+						toggleButton.setOnClickListener(new OnClickListener() {
+
+							@Override
+							public void onClick(final View v) {
+								final boolean isChecked = ((ToggleButton) v).isChecked();
+								if (isChecked) {
+									((ToggleButton) v).setBackgroundColor(Color.GREEN);
+								} else {
+									((ToggleButton) v).setBackgroundColor(Color.GRAY);
+								}
+
+								overlayLayout.getRootView().requestLayout();
+								overlayLayout.invalidate();
+							}
+						});
+						overlayLayout.addView(toggleButton);
+					}
 
 				} else {
 					overlayLayout.setVisibility(View.INVISIBLE);
 				}
+				overlayLayout.getRootView().requestLayout();
+				overlayLayout.invalidate();
 				view.setOnClickListener(new View.OnClickListener() {
 
 					@Override
@@ -217,7 +247,7 @@ public class PhotoDetailViewActivity extends Activity {
 			}
 		});
 		actionBar.addTab(editTagsTab);
-		final Tab plainViewTab = actionBar.newTab().setText(R.string.edit_tags).setTabListener(new TabListener() {
+		final Tab plainViewTab = actionBar.newTab().setText(R.string.plain_photo_view).setTabListener(new TabListener() {
 
 			@Override
 			public void onTabReselected(final Tab tab, final FragmentTransaction ft) {
