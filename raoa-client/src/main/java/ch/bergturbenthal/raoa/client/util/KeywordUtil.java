@@ -14,8 +14,11 @@ import ch.bergturbenthal.raoa.provider.Client;
 public class KeywordUtil {
 	public static List<String> getKnownKeywords(final ContentResolver contextResolver) {
 		final Cursor cursor = contextResolver.query(Client.KEYWORDS_URI, new String[] { Client.KeywordEntry.KEYWORD, Client.KeywordEntry.COUNT }, null, null, null);
-		final List<String> keywordsFromCursor = readOrderedKeywordsFromCursor(cursor);
-		return keywordsFromCursor;
+		try {
+			return readOrderedKeywordsFromCursor(cursor);
+		} finally {
+			cursor.close();
+		}
 	}
 
 	private static List<String> readOrderedKeywordsFromCursor(final Cursor data) {

@@ -274,8 +274,12 @@ public class PhotoOverviewActivity extends Activity {
 		gridview.setWillNotCacheDrawing(false);
 
 		final Cursor cursor = getContentResolver().query(albumUri, new String[] { Client.Album.TITLE }, null, null, null);
-		if (cursor.moveToFirst()) {
-			albumTitle = cursor.getString(0);
+		try {
+			if (cursor.moveToFirst()) {
+				albumTitle = cursor.getString(0);
+			}
+		} finally {
+			cursor.close();
 		}
 		knownKeywords = getKnownKeywords();
 
@@ -313,8 +317,11 @@ public class PhotoOverviewActivity extends Activity {
 
 	private List<String> getKnownKeywords() {
 		final Cursor cursor = getContentResolver().query(Client.KEYWORDS_URI, new String[] { Client.KeywordEntry.KEYWORD, Client.KeywordEntry.COUNT }, null, null, null);
-		final List<String> keywordsFromCursor = readOrderedKeywordsFromCursor(cursor);
-		return keywordsFromCursor;
+		try {
+			return readOrderedKeywordsFromCursor(cursor);
+		} finally {
+			cursor.close();
+		}
 	}
 
 	private boolean longClick(final int position) {

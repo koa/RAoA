@@ -133,7 +133,11 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 	@Override
 	public Cursor swapCursor(final Cursor newCursor) {
 		viewBinder.setCursor(newCursor);
-		return super.swapCursor(newCursor);
+		final Cursor oldCursor = super.swapCursor(newCursor);
+		if (oldCursor != null) {
+			oldCursor.close();
+		}
+		return oldCursor;
 	}
 
 }

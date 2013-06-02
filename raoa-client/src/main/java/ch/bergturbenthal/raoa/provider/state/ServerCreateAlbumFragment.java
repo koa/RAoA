@@ -50,17 +50,23 @@ public class ServerCreateAlbumFragment extends Fragment {
 			@Override
 			protected Void doInBackground(final Void... params) {
 				final Cursor cursor = contentResolver.query(Client.ALBUM_URI, new String[] { Client.Album.NAME }, null, null, null);
-				while (cursor.moveToNext()) {
-					final String albumDir = cursor.getString(0);
-					final int lastSlash = albumDir.lastIndexOf('/');
-					if (lastSlash <= 1) {
-						continue;
+				try {
+					if (cursor.moveToFirst()) {
+						do {
+							final String albumDir = cursor.getString(0);
+							final int lastSlash = albumDir.lastIndexOf('/');
+							if (lastSlash <= 1) {
+								continue;
+							}
+							final String folderPart = albumDir.substring(0, lastSlash);
+							existingFolders.add(folderPart);
+						} while (cursor.moveToNext());
 					}
-					final String folderPart = albumDir.substring(0, lastSlash);
-					existingFolders.add(folderPart);
+					existingFolders.add("");
+					return null;
+				} finally {
+					cursor.close();
 				}
-				existingFolders.add("");
-				return null;
 			}
 
 			@Override
