@@ -1,5 +1,7 @@
 package ch.bergturbenthal.raoa.client.album;
 
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +27,7 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.TextView;
 import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.binding.AbstractViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ComplexCursorAdapter;
@@ -103,7 +106,33 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
 		ret.add(new PhotoViewHandler(R.id.album_item_image, Client.Album.THUMBNAIL, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
 		ret.add(new TextViewHandler(R.id.album_item_name, Client.Album.TITLE));
-		ret.add(new TextViewHandler(R.id.album_item_size, Client.Album.ENTRY_COUNT));
+		// ret.add(new TextViewHandler(R.id.album_item_size, Client.Album.ENTRY_COUNT));
+		ret.add(new AbstractViewHandler<TextView>(R.id.album_item_size) {
+
+			@Override
+			public void bindView(final TextView view, final Context context, final Map<String, Object> values) {
+				final Object entryCount = values.get(Client.Album.ENTRY_COUNT);
+				double size = ((Number) values.get(Client.Album.THUMBNAILS_SIZE)).doubleValue();
+				final String[] units = new String[] { "B", "K", "M", "G", "T" };
+				int unitType = 0;
+				for (; unitType < units.length && size > 500; unitType++) {
+					size = size / 1024;
+				}
+				final NumberFormat sizeFormat;
+				if (size < 10) {
+					sizeFormat = new DecimalFormat("0.0");
+				} else {
+					sizeFormat = DecimalFormat.getIntegerInstance();
+				}
+				final String value = entryCount + " " + sizeFormat.format(size) + units[unitType];
+				view.setText(value);
+			}
+
+			@Override
+			public String[] usedFields() {
+				return new String[] { Client.Album.ENTRY_COUNT, Client.Album.THUMBNAILS_SIZE };
+			}
+		});
 		ret.add(new AbstractViewHandler<ImageView>(R.id.album_item_icon_offline) {
 
 			@Override
