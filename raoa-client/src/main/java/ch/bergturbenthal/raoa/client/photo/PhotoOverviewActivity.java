@@ -2,8 +2,6 @@ package ch.bergturbenthal.raoa.client.photo;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -42,6 +40,7 @@ import ch.bergturbenthal.raoa.client.binding.ComplexCursorAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.TextViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
+import ch.bergturbenthal.raoa.client.util.KeywordUtil;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoOverviewActivity extends Activity {
@@ -131,7 +130,7 @@ public class PhotoOverviewActivity extends Activity {
 			final MenuItem removeTagsMenu = menu.findItem(R.id.photo_overview_menu_remove_tag_menu);
 			final SubMenu removeTagsSubmenu = removeTagsMenu.getSubMenu();
 			removeTagsSubmenu.clear();
-			final ArrayList<String> keywordsByCount = orderByCount(selectedKeywordCounts);
+			final ArrayList<String> keywordsByCount = KeywordUtil.orderKeywordsByFrequent(selectedKeywordCounts);
 			for (final String keyword : keywordsByCount) {
 				final String keywordDisplay = keyword + " (" + selectedKeywordCounts.get(keyword) + ")";
 				final MenuItem removeTagItem = removeTagsSubmenu.add(keywordDisplay);
@@ -281,7 +280,7 @@ public class PhotoOverviewActivity extends Activity {
 		} finally {
 			cursor.close();
 		}
-		knownKeywords = getKnownKeywords();
+		knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
 
 		final UiMode mode = savedInstanceState == null ? UiMode.NAVIGATION : UiMode.valueOf(savedInstanceState.getString(MODE_KEY, UiMode.NAVIGATION.name()));
 		switch (mode) {
@@ -313,15 +312,6 @@ public class PhotoOverviewActivity extends Activity {
 	private void addEntryToSelection(final Pair<String, EntryValues> pair) {
 		selectedEntries.put(pair.first, pair.second);
 		invalidateOptionsMenu();
-	}
-
-	private List<String> getKnownKeywords() {
-		final Cursor cursor = getContentResolver().query(Client.KEYWORDS_URI, new String[] { Client.KeywordEntry.KEYWORD, Client.KeywordEntry.COUNT }, null, null, null);
-		try {
-			return readOrderedKeywordsFromCursor(cursor);
-		} finally {
-			cursor.close();
-		}
 	}
 
 	private boolean longClick(final int position) {
@@ -396,36 +386,12 @@ public class PhotoOverviewActivity extends Activity {
 		startActivityForResult(intent, 1);
 	}
 
-	private ArrayList<String> orderByCount(final Map<String, Integer> countOrder) {
-		final ArrayList<String> keyWords = new ArrayList<String>(countOrder.keySet());
-		Collections.sort(keyWords, new Comparator<String>() {
-			@Override
-			public int compare(final String lhs, final String rhs) {
-				return -countOrder.get(lhs).compareTo(countOrder.get(rhs));
-			}
-		});
-		return keyWords;
-	}
-
 	private Pair<String, EntryValues> readCurrentEntry(final int position) {
 		final Object[] additionalValues = cursorAdapter.getAdditionalValues(position);
 		final String uri = (String) additionalValues[0];
 		final String keywordValue = (String) additionalValues[1];
 		final String uriString = (String) additionalValues[2];
 		return new Pair<String, EntryValues>(uri, makeEntry(keywordValue, uriString));
-	}
-
-	private List<String> readOrderedKeywordsFromCursor(final Cursor data) {
-		if (data == null || !data.moveToFirst()) {
-			return Collections.emptyList();
-		}
-		final Map<String, Integer> countOrder = new HashMap<String, Integer>();
-		do {
-			final String keyword = data.getString(0);
-			final int count = data.getInt(1);
-			countOrder.put(keyword, Integer.valueOf(count));
-		} while (data.moveToNext());
-		return orderByCount(countOrder);
 	}
 
 	private void redraw() {

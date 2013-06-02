@@ -21,6 +21,17 @@ public class KeywordUtil {
 		}
 	}
 
+	public static ArrayList<String> orderKeywordsByFrequent(final Map<String, Integer> countOrder) {
+		final ArrayList<String> keyWords = new ArrayList<String>(countOrder.keySet());
+		Collections.sort(keyWords, new Comparator<String>() {
+			@Override
+			public int compare(final String lhs, final String rhs) {
+				return -countOrder.get(lhs).compareTo(countOrder.get(rhs));
+			}
+		});
+		return keyWords;
+	}
+
 	private static List<String> readOrderedKeywordsFromCursor(final Cursor data) {
 		if (data == null || !data.moveToFirst()) {
 			return Collections.emptyList();
@@ -31,13 +42,6 @@ public class KeywordUtil {
 			final int count = data.getInt(1);
 			countOrder.put(keyword, Integer.valueOf(count));
 		} while (data.moveToNext());
-		final ArrayList<String> keyWords = new ArrayList<String>(countOrder.keySet());
-		Collections.sort(keyWords, new Comparator<String>() {
-			@Override
-			public int compare(final String lhs, final String rhs) {
-				return -countOrder.get(lhs).compareTo(countOrder.get(rhs));
-			}
-		});
-		return keyWords;
+		return orderKeywordsByFrequent(countOrder);
 	}
 }
