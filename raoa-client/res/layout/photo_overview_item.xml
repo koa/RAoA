@@ -7,14 +7,12 @@
         android:id="@+id/photos_overview_grid_item"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/layout_no_border"
-        android:orientation="vertical" >
+        android:background="@drawable/layout_no_border" >
 
         <ImageView
             android:id="@+id/photos_item_image"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:adjustViewBounds="false"
             android:scaleType="centerCrop"
             android:src="@drawable/ic_launcher" />
 
@@ -33,4 +31,5 @@
                 android:layout_marginLeft="4dp" />
         </LinearLayout>
     </FrameLayout>
+
 </ch.bergturbenthal.raoa.client.widget.SquareLinearLayout>

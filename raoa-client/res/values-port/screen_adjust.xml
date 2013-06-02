@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <dimen name="image_width">255dp</dimen>
+
+    <dimen name="image_width">100dp</dimen>
+
 </resources>
