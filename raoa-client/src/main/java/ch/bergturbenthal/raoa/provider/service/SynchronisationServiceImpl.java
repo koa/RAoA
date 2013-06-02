@@ -1271,6 +1271,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				}
 
 				final AtomicLong dateSum = new AtomicLong(0);
+				final AtomicLong thumbnailSizeSum = new AtomicLong(0);
+				final AtomicLong originalSizeSum = new AtomicLong(0);
 				final AtomicInteger dateCount = new AtomicInteger(0);
 				final Map<String, Integer> keywordCounts = albumMeta.getKeywordCounts();
 				keywordCounts.clear();
@@ -1291,6 +1293,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 						dateCount.incrementAndGet();
 						dateSum.addAndGet(entryDto.getCaptureDate().getTime());
 					}
+					thumbnailSizeSum.addAndGet(entryDto.getThumbnailSize());
+					originalSizeSum.addAndGet(entryDto.getOriginalFileSize());
 					for (final String keywordEntry : entryDto.getKeywords()) {
 						final Integer oldCount = keywordCounts.get(keywordEntry);
 						if (oldCount != null) {
@@ -1302,6 +1306,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				}
 				albumMeta.setThumbnailId(albumDto.getAlbumTitleEntry());
 				albumMeta.setAlbumTitle(albumDto.getAlbumTitle());
+				albumMeta.setThumbnailSize(thumbnailSizeSum.get());
+				albumMeta.setOriginalsSize(originalSizeSum.get());
 				if (dateCount.get() > 0) {
 					albumMeta.setAlbumDate(new Date(dateSum.longValue() / dateCount.longValue()));
 				}
