@@ -51,95 +51,6 @@ public class PhotoDetailViewActivity extends Activity {
 
 	private ViewPager pager;
 
-	/**
-	 * 
-	 */
-	private void decrementOffscreenPageLimit() {
-		final int offscreenPageLimit = pager.getOffscreenPageLimit();
-		if (offscreenPageLimit > 1) {
-			pager.setOffscreenPageLimit(offscreenPageLimit - 1);
-		}
-	}
-
-	private ArrayList<ViewHandler<? extends View>> makeHandlers() {
-		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL, PhotoViewHandler.FULLSCREEN_CALCULATOR));
-		ret.add(new AbstractViewHandler<View>(R.id.FrameLayout1) {
-
-			@Override
-			public void bindView(final View view, final Context context, final Map<String, Object> values) {
-				final LinearLayout overlayLayout = (LinearLayout) view.findViewById(R.id.photo_edit_overlay_layout);
-
-				if (isOverlayVisible) {
-					// overlayLayout.removeAllViewsInLayout();
-					overlayLayout.setVisibility(View.VISIBLE);
-					final List<String> knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
-					final int max = knownKeywords.size() < 5 ? knownKeywords.size() : 5;
-					for (int i = 0; i < max; i++) {
-						final ToggleButton toggleButton = new ToggleButton(context);
-						final String tag = knownKeywords.get(i);
-						toggleButton.setSingleLine();
-						toggleButton.setText(tag);
-						toggleButton.setTextOff(tag);
-						toggleButton.setTextOn(tag);
-						toggleButton.setLayoutParams(new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
-						if (toggleButton.isChecked()) {
-							toggleButton.setBackgroundColor(Color.GREEN);
-						} else {
-							toggleButton.setBackgroundColor(Color.GRAY);
-						}
-
-						toggleButton.setOnClickListener(new OnClickListener() {
-
-							@Override
-							public void onClick(final View v) {
-								final boolean isChecked = ((ToggleButton) v).isChecked();
-								if (isChecked) {
-									((ToggleButton) v).setBackgroundColor(Color.GREEN);
-
-								} else {
-									((ToggleButton) v).setBackgroundColor(Color.GRAY);
-								}
-
-								overlayLayout.getRootView().requestLayout();
-								overlayLayout.invalidate();
-							}
-						});
-						overlayLayout.addView(toggleButton);
-					}
-
-				} else {
-					overlayLayout.setVisibility(View.INVISIBLE);
-				}
-				overlayLayout.getRootView().requestLayout();
-				overlayLayout.invalidate();
-				view.setOnClickListener(new View.OnClickListener() {
-
-					@Override
-					public void onClick(final View v) {
-						isOverlayVisible = !isOverlayVisible;
-						toggleActionBar();
-					}
-
-					private void toggleActionBar() {
-						final ActionBar actionBar = getActionBar();
-						if (actionBar.isShowing()) {
-							actionBar.hide();
-						} else {
-							actionBar.show();
-						}
-					}
-				});
-			}
-
-			@Override
-			public String[] usedFields() {
-				return new String[] {};
-			}
-		});
-		return ret;
-	}
-
 	@Override
 	public void onBackPressed() {
 		final Intent output = new Intent();
@@ -198,12 +109,6 @@ public class PhotoDetailViewActivity extends Activity {
 	}
 
 	@Override
-	protected void onSaveInstanceState(final Bundle outState) {
-		super.onSaveInstanceState(outState);
-		outState.putInt(ACTUAL_POS, ((CurserPagerAdapter) pager.getAdapter()).getCurrentPosition());
-	}
-
-	@Override
 	public boolean onTouchEvent(final MotionEvent event) {
 		final ActionBar actionBar = getActionBar();
 		if (actionBar.isShowing()) {
@@ -214,10 +119,110 @@ public class PhotoDetailViewActivity extends Activity {
 		return super.onTouchEvent(event);
 	}
 
+	@Override
+	protected void onSaveInstanceState(final Bundle outState) {
+		super.onSaveInstanceState(outState);
+		outState.putInt(ACTUAL_POS, ((CurserPagerAdapter) pager.getAdapter()).getCurrentPosition());
+	}
+
 	protected final void reloadViewPager() {
 		final int currentItem = pager.getCurrentItem();
 		pager.setAdapter(adapter);
 		pager.setCurrentItem(currentItem, false);
+	}
+
+	/**
+	 * 
+	 */
+	private void decrementOffscreenPageLimit() {
+		final int offscreenPageLimit = pager.getOffscreenPageLimit();
+		if (offscreenPageLimit > 1) {
+			pager.setOffscreenPageLimit(offscreenPageLimit - 1);
+		}
+	}
+
+	private ArrayList<ViewHandler<? extends View>> makeHandlers() {
+		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
+		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL, PhotoViewHandler.FULLSCREEN_CALCULATOR));
+		ret.add(new AbstractViewHandler<View>(R.id.FrameLayout1) {
+
+			@Override
+			public void bindView(final View view, final Context context, final Map<String, Object> values) {
+				final LinearLayout overlayLayout = (LinearLayout) view.findViewById(R.id.photo_edit_overlay_layout);
+
+				if (isOverlayVisible) {
+					// overlayLayout.removeAllViewsInLayout();
+					overlayLayout.setVisibility(View.VISIBLE);
+					final List<String> knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
+					final int max = knownKeywords.size() < 5 ? knownKeywords.size() : 5;
+					for (int i = 0; i < max; i++) {
+						final ToggleButton toggleButton = new ToggleButton(context);
+						final String tag = knownKeywords.get(i);
+						toggleButton.setSingleLine();
+						toggleButton.setText(tag);
+						toggleButton.setTextOff(tag);
+						toggleButton.setTextOn(tag);
+						final LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+						params.setMargins(5, 5, 5, 5);
+						toggleButton.setLayoutParams(params);
+						if (toggleButton.isChecked()) {
+							toggleButton.setBackgroundColor(Color.GREEN);
+						} else {
+							toggleButton.setBackgroundColor(Color.GRAY);
+						}
+						toggleButton.setAlpha((float) 0.9);
+
+						toggleButton.setOnClickListener(new OnClickListener() {
+
+							@Override
+							public void onClick(final View v) {
+								final boolean isChecked = ((ToggleButton) v).isChecked();
+								if (isChecked) {
+									((ToggleButton) v).setBackgroundColor(Color.GREEN);
+
+								} else {
+									((ToggleButton) v).setBackgroundColor(Color.GRAY);
+								}
+
+								overlayLayout.getRootView().requestLayout();
+								overlayLayout.invalidate();
+							}
+						});
+						overlayLayout.addView(toggleButton);
+					}
+
+				} else {
+					overlayLayout.setVisibility(View.INVISIBLE);
+				}
+				overlayLayout.getRootView().requestLayout();
+				overlayLayout.invalidate();
+				view.setOnClickListener(new View.OnClickListener() {
+
+					@Override
+					public void onClick(final View v) {
+						isOverlayVisible = !isOverlayVisible;
+						toggleActionBar();
+					}
+
+					private void toggleActionBar() {
+						final ActionBar actionBar = getActionBar();
+						if (actionBar.isShowing()) {
+							actionBar.hide();
+							setFullscreen(true);
+						} else {
+							actionBar.show();
+							setFullscreen(false);
+						}
+					}
+				});
+			}
+
+			@Override
+			public String[] usedFields() {
+				return new String[] {};
+			}
+		});
+		return ret;
 	}
 
 	private void setFullscreen(final boolean fullscreen) {
@@ -229,6 +234,24 @@ public class PhotoDetailViewActivity extends Activity {
 		actionBar.setDisplayShowTitleEnabled(false);
 		actionBar.setDisplayHomeAsUpEnabled(true);
 		actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_TABS);
+		final Tab plainViewTab = actionBar.newTab().setText(R.string.plain_photo_view).setTabListener(new TabListener() {
+
+			@Override
+			public void onTabReselected(final Tab tab, final FragmentTransaction ft) {
+				isOverlayVisible = false;
+			}
+
+			@Override
+			public void onTabSelected(final Tab tab, final FragmentTransaction ft) {
+				isOverlayVisible = false;
+			}
+
+			@Override
+			public void onTabUnselected(final Tab tab, final FragmentTransaction ft) {
+				isOverlayVisible = false;
+			}
+		});
+		actionBar.addTab(plainViewTab);
 		final Tab editTagsTab = actionBar.newTab().setText(R.string.edit_tags).setTabListener(new TabListener() {
 
 			@Override
@@ -249,23 +272,5 @@ public class PhotoDetailViewActivity extends Activity {
 			}
 		});
 		actionBar.addTab(editTagsTab);
-		final Tab plainViewTab = actionBar.newTab().setText(R.string.plain_photo_view).setTabListener(new TabListener() {
-
-			@Override
-			public void onTabReselected(final Tab tab, final FragmentTransaction ft) {
-				isOverlayVisible = false;
-			}
-
-			@Override
-			public void onTabSelected(final Tab tab, final FragmentTransaction ft) {
-				isOverlayVisible = false;
-			}
-
-			@Override
-			public void onTabUnselected(final Tab tab, final FragmentTransaction ft) {
-				isOverlayVisible = false;
-			}
-		});
-		actionBar.addTab(plainViewTab);
 	}
 }
