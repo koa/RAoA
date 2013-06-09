@@ -14,7 +14,6 @@ public class AlbumEntry {
 	private String id;
 	private Date lastModified;
 	private String name;
-	private long repositorySize;
 	private String title;
 
 	public AlbumEntry(final String id, final String name) {
