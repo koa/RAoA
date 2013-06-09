@@ -102,13 +102,11 @@ public class AlbumEntryDto implements Parcelable, Comparable<AlbumEntryDto> {
 		final AlbumEntryDto rhs = another;
 
 		final int dateDifference = dateCompare(lhs.getCaptureDate(), rhs.getCaptureDate());
-		if (dateDifference != 0) {
+		if (dateDifference != 0)
 			return dateDifference;
-		}
 		final int fileNameOrder = lhs.getFileName().compareTo(rhs.getFileName());
-		if (fileNameOrder != 0) {
+		if (fileNameOrder != 0)
 			return fileNameOrder;
-		}
 		return lhs.getCommId().compareTo(rhs.getCommId());
 	}
 
@@ -120,127 +118,92 @@ public class AlbumEntryDto implements Parcelable, Comparable<AlbumEntryDto> {
 
 	@Override
 	public boolean equals(final Object obj) {
-		if (this == obj) {
+		if (this == obj)
 			return true;
-		}
-		if (obj == null) {
+		if (obj == null)
 			return false;
-		}
-		if (getClass() != obj.getClass()) {
+		if (getClass() != obj.getClass())
 			return false;
-		}
 		final AlbumEntryDto other = (AlbumEntryDto) obj;
 		if (cameraMake == null) {
-			if (other.cameraMake != null) {
+			if (other.cameraMake != null)
 				return false;
-			}
-		} else if (!cameraMake.equals(other.cameraMake)) {
+		} else if (!cameraMake.equals(other.cameraMake))
 			return false;
-		}
 		if (cameraModel == null) {
-			if (other.cameraModel != null) {
+			if (other.cameraModel != null)
 				return false;
-			}
-		} else if (!cameraModel.equals(other.cameraModel)) {
+		} else if (!cameraModel.equals(other.cameraModel))
 			return false;
-		}
 		if (caption == null) {
-			if (other.caption != null) {
+			if (other.caption != null)
 				return false;
-			}
-		} else if (!caption.equals(other.caption)) {
+		} else if (!caption.equals(other.caption))
 			return false;
-		}
 		if (captureDate == null) {
-			if (other.captureDate != null) {
+			if (other.captureDate != null)
 				return false;
-			}
-		} else if (!captureDate.equals(other.captureDate)) {
+		} else if (!captureDate.equals(other.captureDate))
 			return false;
-		}
 		if (commId == null) {
-			if (other.commId != null) {
+			if (other.commId != null)
 				return false;
-			}
-		} else if (!commId.equals(other.commId)) {
+		} else if (!commId.equals(other.commId))
 			return false;
-		}
 		if (editableMetadataHash == null) {
-			if (other.editableMetadataHash != null) {
+			if (other.editableMetadataHash != null)
 				return false;
-			}
-		} else if (!editableMetadataHash.equals(other.editableMetadataHash)) {
+		} else if (!editableMetadataHash.equals(other.editableMetadataHash))
 			return false;
-		}
-		if (entryType != other.entryType) {
+		if (entryType != other.entryType)
 			return false;
-		}
 		if (exposureTime == null) {
-			if (other.exposureTime != null) {
+			if (other.exposureTime != null)
 				return false;
-			}
-		} else if (!exposureTime.equals(other.exposureTime)) {
+		} else if (!exposureTime.equals(other.exposureTime))
 			return false;
-		}
 		if (fNumber == null) {
-			if (other.fNumber != null) {
+			if (other.fNumber != null)
 				return false;
-			}
-		} else if (!fNumber.equals(other.fNumber)) {
+		} else if (!fNumber.equals(other.fNumber))
 			return false;
-		}
 		if (fileName == null) {
-			if (other.fileName != null) {
+			if (other.fileName != null)
 				return false;
-			}
-		} else if (!fileName.equals(other.fileName)) {
+		} else if (!fileName.equals(other.fileName))
 			return false;
-		}
 		if (focalLength == null) {
-			if (other.focalLength != null) {
+			if (other.focalLength != null)
 				return false;
-			}
-		} else if (!focalLength.equals(other.focalLength)) {
+		} else if (!focalLength.equals(other.focalLength))
 			return false;
-		}
 		if (iso == null) {
-			if (other.iso != null) {
+			if (other.iso != null)
 				return false;
-			}
-		} else if (!iso.equals(other.iso)) {
+		} else if (!iso.equals(other.iso))
 			return false;
-		}
 		if (keywords == null) {
-			if (other.keywords != null) {
+			if (other.keywords != null)
 				return false;
-			}
-		} else if (!keywords.equals(other.keywords)) {
+		} else if (!keywords.equals(other.keywords))
 			return false;
-		}
 		if (lastModified == null) {
-			if (other.lastModified != null) {
+			if (other.lastModified != null)
 				return false;
-			}
-		} else if (!lastModified.equals(other.lastModified)) {
+		} else if (!lastModified.equals(other.lastModified))
 			return false;
-		}
-		if (originalFileSize != other.originalFileSize) {
+		if (originalFileSize != other.originalFileSize)
 			return false;
-		}
 		if (rating == null) {
-			if (other.rating != null) {
+			if (other.rating != null)
 				return false;
-			}
-		} else if (!rating.equals(other.rating)) {
+		} else if (!rating.equals(other.rating))
 			return false;
-		}
 		if (thumbnailSize == null) {
-			if (other.thumbnailSize != null) {
+			if (other.thumbnailSize != null)
 				return false;
-			}
-		} else if (!thumbnailSize.equals(other.thumbnailSize)) {
+		} else if (!thumbnailSize.equals(other.thumbnailSize))
 			return false;
-		}
 		return true;
 	}
 

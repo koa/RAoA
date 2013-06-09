@@ -17,6 +17,11 @@ import android.view.View;
  * 
  */
 public class CursorViewBinder {
+	private final Map<String, Integer> columnIndizes = new HashMap<String, Integer>();
+
+	private Cursor cursor;
+	private final Collection<ViewHandler<View>> handlers;
+
 	private static Object getColumnValue(final Cursor cursor, final int index) {
 		final int type = cursor.getType(index);
 		switch (type) {
@@ -33,11 +38,6 @@ public class CursorViewBinder {
 		}
 		throw new RuntimeException("Unknown type " + type);
 	}
-
-	private final Map<String, Integer> columnIndizes = new HashMap<String, Integer>();
-	private Cursor cursor;
-
-	private final Collection<ViewHandler<View>> handlers;
 
 	public CursorViewBinder(final Collection<ViewHandler<View>> handlers) {
 		this.handlers = handlers;

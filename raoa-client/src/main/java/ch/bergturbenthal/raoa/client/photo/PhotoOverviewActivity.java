@@ -230,9 +230,8 @@ public class PhotoOverviewActivity extends Activity {
 				final Collection<String> oldSelectedEntries = new HashSet<String>(selectedEntries.keySet());
 				selectedEntries.clear();
 				try {
-					if (data == null || !data.moveToFirst()) {
+					if (data == null || !data.moveToFirst())
 						return;
-					}
 					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
 					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
 					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL);

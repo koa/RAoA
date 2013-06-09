@@ -21,9 +21,8 @@ public class LazyLoader {
 
 			@Override
 			public synchronized V get(final K key) {
-				if (loadedValues.containsKey(key)) {
+				if (loadedValues.containsKey(key))
 					return loader.get(key);
-				}
 				final V loadedValue = loader.get(key);
 				loadedValues.put(key, loadedValue);
 				return loadedValue;

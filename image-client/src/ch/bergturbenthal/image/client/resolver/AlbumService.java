@@ -71,27 +71,24 @@ public class AlbumService implements Album {
 	@Override
 	public AlbumEntry createAlbum(final CreateAlbumRequest request) {
 		final ResponseEntity<AlbumEntry> response = restTemplate.postForEntity(baseUrl + "/albums", request, AlbumEntry.class);
-		if (response.hasBody()) {
+		if (response.hasBody())
 			return response.getBody();
-		}
 		throw new RuntimeException("Response without body. Status: " + response.getStatusCode());
 	}
 
 	@Override
 	public AlbumDetail listAlbumContent(final String albumid) {
 		final ResponseEntity<AlbumDetail> response = restTemplate.getForEntity(baseUrl + "/albums/{id}.json", AlbumDetail.class, albumid);
-		if (response.hasBody()) {
+		if (response.hasBody())
 			return response.getBody();
-		}
 		throw new RuntimeException("Response without body while calling " + baseUrl + " status: " + response.getStatusCode());
 	}
 
 	@Override
 	public AlbumList listAlbums() {
 		final ResponseEntity<AlbumList> response = restTemplate.getForEntity(baseUrl + "/albums.json", AlbumList.class);
-		if (response.hasBody()) {
+		if (response.hasBody())
 			return response.getBody();
-		}
 		throw new RuntimeException("Response without body while calling " + baseUrl + " status: " + response.getStatusCode());
 	}
 
@@ -115,9 +112,8 @@ public class AlbumService implements Album {
 		}, new ResponseExtractor<ImageResult>() {
 			@Override
 			public ImageResult extractData(final ClientHttpResponse response) throws IOException {
-				if (response.getStatusCode() == HttpStatus.NOT_MODIFIED) {
+				if (response.getStatusCode() == HttpStatus.NOT_MODIFIED)
 					return ImageResult.makeNotModifiedResult();
-				}
 				final HttpHeaders headers = response.getHeaders();
 				final String mimeType = headers.getContentType().toString();
 				final long lastModified = headers.getLastModified();
@@ -140,9 +136,8 @@ public class AlbumService implements Album {
 							// ignore
 						}
 					}
-					if (createDate == null) {
+					if (createDate == null)
 						throw new IllegalArgumentException("Cannot parse date value \"" + createDateString + "\" for \"created-at\" header");
-					}
 				}
 				final String tempFilename = UUID.randomUUID().toString();
 				final OutputStream arrayOutputStream = context.openFileOutput(tempFilename, Context.MODE_PRIVATE);

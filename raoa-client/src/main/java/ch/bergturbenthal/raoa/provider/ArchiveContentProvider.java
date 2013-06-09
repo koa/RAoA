@@ -47,10 +47,10 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	}
 
-	private static final Map<Class, NotifyableMatrixCursor> emptyCursors = new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
-
-	private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
 	static final String TAG = "Content Provider";
+
+	private static final Map<Class, NotifyableMatrixCursor> emptyCursors = new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
+	private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
 
 	private SynchronisationService service = null;
 	/** Defines callbacks for service binding, passed to bindService() */
@@ -138,9 +138,8 @@ public class ArchiveContentProvider extends ContentProvider {
 	public ParcelFileDescriptor openFile(final Uri uri, final String mode) throws FileNotFoundException {
 		Log.i(TAG, "Open called for " + uri);
 		final UriType match = matcher.match(uri);
-		if (match == null) {
+		if (match == null)
 			return super.openFile(uri, mode);
-		}
 		switch (match) {
 		case ALBUM_ENTRY_THUMBNAIL:
 
@@ -150,9 +149,8 @@ public class ArchiveContentProvider extends ContentProvider {
 					return getService().getLoadedThumbnail(archiveName, albumId, thumbnailId);
 				}
 			});
-			if (thumbnail == null) {
+			if (thumbnail == null)
 				throw new FileNotFoundException("Thumbnail-Image " + uri + " not found");
-			}
 			return ParcelFileDescriptor.open(thumbnail, ParcelFileDescriptor.MODE_READ_ONLY);
 		default:
 			break;
@@ -212,9 +210,8 @@ public class ArchiveContentProvider extends ContentProvider {
 	protected Cursor getEmptyCursor(final Class<?> klass) {
 		synchronized (emptyCursors) {
 			final NotifyableMatrixCursor existingEntry = emptyCursors.get(klass);
-			if (existingEntry != null) {
+			if (existingEntry != null)
 				return existingEntry;
-			}
 			final ArrayList<String> columns = new ArrayList<String>();
 			for (final Field field : klass.getDeclaredFields()) {
 				final int modifiers = field.getModifiers();
@@ -237,7 +234,7 @@ public class ArchiveContentProvider extends ContentProvider {
 	}
 
 	private SynchronisationService getService() {
-		if (service == null) {
+		if (service == null)
 			return new SynchronisationService() {
 
 				@Override
@@ -310,7 +307,6 @@ public class ArchiveContentProvider extends ContentProvider {
 					return 0;
 				}
 			};
-		}
 		return service;
 	}
 

@@ -130,9 +130,8 @@ public class StateManagerImpl implements StateManager {
 		}
 
 		private void updateState(final int startedCounter, final int doneCounter, final String description) {
-			if (closed) {
+			if (closed)
 				return;
-			}
 			final Progress progress = new Progress();
 			progress.setProgressId(progressId);
 			progress.setStepCount(totalCount * 2);

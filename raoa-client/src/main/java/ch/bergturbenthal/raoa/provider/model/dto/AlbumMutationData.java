@@ -41,23 +41,18 @@ public class AlbumMutationData implements Parcelable {
 
 	@Override
 	public boolean equals(final Object obj) {
-		if (this == obj) {
+		if (this == obj)
 			return true;
-		}
-		if (obj == null) {
+		if (obj == null)
 			return false;
-		}
-		if (getClass() != obj.getClass()) {
+		if (getClass() != obj.getClass())
 			return false;
-		}
 		final AlbumMutationData other = (AlbumMutationData) obj;
 		if (mutations == null) {
-			if (other.mutations != null) {
+			if (other.mutations != null)
 				return false;
-			}
-		} else if (!mutations.equals(other.mutations)) {
+		} else if (!mutations.equals(other.mutations))
 			return false;
-		}
 		return true;
 	}
 

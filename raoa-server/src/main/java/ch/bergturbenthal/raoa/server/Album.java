@@ -92,13 +92,14 @@ public class Album implements ApplicationContextAware {
 
 	private static class ImportEntry {
 
+		private final String filename;
+
+		private final String hash;
+
 		static ImportEntry parseLine(final String line) {
 			final String[] comps = line.split(";", 2);
 			return new ImportEntry(comps[0], comps[1]);
 		}
-
-		private final String filename;
-		private final String hash;
 
 		public ImportEntry(final String filename, final String hash) {
 			super();
@@ -126,13 +127,10 @@ public class Album implements ApplicationContextAware {
 	private static Logger logger = LoggerFactory.getLogger(Album.class);
 	private static ObjectMapper mapper = new ObjectMapper();
 
-	public static Album createAlbum(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
-		return new Album(baseDir, nameComps, remoteUri, serverName);
-	}
-
 	private final ConcurrentMap<String, AlbumEntryData> albumEntriesMetadataCache = new ConcurrentHashMap<String, AlbumEntryData>();
 
 	private ApplicationContext applicationContext;
+
 	private final File baseDir;
 	private SoftReference<AlbumCache> cache = null;
 	private File cacheDir;
@@ -140,17 +138,20 @@ public class Album implements ApplicationContextAware {
 	private Collection<ImportEntry> importEntries = null;
 	private final String initRemoteServerName;
 	private final String initRemoteUri;
-
 	private final AtomicBoolean metadataModified = new AtomicBoolean(false);
+
 	private final String[] nameComps;
 	@Autowired
 	private RepositoryService repositoryService;
-
 	private Long repositorySize = null;
+
 	@Autowired
 	private StateManager stateManager;
-
 	private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
+
+	public static Album createAlbum(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
+		return new Album(baseDir, nameComps, remoteUri, serverName);
+	}
 
 	private Album(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
 		this.baseDir = baseDir;
@@ -179,16 +180,14 @@ public class Album implements ApplicationContextAware {
 
 	public synchronized Date getAutoAddBeginDate() {
 		final File file = autoaddFile();
-		if (!file.exists()) {
+		if (!file.exists())
 			return null;
-		}
 		try {
 			final BufferedReader reader = bufferedReader(file);
 			try {
 				final String line = reader.readLine();
-				if (line == null) {
+				if (line == null)
 					return null;
-				}
 				return ISODateTimeFormat.dateTimeParser().parseDateTime(line).toDate();
 			} finally {
 				reader.close();
@@ -236,9 +235,8 @@ public class Album implements ApplicationContextAware {
 	public long getRepositorySize() {
 		while (true) {
 			final Long size = repositorySize;
-			if (size != null) {
+			if (size != null)
 				return size.longValue();
-			}
 			synchronized (this) {
 				if (repositorySize == null) {
 					repositorySize = Long.valueOf(FileUtils.sizeOfDirectory(git.getRepository().getDirectory()));
@@ -248,35 +246,30 @@ public class Album implements ApplicationContextAware {
 	}
 
 	public boolean importImage(final File imageFile, final Date createDate) {
-		if (!imageFile.exists()) {
+		if (!imageFile.exists())
 			return false;
-		}
 		final long length = imageFile.length();
-		if (length == 0) {
+		if (length == 0)
 			return false;
-		}
-		if (imageFile.getParent().equals(baseDir)) {
+		if (imageFile.getParent().equals(baseDir))
 			// points to a already imported file
 			return true;
-		}
 		final String sha1OfFile = makeSha1(imageFile);
 		synchronized (this) {
 			final ImportEntry existingImportEntry = findExistingImportEntry(sha1OfFile);
 			if (existingImportEntry != null) {
 				final File file = new File(baseDir, existingImportEntry.getFilename());
-				if (file.exists() && file.length() == length) {
+				if (file.exists() && file.length() == length)
 					// already full imported
 					return true;
-				}
 			}
 			for (int i = 0; true; i++) {
 				final File targetFile = new File(baseDir, makeFilename(imageFile.getName(), i, createDate));
 				if (targetFile.exists()) {
 					final ImportEntry entry = findOrMakeImportEntryForExisting(targetFile);
-					if (entry.getHash().equals(sha1OfFile)) {
+					if (entry.getHash().equals(sha1OfFile))
 						// File already imported
 						return true;
-					}
 				} else {
 					// new Filename found -> import file
 					final File tempFile = new File(baseDir, targetFile.getName() + "-temp");
@@ -289,9 +282,8 @@ public class Album implements ApplicationContextAware {
 								git.add().addFilepattern(targetFile.getName()).call();
 							}
 							return importOk;
-						} else {
+						} else
 							return false;
-						}
 					} catch (final IOException ex) {
 						throw new RuntimeException("Cannot copy file " + imageFile, ex);
 					} catch (final NoFilepatternException e) {
@@ -483,9 +475,8 @@ public class Album implements ApplicationContextAware {
 	 */
 	public String version() {
 		try {
-			for (final RevCommit revCommit : git.log().call()) {
+			for (final RevCommit revCommit : git.log().call())
 				return revCommit.getName();
-			}
 			return null;
 		} catch (final NoHeadException e) {
 			return null;
@@ -561,9 +552,8 @@ public class Album implements ApplicationContextAware {
 
 	private long evaluateLastModifiedTime() {
 		try {
-			if (!isMaster()) {
+			if (!isMaster())
 				return 1;
-			}
 			final LogCommand log = git.log().setMaxCount(1);
 			final Iterable<RevCommit> commitIterable = log.call();
 			final Iterator<RevCommit> iterator = commitIterable.iterator();
@@ -584,9 +574,8 @@ public class Album implements ApplicationContextAware {
 			loadImportEntries();
 		}
 		for (final ImportEntry entry : importEntries) {
-			if (entry.getHash().equals(sha1OfFile)) {
+			if (entry.getHash().equals(sha1OfFile))
 				return entry;
-			}
 		}
 		return null;
 	}
@@ -596,9 +585,8 @@ public class Album implements ApplicationContextAware {
 			loadImportEntries();
 		}
 		for (final ImportEntry entry : importEntries) {
-			if (entry.getFilename().equals(existingFile.getName())) {
+			if (entry.getFilename().equals(existingFile.getName()))
 				return entry;
-			}
 		}
 		final ImportEntry newEntry = new ImportEntry(existingFile.getName(), makeSha1(existingFile));
 		appendImportEntry(newEntry);
@@ -621,9 +609,8 @@ public class Album implements ApplicationContextAware {
 		final File[] foundFiles = baseDir.listFiles(new FileFilter() {
 			@Override
 			public boolean accept(final File file) {
-				if (!file.isFile() || !file.canRead()) {
+				if (!file.isFile() || !file.canRead())
 					return false;
-				}
 				final String lowerFilename = file.getName().toLowerCase();
 				return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".jpeg") || lowerFilename.endsWith(".nef") || lowerFilename.endsWith(".mkv");
 			}
@@ -637,9 +624,8 @@ public class Album implements ApplicationContextAware {
 		if (cache != null) {
 			final AlbumCache cachedImageMap = cache.get();
 			if (cachedImageMap != null) {
-				if (dirLastModified == cachedImageMap.getLastModifiedTime()) {
+				if (dirLastModified == cachedImageMap.getLastModifiedTime())
 					return cachedImageMap;
-				}
 			}
 		}
 
@@ -751,9 +737,8 @@ public class Album implements ApplicationContextAware {
 	}
 
 	private String makeFilename(final String name, final int i, final Date timestamp) {
-		if (i == 0) {
+		if (i == 0)
 			return MessageFormat.format("{1,date,yyyy-MM-dd-HH-mm-ss}-{0}", name, timestamp);
-		}
 		final int lastPt = name.lastIndexOf(".");
 		return MessageFormat.format("{3,date,yyyy-MM-dd-HH-mm-ss}-{0}-{1}{2}", name.substring(0, lastPt), i, name.substring(lastPt), timestamp);
 	}
@@ -809,9 +794,8 @@ public class Album implements ApplicationContextAware {
 					reader.close();
 				}
 			}
-			if (ignoreEntries.size() == 0) {
+			if (ignoreEntries.size() == 0)
 				return false;
-			}
 			final PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(gitignore, true), "utf-8"));
 			try {
 				for (final String entry : ignoreEntries) {
@@ -841,9 +825,8 @@ public class Album implements ApplicationContextAware {
 
 	private void updateAlbumEntryInCache(final String filename, final AlbumEntryData entryData) {
 		final AlbumEntryData oldValue = albumEntriesMetadataCache.put(filename, entryData);
-		if (entryData.equals(oldValue)) {
+		if (entryData.equals(oldValue))
 			return;
-		}
 		metadataModified.set(true);
 		final boolean hasLock = writeAlbumEntryCacheSemaphore.tryAcquire();
 		if (hasLock) {

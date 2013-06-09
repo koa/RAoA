@@ -49,31 +49,25 @@ public class AlbumEntries implements Parcelable {
 
 	@Override
 	public boolean equals(final Object obj) {
-		if (this == obj) {
+		if (this == obj)
 			return true;
-		}
-		if (obj == null) {
+		if (obj == null)
 			return false;
-		}
-		if (getClass() != obj.getClass()) {
+		if (getClass() != obj.getClass())
 			return false;
-		}
 		final AlbumEntries other = (AlbumEntries) obj;
 		if (entries == null) {
-			if (other.entries != null) {
+			if (other.entries != null)
 				return false;
-			}
-		} else if (!entries.equals(other.entries)) {
+		} else if (!entries.equals(other.entries))
 			return false;
-		}
 		return true;
 	}
 
 	public AlbumEntryDto findEntryById(final String entryId) {
 		for (final AlbumEntryDto entry : entries) {
-			if (entry.getCommId().equals(entryId)) {
+			if (entry.getCommId().equals(entryId))
 				return entry;
-			}
 		}
 		return null;
 	}

@@ -23,6 +23,10 @@ import android.widget.ResourceCursorAdapter;
  * 
  */
 public class ComplexCursorAdapter extends ResourceCursorAdapter {
+	private final String[] additionalColumns;
+
+	private final CursorViewBinder viewBinder;
+
 	/**
 	 * Register a new {@link Cursor} on a given {@link LoaderManager}
 	 * 
@@ -80,9 +84,6 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 		return adapter;
 	}
 
-	private final String[] additionalColumns;
-	private final CursorViewBinder viewBinder;
-
 	/**
 	 * @param context
 	 * @param layout
@@ -103,9 +104,8 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 	}
 
 	public Object[] getAdditionalValues(final int position) {
-		if (additionalColumns == null) {
+		if (additionalColumns == null)
 			return null;
-		}
 		final Cursor cursor = getCursor();
 		cursor.moveToPosition(position);
 		final Object[] ret = new Object[additionalColumns.length];

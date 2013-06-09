@@ -122,7 +122,7 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 				if (size < 10) {
 					sizeFormat = new DecimalFormat("0.0");
 				} else {
-					sizeFormat = DecimalFormat.getIntegerInstance();
+					sizeFormat = NumberFormat.getIntegerInstance();
 				}
 				final String value = entryCount + " " + sizeFormat.format(size) + units[unitType];
 				view.setText(value);

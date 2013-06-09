@@ -19,19 +19,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 public class FileWatcher implements Closeable {
 	private static Logger logger = LoggerFactory.getLogger(FileWatcher.class);
 
-	public static FileWatcher createWatcher(final File basePath) {
-		return new FileWatcher(basePath);
-	}
-
 	private final File basePath;
+
 	@Autowired
 	private ExecutorService executorService;
 	@Autowired
 	private DirectoryNotificationService notificationService;
-
 	private Thread watcherThread;
 
 	private WatchService watchService;
+
+	public static FileWatcher createWatcher(final File basePath) {
+		return new FileWatcher(basePath);
+	}
 
 	public FileWatcher(final File basePath) {
 		this.basePath = basePath;

@@ -92,9 +92,8 @@ public class PicasaIniData {
 
 	private static final PicasaIniEntryData getCurrentData(final Map<String, PicasaIniEntryData> ret, final String currentGroup) {
 		final PicasaIniEntryData currentValue = ret.get(currentGroup);
-		if (currentValue != null) {
+		if (currentValue != null)
 			return currentValue;
-		}
 		final PicasaIniEntryData newValue = new PicasaIniEntryData();
 		ret.put(currentGroup, newValue);
 		return newValue;

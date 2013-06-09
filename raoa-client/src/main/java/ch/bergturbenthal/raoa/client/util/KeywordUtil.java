@@ -33,9 +33,8 @@ public class KeywordUtil {
 	}
 
 	private static List<String> readOrderedKeywordsFromCursor(final Cursor data) {
-		if (data == null || !data.moveToFirst()) {
+		if (data == null || !data.moveToFirst())
 			return Collections.emptyList();
-		}
 		final Map<String, Integer> countOrder = new HashMap<String, Integer>();
 		do {
 			final String keyword = data.getString(0);

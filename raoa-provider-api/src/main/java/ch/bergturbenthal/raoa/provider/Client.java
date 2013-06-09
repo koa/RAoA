@@ -58,9 +58,8 @@ public class Client {
 
 		public static Collection<String> decodeKeywords(final String keywordValue) {
 			try {
-				if (keywordValue == null) {
+				if (keywordValue == null)
 					return Collections.emptyList();
-				}
 				return mapper.readValue(keywordValue, stringListType);
 			} catch (final IOException e) {
 				throw new RuntimeException("Cannot decode value " + keywordValue, e);
@@ -117,6 +116,8 @@ public class Client {
 	public static final Uri SERVER_URI;
 	private static final ObjectMapper mapper = new ObjectMapper();
 	private static final CollectionType stringListType = CollectionType.construct(List.class, SimpleType.construct(String.class));
+	private final ContentResolver provider;
+
 	static {
 		ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
 		SERVER_URI = Uri.parse("content://" + AUTHORITY + "/servers");
@@ -179,8 +180,6 @@ public class Client {
 		builder.appendPath("thumbnail");
 		return builder.build();
 	}
-
-	private final ContentResolver provider;
 
 	public Client(final ContentResolver provider) {
 		this.provider = provider;

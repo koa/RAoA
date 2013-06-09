@@ -20,7 +20,6 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.FrameLayout.LayoutParams;
 import android.widget.LinearLayout;
 import android.widget.ToggleButton;
 import ch.bergturbenthal.raoa.R;
@@ -162,7 +161,8 @@ public class PhotoDetailViewActivity extends Activity {
 						toggleButton.setText(tag);
 						toggleButton.setTextOff(tag);
 						toggleButton.setTextOn(tag);
-						final LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+						final LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(	android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+																																										android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
 						params.setMargins(5, 5, 5, 5);
 						toggleButton.setLayoutParams(params);
 						if (toggleButton.isChecked()) {

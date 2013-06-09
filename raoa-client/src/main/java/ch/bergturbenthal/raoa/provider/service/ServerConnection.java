@@ -87,9 +87,8 @@ public class ServerConnection {
 		final SoftReference<AlbumDetail> cachedValue = albumDetailCache.get(albumId);
 		if (cachedValue != null) {
 			final AlbumDetail albumDetail = cachedValue.get();
-			if (albumDetail != null) {
+			if (albumDetail != null)
 				return albumDetail;
-			}
 		}
 		final AlbumDetail albumDetail = callOne(new ConnectionCallable<AlbumDetail>() {
 
@@ -158,12 +157,10 @@ public class ServerConnection {
 				}, new ResponseExtractor<ResponseEntity<Boolean>>() {
 					@Override
 					public ResponseEntity<Boolean> extractData(final ClientHttpResponse response) throws IOException {
-						if (response.getStatusCode() == HttpStatus.NOT_MODIFIED) {
+						if (response.getStatusCode() == HttpStatus.NOT_MODIFIED)
 							return new ResponseEntity<Boolean>(Boolean.TRUE, response.getStatusCode());
-						}
-						if (response.getStatusCode() == HttpStatus.NOT_FOUND) {
+						if (response.getStatusCode() == HttpStatus.NOT_FOUND)
 							return new ResponseEntity<Boolean>(Boolean.FALSE, response.getStatusCode());
-						}
 						final HttpHeaders headers = response.getHeaders();
 						final String mimeType = headers.getContentType().toString();
 						final long lastModified = headers.getLastModified();
@@ -186,9 +183,8 @@ public class ServerConnection {
 									// ignore
 								}
 							}
-							if (createDate == null) {
+							if (createDate == null)
 								throw new IllegalArgumentException("Cannot parse date value \"" + createDateString + "\" for \"created-at\" header");
-							}
 						}
 						final OutputStream arrayOutputStream = new FileOutputStream(tempFile);
 						try {
@@ -245,9 +241,8 @@ public class ServerConnection {
 				// final long endTime = System.currentTimeMillis();
 				// Log.i("CONNECTION", "connected to " + connection + ", time: " +
 				// (endTime - startTime) + " ms");
-				if (response != null && okStates.contains(response.getStatusCode())) {
+				if (response != null && okStates.contains(response.getStatusCode()))
 					return response.getBody();
-				}
 			} catch (final Throwable ex) {
 				if (t != null) {
 					Log.w("Server-connection", "Exception while calling server " + serverName, t);
@@ -255,11 +250,10 @@ public class ServerConnection {
 				t = ex;
 			}
 		}
-		if (t != null) {
+		if (t != null)
 			throw new RuntimeException("Cannot connect to server " + serverName, t);
-		} else {
+		else
 			throw new RuntimeException("Cannot connect to server " + serverName + ", no valid connection found");
-		}
 	}
 
 	private ResponseEntity<Void> executePut(final String url, final Object data, final Object... urlVariables) {

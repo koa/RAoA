@@ -32,16 +32,14 @@ public class FileStorage {
 		synchronized void commit() {
 			final long start = System.currentTimeMillis();
 			try {
-				if (rollbackOnly) {
+				if (rollbackOnly)
 					return;
-				}
 				final Collection<FileBackend.CommitExecutor> executors = new ArrayList<FileBackend.CommitExecutor>();
 				for (final Entry<Pair<Class<Object>, String>, Object> referencedEntry : referencedObjects.entrySet()) {
 					final FileBackend<Object> backend = getBackend(referencedEntry.getKey().first);
 					final String relativePath = referencedEntry.getKey().second;
-					if (!ObjectUtils.nullSafeEquals(backend.getLastModified(relativePath), lastModified.get(referencedEntry.getKey()))) {
+					if (!ObjectUtils.nullSafeEquals(backend.getLastModified(relativePath), lastModified.get(referencedEntry.getKey())))
 						throw new ConcurrentTransactionException(relativePath);
-					}
 					executors.add(backend.save(relativePath, referencedEntry.getValue()));
 				}
 				// prepare all
@@ -86,9 +84,8 @@ public class FileStorage {
 		@SuppressWarnings("unchecked")
 		synchronized <D> D getObject(final String relativePath, final Class<D> type) {
 			final Pair<Class<Object>, String> key = new Pair<Class<Object>, String>((Class<Object>) type, relativePath);
-			if (referencedObjects.containsKey(key)) {
+			if (referencedObjects.containsKey(key))
 				return (D) referencedObjects.get(key);
-			}
 			final FileBackend<D> backend = getBackend(type);
 			lastModified.put(key, backend.getLastModified(relativePath));
 			final D loadedValue = backend.load(relativePath);
@@ -151,9 +148,8 @@ public class FileStorage {
 
 	public <V> V callInTransaction(final Callable<V> callable) {
 		final Transaction oldTransaction = currentTransaction.get();
-		if (oldTransaction != null) {
+		if (oldTransaction != null)
 			throw new RuntimeException("Dont nest Transactions");
-		}
 		currentTransaction.set(new Transaction());
 		try {
 			while (true) {
@@ -174,14 +170,12 @@ public class FileStorage {
 	}
 
 	public <D> D getObject(final String relativePath, final Class<D> type, final ReadPolicy policy) {
-		if (policy == ReadPolicy.READ_ONLY) {
+		if (policy == ReadPolicy.READ_ONLY)
 			return getObjectReadOnly(relativePath, type);
-		}
 		final Transaction transaction = currentTransaction.get();
 		final D currentObject = transaction.getObject(relativePath, type);
-		if (currentObject != null || policy == ReadPolicy.READ_IF_EXISTS) {
+		if (currentObject != null || policy == ReadPolicy.READ_IF_EXISTS)
 			return currentObject;
-		}
 		D newInstance;
 		try {
 			newInstance = type.newInstance();
@@ -213,14 +207,12 @@ public class FileStorage {
 	private <D> D getObjectReadOnly(final String relativePath, final Class<D> type) {
 		final Pair<Class<Object>, String> key = new Pair<Class<Object>, String>((Class<Object>) type, relativePath);
 		final WeakReference<D> existingEntry = (WeakReference<D>) readOnlyCache.get(key);
-		if (existingEntry != null && existingEntry.get() != null) {
+		if (existingEntry != null && existingEntry.get() != null)
 			return existingEntry.get();
-		}
 		synchronized (readOnlyCache) {
 			final WeakReference<D> betweenLoadedEntry = (WeakReference<D>) readOnlyCache.get(key);
-			if (betweenLoadedEntry != null && betweenLoadedEntry.get() != null) {
+			if (betweenLoadedEntry != null && betweenLoadedEntry.get() != null)
 				return betweenLoadedEntry.get();
-			}
 			final D loaded = getBackend(type).load(relativePath);
 			readOnlyCache.put(key, new WeakReference<Object>(loaded));
 			return loaded;

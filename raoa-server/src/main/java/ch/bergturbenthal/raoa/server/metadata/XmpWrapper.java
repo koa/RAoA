@@ -28,13 +28,11 @@ public class XmpWrapper {
 	public String readDescription() {
 		try {
 			final int entryCount = meta.countArrayItems(XMPConst.NS_DC, "description");
-			if (entryCount < 1) {
+			if (entryCount < 1)
 				return null;
-			}
 			final XMPProperty arrayItem = meta.getArrayItem(XMPConst.NS_DC, "description", 1);
-			if (arrayItem == null) {
+			if (arrayItem == null)
 				return null;
-			}
 			return arrayItem.getValue();
 		} catch (final XMPException e) {
 			throw new RuntimeException("Cannot read Description", e);

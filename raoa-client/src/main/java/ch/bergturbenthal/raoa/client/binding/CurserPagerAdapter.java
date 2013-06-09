@@ -28,6 +28,16 @@ public class CurserPagerAdapter extends PagerAdapter {
 		int getCurrentPos();
 	}
 
+	private final Context context;
+
+	private int currentPosition;
+
+	private Cursor cursor = null;
+	private Runnable cursorLoadedHandler;
+	private final LayoutInflater inflater;
+	private final int layout;
+	private final CursorViewBinder viewBinder;
+
 	/**
 	 * Register a new {@link Cursor} on a given {@link LoaderManager}
 	 * 
@@ -84,14 +94,6 @@ public class CurserPagerAdapter extends PagerAdapter {
 		return adapter;
 	}
 
-	private final Context context;
-	private int currentPosition;
-	private Cursor cursor = null;
-	private Runnable cursorLoadedHandler;
-	private final LayoutInflater inflater;
-	private final int layout;
-	private final CursorViewBinder viewBinder;
-
 	public CurserPagerAdapter(final Context context, final int layout, final Collection<ViewHandler<? extends View>> handlers) {
 		this.context = context;
 		this.layout = layout;
@@ -106,11 +108,10 @@ public class CurserPagerAdapter extends PagerAdapter {
 
 	@Override
 	public int getCount() {
-		if (cursor == null) {
+		if (cursor == null)
 			return 0;
-		} else {
+		else
 			return cursor.getCount();
-		}
 	}
 
 	public int getCurrentPosition() {
@@ -147,9 +148,8 @@ public class CurserPagerAdapter extends PagerAdapter {
 	}
 
 	public void swapCursor(final Cursor c) {
-		if (cursor == c) {
+		if (cursor == c)
 			return;
-		}
 		viewBinder.setCursor(c);
 
 		this.cursor = c;

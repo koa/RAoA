@@ -50,9 +50,8 @@ public class MDnsListener {
 	}
 
 	public synchronized void pollForServices(final boolean withProgressUpdate) {
-		if (jmmDNS == null) {
+		if (jmmDNS == null)
 			return;
-		}
 		if (pendingFuture != null) {
 			pendingFuture.cancel(false);
 		}
