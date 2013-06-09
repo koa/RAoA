@@ -98,7 +98,6 @@ import ch.bergturbenthal.raoa.provider.store.FileStorage.ReadPolicy;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 import ch.bergturbenthal.raoa.provider.util.ObjectUtils;
-import ch.bergturbenthal.raoa.provider.util.Quad;
 import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser;
 import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser.ThumbnailUriReceiver;
 
@@ -185,7 +184,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 			@Override
 			public String call() throws Exception {
-				final AlbumEntries entriesReadOnly = store.getAlbumEntries(archive, albumId, ReadPolicy.READ_ONLY);
+				final AlbumEntries entriesReadOnly = store.getAlbumEntries(new AlbumIndex(archive, albumId), ReadPolicy.READ_ONLY);
 				if (entriesReadOnly == null) {
 					return null;
 				}
@@ -364,20 +363,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	@Override
 	public Cursor readAlbumEntryList(final String archiveName, final String albumId, final String[] projection) {
 		final AlbumIndex album = new AlbumIndex(archiveName, albumId);
-		return callInTransaction(new Callable<Cursor>() {
 
-			@Override
-			public Cursor call() throws Exception {
-				final AlbumEntries albumDetail = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
-				final Collection<AlbumEntryIndex> albumEntryIndices = new ArrayList<AlbumEntryIndex>();
-				if (albumDetail != null && albumDetail.getEntries() != null) {
-					for (final AlbumEntryDto dtoEntry : albumDetail.getEntries()) {
-						albumEntryIndices.add(new AlbumEntryIndex(album, dtoEntry.getCommId()));
-					}
-				}
-				return makeCursorForAlbumEntries(albumEntryIndices, projection, Collections.singleton(album));
+		final AlbumEntries albumDetail = store.getAlbumEntries(album, ReadPolicy.READ_ONLY);
+		final Collection<AlbumEntryIndex> albumEntryIndices = new ArrayList<AlbumEntryIndex>();
+		if (albumDetail != null && albumDetail.getEntries() != null) {
+			for (final AlbumEntryDto dtoEntry : albumDetail.getEntries()) {
+				albumEntryIndices.add(new AlbumEntryIndex(album, dtoEntry.getCommId()));
 			}
-		});
+		}
+		return makeCursorForAlbumEntries(albumEntryIndices, projection, Collections.singleton(album));
 	}
 
 	@Override
@@ -399,13 +393,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public Cursor call() throws Exception {
 				final Map<String, Integer> keywordCounts = new TreeMap<String, Integer>();
-				for (final Pair<String, String> entry : store.listAlbumMeta()) {
-					final AlbumMeta albumMeta = store.getAlbumMeta(entry.first, entry.second, ReadPolicy.READ_IF_EXISTS);
+				for (final AlbumIndex entry : store.listAlbumMeta()) {
+					final AlbumMeta albumMeta = store.getAlbumMeta(entry, ReadPolicy.READ_ONLY);
 					if (albumMeta == null) {
 						continue;
 					}
 					final Map<String, Integer> albumKeywordCounts = new HashMap<String, Integer>(albumMeta.getKeywordCounts());
-					final AlbumMutationData newMutationData = store.getAlbumMutationData(entry.first, entry.second, ReadPolicy.READ_IF_EXISTS);
+					final AlbumMutationData newMutationData = store.getAlbumMutationData(entry, ReadPolicy.READ_ONLY);
 					if (newMutationData != null) {
 						for (final Mutation mutation : newMutationData.getMutations()) {
 							if (mutation instanceof KeywordMutationEntry) {
@@ -569,7 +563,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return callInTransaction(new Callable<Cursor>() {
 			@Override
 			public Cursor call() throws Exception {
-				final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
+				final AlbumEntries albumEntries = store.getAlbumEntries(affectedAlbum, ReadPolicy.READ_ONLY);
 				if (albumEntries == null || albumEntries.getEntries() == null) {
 					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum));
 				}
@@ -584,25 +578,26 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public int updateAlbum(final String archiveName, final String albumId, final ContentValues values) {
+		final AlbumIndex album = new AlbumIndex(archiveName, albumId);
 		final Collection<String> albumEntriesToClear = new ArrayList<String>();
 		final int updatedCount = callInTransaction(new Callable<Integer>() {
 			@Override
 			public Integer call() throws Exception {
-				final AlbumMeta albumMeta = store.getAlbumMeta(archiveName, albumId, ReadPolicy.READ_ONLY);
+				final AlbumMeta albumMeta = store.getAlbumMeta(album, ReadPolicy.READ_ONLY);
 				if (albumMeta == null) {
 					return Integer.valueOf(0);
 				}
-				cursorNotifications.notifySingleAlbumCursorChanged(new AlbumIndex(archiveName, albumId));
+				cursorNotifications.notifySingleAlbumCursorChanged(album);
 				// Handling of synchronization flag
 				final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
 				if (shouldSync != null) {
-					final AlbumState albumState = store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
+					final AlbumState albumState = store.getAlbumState(album, ReadPolicy.READ_OR_CREATE);
 					if (albumState.isShouldSync() != shouldSync.booleanValue()) {
 						albumState.setShouldSync(shouldSync.booleanValue());
 						if (!shouldSync.booleanValue()) {
 							albumState.setSynced(false);
 						}
-						final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
+						final AlbumEntries albumEntries = store.getAlbumEntries(album, ReadPolicy.READ_ONLY);
 						if (albumEntries != null && albumEntries.getEntries() != null) {
 							albumEntriesToClear.addAll(albumEntries.collectEntryIds());
 						}
@@ -626,7 +621,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 						}
 					});
 					if (thumbnailId != null) {
-						final AlbumMutationData mutationData = store.getAlbumMutationData(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
+						final AlbumMutationData mutationData = store.getAlbumMutationData(album, ReadPolicy.READ_OR_CREATE);
 						final TitleImageMutation mutation = new TitleImageMutation();
 						mutation.setAlbumLastModified(albumMeta.getLastModified());
 						mutation.setTitleImage(thumbnailId);
@@ -637,7 +632,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				// handling of album title
 				final String title = values.getAsString(Client.Album.TITLE);
 				if (title != null) {
-					final AlbumMutationData mutationData = store.getAlbumMutationData(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
+					final AlbumMutationData mutationData = store.getAlbumMutationData(album, ReadPolicy.READ_OR_CREATE);
 					final TitleMutation mutation = new TitleMutation();
 					mutation.setAlbumLastModified(albumMeta.getLastModified());
 					mutation.setTitle(title);
@@ -655,10 +650,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public int updateAlbumEntry(final String archiveName, final String albumId, final String albumEntryId, final ContentValues values) {
+		final AlbumIndex album = new AlbumIndex(archiveName, albumId);
 		return callInTransaction(new Callable<Integer>() {
 			@Override
 			public Integer call() throws Exception {
-				final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
+				final AlbumEntries albumEntries = store.getAlbumEntries(album, ReadPolicy.READ_IF_EXISTS);
 				if (albumEntries == null) {
 					return Integer.valueOf(0);
 				}
@@ -666,7 +662,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				if (albumEntryDto == null) {
 					return Integer.valueOf(0);
 				}
-				final AlbumMutationData mutationList = store.getAlbumMutationData(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
+				final AlbumMutationData mutationList = store.getAlbumMutationData(album, ReadPolicy.READ_OR_CREATE);
 
 				final Collection<Mutation> mutations = mutationList.getMutations();
 				if (values.containsKey(Client.AlbumEntry.META_RATING)) {
@@ -759,7 +755,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return LazyLoader.loadLazy(new Lookup<AlbumIndex, AlbumMutationData>() {
 			@Override
 			public AlbumMutationData get(final AlbumIndex key) {
-				return store.getAlbumMutationData(key.getArchiveName(), key.getAlbumId(), ReadPolicy.READ_ONLY);
+				return store.getAlbumMutationData(key, ReadPolicy.READ_ONLY);
 			}
 		});
 	}
@@ -865,47 +861,29 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return split[split.length - 1];
 	}
 
-	private Collection<String> listAllAlbumEntries(final String archiveName, final String albumId) {
-		final Collection<String> albumEntries = callInTransaction(new Callable<Collection<String>>() {
-			@Override
-			public Collection<String> call() throws Exception {
-				final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
-				if (albumEntries == null || albumEntries.getEntries() == null) {
-					return Collections.emptyList();
-				}
-				return new ArrayList<String>(albumEntries.collectEntryIds());
-			}
-		});
-		return albumEntries;
+	private Collection<String> listAllAlbumEntries(final AlbumIndex album) {
+		final AlbumEntries albumEntries = store.getAlbumEntries(album, ReadPolicy.READ_ONLY);
+		if (albumEntries == null || albumEntries.getEntries() == null) {
+			return Collections.emptyList();
+		}
+		return new ArrayList<String>(albumEntries.collectEntryIds());
 	}
 
 	private ThumbnailEntry loadThumbnail(final AlbumEntryIndex entry) {
-		final String archiveName = entry.getAlbumIndex().getArchiveName();
-		final String albumId = entry.getAlbumIndex().getAlbumId();
+		final AlbumIndex albumIndex = entry.getAlbumIndex();
+		final String archiveName = albumIndex.getArchiveName();
+		final String albumId = albumIndex.getAlbumId();
 		final String albumEntryId = entry.getAlbumEntryId();
 		final long startTime = System.currentTimeMillis();
 		try {
-			final Quad<AlbumMeta, AlbumEntries, AlbumMutationData, AlbumState> transactionResult;
-			transactionResult = callInTransaction(new Callable<Quad<AlbumMeta, AlbumEntries, AlbumMutationData, AlbumState>>() {
-
-				@Override
-				public Quad<AlbumMeta, AlbumEntries, AlbumMutationData, AlbumState> call() throws Exception {
-					final AlbumMeta albumMeta = store.getAlbumMeta(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
-					final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
-					final AlbumMutationData localData = store.getAlbumMutationData(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
-					final AlbumState albumState = store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
-					return new Quad<AlbumMeta, AlbumEntries, AlbumMutationData, AlbumState>(albumMeta, albumEntries, localData, albumState);
-				}
-			});
-			final AlbumMeta albumMeta = transactionResult.first;
-			final AlbumEntries albumEntries = transactionResult.second;
-			final AlbumMutationData localData = transactionResult.third;
-			final AlbumState albumState = transactionResult.fourth;
+			final AlbumMeta albumMeta = store.getAlbumMeta(albumIndex, ReadPolicy.READ_ONLY);
+			final AlbumEntries albumEntries = store.getAlbumEntries(albumIndex, ReadPolicy.READ_ONLY);
+			final AlbumState albumState = store.getAlbumState(albumIndex, ReadPolicy.READ_ONLY);
 
 			if (albumMeta == null) {
 				return null;
 			}
-			final boolean permanentDownload = albumState.isShouldSync();
+			final boolean permanentDownload = albumState != null && albumState.isShouldSync();
 			if (albumEntries == null) {
 				return null;
 			}
@@ -974,15 +952,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		}
 	}
 
-	private void loadThumbnailsOfAlbum(final String archiveName, final String albumId) {
-		final AlbumIndex albumIndex = new AlbumIndex(archiveName, albumId);
+	private void loadThumbnailsOfAlbum(final AlbumIndex albumIndex) {
 		for (int i = 0; i < 2; i++) {
-			final Collection<String> albumEntries = listAllAlbumEntries(archiveName, albumId);
+			final Collection<String> albumEntries = listAllAlbumEntries(albumIndex);
 			boolean allOk = true;
 			for (final String thumbnailId : albumEntries) {
 				final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(albumIndex, thumbnailId));
 				if (thumbnailEntry != null && !thumbnailEntry.confirmedByServer && i == 0) {
-					thumbnailCache.remove(new AlbumEntryIndex(new AlbumIndex(archiveName, albumId), thumbnailId));
+					thumbnailCache.remove(new AlbumEntryIndex(albumIndex, thumbnailId));
 				}
 				allOk &= thumbnailEntry != null && thumbnailEntry.confirmedByServer;
 			}
@@ -990,7 +967,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				callInTransaction(new Callable<Void>() {
 					@Override
 					public Void call() throws Exception {
-						store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE).setSynced(true);
+						store.getAlbumState(albumIndex, ReadPolicy.READ_OR_CREATE).setSynced(true);
 						cursorNotifications.notifySingleAlbumCursorChanged(albumIndex);
 						return null;
 					}
@@ -1007,7 +984,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		final Lookup<AlbumIndex, Map<String, AlbumEntryDto>> albumEntriesLazyLoader = LazyLoader.loadLazy(new Lookup<AlbumIndex, Map<String, AlbumEntryDto>>() {
 			@Override
 			public Map<String, AlbumEntryDto> get(final AlbumIndex key) {
-				final AlbumEntries albumEntries = store.getAlbumEntries(key.getArchiveName(), key.getAlbumId(), ReadPolicy.READ_ONLY);
+				final AlbumEntries albumEntries = store.getAlbumEntries(key, ReadPolicy.READ_ONLY);
 				if (albumEntries == null || albumEntries.getEntries() == null) {
 					return Collections.emptyMap();
 				}
@@ -1102,19 +1079,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private Cursor makeCursorForAlbums(final Collection<AlbumIndex> visibleAlbums, final String[] projection, final boolean alsoSynced) throws SQLException {
 		final Map<AlbumIndex, AlbumMeta> loadedAlbums = new HashMap<AlbumIndex, AlbumMeta>();
 		if (alsoSynced) {
-			final Collection<Pair<String, String>> entryNames = store.listAlbumMeta();
-			for (final Pair<String, String> entry : entryNames) {
-				final AlbumMeta albumEntry = store.getAlbumMeta(entry.first, entry.second, ReadPolicy.READ_IF_EXISTS);
-				final String archiveName = albumEntry.getArchiveName();
-				final String albumId = albumEntry.getAlbumId();
-				if (!store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE).isShouldSync()) {
+			final Collection<AlbumIndex> entryNames = store.listAlbumMeta();
+			for (final AlbumIndex entry : entryNames) {
+				final AlbumMeta albumEntry = store.getAlbumMeta(entry, ReadPolicy.READ_IF_EXISTS);
+				if (!store.getAlbumState(entry, ReadPolicy.READ_OR_CREATE).isShouldSync()) {
 					continue;
 				}
-				loadedAlbums.put(new AlbumIndex(archiveName, albumId), albumEntry);
+				loadedAlbums.put(entry, albumEntry);
 			}
 		}
 		for (final AlbumIndex visibleAlbumIndex : visibleAlbums) {
-			final AlbumMeta visibleAlbum = store.getAlbumMeta(visibleAlbumIndex.getArchiveName(), visibleAlbumIndex.getAlbumId(), ReadPolicy.READ_IF_EXISTS);
+			final AlbumMeta visibleAlbum = store.getAlbumMeta(new AlbumIndex(visibleAlbumIndex.getArchiveName(), visibleAlbumIndex.getAlbumId()), ReadPolicy.READ_IF_EXISTS);
 			if (visibleAlbum != null) {
 				loadedAlbums.put(visibleAlbumIndex, visibleAlbum);
 			}
@@ -1131,7 +1106,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		final Lookup<AlbumIndex, AlbumState> albumStateLoader = LazyLoader.loadLazy(new Lookup<AlbumIndex, AlbumState>() {
 			@Override
 			public AlbumState get(final AlbumIndex key) {
-				return store.getAlbumState(key.getArchiveName(), key.getAlbumId(), ReadPolicy.READ_IF_EXISTS);
+				return store.getAlbumState(key, ReadPolicy.READ_IF_EXISTS);
 			}
 		});
 		final Map<String, FieldReader<AlbumMeta>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumMeta.class);
@@ -1139,7 +1114,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public String getString(final AlbumMeta value) {
 				String thumbnailId = value.getThumbnailId();
-				final AlbumMutationData mutationData = store.getAlbumMutationData(value.getArchiveName(), value.getAlbumId(), ReadPolicy.READ_IF_EXISTS);
+				final AlbumMutationData mutationData = store.getAlbumMutationData(new AlbumIndex(value.getArchiveName(), value.getAlbumId()), ReadPolicy.READ_IF_EXISTS);
 				if (mutationData != null) {
 					for (final Mutation mutation : mutationData.getMutations()) {
 						if (mutation instanceof TitleImageMutation) {
@@ -1158,7 +1133,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public String getString(final AlbumMeta value) {
 				String albumTitle = value.getAlbumTitle();
-				final AlbumMutationData mutationData = store.getAlbumMutationData(value.getArchiveName(), value.getAlbumId(), ReadPolicy.READ_IF_EXISTS);
+				final AlbumMutationData mutationData = store.getAlbumMutationData(new AlbumIndex(value.getArchiveName(), value.getAlbumId()), ReadPolicy.READ_IF_EXISTS);
 				if (mutationData != null) {
 					for (final Mutation mutation : mutationData.getMutations()) {
 						if (mutation instanceof TitleMutation) {
@@ -1321,14 +1296,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	 * @param albumId
 	 * @param albumId
 	 */
-	private void pushPendingMetadataUpdate(final AlbumConnection albumConnection, final String archiveName, final String albumId) {
-		final AlbumMutationData mutations = callInTransaction(new Callable<AlbumMutationData>() {
-
-			@Override
-			public AlbumMutationData call() throws Exception {
-				return store.getAlbumMutationData(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
-			}
-		});
+	private void pushPendingMetadataUpdate(final AlbumConnection albumConnection, final AlbumIndex album) {
+		final AlbumMutationData mutations = store.getAlbumMutationData(album, ReadPolicy.READ_ONLY);
 		if (mutations == null || mutations.getMutations().isEmpty()) {
 			// no pending mutation found
 			return;
@@ -1344,7 +1313,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return emptyValue;
 	}
 
-	private void refreshAlbumDetail(final AlbumConnection albumConnection, final String archiveName, final String albumId) {
+	private void refreshAlbumDetail(final AlbumConnection albumConnection, final AlbumIndex entry) {
 		// read data from Server
 		final AlbumDto albumDto = albumConnection.getAlbumDetail();
 		callInTransaction(new Callable<Void>() {
@@ -1352,11 +1321,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public Void call() throws Exception {
 				// clear pending mutation-data if it exists
-				final AlbumMutationData mutationList = store.getAlbumMutationData(archiveName, albumId, ReadPolicy.READ_IF_EXISTS);
+				final AlbumMutationData mutationList = store.getAlbumMutationData(entry, ReadPolicy.READ_IF_EXISTS);
 				final Collection<Mutation> mutations = mutationList != null && mutationList.getMutations() != null ? mutationList.getMutations()
 						: Collections.<Mutation> emptyList();
-				final AlbumMeta albumMeta = store.getAlbumMeta(archiveName, albumId, ReadPolicy.READ_OR_CREATE);
-				final Collection<AlbumEntryDto> entries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_OR_CREATE).getEntries();
+				final AlbumMeta albumMeta = store.getAlbumMeta(entry, ReadPolicy.READ_OR_CREATE);
+				final Collection<AlbumEntryDto> entries = store.getAlbumEntries(entry, ReadPolicy.READ_OR_CREATE).getEntries();
 				entries.clear();
 				entries.addAll(albumDto.getEntries().values());
 				albumMeta.setLastModified(albumDto.getLastModified());
@@ -1413,9 +1382,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				if (dateCount.get() > 0) {
 					albumMeta.setAlbumDate(new Date(dateSum.longValue() / dateCount.longValue()));
 				}
-				notifyAlbumChanged(new AlbumIndex(archiveName, albumId));
+				notifyAlbumChanged(entry);
 				if (mutations.isEmpty()) {
-					store.removeMutationData(archiveName, albumId);
+					store.removeMutationData(entry);
 				}
 				return null;
 			}
@@ -1540,16 +1509,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		builder.setProgress(totalAlbumCount, albumCounter.incrementAndGet(), false);
 		notificationManager.notify(NOTIFICATION, builder.getNotification());
 
-		final AtomicReference<String> albumId = new AtomicReference<String>();
 		final AtomicBoolean shouldUpdateMeta = new AtomicBoolean(false);
 		final AtomicBoolean shouldLoadThumbnails = new AtomicBoolean(false);
+		final String commId = albumConnection.getCommId();
+		final AlbumIndex index = new AlbumIndex(archiveName, commId);
 		callInTransaction(new Callable<Void>() {
 			@Override
 			public Void call() throws Exception {
 
-				final String commId = albumConnection.getCommId();
-				final AlbumMeta existingAlbumMeta = store.getAlbumMeta(archiveName, commId, ReadPolicy.READ_OR_CREATE);
-				final AlbumState albumState = store.getAlbumState(archiveName, commId, ReadPolicy.READ_OR_CREATE);
+				final AlbumMeta existingAlbumMeta = store.getAlbumMeta(index, ReadPolicy.READ_OR_CREATE);
+				final AlbumState albumState = store.getAlbumState(index, ReadPolicy.READ_OR_CREATE);
 				existingAlbumMeta.setName(albumName);
 				final boolean albumModified = !dateEquals(existingAlbumMeta.getLastModified(), albumConnection.lastModified());
 				shouldUpdateMeta.set(albumModified);
@@ -1559,21 +1528,20 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				}
 				shouldLoadThumbnails.set(albumState.isShouldSync() && !albumState.isSynced());
 
-				final boolean visibleAlbumsModified = visibleAlbumsOfArchive.put(albumName, commId) == null;
+				final boolean visibleAlbumsModified = visibleAlbumsOfArchive.put(albumName, index.getAlbumId()) == null;
 				if (visibleAlbumsModified) {
 					notifyAlbumListChanged();
 				}
-				albumId.set(commId);
 				return null;
 			}
 
 		});
 		if (shouldUpdateMeta.get()) {
-			refreshAlbumDetail(albumConnection, archiveName, albumId.get());
+			refreshAlbumDetail(albumConnection, index);
 		}
-		pushPendingMetadataUpdate(albumConnection, archiveName, albumId.get());
+		pushPendingMetadataUpdate(albumConnection, index);
 		if (shouldLoadThumbnails.get()) {
-			loadThumbnailsOfAlbum(archiveName, albumId.get());
+			loadThumbnailsOfAlbum(index);
 		}
 	}
 

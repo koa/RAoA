@@ -7,9 +7,9 @@ import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
-import android.util.Pair;
 import ch.bergturbenthal.raoa.data.model.StorageList;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntries;
+import ch.bergturbenthal.raoa.provider.model.dto.AlbumIndex;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMeta;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMutationData;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumState;
@@ -41,25 +41,26 @@ public class LocalStore {
 		return store.callInTransaction(callable);
 	}
 
-	public AlbumEntries getAlbumEntries(final String archiveName, final String albumId, final ReadPolicy policy) {
-		return store.getObject(archiveName + "/" + albumId + "-entries", AlbumEntries.class, policy);
+	public AlbumEntries getAlbumEntries(final AlbumIndex entry, final ReadPolicy policy) {
+		return store.getObject(entry.getArchiveName() + "/" + entry.getAlbumId() + "-entries", AlbumEntries.class, policy);
 	}
 
-	public AlbumMeta getAlbumMeta(final String archiveName, final String albumId, final ReadPolicy policy) {
-		final AlbumMeta value = store.getObject(archiveName + "/" + albumId + METADATA_SUFFIX, AlbumMeta.class, policy);
+	public AlbumMeta getAlbumMeta(final AlbumIndex entry, final ReadPolicy policy) {
+		final AlbumMeta value = store.getObject(entry.getArchiveName() + "/" + entry.getAlbumId() + METADATA_SUFFIX, AlbumMeta.class, policy);
 		if (policy == ReadPolicy.READ_OR_CREATE) {
-			value.setArchiveName(archiveName);
-			value.setAlbumId(albumId);
+			value.setArchiveName(entry.getArchiveName());
+			value.setAlbumId(entry.getAlbumId());
 		}
 		return value;
+
 	}
 
-	public AlbumMutationData getAlbumMutationData(final String archiveName, final String albumId, final ReadPolicy policy) {
-		return store.getObject(makeAlbumMutationDataPath(archiveName, albumId), AlbumMutationData.class, policy);
+	public AlbumMutationData getAlbumMutationData(final AlbumIndex index, final ReadPolicy policy) {
+		return store.getObject(makeAlbumMutationDataPath(index.getArchiveName(), index.getAlbumId()), AlbumMutationData.class, policy);
 	}
 
-	public AlbumState getAlbumState(final String archiveName, final String albumId, final ReadPolicy policy) {
-		final String relativePath = archiveName + "/" + albumId + "-state";
+	public AlbumState getAlbumState(final AlbumIndex index, final ReadPolicy policy) {
+		final String relativePath = index.getArchiveName() + "/" + index.getAlbumId() + "-state";
 		return store.getObject(relativePath, AlbumState.class, policy);
 	}
 
@@ -67,9 +68,9 @@ public class LocalStore {
 		return store.getObject("storages", StorageList.class, policy);
 	}
 
-	public Collection<Pair<String, String>> listAlbumMeta() {
+	public Collection<AlbumIndex> listAlbumMeta() {
 		final Collection<String> foundPath = store.listRelativePath(Arrays.asList(Pattern.compile(".*"), Pattern.compile(".*" + METADATA_SUFFIX)), AlbumMeta.class);
-		final ArrayList<Pair<String, String>> ret = new ArrayList<Pair<String, String>>(foundPath.size());
+		final ArrayList<AlbumIndex> ret = new ArrayList<AlbumIndex>(foundPath.size());
 		for (final String string : foundPath) {
 			final String[] parts = string.split("/", 2);
 			if (parts.length != 2) {
@@ -79,13 +80,13 @@ public class LocalStore {
 			if (!filename.endsWith(METADATA_SUFFIX)) {
 				continue;
 			}
-			ret.add(new Pair<String, String>(parts[0], filename.substring(0, filename.length() - METADATA_SUFFIX.length())));
+			ret.add(new AlbumIndex(parts[0], filename.substring(0, filename.length() - METADATA_SUFFIX.length())));
 		}
 		return ret;
 	}
 
-	public void removeMutationData(final String archiveName, final String albumId) {
-		store.removeObject(makeAlbumMutationDataPath(archiveName, albumId), AlbumMutationData.class);
+	public void removeMutationData(final AlbumIndex index) {
+		store.removeObject(makeAlbumMutationDataPath(index.getArchiveName(), index.getAlbumId()), AlbumMutationData.class);
 	}
 
 	private String makeAlbumMutationDataPath(final String archiveName, final String albumId) {

@@ -125,12 +125,22 @@ public class MapperUtil {
 					for (final IndexedOderEntry sortColumn : sortEntries) {
 						final Comparable<Object> leftValue = (Comparable<Object>) lhs[sortColumn.index];
 						final Comparable<Object> rightValue = (Comparable<Object>) rhs[sortColumn.index];
-						final int cmp = leftValue.compareTo(rightValue);
+						final int cmp = compareRaw(leftValue, rightValue);
 						if (cmp != 0) {
 							return sortColumn.order == Order.ASC ? cmp : -cmp;
 						}
 					}
 					return 0;
+				}
+
+				private int compareRaw(final Comparable<Object> leftValue, final Comparable<Object> rightValue) {
+					if (leftValue == null) {
+						return rightValue == null ? 0 : -1;
+					}
+					if (rightValue == null) {
+						return 1;
+					}
+					return leftValue.compareTo(rightValue);
 				}
 			});
 			Log.i(TAG, "End Sorting rows");

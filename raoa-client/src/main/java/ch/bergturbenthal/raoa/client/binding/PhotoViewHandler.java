@@ -132,6 +132,9 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 					// get the real image
 					final ContentResolver contentResolver = view.getContext().getContentResolver();
 					final String contentType = contentResolver.getType(uri);
+					if (contentType == null) {
+						return null;
+					}
 					if (contentType.startsWith("video")) {
 						final MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 						try {
