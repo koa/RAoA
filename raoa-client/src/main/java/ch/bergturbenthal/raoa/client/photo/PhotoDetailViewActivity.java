@@ -1,6 +1,11 @@
 package ch.bergturbenthal.raoa.client.photo;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -11,8 +16,8 @@ import android.app.Activity;
 import android.app.FragmentTransaction;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Color;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.view.ViewPager;
 import android.view.MotionEvent;
@@ -32,6 +37,18 @@ import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoDetailViewActivity extends Activity {
 
+	private static interface TagViewHandler {
+		void setVisibleTags(final String[] tags);
+
+		void showTags(final boolean visibility);
+	}
+
+	private static interface TagViewHandlerUpdater {
+		void doUpdate(final TagViewHandler handler);
+	}
+
+	protected static final int VISIBLE_KEYWORD_COUNT = 5;
+
 	private static final String ACTUAL_POS = "actPos";
 
 	private static final String ALBUM_ID = "album_uri";
@@ -39,16 +56,20 @@ public class PhotoDetailViewActivity extends Activity {
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
 	private static final String[] PROJECTION = new String[] { Client.AlbumEntry.THUMBNAIL };
-
 	private int actPos;
-	private CurserPagerAdapter adapter;
 
+	private CurserPagerAdapter adapter;
 	private Uri albumUri;
+
 	private PhotoDetailContainer detailContainer;
 
 	private boolean isOverlayVisible = false;
 
 	private ViewPager pager;
+
+	private final Collection<WeakReference<TagViewHandler>> tagHandlers = new LinkedList<WeakReference<TagViewHandler>>();
+
+	private String[] visibleKeywords = new String[0];
 
 	@Override
 	public void onBackPressed() {
@@ -94,6 +115,25 @@ public class PhotoDetailViewActivity extends Activity {
 		// If hardware acceleration is enabled, you should also remove
 		// clipping on the pager for its children.
 		pager.setClipChildren(false);
+		new AsyncTask<Void, Void, Void>() {
+			private String[] visibleKeywords;
+
+			@Override
+			protected Void doInBackground(final Void... params) {
+				final List<String> knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
+				if (knownKeywords.size() > VISIBLE_KEYWORD_COUNT) {
+					visibleKeywords = knownKeywords.subList(0, VISIBLE_KEYWORD_COUNT).toArray(new String[VISIBLE_KEYWORD_COUNT]);
+				} else {
+					visibleKeywords = knownKeywords.toArray(new String[knownKeywords.size()]);
+				}
+				return null;
+			}
+
+			@Override
+			protected void onPostExecute(final Void result) {
+				updateVisibleKeywords(visibleKeywords);
+			}
+		}.execute();
 
 		if (savedInstanceState != null) {
 			actPos = savedInstanceState.getInt(ACTUAL_POS);
@@ -148,54 +188,70 @@ public class PhotoDetailViewActivity extends Activity {
 			@Override
 			public void bindView(final View view, final Context context, final Map<String, Object> values) {
 				final LinearLayout overlayLayout = (LinearLayout) view.findViewById(R.id.photo_edit_overlay_layout);
+				final ToggleButton[] visibleToggleButtons = new ToggleButton[VISIBLE_KEYWORD_COUNT];
+				for (int i = 0; i < visibleToggleButtons.length; i++) {
+					final ToggleButton toggleButton = new ToggleButton(context);
+					toggleButton.setSingleLine();
+					final LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(	android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+																																									android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+					params.setMargins(5, 5, 5, 5);
+					toggleButton.setLayoutParams(params);
+					toggleButton.setAlpha((float) 0.9);
+					toggleButton.setText("<dummy>");
+					toggleButton.setTextOn("<dummy>");
+					toggleButton.setTextOff("<dummy>");
+					// toggleButton.setVisibility(View.INVISIBLE);
+					toggleButton.setBackgroundResource(R.drawable.button_color_toggle);
+
+					toggleButton.setOnClickListener(new OnClickListener() {
+
+						@Override
+						public void onClick(final View v) {
+							final boolean isChecked = ((ToggleButton) v).isChecked();
+						}
+					});
+					visibleToggleButtons[i] = toggleButton;
+					overlayLayout.addView(toggleButton);
+				}
+				final Collection<String> keywordList = new HashSet<String>(Client.AlbumEntry.decodeKeywords((String) values.get(Client.AlbumEntry.META_KEYWORDS)));
+				final TagViewHandler updateHandler = new TagViewHandler() {
+
+					@Override
+					public void setVisibleTags(final String[] tags) {
+						for (int i = 0; i < visibleToggleButtons.length; i++) {
+							if (tags.length > i && tags[i] != null) {
+								final String tag = tags[i];
+								visibleToggleButtons[i].setVisibility(View.VISIBLE);
+								visibleToggleButtons[i].setText(tag);
+								visibleToggleButtons[i].setTextOff(tag);
+								visibleToggleButtons[i].setTextOn(tag);
+								visibleToggleButtons[i].setTag(tag);
+								visibleToggleButtons[i].setChecked(keywordList.contains(tag));
+							} else {
+								visibleToggleButtons[i].setVisibility(View.INVISIBLE);
+							}
+							visibleToggleButtons[i].invalidate();
+						}
+						overlayLayout.invalidate();
+					}
+
+					@Override
+					public void showTags(final boolean visibility) {
+						overlayLayout.setVisibility(visibility ? View.VISIBLE : View.INVISIBLE);
+						overlayLayout.invalidate();
+					}
+				};
+				tagHandlers.add(new WeakReference<TagViewHandler>(updateHandler));
+				overlayLayout.setTag(updateHandler);
+				updateHandler.setVisibleTags(visibleKeywords);
 
 				if (isOverlayVisible) {
 					// overlayLayout.removeAllViewsInLayout();
 					overlayLayout.setVisibility(View.VISIBLE);
-					final List<String> knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
-					final int max = knownKeywords.size() < 5 ? knownKeywords.size() : 5;
-					for (int i = 0; i < max; i++) {
-						final ToggleButton toggleButton = new ToggleButton(context);
-						final String tag = knownKeywords.get(i);
-						toggleButton.setSingleLine();
-						toggleButton.setText(tag);
-						toggleButton.setTextOff(tag);
-						toggleButton.setTextOn(tag);
-						final LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(	android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-																																										android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
-						params.setMargins(5, 5, 5, 5);
-						toggleButton.setLayoutParams(params);
-						if (toggleButton.isChecked()) {
-							toggleButton.setBackgroundColor(Color.GREEN);
-						} else {
-							toggleButton.setBackgroundColor(Color.GRAY);
-						}
-						toggleButton.setAlpha((float) 0.9);
-
-						toggleButton.setOnClickListener(new OnClickListener() {
-
-							@Override
-							public void onClick(final View v) {
-								final boolean isChecked = ((ToggleButton) v).isChecked();
-								if (isChecked) {
-									((ToggleButton) v).setBackgroundColor(Color.GREEN);
-
-								} else {
-									((ToggleButton) v).setBackgroundColor(Color.GRAY);
-								}
-
-								overlayLayout.getRootView().requestLayout();
-								overlayLayout.invalidate();
-							}
-						});
-						overlayLayout.addView(toggleButton);
-					}
-
 				} else {
 					overlayLayout.setVisibility(View.INVISIBLE);
 				}
-				overlayLayout.getRootView().requestLayout();
-				overlayLayout.invalidate();
+
 				view.setOnClickListener(new View.OnClickListener() {
 
 					@Override
@@ -219,7 +275,7 @@ public class PhotoDetailViewActivity extends Activity {
 
 			@Override
 			public String[] usedFields() {
-				return new String[] {};
+				return new String[] { Client.AlbumEntry.META_KEYWORDS };
 			}
 		});
 		return ret;
@@ -262,15 +318,52 @@ public class PhotoDetailViewActivity extends Activity {
 			@Override
 			public void onTabSelected(final Tab tab, final FragmentTransaction ft) {
 				isOverlayVisible = true;
-				reloadViewPager();
+
+				showTagTab(true);
+				// updateView();
 			}
 
 			@Override
 			public void onTabUnselected(final Tab tab, final FragmentTransaction ft) {
 				isOverlayVisible = false;
-				reloadViewPager();
+				showTagTab(false);
+				// updateView();
 			}
 		});
 		actionBar.addTab(editTagsTab);
 	}
+
+	private void showTagTab(final boolean visibility) {
+		updateAllTagViews(new TagViewHandlerUpdater() {
+
+			@Override
+			public void doUpdate(final TagViewHandler handler) {
+				handler.showTags(visibility);
+			}
+		});
+	}
+
+	private void updateAllTagViews(final TagViewHandlerUpdater updater) {
+		for (final Iterator<WeakReference<TagViewHandler>> tagIterator = tagHandlers.iterator(); tagIterator.hasNext();) {
+			final WeakReference<TagViewHandler> reference = tagIterator.next();
+			final TagViewHandler value = reference.get();
+			if (value == null) {
+				tagIterator.remove();
+			} else {
+				updater.doUpdate(value);
+			}
+		}
+	}
+
+	private void updateVisibleKeywords(final String[] visibleKeywords) {
+		this.visibleKeywords = visibleKeywords;
+		updateAllTagViews(new TagViewHandlerUpdater() {
+
+			@Override
+			public void doUpdate(final TagViewHandler handler) {
+				handler.setVisibleTags(visibleKeywords);
+			}
+		});
+	}
+
 }
