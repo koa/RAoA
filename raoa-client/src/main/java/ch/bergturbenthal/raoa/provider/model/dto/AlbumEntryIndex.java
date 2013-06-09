@@ -3,31 +3,46 @@
  */
 package ch.bergturbenthal.raoa.provider.model.dto;
 
-public class AlbumEntryIndex extends AlbumIndex {
+public class AlbumEntryIndex {
+	private final AlbumIndex albumIndex;
 	private final String albumEntryId;
 
-	public AlbumEntryIndex(final String archiveName, final String albumId, final String albumEntryId) {
-		super(archiveName, albumId);
+	public AlbumEntryIndex(final AlbumIndex album, final String albumEntryId) {
+		this.albumIndex = album;
 		this.albumEntryId = albumEntryId;
 	}
 
 	@Override
 	public boolean equals(final Object obj) {
-		if (this == obj)
+		if (this == obj) {
 			return true;
-		if (!super.equals(obj))
+		}
+		if (obj == null) {
 			return false;
-		if (getClass() != obj.getClass())
+		}
+		if (getClass() != obj.getClass()) {
 			return false;
+		}
 		final AlbumEntryIndex other = (AlbumEntryIndex) obj;
-		if (albumEntryId == null) {
-			if (other.albumEntryId != null)
+		if (albumIndex == null) {
+			if (other.albumIndex != null) {
 				return false;
-		} else if (!albumEntryId.equals(other.albumEntryId))
+			}
+		} else if (!albumIndex.equals(other.albumIndex)) {
 			return false;
-		else if (!super.equals(obj))
+		}
+		if (albumEntryId == null) {
+			if (other.albumEntryId != null) {
+				return false;
+			}
+		} else if (!albumEntryId.equals(other.albumEntryId)) {
 			return false;
+		}
 		return true;
+	}
+
+	public AlbumIndex getAlbumIndex() {
+		return albumIndex;
 	}
 
 	/**
@@ -43,8 +58,8 @@ public class AlbumEntryIndex extends AlbumIndex {
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
+		result = prime * result + ((albumIndex == null) ? 0 : albumIndex.hashCode());
 		result = prime * result + ((albumEntryId == null) ? 0 : albumEntryId.hashCode());
-		result = prime * result + super.hashCode();
 		return result;
 	}
 

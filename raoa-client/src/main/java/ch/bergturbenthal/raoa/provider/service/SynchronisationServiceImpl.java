@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
@@ -76,9 +75,12 @@ import ch.bergturbenthal.raoa.data.model.state.Issue;
 import ch.bergturbenthal.raoa.data.model.state.Progress;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.raoa.provider.Client;
+import ch.bergturbenthal.raoa.provider.SortOrder;
+import ch.bergturbenthal.raoa.provider.SortOrderEntry.Order;
 import ch.bergturbenthal.raoa.provider.map.BooleanFieldReader;
 import ch.bergturbenthal.raoa.provider.map.FieldReader;
 import ch.bergturbenthal.raoa.provider.map.MapperUtil;
+import ch.bergturbenthal.raoa.provider.map.NotifyableMatrixCursor;
 import ch.bergturbenthal.raoa.provider.map.NumericFieldReader;
 import ch.bergturbenthal.raoa.provider.map.StringFieldReader;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto;
@@ -115,21 +117,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		private boolean confirmedByServer;
 		private File referencedFile;
 	}
-
-	private static final Comparator<AlbumEntryDto> ALBUM_ENTRY_COMPARATOR = new Comparator<AlbumEntryDto>() {
-
-		@Override
-		public int compare(final AlbumEntryDto lhs, final AlbumEntryDto rhs) {
-			final int dateDifference = dateCompare(lhs.getCaptureDate(), rhs.getCaptureDate());
-			if (dateDifference != 0) {
-				return dateDifference;
-			}
-			final int fileNameOrder = lhs.getFileName().compareTo(rhs.getFileName());
-			return fileNameOrder;
-
-		}
-
-	};
 
 	private final static String SERVICE_TAG = "Synchronisation Service";
 	private static final String THUMBNAIL_SUFFIX = ".thumbnail";
@@ -223,7 +210,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		final long startTime = System.currentTimeMillis();
 		Log.i("Performance", "Start load Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId);
 		try {
-			final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
+			final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(new AlbumIndex(archiveName, albumId), albumEntryId));
 			if (thumbnailEntry == null) {
 				return null;
 			}
@@ -376,19 +363,19 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public Cursor readAlbumEntryList(final String archiveName, final String albumId, final String[] projection) {
+		final AlbumIndex album = new AlbumIndex(archiveName, albumId);
 		return callInTransaction(new Callable<Cursor>() {
 
 			@Override
 			public Cursor call() throws Exception {
 				final AlbumEntries albumDetail = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
-				final Collection<AlbumEntryDto> albumEntries;
-				if (albumDetail == null || albumDetail.getEntries() == null) {
-					albumEntries = Collections.emptyList();
-				} else {
-					albumEntries = albumDetail.getEntries();
+				final Collection<AlbumEntryIndex> albumEntryIndices = new ArrayList<AlbumEntryIndex>();
+				if (albumDetail != null && albumDetail.getEntries() != null) {
+					for (final AlbumEntryDto dtoEntry : albumDetail.getEntries()) {
+						albumEntryIndices.add(new AlbumEntryIndex(album, dtoEntry.getCommId()));
+					}
 				}
-				return makeCursorForAlbumEntries(albumEntries, archiveName, albumId, projection);
-
+				return makeCursorForAlbumEntries(albumEntryIndices, projection, Collections.singleton(album));
 			}
 		});
 	}
@@ -578,18 +565,19 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public Cursor readSingleAlbumEntry(final String archiveName, final String albumId, final String archiveEntryId, final String[] projection) {
+		final AlbumIndex affectedAlbum = new AlbumIndex(archiveName, albumId);
 		return callInTransaction(new Callable<Cursor>() {
 			@Override
 			public Cursor call() throws Exception {
 				final AlbumEntries albumEntries = store.getAlbumEntries(archiveName, albumId, ReadPolicy.READ_ONLY);
 				if (albumEntries == null || albumEntries.getEntries() == null) {
-					return makeCursorForAlbumEntries(Collections.<AlbumEntryDto> emptyList(), archiveName, albumId, projection);
+					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum));
 				}
 				final AlbumEntryDto entryDto = albumEntries.findEntryById(archiveEntryId);
 				if (entryDto == null) {
-					return makeCursorForAlbumEntries(Collections.<AlbumEntryDto> emptyList(), archiveName, albumId, projection);
+					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum));
 				}
-				return makeCursorForAlbumEntries(Collections.singletonList(entryDto), archiveName, albumId, projection);
+				return makeCursorForAlbumEntries(Collections.singletonList(new AlbumEntryIndex(affectedAlbum, archiveEntryId)), projection, Collections.singleton(affectedAlbum));
 			}
 		});
 	}
@@ -660,7 +648,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 		}).intValue();
 		for (final String entryId : albumEntriesToClear) {
-			thumbnailCache.remove(new AlbumEntryIndex(archiveName, albumId, entryId));
+			thumbnailCache.remove(new AlbumEntryIndex(new AlbumIndex(archiveName, albumId), entryId));
 		}
 		return updatedCount;
 	}
@@ -830,7 +818,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 			@Override
 			protected ThumbnailEntry create(final AlbumEntryIndex key) {
-				return loadThumbnail(key.getArchiveName(), key.getAlbumId(), key.getAlbumEntryId());
+				return loadThumbnail(key);
 			}
 
 			@Override
@@ -891,7 +879,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return albumEntries;
 	}
 
-	private ThumbnailEntry loadThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
+	private ThumbnailEntry loadThumbnail(final AlbumEntryIndex entry) {
+		final String archiveName = entry.getAlbumIndex().getArchiveName();
+		final String albumId = entry.getAlbumIndex().getAlbumId();
+		final String albumEntryId = entry.getAlbumEntryId();
 		final long startTime = System.currentTimeMillis();
 		try {
 			final Quad<AlbumMeta, AlbumEntries, AlbumMutationData, AlbumState> transactionResult;
@@ -984,13 +975,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	}
 
 	private void loadThumbnailsOfAlbum(final String archiveName, final String albumId) {
+		final AlbumIndex albumIndex = new AlbumIndex(archiveName, albumId);
 		for (int i = 0; i < 2; i++) {
 			final Collection<String> albumEntries = listAllAlbumEntries(archiveName, albumId);
 			boolean allOk = true;
 			for (final String thumbnailId : albumEntries) {
-				final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, thumbnailId));
+				final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(albumIndex, thumbnailId));
 				if (thumbnailEntry != null && !thumbnailEntry.confirmedByServer && i == 0) {
-					thumbnailCache.remove(new AlbumEntryIndex(archiveName, albumId, thumbnailId));
+					thumbnailCache.remove(new AlbumEntryIndex(new AlbumIndex(archiveName, albumId), thumbnailId));
 				}
 				allOk &= thumbnailEntry != null && thumbnailEntry.confirmedByServer;
 			}
@@ -999,7 +991,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					@Override
 					public Void call() throws Exception {
 						store.getAlbumState(archiveName, albumId, ReadPolicy.READ_OR_CREATE).setSynced(true);
-						cursorNotifications.notifySingleAlbumCursorChanged(new AlbumIndex(archiveName, albumId));
+						cursorNotifications.notifySingleAlbumCursorChanged(albumIndex);
 						return null;
 					}
 				});
@@ -1008,32 +1000,49 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		}
 	}
 
-	private Cursor makeCursorForAlbumEntries(final Collection<AlbumEntryDto> albumEntries, final String archiveName, final String albumId, final String[] projection) {
-		final List<AlbumEntryDto> values = new ArrayList(albumEntries);
-		Collections.sort(values, ALBUM_ENTRY_COMPARATOR);
+	private Cursor makeCursorForAlbumEntries(final Collection<AlbumEntryIndex> indices, final String[] projection, final Collection<AlbumIndex> albumsToNotify) {
+		// Log.i(SERVICE_TAG, "Start query album entries");
 
 		final Lookup<AlbumIndex, AlbumMutationData> mutationDataLazyLoader = createReadOnlyAlbumMutationLazyLoader();
-
-		final Map<String, FieldReader<AlbumEntryDto>> dtoFieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumEntryDto.class);
-
-		dtoFieldReaders.put(Client.AlbumEntry.THUMBNAIL, new StringFieldReader<AlbumEntryDto>() {
-
+		final Lookup<AlbumIndex, Map<String, AlbumEntryDto>> albumEntriesLazyLoader = LazyLoader.loadLazy(new Lookup<AlbumIndex, Map<String, AlbumEntryDto>>() {
 			@Override
-			public String getString(final AlbumEntryDto value) {
-				return Client.makeThumbnailUri(archiveName, albumId, value.getCommId()).toString();
+			public Map<String, AlbumEntryDto> get(final AlbumIndex key) {
+				final AlbumEntries albumEntries = store.getAlbumEntries(key.getArchiveName(), key.getAlbumId(), ReadPolicy.READ_ONLY);
+				if (albumEntries == null || albumEntries.getEntries() == null) {
+					return Collections.emptyMap();
+				}
+				final HashMap<String, AlbumEntryDto> ret = new HashMap<String, AlbumEntryDto>();
+				for (final AlbumEntryDto dto : albumEntries.getEntries()) {
+					ret.put(dto.getCommId(), dto);
+				}
+				return ret;
 			}
 		});
-		dtoFieldReaders.put(Client.AlbumEntry.META_KEYWORDS, new StringFieldReader<AlbumEntryDto>() {
+		final Lookup<AlbumEntryIndex, AlbumEntryDto> albumEntryLookup = LazyLoader.cacheLatest(new Lookup<AlbumEntryIndex, AlbumEntryDto>() {
+			@Override
+			public AlbumEntryDto get(final AlbumEntryIndex key) {
+				final Map<String, AlbumEntryDto> albumEntries = albumEntriesLazyLoader.get(key.getAlbumIndex());
+				if (albumEntries == null) {
+					return null;
+				}
+				return albumEntries.get(key.getAlbumEntryId());
+			}
+		}, 1);
+
+		final Map<String, FieldReader<AlbumEntryIndex>> indexFieldReaders = MapperUtil.delegateFieldReaders(MapperUtil.makeAnnotaedFieldReaders(AlbumEntryDto.class),
+																																																				albumEntryLookup);
+
+		indexFieldReaders.put(Client.AlbumEntry.META_KEYWORDS, new StringFieldReader<AlbumEntryIndex>() {
 
 			@Override
-			public String getString(final AlbumEntryDto value) {
-				final Collection<String> keywords = new TreeSet<String>(value.getKeywords());
-				final AlbumMutationData mutationData = mutationDataLazyLoader.get(new AlbumIndex(archiveName, albumId));
+			public String getString(final AlbumEntryIndex value) {
+				final Collection<String> keywords = new TreeSet<String>(albumEntryLookup.get(value).getKeywords());
+				final AlbumMutationData mutationData = mutationDataLazyLoader.get(value.getAlbumIndex());
 				if (mutationData != null && mutationData.getMutations() != null) {
 					for (final Mutation mutation : mutationData.getMutations()) {
 						if (mutation instanceof KeywordMutationEntry) {
 							final KeywordMutationEntry keywordEntry = (KeywordMutationEntry) mutation;
-							if (!keywordEntry.getAlbumEntryId().equals(value.getCommId())) {
+							if (!keywordEntry.getAlbumEntryId().equals(value.getAlbumEntryId())) {
 								continue;
 							}
 							switch (keywordEntry.getMutation()) {
@@ -1050,22 +1059,44 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return Client.AlbumEntry.encodeKeywords(keywords);
 			}
 		});
-		dtoFieldReaders.put(Client.AlbumEntry.ENTRY_URI, new StringFieldReader<AlbumEntryDto>() {
+		indexFieldReaders.put(Client.AlbumEntry.THUMBNAIL, new StringFieldReader<AlbumEntryIndex>() {
 
 			@Override
-			public String getString(final AlbumEntryDto value) {
-				return Client.makeAlbumEntryUri(archiveName, albumId, value.getCommId()).toString();
+			public String getString(final AlbumEntryIndex value) {
+				return Client.makeThumbnailUri(value.getAlbumIndex().getArchiveName(), value.getAlbumIndex().getAlbumId(), value.getAlbumEntryId()).toString();
 			}
 		});
-		dtoFieldReaders.put(Client.AlbumEntry.NUMERIC_ID, new NumericFieldReader<AlbumEntryDto>(Cursor.FIELD_TYPE_INTEGER) {
+		indexFieldReaders.put(Client.AlbumEntry.NUMERIC_ID, new NumericFieldReader<AlbumEntryIndex>(Cursor.FIELD_TYPE_INTEGER) {
 
 			@Override
-			public Number getNumber(final AlbumEntryDto value) {
-				return idCache.get(value.getCommId());
+			public Number getNumber(final AlbumEntryIndex value) {
+				return idCache.get(value.getAlbumIndex().getArchiveName() + "_" + value.getAlbumIndex().getAlbumId() + "_" + value.getAlbumEntryId());
 			}
 		});
+		indexFieldReaders.put(Client.AlbumEntry.ENTRY_URI, new StringFieldReader<AlbumEntryIndex>() {
 
-		return cursorNotifications.addSingleAlbumCursor(new AlbumIndex(archiveName, albumId), MapperUtil.loadCollectionIntoCursor(values, projection, dtoFieldReaders));
+			@Override
+			public String getString(final AlbumEntryIndex value) {
+				return Client.makeAlbumEntryUri(value.getAlbumIndex().getArchiveName(), value.getAlbumIndex().getAlbumId(), value.getAlbumEntryId()).toString();
+			}
+		});
+		try {
+			final SortOrder order = new SortOrder();
+			order.addOrder(Client.AlbumEntry.CAPTURE_DATE, Order.ASC);
+			order.addOrder(Client.AlbumEntry.NAME, Order.ASC);
+
+			final NotifyableMatrixCursor cursor = MapperUtil.loadCollectionIntoCursor(indices, projection, indexFieldReaders, order);
+			final HashSet<AlbumIndex> affectedAlbums = new HashSet<AlbumIndex>(albumsToNotify);
+			for (final AlbumEntryIndex indexEntry : indices) {
+				affectedAlbums.add(indexEntry.getAlbumIndex());
+			}
+			for (final AlbumIndex index : affectedAlbums) {
+				cursorNotifications.addSingleAlbumCursor(index, cursor);
+			}
+			return cursor;
+		} finally {
+			// Log.i(SERVICE_TAG, "Returning");
+		}
 	}
 
 	private Cursor makeCursorForAlbums(final Collection<AlbumIndex> visibleAlbums, final String[] projection, final boolean alsoSynced) throws SQLException {
@@ -1407,6 +1438,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				}
 			})) {
 				final String albumId = albumDir.getName();
+				final AlbumIndex album = new AlbumIndex(archiveName, albumId);
 				for (final File thumbnailFile : albumDir.listFiles(new FileFilter() {
 
 					@Override
@@ -1416,7 +1448,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				})) {
 					final String filename = thumbnailFile.getName();
 					final String albumEntryId = filename.substring(0, filename.length() - THUMBNAIL_SUFFIX.length());
-					final ThumbnailEntry loadedFile = thumbnailCache.get(new AlbumEntryIndex(archiveName, albumId, albumEntryId));
+					final ThumbnailEntry loadedFile = thumbnailCache.get(new AlbumEntryIndex(album, albumEntryId));
 					if (loadedFile == null) {
 						thumbnailFile.delete();
 					}
@@ -1517,15 +1549,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 				final String commId = albumConnection.getCommId();
 				final AlbumMeta existingAlbumMeta = store.getAlbumMeta(archiveName, commId, ReadPolicy.READ_OR_CREATE);
-				final AlbumState mutationList = store.getAlbumState(archiveName, commId, ReadPolicy.READ_OR_CREATE);
+				final AlbumState albumState = store.getAlbumState(archiveName, commId, ReadPolicy.READ_OR_CREATE);
 				existingAlbumMeta.setName(albumName);
 				final boolean albumModified = !dateEquals(existingAlbumMeta.getLastModified(), albumConnection.lastModified());
 				shouldUpdateMeta.set(albumModified);
 				if (albumModified) {
-					mutationList.setSynced(false);
+					albumState.setSynced(false);
 					notifyAlbumListChanged();
 				}
-				shouldLoadThumbnails.set(mutationList.isShouldSync() && !mutationList.isSynced());
+				shouldLoadThumbnails.set(albumState.isShouldSync() && !albumState.isSynced());
 
 				final boolean visibleAlbumsModified = visibleAlbumsOfArchive.put(albumName, commId) == null;
 				if (visibleAlbumsModified) {

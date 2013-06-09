@@ -3,20 +3,36 @@ package ch.bergturbenthal.raoa.provider.map;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
 import android.database.Cursor;
 import android.util.Log;
+import ch.bergturbenthal.raoa.provider.SortOrder;
+import ch.bergturbenthal.raoa.provider.SortOrderEntry;
+import ch.bergturbenthal.raoa.provider.SortOrderEntry.Order;
+import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 
 public class MapperUtil {
+	private static class IndexedOderEntry {
+		private int index;
+		private SortOrderEntry.Order order;
+	}
+
 	private interface RawFieldReader<V> {
 		Object read(final V value) throws Exception;
 	}
 
 	private static Map<Class<?>, Class<?>> primitiveToBoxed = new HashMap<Class<?>, Class<?>>();
+
+	private static String TAG = "MapperUtil";
 	static {
 		primitiveToBoxed.put(Integer.TYPE, Integer.class);
 		primitiveToBoxed.put(Double.TYPE, Double.class);
@@ -26,14 +42,112 @@ public class MapperUtil {
 		primitiveToBoxed.put(Boolean.TYPE, Boolean.class);
 	}
 
+	public static <I, O> Map<String, FieldReader<O>> delegateFieldReaders(final Map<String, FieldReader<I>> delegatingReaders, final Lookup<O, I> lookup) {
+		final HashMap<String, FieldReader<O>> ret = new HashMap<String, FieldReader<O>>();
+		for (final Entry<String, FieldReader<I>> dtoFieldReader : delegatingReaders.entrySet()) {
+			final FieldReader<I> delegatingFieldReader = dtoFieldReader.getValue();
+
+			ret.put(dtoFieldReader.getKey(), new FieldReader<O>() {
+
+				@Override
+				public Number getNumber(final O value) {
+					return delegatingFieldReader.getNumber(lookup.get(value));
+				}
+
+				@Override
+				public String getString(final O value) {
+					return delegatingFieldReader.getString(lookup.get(value));
+				}
+
+				@Override
+				public int getType() {
+					return delegatingFieldReader.getType();
+				}
+
+				@Override
+				public Object getValue(final O value) {
+					return delegatingFieldReader.getValue(lookup.get(value));
+				}
+
+				@Override
+				public boolean isNull(final O value) {
+					return delegatingFieldReader.isNull(lookup.get(value));
+				}
+			});
+		}
+		return ret;
+	}
+
 	public static <E> NotifyableMatrixCursor loadCollectionIntoCursor(final Iterable<E> collection,
 																																		final String[] projection,
 																																		final Map<String, FieldReader<E>> fieldReaders) {
-		final String[] columnNames = projection != null ? projection : fieldReaders.keySet().toArray(new String[0]);
-		final NotifyableMatrixCursor cursor = new NotifyableMatrixCursor(columnNames);
-		for (final E entry : collection) {
-			cursor.addRow(makeRow(entry, columnNames, fieldReaders));
+		return loadCollectionIntoCursor(collection, projection, fieldReaders, new SortOrder());
+	}
+
+	public static <E> NotifyableMatrixCursor loadCollectionIntoCursor(final Iterable<E> collection,
+																																		final String[] projection,
+																																		final Map<String, FieldReader<E>> fieldReaders,
+																																		final SortOrder order) {
+
+		final List<String> columnNames = projection != null ? new ArrayList<String>(Arrays.asList(projection)) : new ArrayList<String>(fieldReaders.keySet());
+		final int outputColumns = columnNames.size();
+
+		final List<IndexedOderEntry> sortEntries = new ArrayList<MapperUtil.IndexedOderEntry>();
+		for (final SortOrderEntry orderEntry : order.getEntries()) {
+			final Order orderEntryOrder = orderEntry.getOrder();
+			if (orderEntryOrder == null) {
+				continue;
+			}
+			final String columnName = orderEntry.getColumnName();
+			final int foundColumn = columnNames.indexOf(columnName);
+			final int columnIndex;
+			if (foundColumn < 0) {
+				columnIndex = columnNames.size();
+				columnNames.add(columnName);
+			} else {
+				columnIndex = foundColumn;
+			}
+			final IndexedOderEntry entry = new IndexedOderEntry();
+			entry.index = columnIndex;
+			entry.order = orderEntryOrder;
+			sortEntries.add(entry);
 		}
+		final List<Object[]> entries = new ArrayList<Object[]>();
+		Log.i(TAG, "Start collection rows");
+		for (final E entry : collection) {
+			entries.add(makeRow(entry, columnNames, fieldReaders));
+		}
+		Log.i(TAG, "End collection " + entries.size() + " rows");
+		if (sortEntries.size() > 0) {
+			Collections.sort(entries, new Comparator<Object[]>() {
+				@Override
+				public int compare(final Object[] lhs, final Object[] rhs) {
+					for (final IndexedOderEntry sortColumn : sortEntries) {
+						final Comparable<Object> leftValue = (Comparable<Object>) lhs[sortColumn.index];
+						final Comparable<Object> rightValue = (Comparable<Object>) rhs[sortColumn.index];
+						final int cmp = leftValue.compareTo(rightValue);
+						if (cmp != 0) {
+							return sortColumn.order == Order.ASC ? cmp : -cmp;
+						}
+					}
+					return 0;
+				}
+			});
+			Log.i(TAG, "End Sorting rows");
+		}
+		final NotifyableMatrixCursor cursor = new NotifyableMatrixCursor(columnNames.subList(0, outputColumns).toArray(new String[outputColumns]));
+		if (outputColumns == columnNames.size()) {
+			for (final Object[] entryValues : entries) {
+				cursor.addRow(entryValues);
+			}
+		} else {
+			for (final Object[] entryValues : entries) {
+				final Object[] dataValues = new Object[outputColumns];
+				System.arraycopy(entryValues, 0, dataValues, 0, outputColumns);
+				cursor.addRow(dataValues);
+			}
+		}
+		Log.i(TAG, "Returning Cursor");
 		return cursor;
 	}
 
@@ -123,8 +237,9 @@ public class MapperUtil {
 				public String getString(final V value) {
 					try {
 						final CharSequence rawValue = (CharSequence) rawFieldReader.read(value);
-						if (rawValue == null)
+						if (rawValue == null) {
 							return null;
+						}
 						return rawValue.toString();
 					} catch (final Throwable e) {
 						throw new RuntimeException("cannot query field " + fieldName, e);
@@ -160,16 +275,18 @@ public class MapperUtil {
 				@Override
 				public Number getNumber(final V value) {
 					final Date dateValue = readDateValue(value);
-					if (dateValue == null)
+					if (dateValue == null) {
 						return null;
+					}
 					return Long.valueOf(dateValue.getTime());
 				}
 
 				@Override
 				public String getString(final V value) {
 					final Date dateValue = readDateValue(value);
-					if (dateValue == null)
+					if (dateValue == null) {
 						return null;
+					}
 					return dateValue.toString();
 				}
 
@@ -194,22 +311,24 @@ public class MapperUtil {
 					}
 				}
 			});
-		} else
+		} else {
 			throw new RuntimeException("Unknown Datatype " + returnType + " for field " + fieldName);
+		}
 	}
 
-	private static <E> Object[] makeRow(final E entry, final String[] columnNames, final Map<String, FieldReader<E>> fieldReaders) {
-		final Object[] row = new Object[columnNames.length];
+	private static <E> Object[] makeRow(final E entry, final List<String> columnNames, final Map<String, FieldReader<E>> fieldReaders) {
+		final Object[] row = new Object[columnNames.size()];
 		for (int j = 0; j < row.length; j++) {
-			row[j] = fieldReaders.get(columnNames[j]).getValue(entry);
+			row[j] = fieldReaders.get(columnNames.get(j)).getValue(entry);
 		}
 		return row;
 	}
 
 	private static Class<?> toBoxedType(final Class<?> type) {
 		final Class<?> boxed = primitiveToBoxed.get(type);
-		if (boxed != null)
+		if (boxed != null) {
 			return boxed;
+		}
 		return type;
 	}
 }
