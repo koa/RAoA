@@ -15,6 +15,7 @@ import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -158,9 +159,23 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 					@Override
 					public void onClick(final View v) {
 						final ContentValues values = new ContentValues();
-						values.put(Client.Album.SHOULD_SYNC, Boolean.valueOf(!shouldSync));
-						context.getContentResolver().update(Uri.parse(entryUri), values, null, null);
+						final boolean enableSync = !shouldSync;
+						values.put(Client.Album.SHOULD_SYNC, Boolean.valueOf(enableSync));
+						new AsyncTask<Void, Void, Void>() {
+							@Override
+							protected Void doInBackground(final Void... params) {
+								context.getContentResolver().update(Uri.parse(entryUri), values, null, null);
+								return null;
+							}
 
+						}.execute();
+						final Animation animation = AnimationUtils.loadAnimation(context, R.anim.rotate_infinitely_slow);
+						view.startAnimation(animation);
+						if (enableSync) {
+							view.setImageResource(R.drawable.ic_icon_offline_online);
+						} else {
+							view.setImageResource(R.drawable.ic_icon_offline_offline);
+						}
 					}
 				});
 			}
