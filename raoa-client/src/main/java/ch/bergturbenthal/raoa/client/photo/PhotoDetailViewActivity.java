@@ -14,8 +14,11 @@ import android.app.ActionBar.Tab;
 import android.app.ActionBar.TabListener;
 import android.app.Activity;
 import android.app.FragmentTransaction;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -187,6 +190,7 @@ public class PhotoDetailViewActivity extends Activity {
 
 			@Override
 			public void bindView(final View view, final Context context, final Map<String, Object> values) {
+				final String entryUri = (String) values.get(Client.AlbumEntry.ENTRY_URI);
 				final LinearLayout overlayLayout = (LinearLayout) view.findViewById(R.id.photo_edit_overlay_layout);
 				final ToggleButton[] visibleToggleButtons = new ToggleButton[VISIBLE_KEYWORD_COUNT];
 				for (int i = 0; i < visibleToggleButtons.length; i++) {
@@ -208,7 +212,13 @@ public class PhotoDetailViewActivity extends Activity {
 						@Override
 						public void onClick(final View v) {
 							final boolean isChecked = ((ToggleButton) v).isChecked();
+							final String keyWord = (String) v.getTag();
+							if (keyWord == null) {
+								return;
+							}
+							updateKeyword(entryUri, keyWord, isChecked);
 						}
+
 					});
 					visibleToggleButtons[i] = toggleButton;
 					overlayLayout.addView(toggleButton);
@@ -275,7 +285,7 @@ public class PhotoDetailViewActivity extends Activity {
 
 			@Override
 			public String[] usedFields() {
-				return new String[] { Client.AlbumEntry.META_KEYWORDS };
+				return new String[] { Client.AlbumEntry.META_KEYWORDS, Client.AlbumEntry.ENTRY_URI };
 			}
 		});
 		return ret;
@@ -353,6 +363,31 @@ public class PhotoDetailViewActivity extends Activity {
 				updater.doUpdate(value);
 			}
 		}
+	}
+
+	private void updateKeyword(final String entryUri, final String keyWord, final boolean enabled) {
+		new AsyncTask<Void, Void, Void>() {
+
+			@Override
+			protected Void doInBackground(final Void... params) {
+				final ContentResolver contentResolver = getContentResolver();
+				final Uri uri = Uri.parse(entryUri);
+				final Cursor query = contentResolver.query(uri, new String[] { Client.AlbumEntry.META_KEYWORDS }, null, null, null);
+				if (query == null || !query.moveToFirst()) {
+					return null;
+				}
+				final Collection<String> keywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(query.getString(0)));
+				if (enabled) {
+					keywords.add(keyWord);
+				} else {
+					keywords.remove(keyWord);
+				}
+				final ContentValues values = new ContentValues();
+				values.put(Client.AlbumEntry.META_KEYWORDS, Client.AlbumEntry.encodeKeywords(keywords));
+				contentResolver.update(uri, values, null, null);
+				return null;
+			}
+		}.execute();
 	}
 
 	private void updateVisibleKeywords(final String[] visibleKeywords) {
