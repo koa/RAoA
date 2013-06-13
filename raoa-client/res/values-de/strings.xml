@@ -18,6 +18,7 @@
     <string name="photo_overview_menu_share_title">Teilen</string>
     <string name="photo_overview_menu_add_tag_title">Tag hinzufügen</string>
     <string name="photo_overview_menu_remove_tag_title">Tag entfernen</string>
-    <string name="photo_overview_menu_new_tag_item">Tag erstellen &#8230;</string>    
-    
+    <string name="photo_overview_menu_new_tag_item">Tag erstellen &#8230;</string>
+    <string name="photo_detailview_button_select_tag">Anderes Stichwort &#8230;</string>
+    <string name="photo_overview_menu_add_tag_hint">Stichwort eingeben</string>
 </resources>

@@ -81,6 +81,7 @@ public class CurserPagerAdapter extends PagerAdapter {
 			@Override
 			public void onLoaderReset(final Loader<Cursor> loader) {
 				adapter.swapCursor(null);
+
 			}
 
 			@Override
@@ -108,10 +109,11 @@ public class CurserPagerAdapter extends PagerAdapter {
 
 	@Override
 	public int getCount() {
-		if (cursor == null)
+		if (cursor == null) {
 			return 0;
-		else
+		} else {
 			return cursor.getCount();
+		}
 	}
 
 	public int getCurrentPosition() {
@@ -148,8 +150,9 @@ public class CurserPagerAdapter extends PagerAdapter {
 	}
 
 	public void swapCursor(final Cursor c) {
-		if (cursor == c)
+		if (cursor == c) {
 			return;
+		}
 		viewBinder.setCursor(c);
 
 		this.cursor = c;

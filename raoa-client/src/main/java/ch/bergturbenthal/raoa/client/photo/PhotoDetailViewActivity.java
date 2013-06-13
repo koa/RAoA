@@ -1,33 +1,44 @@
 package ch.bergturbenthal.raoa.client.photo;
 
+import java.io.Serializable;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import android.app.ActionBar;
 import android.app.ActionBar.Tab;
 import android.app.ActionBar.TabListener;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.FragmentTransaction;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.view.ViewPager;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ToggleButton;
 import ch.bergturbenthal.raoa.R;
@@ -59,6 +70,9 @@ public class PhotoDetailViewActivity extends Activity {
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
 	private static final String[] PROJECTION = new String[] { Client.AlbumEntry.THUMBNAIL };
+
+	private static final String TAG_HEAT_MAP = "tagHeatMap";
+	protected List<String> knownKeywords = Collections.emptyList();
 	private int actPos;
 
 	private CurserPagerAdapter adapter;
@@ -71,6 +85,8 @@ public class PhotoDetailViewActivity extends Activity {
 	private ViewPager pager;
 
 	private final Collection<WeakReference<TagViewHandler>> tagHandlers = new LinkedList<WeakReference<TagViewHandler>>();
+
+	private final Map<String, Integer> tagHeatMap = new HashMap<String, Integer>();
 
 	private String[] visibleKeywords = new String[0];
 
@@ -105,6 +121,12 @@ public class PhotoDetailViewActivity extends Activity {
 				pager.setCurrentItem(actPos, false);
 			}
 		});
+		detailContainer.setOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {
+			@Override
+			public void onPageScrolled(final int position, final float positionOffset, final int positionOffsetPixels) {
+				actPos = position;
+			}
+		});
 
 		// View pager configuration
 		pager.setAdapter(adapter);
@@ -119,11 +141,12 @@ public class PhotoDetailViewActivity extends Activity {
 		// clipping on the pager for its children.
 		pager.setClipChildren(false);
 		new AsyncTask<Void, Void, Void>() {
+			private List<String> knownKeywords;
 			private String[] visibleKeywords;
 
 			@Override
 			protected Void doInBackground(final Void... params) {
-				final List<String> knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
+				knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
 				if (knownKeywords.size() > VISIBLE_KEYWORD_COUNT) {
 					visibleKeywords = knownKeywords.subList(0, VISIBLE_KEYWORD_COUNT).toArray(new String[VISIBLE_KEYWORD_COUNT]);
 				} else {
@@ -135,11 +158,17 @@ public class PhotoDetailViewActivity extends Activity {
 			@Override
 			protected void onPostExecute(final Void result) {
 				updateVisibleKeywords(visibleKeywords);
+				PhotoDetailViewActivity.this.knownKeywords = knownKeywords;
 			}
 		}.execute();
 
 		if (savedInstanceState != null) {
 			actPos = savedInstanceState.getInt(ACTUAL_POS);
+			tagHeatMap.clear();
+			final Map<String, Integer> savedHeatMap = (Map<String, Integer>) savedInstanceState.getSerializable(TAG_HEAT_MAP);
+			if (savedHeatMap != null) {
+				tagHeatMap.putAll(savedHeatMap);
+			}
 		}
 		setupActionBar();
 	}
@@ -165,6 +194,7 @@ public class PhotoDetailViewActivity extends Activity {
 	protected void onSaveInstanceState(final Bundle outState) {
 		super.onSaveInstanceState(outState);
 		outState.putInt(ACTUAL_POS, ((CurserPagerAdapter) pager.getAdapter()).getCurrentPosition());
+		outState.putSerializable(TAG_HEAT_MAP, (Serializable) tagHeatMap);
 	}
 
 	protected final void reloadViewPager() {
@@ -191,22 +221,15 @@ public class PhotoDetailViewActivity extends Activity {
 			@Override
 			public void bindView(final View view, final Context context, final Map<String, Object> values) {
 				final String entryUri = (String) values.get(Client.AlbumEntry.ENTRY_URI);
-				final LinearLayout overlayLayout = (LinearLayout) view.findViewById(R.id.photo_edit_overlay_layout);
-				final ToggleButton[] visibleToggleButtons = new ToggleButton[VISIBLE_KEYWORD_COUNT];
-				for (int i = 0; i < visibleToggleButtons.length; i++) {
-					final ToggleButton toggleButton = new ToggleButton(context);
-					toggleButton.setSingleLine();
-					final LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(	android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-																																									android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
-					params.setMargins(5, 5, 5, 5);
-					toggleButton.setLayoutParams(params);
-					toggleButton.setAlpha((float) 0.9);
-					toggleButton.setText("<dummy>");
-					toggleButton.setTextOn("<dummy>");
-					toggleButton.setTextOff("<dummy>");
-					// toggleButton.setVisibility(View.INVISIBLE);
-					toggleButton.setBackgroundResource(R.drawable.button_color_toggle);
 
+				final List<ToggleButton> tagToggleButtons = new ArrayList<ToggleButton>();
+				final ViewGroup toggleButtonGroup = (ViewGroup) view.findViewById(R.id.photo_edit_toggle_button_container);
+				for (int i = 0; i < toggleButtonGroup.getChildCount(); i++) {
+					final View childAt = toggleButtonGroup.getChildAt(i);
+					if (!(childAt instanceof ToggleButton)) {
+						continue;
+					}
+					final ToggleButton toggleButton = (ToggleButton) childAt;
 					toggleButton.setOnClickListener(new OnClickListener() {
 
 						@Override
@@ -216,31 +239,34 @@ public class PhotoDetailViewActivity extends Activity {
 							if (keyWord == null) {
 								return;
 							}
+							registerTagTouched(keyWord);
 							updateKeyword(entryUri, keyWord, isChecked);
 						}
 
 					});
-					visibleToggleButtons[i] = toggleButton;
-					overlayLayout.addView(toggleButton);
+					tagToggleButtons.add(toggleButton);
 				}
 				final Collection<String> keywordList = new HashSet<String>(Client.AlbumEntry.decodeKeywords((String) values.get(Client.AlbumEntry.META_KEYWORDS)));
+				final LinearLayout overlayLayout = (LinearLayout) view.findViewById(R.id.photo_edit_overlay_layout);
+
 				final TagViewHandler updateHandler = new TagViewHandler() {
 
 					@Override
 					public void setVisibleTags(final String[] tags) {
-						for (int i = 0; i < visibleToggleButtons.length; i++) {
+						for (int i = 0; i < tagToggleButtons.size(); i++) {
+							final ToggleButton button = tagToggleButtons.get(i);
 							if (tags.length > i && tags[i] != null) {
 								final String tag = tags[i];
-								visibleToggleButtons[i].setVisibility(View.VISIBLE);
-								visibleToggleButtons[i].setText(tag);
-								visibleToggleButtons[i].setTextOff(tag);
-								visibleToggleButtons[i].setTextOn(tag);
-								visibleToggleButtons[i].setTag(tag);
-								visibleToggleButtons[i].setChecked(keywordList.contains(tag));
+								button.setVisibility(View.VISIBLE);
+								button.setText(tag);
+								button.setTextOff(tag);
+								button.setTextOn(tag);
+								button.setTag(tag);
+								button.setChecked(keywordList.contains(tag));
 							} else {
-								visibleToggleButtons[i].setVisibility(View.INVISIBLE);
+								button.setVisibility(View.INVISIBLE);
 							}
-							visibleToggleButtons[i].invalidate();
+							button.invalidate();
 						}
 						overlayLayout.invalidate();
 					}
@@ -261,6 +287,38 @@ public class PhotoDetailViewActivity extends Activity {
 				} else {
 					overlayLayout.setVisibility(View.INVISIBLE);
 				}
+				final Button addTagButton = (Button) view.findViewById(R.id.photo_edit_add_tag_button);
+				addTagButton.setOnClickListener(new OnClickListener() {
+
+					@Override
+					public void onClick(final View v) {
+						final TreeSet<String> allKeywords = new TreeSet<String>(knownKeywords);
+						allKeywords.addAll(tagHeatMap.keySet());
+
+						final LayoutInflater inflater = getLayoutInflater();
+						final View dialogContentLayout = inflater.inflate(R.layout.photo_detailview_input_tag, null);
+
+						final AutoCompleteTextView autoCompleteTextView = (AutoCompleteTextView) dialogContentLayout.findViewById(R.id.photo_detailview_input_tag_view);
+
+						autoCompleteTextView.setAdapter(new ArrayAdapter<String>(	PhotoDetailViewActivity.this,
+																																			android.R.layout.simple_dropdown_item_1line,
+																																			new ArrayList<String>(allKeywords)));
+						final AlertDialog dialog = new AlertDialog.Builder(PhotoDetailViewActivity.this).setView(dialogContentLayout)
+																																														.setPositiveButton(	android.R.string.ok,
+																																																								new DialogInterface.OnClickListener() {
+
+																																																									@Override
+																																																									public void onClick(final DialogInterface dialog,
+																																																																			final int which) {
+																																																										placeNewTag(autoCompleteTextView.getText().toString());
+																																																										dialog.cancel();
+																																																									}
+
+																																																								})
+																																														.create();
+						dialog.show();
+					}
+				});
 
 				view.setOnClickListener(new View.OnClickListener() {
 
@@ -289,6 +347,36 @@ public class PhotoDetailViewActivity extends Activity {
 			}
 		});
 		return ret;
+	}
+
+	private void placeNewTag(final String text) {
+		int replaceCandidate = -1;
+		int leastClickCount = Integer.MAX_VALUE;
+		for (int i = 0; i < visibleKeywords.length; i++) {
+			if (text.equals(visibleKeywords[i])) {
+				// not place any already visible keyword
+				return;
+			}
+			final Integer savedClickCount = tagHeatMap.get(visibleKeywords[i]);
+			final int clicked = savedClickCount == null ? 0 : savedClickCount.intValue();
+			if (clicked <= leastClickCount) {
+				leastClickCount = clicked;
+				replaceCandidate = i;
+			}
+		}
+		visibleKeywords[replaceCandidate] = text;
+		updateVisibleKeywords(visibleKeywords);
+	}
+
+	private void registerTagTouched(final String keyWord) {
+		synchronized (tagHeatMap) {
+			final Integer oldValue = tagHeatMap.get(keyWord);
+			if (oldValue == null) {
+				tagHeatMap.put(keyWord, Integer.valueOf(1));
+			} else {
+				tagHeatMap.put(keyWord, Integer.valueOf(oldValue.intValue() + 1));
+			}
+		}
 	}
 
 	private void setFullscreen(final boolean fullscreen) {

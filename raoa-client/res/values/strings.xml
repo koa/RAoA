@@ -26,4 +26,6 @@
     <string name="edit_tags">Tags</string>
     <string name="plain_photo_view">None</string>
     <string name="tag">Tag</string>
+    <string name="photo_detailview_button_select_tag">Select other Keyword &#8230;</string>
+    <string name="photo_overview_menu_add_tag_hint">Input Keyword</string>
 </resources>

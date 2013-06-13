@@ -3,17 +3,20 @@ package ch.bergturbenthal.raoa.client.photo;
 import android.content.Context;
 import android.graphics.Point;
 import android.support.v4.view.ViewPager;
+import android.support.v4.view.ViewPager.OnPageChangeListener;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.widget.FrameLayout;
 
 public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPageChangeListener {
+
 	boolean mNeedsRedraw = false;
 	private final Point mCenter = new Point();
 
 	private final Point mInitialTouch = new Point();
 
 	private ViewPager mPager;
+	private OnPageChangeListener pageChangeListener;
 
 	public PhotoDetailContainer(final Context context) {
 		super(context);
@@ -41,15 +44,24 @@ public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPag
 		if (mNeedsRedraw) {
 			invalidate();
 		}
+		if (pageChangeListener != null) {
+			pageChangeListener.onPageScrolled(position, positionOffset, positionOffsetPixels);
+		}
 	}
 
 	@Override
 	public void onPageScrollStateChanged(final int state) {
 		mNeedsRedraw = (state != ViewPager.SCROLL_STATE_IDLE);
+		if (pageChangeListener != null) {
+			pageChangeListener.onPageScrollStateChanged(state);
+		}
 	}
 
 	@Override
 	public void onPageSelected(final int position) {
+		if (pageChangeListener != null) {
+			pageChangeListener.onPageSelected(position);
+		}
 	}
 
 	@Override
@@ -66,6 +78,10 @@ public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPag
 		}
 
 		return mPager.dispatchTouchEvent(ev);
+	}
+
+	public void setOnPageChangeListener(final OnPageChangeListener pageChangeListener) {
+		this.pageChangeListener = pageChangeListener;
 	}
 
 	@Override
