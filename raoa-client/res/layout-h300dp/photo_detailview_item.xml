@@ -49,6 +49,22 @@
                 android:alpha="0.9"
                 android:background="@drawable/button_color_toggle"
                 android:singleLine="true" />
+
+            <ToggleButton
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="5dp"
+                android:alpha="0.9"
+                android:background="@drawable/button_color_toggle"
+                android:singleLine="true" />
+
+            <ToggleButton
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="5dp"
+                android:alpha="0.9"
+                android:background="@drawable/button_color_toggle"
+                android:singleLine="true" />
         </LinearLayout>
 
         <Button
