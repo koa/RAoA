@@ -185,9 +185,11 @@ public class PhotoOverviewActivity extends Activity {
 	@Override
 	protected void onActivityResult(final int requestCode, final int resultCode, final Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
-		final Bundle bundle = data.getExtras();
-		currentItemIndex = bundle.getInt(CURR_ITEM_INDEX);
-		gridview.setSelection(currentItemIndex);
+		if (data != null) {
+			final Bundle bundle = data.getExtras();
+			currentItemIndex = bundle.getInt(CURR_ITEM_INDEX);
+			gridview.setSelection(currentItemIndex);
+		}
 	}
 
 	@Override
@@ -230,8 +232,9 @@ public class PhotoOverviewActivity extends Activity {
 				final Collection<String> oldSelectedEntries = new HashSet<String>(selectedEntries.keySet());
 				selectedEntries.clear();
 				try {
-					if (data == null || !data.moveToFirst())
+					if (data == null || !data.moveToFirst()) {
 						return;
+					}
 					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
 					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
 					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL);

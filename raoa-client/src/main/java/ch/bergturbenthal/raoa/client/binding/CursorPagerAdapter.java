@@ -3,7 +3,9 @@
  */
 package ch.bergturbenthal.raoa.client.binding;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 
 import android.app.LoaderManager;
 import android.app.LoaderManager.LoaderCallbacks;
@@ -23,19 +25,21 @@ import android.view.ViewGroup;
  * TODO: add type comment.
  * 
  */
-public class CurserPagerAdapter extends PagerAdapter {
+public class CursorPagerAdapter extends PagerAdapter {
 	public static interface CurrentPosProvider {
 		int getCurrentPos();
 	}
 
+	private final String[] additionalColumns;
+
 	private final Context context;
 
 	private int currentPosition;
-
 	private Cursor cursor = null;
 	private Runnable cursorLoadedHandler;
 	private final LayoutInflater inflater;
 	private final int layout;
+
 	private final CursorViewBinder viewBinder;
 
 	/**
@@ -53,24 +57,26 @@ public class CurserPagerAdapter extends PagerAdapter {
 	 *          handler to fill dynamic elements on the layout
 	 * @return
 	 */
-	public static CurserPagerAdapter registerLoaderManager(	final LoaderManager loaderManager,
+	public static CursorPagerAdapter registerLoaderManager(	final LoaderManager loaderManager,
 																													final Context context,
 																													final Uri uri,
 																													final int layout,
-																													final Collection<ViewHandler<? extends View>> handlers) {
-		return registerLoaderManager(loaderManager, context, uri, null, null, null, layout, handlers);
+																													final Collection<ViewHandler<? extends View>> handlers,
+																													final String[] additionalColumns) {
+		return registerLoaderManager(loaderManager, context, uri, null, null, null, layout, handlers, additionalColumns);
 
 	}
 
-	private static CurserPagerAdapter registerLoaderManager(final LoaderManager loaderManager,
+	private static CursorPagerAdapter registerLoaderManager(final LoaderManager loaderManager,
 																													final Context context,
 																													final Uri uri,
 																													final String selection,
 																													final String[] selectionArgs,
 																													final String sortOrder,
 																													final int layout,
-																													final Collection<ViewHandler<? extends View>> handlers) {
-		final CurserPagerAdapter adapter = new CurserPagerAdapter(context, layout, handlers);
+																													final Collection<ViewHandler<? extends View>> handlers,
+																													final String[] additionalColumns) {
+		final CursorPagerAdapter adapter = new CursorPagerAdapter(context, layout, handlers, additionalColumns);
 		loaderManager.initLoader(0, null, new LoaderCallbacks<Cursor>() {
 
 			@Override
@@ -95,9 +101,10 @@ public class CurserPagerAdapter extends PagerAdapter {
 		return adapter;
 	}
 
-	public CurserPagerAdapter(final Context context, final int layout, final Collection<ViewHandler<? extends View>> handlers) {
+	public CursorPagerAdapter(final Context context, final int layout, final Collection<ViewHandler<? extends View>> handlers, final String[] additionalColumns) {
 		this.context = context;
 		this.layout = layout;
+		this.additionalColumns = additionalColumns;
 		inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 		viewBinder = new CursorViewBinder((Collection<ViewHandler<View>>) (Collection<?>) handlers);
 	}
@@ -105,6 +112,21 @@ public class CurserPagerAdapter extends PagerAdapter {
 	@Override
 	public void destroyItem(final View container, final int position, final Object object) {
 		((ViewPager) container).removeView((View) object);
+	}
+
+	public Object[] getAdditionalValues() {
+		if (additionalColumns == null) {
+			return null;
+		}
+		if (cursor == null) {
+			return null;
+		}
+		cursor.moveToPosition(currentPosition);
+		final Object[] ret = new Object[additionalColumns.length];
+		for (int i = 0; i < ret.length; i++) {
+			ret[i] = viewBinder.getValueOfColumn(cursor, additionalColumns[i]);
+		}
+		return ret;
 	}
 
 	@Override
@@ -163,6 +185,11 @@ public class CurserPagerAdapter extends PagerAdapter {
 	 * @return
 	 */
 	protected String[] requiredFields() {
+		if (additionalColumns != null && additionalColumns.length > 0) {
+			final HashSet<String> requiredFields = new HashSet<String>(Arrays.asList(viewBinder.requiredFields()));
+			requiredFields.addAll(Arrays.asList(additionalColumns));
+			return requiredFields.toArray(new String[requiredFields.size()]);
+		}
 		return viewBinder.requiredFields();
 	}
 

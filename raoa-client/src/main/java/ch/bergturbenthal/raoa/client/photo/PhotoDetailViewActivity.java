@@ -30,6 +30,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.view.ViewPager;
 import android.view.LayoutInflater;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
@@ -41,11 +42,12 @@ import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ShareActionProvider;
 import android.widget.ToggleButton;
 import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.album.AlbumOverviewActivity;
 import ch.bergturbenthal.raoa.client.binding.AbstractViewHandler;
-import ch.bergturbenthal.raoa.client.binding.CurserPagerAdapter;
+import ch.bergturbenthal.raoa.client.binding.CursorPagerAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.util.KeywordUtil;
@@ -75,9 +77,10 @@ public class PhotoDetailViewActivity extends Activity {
 
 	private static final String TAG_HEAT_MAP = "tagHeatMap";
 	protected List<String> knownKeywords = Collections.emptyList();
+
 	private int actPos;
 
-	private CurserPagerAdapter adapter;
+	private CursorPagerAdapter adapter;
 	private Uri albumUri;
 
 	private PhotoDetailContainer detailContainer;
@@ -95,7 +98,7 @@ public class PhotoDetailViewActivity extends Activity {
 	@Override
 	public void onBackPressed() {
 		final Intent output = new Intent();
-		output.putExtra(CURR_ITEM_INDEX, ((CurserPagerAdapter) pager.getAdapter()).getCurrentPosition());
+		output.putExtra(CURR_ITEM_INDEX, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
 		setResult(RESULT_OK, output);
 		super.onBackPressed();
 	}
@@ -115,18 +118,25 @@ public class PhotoDetailViewActivity extends Activity {
 		final Bundle bundle = getIntent().getExtras();
 		albumUri = Uri.parse(bundle.getString(ALBUM_ID));
 		actPos = bundle.getInt(ACTUAL_POS);
-		adapter = CurserPagerAdapter.registerLoaderManager(getLoaderManager(), this, albumUri, R.layout.photo_detailview_item, makeHandlers());
+		adapter = CursorPagerAdapter.registerLoaderManager(	getLoaderManager(),
+																												this,
+																												albumUri,
+																												R.layout.photo_detailview_item,
+																												makeHandlers(),
+																												new String[] { Client.AlbumEntry.THUMBNAIL });
 		adapter.setCursorLoadedHandler(new Runnable() {
 
 			@Override
 			public void run() {
 				pager.setCurrentItem(actPos, false);
+				invalidateOptionsMenu();
 			}
 		});
 		detailContainer.setOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {
 			@Override
 			public void onPageScrolled(final int position, final float positionOffset, final int positionOffsetPixels) {
 				actPos = position;
+				invalidateOptionsMenu();
 			}
 		});
 
@@ -176,6 +186,22 @@ public class PhotoDetailViewActivity extends Activity {
 	}
 
 	@Override
+	public boolean onCreateOptionsMenu(final Menu menu) {
+		final Object[] additionalValues = adapter.getAdditionalValues();
+		if (additionalValues == null) {
+			return false;
+		}
+		getMenuInflater().inflate(R.menu.photo_detail_menu, menu);
+
+		final ShareActionProvider shareActionProvider = (ShareActionProvider) menu.findItem(R.id.photo_overview_menu_share).getActionProvider();
+		final Intent shareIntent = new Intent(Intent.ACTION_SEND);
+		shareIntent.setType("image/jpeg");
+		shareIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse((String) additionalValues[0]));
+		shareActionProvider.setShareIntent(shareIntent);
+		return true;
+	}
+
+	@Override
 	public void onLowMemory() {
 		decrementOffscreenPageLimit();
 		super.onLowMemory();
@@ -215,7 +241,7 @@ public class PhotoDetailViewActivity extends Activity {
 	@Override
 	protected void onSaveInstanceState(final Bundle outState) {
 		super.onSaveInstanceState(outState);
-		outState.putInt(ACTUAL_POS, ((CurserPagerAdapter) pager.getAdapter()).getCurrentPosition());
+		outState.putInt(ACTUAL_POS, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
 		outState.putSerializable(TAG_HEAT_MAP, (Serializable) tagHeatMap);
 	}
 
