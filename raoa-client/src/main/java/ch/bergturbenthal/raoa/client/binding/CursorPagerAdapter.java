@@ -114,14 +114,14 @@ public class CursorPagerAdapter extends PagerAdapter {
 		((ViewPager) container).removeView((View) object);
 	}
 
-	public Object[] getAdditionalValues() {
+	public Object[] getAdditionalValues(final int position) {
 		if (additionalColumns == null) {
 			return null;
 		}
 		if (cursor == null) {
 			return null;
 		}
-		cursor.moveToPosition(currentPosition);
+		cursor.moveToPosition(position);
 		final Object[] ret = new Object[additionalColumns.length];
 		for (int i = 0; i < ret.length; i++) {
 			ret[i] = viewBinder.getValueOfColumn(cursor, additionalColumns[i]);

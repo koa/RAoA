@@ -104,90 +104,8 @@ public class PhotoDetailViewActivity extends Activity {
 	}
 
 	@Override
-	public void onCreate(final Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-
-		requestWindowFeature(Window.FEATURE_ACTION_BAR_OVERLAY);
-		setFullscreen(true);
-
-		setContentView(R.layout.photo_detailview);
-		detailContainer = (PhotoDetailContainer) findViewById(R.id.photo_detailview_container);
-		pager = detailContainer.getViewPager();
-
-		// get album id and photo id out of intent
-		final Bundle bundle = getIntent().getExtras();
-		albumUri = Uri.parse(bundle.getString(ALBUM_ID));
-		actPos = bundle.getInt(ACTUAL_POS);
-		adapter = CursorPagerAdapter.registerLoaderManager(	getLoaderManager(),
-																												this,
-																												albumUri,
-																												R.layout.photo_detailview_item,
-																												makeHandlers(),
-																												new String[] { Client.AlbumEntry.THUMBNAIL });
-		adapter.setCursorLoadedHandler(new Runnable() {
-
-			@Override
-			public void run() {
-				pager.setCurrentItem(actPos, false);
-				invalidateOptionsMenu();
-			}
-		});
-		detailContainer.setOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {
-			@Override
-			public void onPageScrolled(final int position, final float positionOffset, final int positionOffsetPixels) {
-				actPos = position;
-				invalidateOptionsMenu();
-			}
-		});
-
-		// View pager configuration
-		pager.setAdapter(adapter);
-
-		// Preload two pages
-		pager.setOffscreenPageLimit(3);
-
-		// Add a little space between pages
-		pager.setPageMargin(15);
-
-		// If hardware acceleration is enabled, you should also remove
-		// clipping on the pager for its children.
-		pager.setClipChildren(false);
-		new AsyncTask<Void, Void, Void>() {
-			private List<String> knownKeywords;
-			private String[] visibleKeywords;
-
-			@Override
-			protected Void doInBackground(final Void... params) {
-				knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
-				if (knownKeywords.size() > VISIBLE_KEYWORD_COUNT) {
-					visibleKeywords = knownKeywords.subList(0, VISIBLE_KEYWORD_COUNT).toArray(new String[VISIBLE_KEYWORD_COUNT]);
-				} else {
-					visibleKeywords = knownKeywords.toArray(new String[knownKeywords.size()]);
-				}
-				return null;
-			}
-
-			@Override
-			protected void onPostExecute(final Void result) {
-				updateVisibleKeywords(visibleKeywords);
-				PhotoDetailViewActivity.this.knownKeywords = knownKeywords;
-			}
-		}.execute();
-
-		if (savedInstanceState != null) {
-			actPos = savedInstanceState.getInt(ACTUAL_POS);
-			tagHeatMap.clear();
-			final Map<String, Integer> savedHeatMap = (Map<String, Integer>) savedInstanceState.getSerializable(TAG_HEAT_MAP);
-			if (savedHeatMap != null) {
-				tagHeatMap.putAll(savedHeatMap);
-			}
-		}
-		setupActionBar();
-	}
-
-	@Override
 	public boolean onCreateOptionsMenu(final Menu menu) {
-		final Object[] additionalValues = adapter.getAdditionalValues();
+		final Object[] additionalValues = adapter.getAdditionalValues(actPos);
 		if (additionalValues == null) {
 			return false;
 		}
@@ -236,6 +154,93 @@ public class PhotoDetailViewActivity extends Activity {
 			actionBar.show();
 		}
 		return super.onTouchEvent(event);
+	}
+
+	@Override
+	protected void onCreate(final Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+
+		requestWindowFeature(Window.FEATURE_ACTION_BAR_OVERLAY);
+		setFullscreen(true);
+
+		setContentView(R.layout.photo_detailview);
+		detailContainer = (PhotoDetailContainer) findViewById(R.id.photo_detailview_container);
+		pager = detailContainer.getViewPager();
+
+		// get album id and photo id out of intent
+		final Bundle bundle = getIntent().getExtras();
+		albumUri = Uri.parse(bundle.getString(ALBUM_ID));
+		actPos = bundle.getInt(ACTUAL_POS);
+		adapter = CursorPagerAdapter.registerLoaderManager(	getLoaderManager(),
+																												this,
+																												albumUri,
+																												R.layout.photo_detailview_item,
+																												makeHandlers(),
+																												new String[] { Client.AlbumEntry.THUMBNAIL });
+		adapter.setCursorLoadedHandler(new Runnable() {
+
+			@Override
+			public void run() {
+				pager.setCurrentItem(actPos, false);
+				invalidateOptionsMenu();
+			}
+		});
+		detailContainer.setOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {
+			@Override
+			public void onPageScrolled(final int position, final float positionOffset, final int positionOffsetPixels) {
+			}
+
+			@Override
+			public void onPageSelected(final int position) {
+				actPos = position;
+				invalidateOptionsMenu();
+			}
+
+		});
+
+		// View pager configuration
+		pager.setAdapter(adapter);
+
+		// Preload two pages
+		pager.setOffscreenPageLimit(3);
+
+		// Add a little space between pages
+		pager.setPageMargin(15);
+
+		// If hardware acceleration is enabled, you should also remove
+		// clipping on the pager for its children.
+		pager.setClipChildren(false);
+		new AsyncTask<Void, Void, Void>() {
+			private List<String> knownKeywords;
+			private String[] visibleKeywords;
+
+			@Override
+			protected Void doInBackground(final Void... params) {
+				knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
+				if (knownKeywords.size() > VISIBLE_KEYWORD_COUNT) {
+					visibleKeywords = knownKeywords.subList(0, VISIBLE_KEYWORD_COUNT).toArray(new String[VISIBLE_KEYWORD_COUNT]);
+				} else {
+					visibleKeywords = knownKeywords.toArray(new String[knownKeywords.size()]);
+				}
+				return null;
+			}
+
+			@Override
+			protected void onPostExecute(final Void result) {
+				updateVisibleKeywords(visibleKeywords);
+				PhotoDetailViewActivity.this.knownKeywords = knownKeywords;
+			}
+		}.execute();
+
+		if (savedInstanceState != null) {
+			actPos = savedInstanceState.getInt(ACTUAL_POS);
+			tagHeatMap.clear();
+			final Map<String, Integer> savedHeatMap = (Map<String, Integer>) savedInstanceState.getSerializable(TAG_HEAT_MAP);
+			if (savedHeatMap != null) {
+				tagHeatMap.putAll(savedHeatMap);
+			}
+		}
+		setupActionBar();
 	}
 
 	@Override
