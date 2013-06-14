@@ -25,7 +25,10 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
@@ -548,6 +551,57 @@ public class Album implements ApplicationContextAware {
 		return modified;
 	}
 
+	private void estimateCreationDates() {
+		final Map<String, NavigableMap<Date, Long>> foundOffsets = new HashMap<>();
+		final Collection<AlbumEntryData> entriesToEstimate = new ArrayList<>();
+		for (final Entry<String, AlbumEntryData> entry : albumEntriesMetadataCache.entrySet()) {
+			final AlbumEntryData value = entry.getValue();
+			if (value.getCameraSerial() == null) {
+				continue;
+			}
+			final Date cameraDate = value.getCameraDate();
+			if (cameraDate == null) {
+				continue;
+			}
+			final String cameraKey = makeCameraKey(value);
+			if (!foundOffsets.containsKey(cameraKey)) {
+				foundOffsets.put(cameraKey, new TreeMap<Date, Long>());
+			}
+			final Map<Date, Long> offsetMap = foundOffsets.get(cameraKey);
+			final Date gpsDate = value.getGpsDate();
+			if (gpsDate == null) {
+				entriesToEstimate.add(value);
+			} else {
+				offsetMap.put(cameraDate, Long.valueOf((gpsDate.getTime() - cameraDate.getTime())));
+			}
+		}
+		for (final AlbumEntryData entryToEstimate : entriesToEstimate) {
+			final String cameraKey = makeCameraKey(entryToEstimate);
+			final NavigableMap<Date, Long> offsetMap = foundOffsets.get(cameraKey);
+			if (offsetMap == null || offsetMap.isEmpty()) {
+				// no gps time found on this camera
+				continue;
+			}
+			final Date cameraDate = entryToEstimate.getCameraDate();
+			final Entry<Date, Long> nextEntry = offsetMap.ceilingEntry(cameraDate);
+			final Entry<Date, Long> prevEntry = offsetMap.floorEntry(cameraDate);
+			final long calculatedOffset;
+			if (prevEntry == null) {
+				calculatedOffset = nextEntry.getValue().longValue();
+			} else if (nextEntry == null) {
+				calculatedOffset = prevEntry.getValue().longValue();
+			} else if (prevEntry.getKey().equals(cameraDate)) {
+				calculatedOffset = prevEntry.getValue().longValue();
+			} else {
+				final long distanceToPrev = cameraDate.getTime() - prevEntry.getKey().getTime();
+				final long distanceToNext = nextEntry.getKey().getTime() - cameraDate.getTime();
+				final double relativePostition = (1.0 * distanceToPrev) / (distanceToNext + distanceToPrev);
+				calculatedOffset = (long) ((1 - relativePostition) * prevEntry.getValue().longValue() + relativePostition * nextEntry.getValue().longValue());
+			}
+			entryToEstimate.setCreationDate(new Date(cameraDate.getTime() + calculatedOffset));
+		}
+	}
+
 	private long evaluateLastModifiedTime() {
 		try {
 			if (!isMaster()) {
@@ -740,6 +794,11 @@ public class Album implements ApplicationContextAware {
 		return picasaData;
 	}
 
+	private String makeCameraKey(final AlbumEntryData value) {
+		final String cameraKey = value.getCameraMake() + ";" + value.getCameraModel() + ";" + value.getCameraSerial();
+		return cameraKey;
+	}
+
 	private String makeFilename(final String name, final int i, final Date timestamp) {
 		if (i == 0) {
 			return MessageFormat.format("{1,date,yyyy-MM-dd-HH-mm-ss}-{0}", name, timestamp);
@@ -839,6 +898,7 @@ public class Album implements ApplicationContextAware {
 		if (hasLock) {
 			try {
 				while (metadataModified.getAndSet(false)) {
+					estimateCreationDates();
 					final File metadataCacheFile = metadataCacheFile();
 					final File tempFile = new File(metadataCacheFile.getParentFile(), "mtadata.tmp");
 					try {

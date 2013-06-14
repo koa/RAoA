@@ -6,9 +6,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 
 import lombok.Cleanup;
@@ -42,7 +42,7 @@ public class AlbumImage {
 
 	private static Map<File, Object> imageLocks = new WeakHashMap<File, Object>();
 	private static Semaphore limitConcurrentScaleSemaphore = new Semaphore(4);
-	private static Map<File, SoftReference<AlbumImage>> loadedImages = new HashMap<File, SoftReference<AlbumImage>>();
+	private static Map<File, SoftReference<AlbumImage>> loadedImages = new ConcurrentHashMap<File, SoftReference<AlbumImage>>();
 	private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
 
 	private static final Integer STAR_RATING = Integer.valueOf(5);
@@ -68,8 +68,9 @@ public class AlbumImage {
 			final SoftReference<AlbumImage> softReference = loadedImages.get(file);
 			if (softReference != null) {
 				final AlbumImage cachedImage = softReference.get();
-				if (cachedImage != null && cachedImage.lastModified.equals(lastModified))
+				if (cachedImage != null && cachedImage.lastModified.equals(lastModified)) {
 					return cachedImage;
+				}
 			}
 			final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified, cacheManager);
 			loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
@@ -79,8 +80,9 @@ public class AlbumImage {
 
 	private static synchronized Object lockFor(final File file) {
 		final Object existingLock = imageLocks.get(file);
-		if (existingLock != null)
+		if (existingLock != null) {
 			return existingLock;
+		}
 		final Object newLock = new Object();
 		imageLocks.put(file, newLock);
 		return newLock;
@@ -104,7 +106,7 @@ public class AlbumImage {
 	}
 
 	public Date captureDate() {
-		return getAlbumEntryData().getCreationDate();
+		return getAlbumEntryData().estimateCreationDate();
 	}
 
 	public AlbumEntryData getAlbumEntryData() {
@@ -112,8 +114,9 @@ public class AlbumImage {
 
 			AlbumEntryData loadedMetaData = albumManager.getCachedData();
 			final Date lastModifiedMetadata = getMetadataLastModifiedTime();
-			if (loadedMetaData != null && ObjectUtils.equals(loadedMetaData.getLastModifiedMetadata(), lastModifiedMetadata))
+			if (loadedMetaData != null && ObjectUtils.equals(loadedMetaData.getLastModifiedMetadata(), lastModifiedMetadata)) {
 				return loadedMetaData;
+			}
 
 			loadedMetaData = new AlbumEntryData();
 			loadedMetaData.setLastModifiedMetadata(lastModifiedMetadata);
@@ -200,8 +203,9 @@ public class AlbumImage {
 				albumManager.clearThumbnailException(getName());
 				return cachedFile;
 			}
-			if (onlyFromCache)
+			if (onlyFromCache) {
 				return null;
+			}
 			synchronized (this) {
 				if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified) {
 					albumManager.clearThumbnailException(getName());
@@ -250,8 +254,9 @@ public class AlbumImage {
 	}
 
 	public Date lastModified() {
-		if (getThumbnail(true) == null)
+		if (getThumbnail(true) == null) {
 			return new Date(lastModified.getTime() - 1);
+		}
 		return lastModified;
 	}
 
@@ -310,15 +315,17 @@ public class AlbumImage {
 	 */
 	private Date getMetadataLastModifiedTime() {
 		final File xmpSideFile = getXmpSideFile();
-		if (!xmpSideFile.exists())
+		if (!xmpSideFile.exists()) {
 			return null;
+		}
 		return new Date(xmpSideFile.lastModified());
 	}
 
 	private File makeCachedFile() {
 		final String name = file.getName();
-		if (isVideo())
+		if (isVideo()) {
 			return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
+		}
 		return new File(cacheDir, name);
 	}
 
