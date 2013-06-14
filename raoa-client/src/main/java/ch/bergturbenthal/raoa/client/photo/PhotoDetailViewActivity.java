@@ -315,6 +315,15 @@ public class PhotoDetailViewActivity extends Activity {
 																																																									}
 
 																																																								})
+																																														.setNegativeButton(	android.R.string.cancel,
+																																																								new DialogInterface.OnClickListener() {
+
+																																																									@Override
+																																																									public void onClick(final DialogInterface dialog,
+																																																																			final int which) {
+																																																										dialog.cancel();
+																																																									}
+																																																								})
 																																														.create();
 						dialog.show();
 					}
