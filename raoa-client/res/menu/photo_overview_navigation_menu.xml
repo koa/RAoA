@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android" >
+
+    <item
+        android:id="@+id/photo_overview_share_album"
+        android:icon="@drawable/ic_action_share"
+        android:title="@string/photo_overview_menu_share_title" android:showAsAction="ifRoom">
+        <menu></menu>
+    </item>
+
+</menu>

@@ -7,8 +7,9 @@ import lombok.Data;
 
 @Data
 public class StorageEntry {
-  private String storageName;
-  private String storageId;
-  private Long mBytesAvailable;
-  private final Collection<String> albumList = new ArrayList<String>();
+	private final Collection<String> albumList = new ArrayList<String>();
+	private Long mBytesAvailable;
+	private String storageId;
+	private String storageName;
+	private boolean takeAllRepositories;
 }

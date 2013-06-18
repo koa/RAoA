@@ -2,6 +2,8 @@ package ch.bergturbenthal.raoa.client.photo;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,6 +22,7 @@ import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Pair;
 import android.view.Menu;
@@ -149,7 +152,55 @@ public class PhotoOverviewActivity extends Activity {
 			// subMenu.add("Hello Tag");
 			break;
 		case NAVIGATION:
-			menu.clear();
+			getMenuInflater().inflate(R.menu.photo_overview_navigation_menu, menu);
+			final MenuItem shareItem = menu.findItem(R.id.photo_overview_share_album);
+			final SubMenu subMenu = shareItem.getSubMenu();
+			subMenu.clear();
+			new AsyncTask<Void, Void, Void>() {
+
+				private final List<Pair<String, String>> menuEntries = new ArrayList<Pair<String, String>>();
+
+				@Override
+				protected Void doInBackground(final Void... params) {
+					final Cursor storagesCursor = getContentResolver().query(	Client.STORAGE_URI,
+																																		new String[] { Client.Storage.STORAGE_ID,
+																																									Client.Storage.STORAGE_NAME,
+																																									Client.Storage.TAKE_ALL_REPOSITORIES },
+																																		null,
+																																		null,
+																																		null);
+
+					if (storagesCursor.moveToFirst()) {
+						final int idColumn = storagesCursor.getColumnIndexOrThrow(Client.Storage.STORAGE_ID);
+						final int nameColumn = storagesCursor.getColumnIndexOrThrow(Client.Storage.STORAGE_NAME);
+						final int allRepositoriesColumn = storagesCursor.getColumnIndexOrThrow(Client.Storage.TAKE_ALL_REPOSITORIES);
+						do {
+							final String storageId = storagesCursor.getString(idColumn);
+							final String storageName = storagesCursor.getString(nameColumn);
+							if (storagesCursor.getInt(allRepositoriesColumn) != 0) {
+								continue;
+							}
+							menuEntries.add(new Pair<String, String>(storageId, storageName));
+						} while (storagesCursor.moveToNext());
+					}
+					Collections.sort(menuEntries, new Comparator<Pair<String, String>>() {
+						@Override
+						public int compare(final Pair<String, String> lhs, final Pair<String, String> rhs) {
+							return lhs.second.compareTo(rhs.second);
+						}
+					});
+					return null;
+				}
+
+				@Override
+				protected void onPostExecute(final Void result) {
+					for (final Pair<String, String> entry : menuEntries) {
+						final MenuItem storageItem = subMenu.add(entry.second);
+						storageItem.setCheckable(true);
+					}
+				}
+
+			}.execute();
 			break;
 		}
 
