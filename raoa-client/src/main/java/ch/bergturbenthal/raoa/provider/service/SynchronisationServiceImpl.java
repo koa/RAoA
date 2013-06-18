@@ -1057,6 +1057,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return Client.makeThumbnailUri(value.getAlbumIndex().getArchiveName(), value.getAlbumIndex().getAlbumId(), value.getAlbumEntryId()).toString();
 			}
 		});
+		indexFieldReaders.put(Client.AlbumEntry.THUMBNAIL_ALIAS, new StringFieldReader<AlbumEntryIndex>() {
+
+			@Override
+			public String getString(final AlbumEntryIndex value) {
+				final AlbumEntryDto entryDto = albumEntryLookup.get(value);
+				return Client.makeThumbnailUri(value.getAlbumIndex().getArchiveName(), value.getAlbumIndex().getAlbumId(), value.getAlbumEntryId()).toString() + "/"
+								+ entryDto.getFileName();
+			}
+		});
 		indexFieldReaders.put(Client.AlbumEntry.NUMERIC_ID, new NumericFieldReader<AlbumEntryIndex>(Cursor.FIELD_TYPE_INTEGER) {
 
 			@Override

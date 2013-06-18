@@ -55,6 +55,7 @@ public class Client {
 		public static final String NUMERIC_ID = "_id";
 		public static final String ORIGINAL_SIZE = "originalSize";
 		public static final String THUMBNAIL = "thumbnail";
+		public static final String THUMBNAIL_ALIAS = "thumbnailAlias";
 		public static final String THUMBNAIL_SIZE = "thumbnailSize";
 
 		public static Collection<String> decodeKeywords(final String keywordValue) {

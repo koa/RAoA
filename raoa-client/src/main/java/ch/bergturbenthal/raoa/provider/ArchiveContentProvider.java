@@ -38,7 +38,8 @@ public class ArchiveContentProvider extends ContentProvider {
 		ALBUM, @Path("albums/*/*/entries/*")
 		ALBUM_ENTRY, @Path("albums/*/*/entries")
 		ALBUM_ENTRY_LIST, @Path("albums/*/*/entries/*/thumbnail")
-		ALBUM_ENTRY_THUMBNAIL, @Path("albums")
+		ALBUM_ENTRY_THUMBNAIL, @Path("albums/*/*/entries/*/thumbnail/*")
+		ALBUM_ENTRY_THUMBNAIL_ALIAS, @Path("albums")
 		ALBUM_LIST, @Path("keywords")
 		KEYWORD, @Path("servers/*/issues")
 		SERVER_ISSUE_LIST, @Path("servers")
@@ -99,7 +100,8 @@ public class ArchiveContentProvider extends ContentProvider {
 			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/album/entry";
 		case ALBUM_ENTRY:
 			return "vnd.android.cursor.item/vnd." + Client.AUTHORITY + "/album/entry";
-		case ALBUM_ENTRY_THUMBNAIL: {
+		case ALBUM_ENTRY_THUMBNAIL:
+		case ALBUM_ENTRY_THUMBNAIL_ALIAS: {
 			final List<String> segments = uri.getPathSegments();
 			final String archive = segments.get(1);
 			final String albumId = segments.get(2);
@@ -146,6 +148,7 @@ public class ArchiveContentProvider extends ContentProvider {
 		}
 		switch (match) {
 		case ALBUM_ENTRY_THUMBNAIL:
+		case ALBUM_ENTRY_THUMBNAIL_ALIAS:
 
 			final File thumbnail = ThumbnailUriParser.parseUri(uri, new ThumbnailUriReceiver<File>() {
 				@Override
@@ -188,6 +191,8 @@ public class ArchiveContentProvider extends ContentProvider {
 			case STORAGE_LIST:
 				return getService().readStorages(projection);
 			case ALBUM_ENTRY_THUMBNAIL:
+			case ALBUM_ENTRY_THUMBNAIL_ALIAS:
+				return null;
 			}
 			throw new UnsupportedOperationException("Query of " + uri + " is not supported");
 		} catch (final Throwable e) {
@@ -206,6 +211,7 @@ public class ArchiveContentProvider extends ContentProvider {
 			return getService().updateAlbumEntry(segments.get(1), segments.get(2), segments.get(4), values);
 		case ALBUM_ENTRY_LIST:
 		case ALBUM_ENTRY_THUMBNAIL:
+		case ALBUM_ENTRY_THUMBNAIL_ALIAS:
 		case ALBUM_LIST:
 		case SERVER_LIST:
 		case SERVER_PROGRESS_LIST:

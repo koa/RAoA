@@ -73,8 +73,6 @@ public class PhotoDetailViewActivity extends Activity {
 
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
-	private static final String[] PROJECTION = new String[] { Client.AlbumEntry.THUMBNAIL };
-
 	private static final String TAG_HEAT_MAP = "tagHeatMap";
 	protected List<String> knownKeywords = Collections.emptyList();
 
@@ -176,7 +174,7 @@ public class PhotoDetailViewActivity extends Activity {
 																												albumUri,
 																												R.layout.photo_detailview_item,
 																												makeHandlers(),
-																												new String[] { Client.AlbumEntry.THUMBNAIL });
+																												new String[] { Client.AlbumEntry.THUMBNAIL_ALIAS });
 		adapter.setCursorLoadedHandler(new Runnable() {
 
 			@Override
@@ -268,7 +266,7 @@ public class PhotoDetailViewActivity extends Activity {
 
 	private ArrayList<ViewHandler<? extends View>> makeHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL, PhotoViewHandler.FULLSCREEN_CALCULATOR));
+		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL_ALIAS, PhotoViewHandler.FULLSCREEN_CALCULATOR));
 		ret.add(new AbstractViewHandler<View>(R.id.FrameLayout1) {
 
 			@Override

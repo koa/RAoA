@@ -214,7 +214,7 @@ public class PhotoOverviewActivity extends Activity {
 
 		final ComplexCursorAdapter adapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
 																																																																		Client.AlbumEntry.META_KEYWORDS,
-																																																																		Client.AlbumEntry.THUMBNAIL });
+																																																																		Client.AlbumEntry.THUMBNAIL_ALIAS });
 		getLoaderManager().initLoader(0, null, new LoaderCallbacks<Cursor>() {
 
 			@Override
@@ -237,7 +237,7 @@ public class PhotoOverviewActivity extends Activity {
 					}
 					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
 					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
-					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL);
+					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL_ALIAS);
 					do {
 						final String uri = data.getString(entryColumn);
 						if (oldSelectedEntries.contains(uri)) {
@@ -359,7 +359,7 @@ public class PhotoOverviewActivity extends Activity {
 	 */
 	private Collection<ViewHandler<? extends View>> makeHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
+		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL_ALIAS, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
 		ret.add(new TextViewHandler(R.id.photo_name, Client.AlbumEntry.NAME));
 		ret.add(new AbstractViewHandler<View>(R.id.photos_overview_grid_item) {
 
