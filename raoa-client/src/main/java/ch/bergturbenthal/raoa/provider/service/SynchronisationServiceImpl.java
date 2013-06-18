@@ -61,6 +61,7 @@ import android.util.Log;
 import android.util.LruCache;
 import android.util.Pair;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
+import ch.bergturbenthal.raoa.data.model.StorageEntry;
 import ch.bergturbenthal.raoa.data.model.StorageList;
 import ch.bergturbenthal.raoa.data.model.mutation.AlbumMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.CaptionMutationEntry;
@@ -574,6 +575,18 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return makeCursorForAlbumEntries(Collections.singletonList(new AlbumEntryIndex(affectedAlbum, archiveEntryId)), projection, Collections.singleton(affectedAlbum));
 			}
 		});
+	}
+
+	@Override
+	public Cursor readStorages(final String[] projection) {
+		final StorageList storageList = store.getCurrentStorageList(ReadPolicy.READ_ONLY);
+		final Collection<StorageEntry> storages = storageList == null ? (Collections.<StorageEntry> emptyList()) : storageList.getClients();
+		final Map<String, String> mappedFields = new HashMap<String, String>();
+		mappedFields.put(Client.Storage.MBYTES_AVAILABLE, "mBytesAvailable");
+		mappedFields.put(Client.Storage.STORAGE_NAME, "storageName");
+		mappedFields.put(Client.Storage.TAKE_ALL_REPOSITORIES, "takeAllRepositories");
+		final Map<String, FieldReader<StorageEntry>> readers = MapperUtil.makeNamedFieldReaders(StorageEntry.class, mappedFields);
+		return MapperUtil.loadCollectionIntoCursor(storages, projection, readers);
 	}
 
 	@Override

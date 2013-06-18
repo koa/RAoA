@@ -43,14 +43,15 @@ public class ArchiveContentProvider extends ContentProvider {
 		KEYWORD, @Path("servers/*/issues")
 		SERVER_ISSUE_LIST, @Path("servers")
 		SERVER_LIST, @Path("servers/*/progress")
-		SERVER_PROGRESS_LIST
+		SERVER_PROGRESS_LIST, @Path("storages")
+		STORAGE_LIST
 
 	}
 
-	static final String TAG = "Content Provider";
-
 	private static final Map<Class, NotifyableMatrixCursor> emptyCursors = new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
+
 	private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
+	static final String TAG = "Content Provider";
 
 	private SynchronisationService service = null;
 	/** Defines callbacks for service binding, passed to bindService() */
@@ -113,6 +114,8 @@ public class ArchiveContentProvider extends ContentProvider {
 			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server/issues";
 		case KEYWORD:
 			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/keyword";
+		case STORAGE_LIST:
+			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/storage";
 		}
 		throw new SQLException("Unknown Uri: " + uri);
 	}
@@ -138,8 +141,9 @@ public class ArchiveContentProvider extends ContentProvider {
 	public ParcelFileDescriptor openFile(final Uri uri, final String mode) throws FileNotFoundException {
 		Log.i(TAG, "Open called for " + uri);
 		final UriType match = matcher.match(uri);
-		if (match == null)
+		if (match == null) {
 			return super.openFile(uri, mode);
+		}
 		switch (match) {
 		case ALBUM_ENTRY_THUMBNAIL:
 
@@ -149,8 +153,9 @@ public class ArchiveContentProvider extends ContentProvider {
 					return getService().getLoadedThumbnail(archiveName, albumId, thumbnailId);
 				}
 			});
-			if (thumbnail == null)
+			if (thumbnail == null) {
 				throw new FileNotFoundException("Thumbnail-Image " + uri + " not found");
+			}
 			return ParcelFileDescriptor.open(thumbnail, ParcelFileDescriptor.MODE_READ_ONLY);
 		default:
 			break;
@@ -180,6 +185,8 @@ public class ArchiveContentProvider extends ContentProvider {
 				return getService().readServerIssueList(segments.get(1), projection);
 			case KEYWORD:
 				return getService().readKeywordStatistics(projection);
+			case STORAGE_LIST:
+				return getService().readStorages(projection);
 			case ALBUM_ENTRY_THUMBNAIL:
 			}
 			throw new UnsupportedOperationException("Query of " + uri + " is not supported");
@@ -203,6 +210,8 @@ public class ArchiveContentProvider extends ContentProvider {
 		case SERVER_LIST:
 		case SERVER_PROGRESS_LIST:
 		case SERVER_ISSUE_LIST:
+		case STORAGE_LIST:
+		case KEYWORD:
 		}
 		throw new UnsupportedOperationException("Update of " + uri + " is not supported");
 	}
@@ -210,8 +219,9 @@ public class ArchiveContentProvider extends ContentProvider {
 	protected Cursor getEmptyCursor(final Class<?> klass) {
 		synchronized (emptyCursors) {
 			final NotifyableMatrixCursor existingEntry = emptyCursors.get(klass);
-			if (existingEntry != null)
+			if (existingEntry != null) {
 				return existingEntry;
+			}
 			final ArrayList<String> columns = new ArrayList<String>();
 			for (final Field field : klass.getDeclaredFields()) {
 				final int modifiers = field.getModifiers();
@@ -234,7 +244,7 @@ public class ArchiveContentProvider extends ContentProvider {
 	}
 
 	private SynchronisationService getService() {
-		if (service == null)
+		if (service == null) {
 			return new SynchronisationService() {
 
 				@Override
@@ -296,6 +306,11 @@ public class ArchiveContentProvider extends ContentProvider {
 				}
 
 				@Override
+				public Cursor readStorages(final String[] projection) {
+					return getEmptyCursor(Client.Storage.class);
+				}
+
+				@Override
 				public int updateAlbum(final String archiveName, final String albumName, final ContentValues values) {
 					// TODO Auto-generated method stub
 					return 0;
@@ -307,6 +322,7 @@ public class ArchiveContentProvider extends ContentProvider {
 					return 0;
 				}
 			};
+		}
 		return service;
 	}
 

@@ -29,6 +29,7 @@ public class Client {
 		public static final String ORIGINALS_SIZE = "originalsSize";
 		public static final String REPOSITORY_SIZE = "repositorySize";
 		public static final String SHOULD_SYNC = "shouldSync";
+		public static final String STORAGES = "storages";
 		public static final String SYNCED = "synced";
 		public static final String THUMBNAIL = "thumbnail";
 		public static final String THUMBNAILS_SIZE = "thumbnailsSize";
@@ -57,21 +58,11 @@ public class Client {
 		public static final String THUMBNAIL_SIZE = "thumbnailSize";
 
 		public static Collection<String> decodeKeywords(final String keywordValue) {
-			try {
-				if (keywordValue == null)
-					return Collections.emptyList();
-				return mapper.readValue(keywordValue, stringListType);
-			} catch (final IOException e) {
-				throw new RuntimeException("Cannot decode value " + keywordValue, e);
-			}
+			return decodeArray(keywordValue);
 		}
 
 		public static String encodeKeywords(final Collection<String> keywords) {
-			try {
-				return mapper.writeValueAsString(keywords);
-			} catch (final IOException e) {
-				throw new RuntimeException("Cannot encode value " + keywords, e);
-			}
+			return encodeArray(keywords);
 		}
 	}
 
@@ -107,6 +98,12 @@ public class Client {
 		public static final String SERVER_NAME = "serverName";
 	}
 
+	public static class Storage {
+		public static final String MBYTES_AVAILABLE = "mBytesAvailable";
+		public static final String STORAGE_NAME = "storageName";
+		public static final String TAKE_ALL_REPOSITORIES = "takeAllRepositories";
+	}
+
 	public static final Uri ALBUM_URI;
 	public static final String AUTHORITY = "ch.bergturbenthal.raoa.provider";
 	public static final Uri KEYWORDS_URI;
@@ -114,14 +111,14 @@ public class Client {
 	public static final String PARAMETER_AUTOADD_DATE = "autoaddDate";
 	public static final String PARAMETER_FULL_ALBUM_NAME = "fullAlbumName";
 	public static final Uri SERVER_URI;
+	public static final Uri STORAGE_URI;
 	private static final ObjectMapper mapper = new ObjectMapper();
 	private static final CollectionType stringListType = CollectionType.construct(List.class, SimpleType.construct(String.class));
-	private final ContentResolver provider;
-
 	static {
 		ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
 		SERVER_URI = Uri.parse("content://" + AUTHORITY + "/servers");
 		KEYWORDS_URI = Uri.parse("content://" + AUTHORITY + "/keywords");
+		STORAGE_URI = Uri.parse("content://" + AUTHORITY + "/storages");
 	}
 
 	public static Uri makeAlbumEntriesUri(final String archiveName, final String albumId) {
@@ -180,6 +177,27 @@ public class Client {
 		builder.appendPath("thumbnail");
 		return builder.build();
 	}
+
+	private static Collection<String> decodeArray(final String keywordValue) {
+		try {
+			if (keywordValue == null) {
+				return Collections.emptyList();
+			}
+			return mapper.readValue(keywordValue, stringListType);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot decode value " + keywordValue, e);
+		}
+	}
+
+	private static String encodeArray(final Collection<String> keywords) {
+		try {
+			return mapper.writeValueAsString(keywords);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot encode value " + keywords, e);
+		}
+	}
+
+	private final ContentResolver provider;
 
 	public Client(final ContentResolver provider) {
 		this.provider = provider;

@@ -32,4 +32,6 @@ public interface SynchronisationService {
 	String getContenttype(final String archive, final String albumId, final String image);
 
 	Cursor readKeywordStatistics(final String[] projection);
+
+	Cursor readStorages(final String[] projection);
 }
