@@ -585,8 +585,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		mappedFields.put(Client.Storage.MBYTES_AVAILABLE, "mBytesAvailable");
 		mappedFields.put(Client.Storage.STORAGE_NAME, "storageName");
 		mappedFields.put(Client.Storage.TAKE_ALL_REPOSITORIES, "takeAllRepositories");
+		mappedFields.put(Client.Storage.STORAGE_ID, "storageId");
 		final Map<String, FieldReader<StorageEntry>> readers = MapperUtil.makeNamedFieldReaders(StorageEntry.class, mappedFields);
-		return MapperUtil.loadCollectionIntoCursor(storages, projection, readers);
+		return cursorNotifications.addStorageCursor(MapperUtil.loadCollectionIntoCursor(storages, projection, readers));
 	}
 
 	@Override
@@ -1621,7 +1622,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 									if (foundStorages == null) {
 										return null;
 									}
-									store.getCurrentStorageList(ReadPolicy.READ_OR_CREATE).updateFrom(foundStorages);
+									final boolean updated = store.getCurrentStorageList(ReadPolicy.READ_OR_CREATE).updateFrom(foundStorages);
+									if (updated) {
+										cursorNotifications.notifyStoragesModified();
+									}
 									return null;
 								}
 							});

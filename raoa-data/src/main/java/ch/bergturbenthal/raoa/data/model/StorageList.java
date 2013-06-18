@@ -12,16 +12,17 @@ public class StorageList {
 	private Date lastModified;
 	private String version;
 
-	public void updateFrom(final StorageList other) {
+	public boolean updateFrom(final StorageList other) {
 		if (other.version == null) {
-			return;
+			return false;
 		}
 		if (other.version.equals(version)) {
-			return;
+			return false;
 		}
 		clients.clear();
 		clients.addAll(other.getClients());
 		lastModified = other.lastModified;
 		version = other.version;
+		return true;
 	}
 }
