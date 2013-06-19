@@ -20,10 +20,11 @@ import android.content.DialogInterface;
 import android.content.DialogInterface.OnClickListener;
 import android.content.Intent;
 import android.content.Loader;
+import android.database.ContentObserver;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Pair;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -44,6 +45,7 @@ import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.TextViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.util.KeywordUtil;
+import ch.bergturbenthal.raoa.client.util.SimpleAsync;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class PhotoOverviewActivity extends Activity {
@@ -78,6 +80,8 @@ public class PhotoOverviewActivity extends Activity {
 	private UiMode currentMode = UiMode.NAVIGATION;
 
 	private ComplexCursorAdapter cursorAdapter;
+
+	private Collection<String> enabledStorages = Collections.emptyList();
 
 	private GridView gridview;
 
@@ -156,12 +160,12 @@ public class PhotoOverviewActivity extends Activity {
 			final MenuItem shareItem = menu.findItem(R.id.photo_overview_share_album);
 			final SubMenu subMenu = shareItem.getSubMenu();
 			subMenu.clear();
-			new AsyncTask<Void, Void, Void>() {
+			new SimpleAsync() {
 
 				private final List<Pair<String, String>> menuEntries = new ArrayList<Pair<String, String>>();
 
 				@Override
-				protected Void doInBackground(final Void... params) {
+				protected void doInBackground() {
 					final Cursor storagesCursor = getContentResolver().query(	Client.STORAGE_URI,
 																																		new String[] { Client.Storage.STORAGE_ID,
 																																									Client.Storage.STORAGE_NAME,
@@ -189,14 +193,24 @@ public class PhotoOverviewActivity extends Activity {
 							return lhs.second.compareTo(rhs.second);
 						}
 					});
-					return null;
 				}
 
 				@Override
-				protected void onPostExecute(final Void result) {
+				protected void onPostExecute() {
 					for (final Pair<String, String> entry : menuEntries) {
 						final MenuItem storageItem = subMenu.add(entry.second);
 						storageItem.setCheckable(true);
+						final boolean enabled = enabledStorages.contains(entry.first);
+						storageItem.setChecked(enabled);
+						storageItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+
+							@Override
+							public boolean onMenuItemClick(final MenuItem item) {
+								enableStorage(entry.first, !enabled);
+								return true;
+							}
+
+						});
 					}
 				}
 
@@ -251,7 +265,6 @@ public class PhotoOverviewActivity extends Activity {
 		final Bundle bundle = getIntent().getExtras();
 		albumEntriesUri = Uri.parse(bundle.getString("album_entries_uri"));
 		final Uri albumUri = Uri.parse(bundle.getString("album_uri"));
-		Uri.parse(bundle.getString("album_uri"));
 		setContentView(R.layout.photo_overview);
 
 		if (savedInstanceState != null) {
@@ -324,16 +337,7 @@ public class PhotoOverviewActivity extends Activity {
 			}
 		});
 		gridview.setWillNotCacheDrawing(false);
-
-		final Cursor cursor = getContentResolver().query(albumUri, new String[] { Client.Album.TITLE }, null, null, null);
-		try {
-			if (cursor.moveToFirst()) {
-				albumTitle = cursor.getString(0);
-			}
-		} finally {
-			cursor.close();
-		}
-		knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
+		loadAlbumEntry(albumUri);
 
 		final UiMode mode = savedInstanceState == null ? UiMode.NAVIGATION : UiMode.valueOf(savedInstanceState.getString(MODE_KEY, UiMode.NAVIGATION.name()));
 		switch (mode) {
@@ -365,6 +369,48 @@ public class PhotoOverviewActivity extends Activity {
 	private void addEntryToSelection(final Pair<String, EntryValues> pair) {
 		selectedEntries.put(pair.first, pair.second);
 		invalidateOptionsMenu();
+	}
+
+	private void enableStorage(final String entryId, final boolean b) {
+		// TODO Auto-generated method stub
+
+	}
+
+	private void loadAlbumEntry(final Uri albumUri) {
+		final Handler handler = new Handler();
+		new SimpleAsync() {
+
+			@Override
+			protected void doInBackground() {
+				final Cursor cursor = getContentResolver().query(albumUri, new String[] { Client.Album.TITLE, Client.Album.STORAGES }, null, null, null);
+				try {
+					if (cursor.moveToFirst()) {
+						albumTitle = cursor.getString(cursor.getColumnIndexOrThrow(Client.Album.TITLE));
+						enabledStorages = Client.Album.decodeStorages(cursor.getString(cursor.getColumnIndexOrThrow(Client.Album.STORAGES)));
+					}
+					cursor.registerContentObserver(new ContentObserver(handler) {
+						@Override
+						public boolean deliverSelfNotifications() {
+							return true;
+						}
+
+						@Override
+						public void onChange(final boolean selfChange) {
+							loadAlbumEntry(albumUri);
+						}
+
+					});
+				} finally {
+					cursor.close();
+				}
+				knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
+			}
+
+			@Override
+			protected void onPostExecute() {
+				invalidateOptionsMenu();
+			}
+		}.execute();
 	}
 
 	private boolean longClick(final int position) {

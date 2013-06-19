@@ -1182,6 +1182,30 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return Boolean.valueOf(albumState.isSynced());
 			}
 		});
+		final Lookup<String, Collection<String>> lookupStorages = new Lookup<String, Collection<String>>() {
+
+			@Override
+			public Collection<String> get(final String key) {
+				final StorageList storageList = store.getCurrentStorageList(ReadPolicy.READ_ONLY);
+				if (storageList == null) {
+					return Collections.emptyList();
+				}
+				final HashSet<String> ret = new HashSet<String>();
+				for (final StorageEntry entry : storageList.getClients()) {
+					if (entry.getAlbumList().contains(key)) {
+						ret.add(entry.getStorageId());
+					}
+				}
+				return ret;
+			}
+		};
+		fieldReaders.put(Client.Album.STORAGES, new StringFieldReader<AlbumMeta>() {
+
+			@Override
+			public String getString(final AlbumMeta value) {
+				return Client.Album.encodeStorages(lookupStorages.get(value.getAlbumId()));
+			}
+		});
 
 		return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(albums, projection, fieldReaders));
 	}

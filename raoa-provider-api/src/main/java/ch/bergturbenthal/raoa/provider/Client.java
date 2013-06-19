@@ -34,6 +34,15 @@ public class Client {
 		public static final String THUMBNAIL = "thumbnail";
 		public static final String THUMBNAILS_SIZE = "thumbnailsSize";
 		public static final String TITLE = "title";
+
+		public static Collection<String> decodeStorages(final String storagesValue) {
+			return decodeArray(storagesValue);
+		}
+
+		public static String encodeStorages(final Collection<String> storages) {
+			return encodeArray(storages);
+		}
+
 	}
 
 	public static class AlbumEntry {
