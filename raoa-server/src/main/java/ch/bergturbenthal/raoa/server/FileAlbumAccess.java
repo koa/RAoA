@@ -538,12 +538,13 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				if (!mutationEntry.getAlbumLastModified().equals(foundAlbum.getLastModified())) {
 					continue;
 				}
+				final String storageName = Util.decodeStringOfUrl(mutationEntry.getStorage());
 				switch (mutationEntry.getMutation()) {
 				case ADD:
-					registerClient(albumId, mutationEntry.getStorage());
+					registerClient(albumId, storageName);
 					break;
 				case REMOVE:
-					unRegisterClient(albumId, mutationEntry.getStorage());
+					unRegisterClient(albumId, storageName);
 					break;
 				}
 			}

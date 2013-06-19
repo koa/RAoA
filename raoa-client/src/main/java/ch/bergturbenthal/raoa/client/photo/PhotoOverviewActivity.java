@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -76,7 +77,9 @@ public class PhotoOverviewActivity extends Activity {
 
 	private Uri albumEntriesUri;
 	private String albumTitle = null;
+	private Uri albumUri;
 	private int currentItemIndex;
+
 	private UiMode currentMode = UiMode.NAVIGATION;
 
 	private ComplexCursorAdapter cursorAdapter;
@@ -198,15 +201,17 @@ public class PhotoOverviewActivity extends Activity {
 				@Override
 				protected void onPostExecute() {
 					for (final Pair<String, String> entry : menuEntries) {
-						final MenuItem storageItem = subMenu.add(entry.second);
+						final String entryId = entry.first;
+						final String entryName = entry.second;
+						final MenuItem storageItem = subMenu.add(entryName);
 						storageItem.setCheckable(true);
-						final boolean enabled = enabledStorages.contains(entry.first);
+						final boolean enabled = enabledStorages.contains(entryId);
 						storageItem.setChecked(enabled);
 						storageItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
 
 							@Override
 							public boolean onMenuItemClick(final MenuItem item) {
-								enableStorage(entry.first, !enabled);
+								enableStorage(entryId, !enabled);
 								return true;
 							}
 
@@ -264,7 +269,7 @@ public class PhotoOverviewActivity extends Activity {
 		// get album id out of intent
 		final Bundle bundle = getIntent().getExtras();
 		albumEntriesUri = Uri.parse(bundle.getString("album_entries_uri"));
-		final Uri albumUri = Uri.parse(bundle.getString("album_uri"));
+		albumUri = Uri.parse(bundle.getString("album_uri"));
 		setContentView(R.layout.photo_overview);
 
 		if (savedInstanceState != null) {
@@ -371,9 +376,40 @@ public class PhotoOverviewActivity extends Activity {
 		invalidateOptionsMenu();
 	}
 
-	private void enableStorage(final String entryId, final boolean b) {
-		// TODO Auto-generated method stub
+	private void enableStorage(final String entryId, final boolean enabled) {
+		new SimpleAsync() {
 
+			@Override
+			protected void doInBackground() {
+				if (albumUri == null) {
+					return;
+				}
+				final ContentResolver contentResolver = getContentResolver();
+				final Cursor cursor = contentResolver.query(albumUri, new String[] { Client.Album.STORAGES }, null, null, null);
+				try {
+					if (cursor == null || !cursor.moveToFirst()) {
+						return;
+					}
+					final Collection<String> storages = new LinkedHashSet<String>();
+					final String storagesRaw = cursor.getString(cursor.getColumnIndexOrThrow(Client.Album.STORAGES));
+					if (storagesRaw != null) {
+						storages.addAll(Client.Album.decodeStorages(storagesRaw));
+					}
+					if (enabled) {
+						storages.add(entryId);
+					} else {
+						storages.remove(entryId);
+					}
+					final ContentValues values = new ContentValues();
+					values.put(Client.Album.STORAGES, Client.Album.encodeStorages(storages));
+					contentResolver.update(albumUri, values, null, null);
+				} finally {
+					if (cursor != null) {
+						cursor.close();
+					}
+				}
+			}
+		}.execute();
 	}
 
 	private void loadAlbumEntry(final Uri albumUri) {

@@ -663,7 +663,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					final Collection<String> existingStorages = findStoragesOfAlbum(album, ReadPolicy.READ_IF_EXISTS);
 					final Collection<String> newStoragesCollection = Client.Album.decodeStorages(newStorages);
 					for (final String newStorage : newStoragesCollection) {
-						if (existingStorages.contains(newStorage)) {
+						if (!existingStorages.contains(newStorage)) {
 							final StorageMutationEntry entry = new StorageMutationEntry();
 							entry.setAlbumLastModified(albumMeta.getLastModified());
 							entry.setMutation(StorageMutation.ADD);
