@@ -96,14 +96,14 @@ public class Album implements ApplicationContextAware {
 
 	private static class ImportEntry {
 
-		private final String filename;
-
-		private final String hash;
-
 		static ImportEntry parseLine(final String line) {
 			final String[] comps = line.split(";", 2);
 			return new ImportEntry(comps[0], comps[1]);
 		}
+
+		private final String filename;
+
+		private final String hash;
 
 		public ImportEntry(final String filename, final String hash) {
 			super();
@@ -131,10 +131,13 @@ public class Album implements ApplicationContextAware {
 	private static Logger logger = LoggerFactory.getLogger(Album.class);
 	private static ObjectMapper mapper = new ObjectMapper();
 
+	public static Album createAlbum(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
+		return new Album(baseDir, nameComps, remoteUri, serverName);
+	}
+
 	private final ConcurrentMap<String, AlbumEntryData> albumEntriesMetadataCache = new ConcurrentHashMap<String, AlbumEntryData>();
 
 	private ApplicationContext applicationContext;
-
 	private final File baseDir;
 	private SoftReference<AlbumCache> cache = null;
 	private File cacheDir;
@@ -142,19 +145,16 @@ public class Album implements ApplicationContextAware {
 	private Collection<ImportEntry> importEntries = null;
 	private final String initRemoteServerName;
 	private final String initRemoteUri;
-	private final AtomicBoolean metadataModified = new AtomicBoolean(false);
 
+	private final AtomicBoolean metadataModified = new AtomicBoolean(false);
 	private final String[] nameComps;
+
 	@Autowired
 	private RepositoryService repositoryService;
-
 	@Autowired
 	private StateManager stateManager;
-	private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
 
-	public static Album createAlbum(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
-		return new Album(baseDir, nameComps, remoteUri, serverName);
-	}
+	private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
 
 	private Album(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
 		this.baseDir = baseDir;

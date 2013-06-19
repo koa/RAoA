@@ -109,6 +109,7 @@ public class Client {
 	}
 
 	public static class Storage {
+		public static final String ARCHIVE_NAME = "archiveName";
 		public static final String MBYTES_AVAILABLE = "mBytesAvailable";
 		public static final String STORAGE_ID = "storageId";
 		public static final String STORAGE_NAME = "storageName";

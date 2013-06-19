@@ -70,6 +70,8 @@ import ch.bergturbenthal.raoa.data.model.mutation.KeywordMutationEntry;
 import ch.bergturbenthal.raoa.data.model.mutation.KeywordMutationEntry.KeywordMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.data.model.mutation.RatingMutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.StorageMutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.StorageMutationEntry.StorageMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.TitleImageMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.TitleMutation;
 import ch.bergturbenthal.raoa.data.model.state.Issue;
@@ -556,15 +558,41 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public Cursor readStorages(final String[] projection) {
-		final StorageList storageList = store.getCurrentStorageList(ReadPolicy.READ_ONLY);
-		final Collection<StorageEntry> storages = storageList == null ? (Collections.<StorageEntry> emptyList()) : storageList.getClients();
+		final HashSet<String> archives = new HashSet<String>();
+		for (final AlbumIndex albumEntry : store.listAlbumMeta()) {
+			archives.add(albumEntry.getArchiveName());
+		}
+		final Collection<Pair<String, StorageEntry>> storagePairs = new ArrayList<Pair<String, StorageEntry>>();
+		for (final String archiv : archives) {
+			final StorageList storageList = store.getCurrentStorageList(archiv, ReadPolicy.READ_ONLY);
+			if (storageList == null) {
+				continue;
+			}
+			for (final StorageEntry entry : storageList.getClients()) {
+				storagePairs.add(new Pair<String, StorageEntry>(archiv, entry));
+			}
+		}
 		final Map<String, String> mappedFields = new HashMap<String, String>();
 		mappedFields.put(Client.Storage.MBYTES_AVAILABLE, "mBytesAvailable");
 		mappedFields.put(Client.Storage.STORAGE_NAME, "storageName");
 		mappedFields.put(Client.Storage.TAKE_ALL_REPOSITORIES, "takeAllRepositories");
 		mappedFields.put(Client.Storage.STORAGE_ID, "storageId");
 		final Map<String, FieldReader<StorageEntry>> readers = MapperUtil.makeNamedFieldReaders(StorageEntry.class, mappedFields);
-		return cursorNotifications.addStorageCursor(MapperUtil.loadCollectionIntoCursor(storages, projection, readers));
+		final Map<String, FieldReader<Pair<String, StorageEntry>>> delegateFieldReaders = MapperUtil.delegateFieldReaders(readers,
+																																																											new Lookup<Pair<String, StorageEntry>, StorageEntry>() {
+																																																												@Override
+																																																												public StorageEntry get(final Pair<String, StorageEntry> key) {
+																																																													return key.second;
+																																																												}
+																																																											});
+		delegateFieldReaders.put(Client.Storage.ARCHIVE_NAME, new StringFieldReader<Pair<String, StorageEntry>>() {
+
+			@Override
+			public String getString(final Pair<String, StorageEntry> value) {
+				return value.first;
+			}
+		});
+		return cursorNotifications.addStorageCursor(MapperUtil.loadCollectionIntoCursor(storagePairs, projection, delegateFieldReaders));
 	}
 
 	@Override
@@ -628,6 +656,30 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					mutation.setAlbumLastModified(albumMeta.getLastModified());
 					mutation.setTitle(title);
 					mutationData.getMutations().add(mutation);
+				}
+				final String newStorages = values.getAsString(Client.Album.STORAGES);
+				if (newStorages != null) {
+					final AlbumMutationData mutationData = store.getAlbumMutationData(album, ReadPolicy.READ_OR_CREATE);
+					final Collection<String> existingStorages = findStoragesOfAlbum(album, ReadPolicy.READ_IF_EXISTS);
+					final Collection<String> newStoragesCollection = Client.Album.decodeStorages(newStorages);
+					for (final String newStorage : newStoragesCollection) {
+						if (existingStorages.contains(newStorage)) {
+							final StorageMutationEntry entry = new StorageMutationEntry();
+							entry.setAlbumLastModified(albumMeta.getLastModified());
+							entry.setMutation(StorageMutation.ADD);
+							entry.setStorage(newStorage);
+							mutationData.getMutations().add(entry);
+						}
+					}
+					for (final String existingStorage : existingStorages) {
+						if (!newStoragesCollection.contains(existingStorage)) {
+							final StorageMutationEntry entry = new StorageMutationEntry();
+							entry.setAlbumLastModified(albumMeta.getLastModified());
+							entry.setMutation(StorageMutation.REMOVE);
+							entry.setStorage(existingStorage);
+							mutationData.getMutations().add(entry);
+						}
+					}
 				}
 				return Integer.valueOf(1);
 			}
@@ -760,6 +812,35 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			return false;
 		}
 		return Math.abs(date1.getTime() - date2.getTime()) < 1000;
+	}
+
+	private Collection<String> findStoragesOfAlbum(final AlbumIndex key, final ReadPolicy policy) {
+		final StorageList storageList = store.getCurrentStorageList(key.getArchiveName(), policy);
+		final HashSet<String> ret = new HashSet<String>();
+		if (storageList != null) {
+			for (final StorageEntry entry : storageList.getClients()) {
+				if (entry.getAlbumList().contains(key.getAlbumId())) {
+					ret.add(entry.getStorageId());
+				}
+			}
+		}
+		final AlbumMutationData mutationData = store.getAlbumMutationData(key, policy);
+		if (mutationData != null) {
+			for (final Mutation mutation : mutationData.getMutations()) {
+				if (mutation instanceof StorageMutationEntry) {
+					final StorageMutationEntry storageMutationEntry = (StorageMutationEntry) mutation;
+					switch (storageMutationEntry.getMutation()) {
+					case ADD:
+						ret.add(storageMutationEntry.getStorage());
+						break;
+					case REMOVE:
+						ret.remove(storageMutationEntry.getStorage());
+						break;
+					}
+				}
+			}
+		}
+		return ret;
 	}
 
 	private String getBasename(final String fileName) {
@@ -1182,28 +1263,18 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return Boolean.valueOf(albumState.isSynced());
 			}
 		});
-		final Lookup<String, Collection<String>> lookupStorages = new Lookup<String, Collection<String>>() {
+		final Lookup<AlbumIndex, Collection<String>> lookupStorages = new Lookup<AlbumIndex, Collection<String>>() {
 
 			@Override
-			public Collection<String> get(final String key) {
-				final StorageList storageList = store.getCurrentStorageList(ReadPolicy.READ_ONLY);
-				if (storageList == null) {
-					return Collections.emptyList();
-				}
-				final HashSet<String> ret = new HashSet<String>();
-				for (final StorageEntry entry : storageList.getClients()) {
-					if (entry.getAlbumList().contains(key)) {
-						ret.add(entry.getStorageId());
-					}
-				}
-				return ret;
+			public Collection<String> get(final AlbumIndex key) {
+				return findStoragesOfAlbum(key, ReadPolicy.READ_ONLY);
 			}
 		};
 		fieldReaders.put(Client.Album.STORAGES, new StringFieldReader<AlbumMeta>() {
 
 			@Override
 			public String getString(final AlbumMeta value) {
-				return Client.Album.encodeStorages(lookupStorages.get(value.getAlbumId()));
+				return Client.Album.encodeStorages(lookupStorages.get(new AlbumIndex(value.getArchiveName(), value.getAlbumId())));
 			}
 		});
 
@@ -1624,7 +1695,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 									if (foundStorages == null) {
 										return null;
 									}
-									final boolean updated = store.getCurrentStorageList(ReadPolicy.READ_OR_CREATE).updateFrom(foundStorages);
+									final boolean updated = store.getCurrentStorageList(archiveName, ReadPolicy.READ_OR_CREATE).updateFrom(foundStorages);
 									if (updated) {
 										cursorNotifications.notifyStoragesModified();
 									}

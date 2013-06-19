@@ -92,6 +92,7 @@ import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.StorageEntry;
 import ch.bergturbenthal.raoa.data.model.StorageList;
 import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
+import ch.bergturbenthal.raoa.data.model.mutation.StorageMutationEntry;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.raoa.server.metadata.MetadataWrapper;
@@ -531,6 +532,23 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		if (foundAlbum == null) {
 			return;
 		}
+		for (final Mutation mutation : updateEntries) {
+			if (mutation instanceof StorageMutationEntry) {
+				final StorageMutationEntry mutationEntry = (StorageMutationEntry) mutation;
+				if (!mutationEntry.getAlbumLastModified().equals(foundAlbum.getLastModified())) {
+					continue;
+				}
+				switch (mutationEntry.getMutation()) {
+				case ADD:
+					registerClient(albumId, mutationEntry.getStorage());
+					break;
+				case REMOVE:
+					unRegisterClient(albumId, mutationEntry.getStorage());
+					break;
+				}
+			}
+		}
+
 		foundAlbum.updateMetadata(updateEntries);
 	}
 

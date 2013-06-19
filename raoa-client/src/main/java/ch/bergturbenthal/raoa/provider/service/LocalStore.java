@@ -64,8 +64,8 @@ public class LocalStore {
 		return store.getObject(relativePath, AlbumState.class, policy);
 	}
 
-	public StorageList getCurrentStorageList(final ReadPolicy policy) {
-		return store.getObject("storages", StorageList.class, policy);
+	public StorageList getCurrentStorageList(final String archive, final ReadPolicy policy) {
+		return store.getObject("storages/" + archive, StorageList.class, policy);
 	}
 
 	public Collection<AlbumIndex> listAlbumMeta() {
