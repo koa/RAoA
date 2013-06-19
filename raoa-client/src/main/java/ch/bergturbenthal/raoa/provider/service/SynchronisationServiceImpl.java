@@ -377,79 +377,66 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public Cursor readAlbumList(final String[] projection) {
-		return callInTransaction(new Callable<Cursor>() {
-
-			@Override
-			public Cursor call() throws Exception {
-				return makeCursorForAlbums(collectVisibleAlbums(), projection, true);
-			}
-
-		});
+		return makeCursorForAlbums(collectVisibleAlbums(), projection, true);
 	}
 
 	@Override
 	public Cursor readKeywordStatistics(final String[] projection) {
-		return callInTransaction(new Callable<Cursor>() {
-
-			@Override
-			public Cursor call() throws Exception {
-				final Map<String, Integer> keywordCounts = new TreeMap<String, Integer>();
-				for (final AlbumIndex entry : store.listAlbumMeta()) {
-					final AlbumMeta albumMeta = store.getAlbumMeta(entry, ReadPolicy.READ_ONLY);
-					if (albumMeta == null) {
-						continue;
-					}
-					final Map<String, Integer> albumKeywordCounts = new HashMap<String, Integer>(albumMeta.getKeywordCounts());
-					final AlbumMutationData newMutationData = store.getAlbumMutationData(entry, ReadPolicy.READ_ONLY);
-					if (newMutationData != null) {
-						for (final Mutation mutation : newMutationData.getMutations()) {
-							if (mutation instanceof KeywordMutationEntry) {
-								final KeywordMutationEntry keywordMutation = (KeywordMutationEntry) mutation;
-								final String keyword = keywordMutation.getKeyword();
-								final Integer existingCounter = albumKeywordCounts.get(keyword);
-								final int existingCount = existingCounter == null ? 0 : existingCounter.intValue();
-								switch (keywordMutation.getMutation()) {
-								case ADD:
-									albumKeywordCounts.put(keyword, Integer.valueOf(existingCount + 1));
-									break;
-								case REMOVE:
-									albumKeywordCounts.put(keyword, Integer.valueOf(existingCount - 1));
-									break;
-								}
-							}
+		final Map<String, Integer> keywordCounts = new TreeMap<String, Integer>();
+		for (final AlbumIndex entry : store.listAlbumMeta()) {
+			final AlbumMeta albumMeta = store.getAlbumMeta(entry, ReadPolicy.READ_ONLY);
+			if (albumMeta == null) {
+				continue;
+			}
+			final Map<String, Integer> albumKeywordCounts = new HashMap<String, Integer>(albumMeta.getKeywordCounts());
+			final AlbumMutationData newMutationData = store.getAlbumMutationData(entry, ReadPolicy.READ_ONLY);
+			if (newMutationData != null) {
+				for (final Mutation mutation : newMutationData.getMutations()) {
+					if (mutation instanceof KeywordMutationEntry) {
+						final KeywordMutationEntry keywordMutation = (KeywordMutationEntry) mutation;
+						final String keyword = keywordMutation.getKeyword();
+						final Integer existingCounter = albumKeywordCounts.get(keyword);
+						final int existingCount = existingCounter == null ? 0 : existingCounter.intValue();
+						switch (keywordMutation.getMutation()) {
+						case ADD:
+							albumKeywordCounts.put(keyword, Integer.valueOf(existingCount + 1));
+							break;
+						case REMOVE:
+							albumKeywordCounts.put(keyword, Integer.valueOf(existingCount - 1));
+							break;
 						}
 					}
-					for (final Entry<String, Integer> keywordEntry : albumKeywordCounts.entrySet()) {
-						final Integer oldCount = keywordCounts.get(keywordEntry.getKey());
-						final Integer albumCount = keywordEntry.getValue();
-						if (albumCount == null || albumCount.intValue() <= 0) {
-							continue;
-						}
-						if (oldCount == null) {
-							keywordCounts.put(keywordEntry.getKey(), albumCount);
-						} else {
-							keywordCounts.put(keywordEntry.getKey(), Integer.valueOf(albumCount.intValue() + oldCount.intValue()));
-						}
-					}
-
 				}
-				final Map<String, FieldReader<Entry<String, Integer>>> fieldReaders = new HashMap<String, FieldReader<Entry<String, Integer>>>();
-				fieldReaders.put(Client.KeywordEntry.KEYWORD, new StringFieldReader<Map.Entry<String, Integer>>() {
-					@Override
-					public String getString(final Entry<String, Integer> value) {
-						return value.getKey();
-					}
-				});
-				fieldReaders.put(Client.KeywordEntry.COUNT, new NumericFieldReader<Map.Entry<String, Integer>>(Cursor.FIELD_TYPE_INTEGER) {
+			}
+			for (final Entry<String, Integer> keywordEntry : albumKeywordCounts.entrySet()) {
+				final Integer oldCount = keywordCounts.get(keywordEntry.getKey());
+				final Integer albumCount = keywordEntry.getValue();
+				if (albumCount == null || albumCount.intValue() <= 0) {
+					continue;
+				}
+				if (oldCount == null) {
+					keywordCounts.put(keywordEntry.getKey(), albumCount);
+				} else {
+					keywordCounts.put(keywordEntry.getKey(), Integer.valueOf(albumCount.intValue() + oldCount.intValue()));
+				}
+			}
 
-					@Override
-					public Number getNumber(final Entry<String, Integer> value) {
-						return value.getValue();
-					}
-				});
-				return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(keywordCounts.entrySet(), projection, fieldReaders));
+		}
+		final Map<String, FieldReader<Entry<String, Integer>>> fieldReaders = new HashMap<String, FieldReader<Entry<String, Integer>>>();
+		fieldReaders.put(Client.KeywordEntry.KEYWORD, new StringFieldReader<Map.Entry<String, Integer>>() {
+			@Override
+			public String getString(final Entry<String, Integer> value) {
+				return value.getKey();
 			}
 		});
+		fieldReaders.put(Client.KeywordEntry.COUNT, new NumericFieldReader<Map.Entry<String, Integer>>(Cursor.FIELD_TYPE_INTEGER) {
+
+			@Override
+			public Number getNumber(final Entry<String, Integer> value) {
+				return value.getValue();
+			}
+		});
+		return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(keywordCounts.entrySet(), projection, fieldReaders));
 	}
 
 	@Override
@@ -550,31 +537,21 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public Cursor readSingleAlbum(final String archiveName, final String albumId, final String[] projection) {
-		return callInTransaction(new Callable<Cursor>() {
-			@Override
-			public Cursor call() throws Exception {
-				return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false);
-			}
-		});
+		return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false);
 	}
 
 	@Override
 	public Cursor readSingleAlbumEntry(final String archiveName, final String albumId, final String archiveEntryId, final String[] projection) {
 		final AlbumIndex affectedAlbum = new AlbumIndex(archiveName, albumId);
-		return callInTransaction(new Callable<Cursor>() {
-			@Override
-			public Cursor call() throws Exception {
-				final AlbumEntries albumEntries = store.getAlbumEntries(affectedAlbum, ReadPolicy.READ_ONLY);
-				if (albumEntries == null || albumEntries.getEntries() == null) {
-					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum));
-				}
-				final AlbumEntryDto entryDto = albumEntries.findEntryById(archiveEntryId);
-				if (entryDto == null) {
-					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum));
-				}
-				return makeCursorForAlbumEntries(Collections.singletonList(new AlbumEntryIndex(affectedAlbum, archiveEntryId)), projection, Collections.singleton(affectedAlbum));
-			}
-		});
+		final AlbumEntries albumEntries = store.getAlbumEntries(affectedAlbum, ReadPolicy.READ_ONLY);
+		if (albumEntries == null || albumEntries.getEntries() == null) {
+			return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum));
+		}
+		final AlbumEntryDto entryDto = albumEntries.findEntryById(archiveEntryId);
+		if (entryDto == null) {
+			return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum));
+		}
+		return makeCursorForAlbumEntries(Collections.singletonList(new AlbumEntryIndex(affectedAlbum, archiveEntryId)), projection, Collections.singleton(affectedAlbum));
 	}
 
 	@Override
@@ -1105,15 +1082,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		if (alsoSynced) {
 			final Collection<AlbumIndex> entryNames = store.listAlbumMeta();
 			for (final AlbumIndex entry : entryNames) {
-				final AlbumMeta albumEntry = store.getAlbumMeta(entry, ReadPolicy.READ_IF_EXISTS);
-				if (!store.getAlbumState(entry, ReadPolicy.READ_OR_CREATE).isShouldSync()) {
+				final AlbumMeta albumEntry = store.getAlbumMeta(entry, ReadPolicy.READ_ONLY);
+				final AlbumState albumState = store.getAlbumState(entry, ReadPolicy.READ_ONLY);
+				if (albumState == null || !albumState.isShouldSync()) {
 					continue;
 				}
 				loadedAlbums.put(entry, albumEntry);
 			}
 		}
 		for (final AlbumIndex visibleAlbumIndex : visibleAlbums) {
-			final AlbumMeta visibleAlbum = store.getAlbumMeta(new AlbumIndex(visibleAlbumIndex.getArchiveName(), visibleAlbumIndex.getAlbumId()), ReadPolicy.READ_IF_EXISTS);
+			final AlbumMeta visibleAlbum = store.getAlbumMeta(new AlbumIndex(visibleAlbumIndex.getArchiveName(), visibleAlbumIndex.getAlbumId()), ReadPolicy.READ_ONLY);
 			if (visibleAlbum != null) {
 				loadedAlbums.put(visibleAlbumIndex, visibleAlbum);
 			}
@@ -1130,7 +1108,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		final Lookup<AlbumIndex, AlbumState> albumStateLoader = LazyLoader.loadLazy(new Lookup<AlbumIndex, AlbumState>() {
 			@Override
 			public AlbumState get(final AlbumIndex key) {
-				return store.getAlbumState(key, ReadPolicy.READ_IF_EXISTS);
+				return store.getAlbumState(key, ReadPolicy.READ_ONLY);
 			}
 		});
 		final Map<String, FieldReader<AlbumMeta>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumMeta.class);
@@ -1138,7 +1116,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public String getString(final AlbumMeta value) {
 				String thumbnailId = value.getThumbnailId();
-				final AlbumMutationData mutationData = store.getAlbumMutationData(new AlbumIndex(value.getArchiveName(), value.getAlbumId()), ReadPolicy.READ_IF_EXISTS);
+				final AlbumMutationData mutationData = store.getAlbumMutationData(new AlbumIndex(value.getArchiveName(), value.getAlbumId()), ReadPolicy.READ_ONLY);
 				if (mutationData != null) {
 					for (final Mutation mutation : mutationData.getMutations()) {
 						if (mutation instanceof TitleImageMutation) {
@@ -1157,7 +1135,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public String getString(final AlbumMeta value) {
 				String albumTitle = value.getAlbumTitle();
-				final AlbumMutationData mutationData = store.getAlbumMutationData(new AlbumIndex(value.getArchiveName(), value.getAlbumId()), ReadPolicy.READ_IF_EXISTS);
+				final AlbumMutationData mutationData = store.getAlbumMutationData(new AlbumIndex(value.getArchiveName(), value.getAlbumId()), ReadPolicy.READ_ONLY);
 				if (mutationData != null) {
 					for (final Mutation mutation : mutationData.getMutations()) {
 						if (mutation instanceof TitleMutation) {
