@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.provider.store;
+package ch.bergturbenthal.raoa.util.store;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -13,11 +13,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
-import org.springframework.util.ObjectUtils;
-
-import android.util.Log;
-import android.util.Pair;
-import ch.bergturbenthal.raoa.provider.store.FileBackend.CommitExecutor;
+import ch.bergturbenthal.raoa.util.Pair;
+import ch.bergturbenthal.raoa.util.store.FileBackend.CommitExecutor;
 
 public class FileStorage {
 	public static enum ReadPolicy {
@@ -39,7 +36,7 @@ public class FileStorage {
 				for (final Entry<Pair<Class<Object>, String>, Object> referencedEntry : referencedObjects.entrySet()) {
 					final FileBackend<Object> backend = getBackend(referencedEntry.getKey().first);
 					final String relativePath = referencedEntry.getKey().second;
-					if (!ObjectUtils.nullSafeEquals(backend.getLastModified(relativePath), lastModified.get(referencedEntry.getKey()))) {
+					if (!nullSafeEquals(backend.getLastModified(relativePath), lastModified.get(referencedEntry.getKey()))) {
 						throw new ConcurrentTransactionException(relativePath);
 					}
 					executors.add(backend.save(relativePath, referencedEntry.getValue()));
@@ -76,7 +73,7 @@ public class FileStorage {
 			} finally {
 				final long time = System.currentTimeMillis() - start;
 				if (time > 50) {
-					Log.i("performance commit", "commit of " + referencedObjects.size() + " took " + time + " ms");
+					// Log.i("performance commit", "commit of " + referencedObjects.size() + " took " + time + " ms");
 				}
 				referencedObjects.clear();
 				lastModified.clear();
@@ -138,7 +135,24 @@ public class FileStorage {
 		}
 	}
 
+	/**
+	 * @param <T>
+	 * @param lastModified
+	 * @param date
+	 * @return
+	 */
+	private static <T> boolean nullSafeEquals(final T v1, final T v2) {
+		if (v1 == v2) {
+			return true;
+		}
+		if (v1 == null || v2 == null) {
+			return false;
+		}
+		return v1.equals(v2);
+	}
+
 	private final ThreadLocal<Transaction> currentTransaction = new ThreadLocal<Transaction>();
+
 	private final Map<Pair<Class<Object>, String>, WeakReference<Object>> readOnlyCache = new ConcurrentHashMap<Pair<Class<Object>, String>, WeakReference<Object>>();
 
 	private final Map<Class<?>, FileBackend<?>> registeredBackends = new HashMap<Class<?>, FileBackend<?>>();

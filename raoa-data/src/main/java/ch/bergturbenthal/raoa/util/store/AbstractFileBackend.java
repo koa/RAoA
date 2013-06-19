@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.provider.store;
+package ch.bergturbenthal.raoa.util.store;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -12,8 +12,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import android.util.Log;
-
 public abstract class AbstractFileBackend<T> implements FileBackend<T> {
 	protected interface FileSerializer<T> {
 		public void writeToFile(final File f, final T value) throws IOException;
@@ -21,16 +19,16 @@ public abstract class AbstractFileBackend<T> implements FileBackend<T> {
 		public T readFromFile(final File f) throws IOException;
 	}
 
-	protected final File basePath;
-
-	private final FileSerializer<T> serializer;
-	private final String suffix;
-
 	private static void mkdirIfNotExists(final File dir) {
 		if (!dir.exists()) {
 			dir.mkdirs();
 		}
 	}
+
+	protected final File basePath;
+	private final FileSerializer<T> serializer;
+
+	private final String suffix;
 
 	public AbstractFileBackend(final File basePath, final String suffix, final FileSerializer<T> serializer) {
 		this.basePath = basePath;
@@ -41,10 +39,11 @@ public abstract class AbstractFileBackend<T> implements FileBackend<T> {
 	@Override
 	public Date getLastModified(final String relativePath) {
 		final File file = new File(basePath, relativePath);
-		if (file.exists())
+		if (file.exists()) {
 			return new Date(file.lastModified());
-		else
+		} else {
 			return null;
+		}
 	}
 
 	@Override
@@ -61,15 +60,16 @@ public abstract class AbstractFileBackend<T> implements FileBackend<T> {
 		final long start = System.currentTimeMillis();
 		try {
 			final File file = resolveFilePath(relativePath);
-			if (!file.exists())
+			if (!file.exists()) {
 				return null;
+			}
 			return serializer.readFromFile(file);
 		} catch (final IOException e) {
 			throw new RuntimeException("Cannot read file " + relativePath, e);
 		} finally {
 			final long time = System.currentTimeMillis() - start;
 			if (time > 50) {
-				Log.i("Performance Read", "read of " + relativePath + " took " + time + " ms");
+				// Log.i("Performance Read", "read of " + relativePath + " took " + time + " ms");
 			}
 		}
 	}
@@ -103,13 +103,15 @@ public abstract class AbstractFileBackend<T> implements FileBackend<T> {
 					if (tempTargetFile.exists()) {
 						tempTargetFile.delete();
 					}
-					if (value == null)
+					if (value == null) {
 						return true;
+					}
 					mkdirIfNotExists(tempTargetFile.getParentFile());
 					mkdirIfNotExists(targetFile.getParentFile());
 					serializer.writeToFile(tempTargetFile, value);
-					if (!tempTargetFile.exists())
+					if (!tempTargetFile.exists()) {
 						return false;
+					}
 					boolean equals = targetFile.exists();
 					if (equals) {
 						final InputStream newIs = new BufferedInputStream(new FileInputStream(tempTargetFile));
@@ -159,11 +161,13 @@ public abstract class AbstractFileBackend<T> implements FileBackend<T> {
 			for (final File file : currentBasePath.listFiles(new FileFilter() {
 				@Override
 				public boolean accept(final File candidate) {
-					if (!(candidate.isFile() && candidate.canRead()))
+					if (!(candidate.isFile() && candidate.canRead())) {
 						return false;
+					}
 					final String name = candidate.getName();
-					if (!name.endsWith(suffix))
+					if (!name.endsWith(suffix)) {
 						return false;
+					}
 					return pattern.matcher(name.substring(0, name.length() - suffix.length())).matches();
 				}
 			})) {

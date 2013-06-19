@@ -97,12 +97,12 @@ import ch.bergturbenthal.raoa.provider.model.dto.AlbumMutationData;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumState;
 import ch.bergturbenthal.raoa.provider.service.MDnsListener.ResultListener;
 import ch.bergturbenthal.raoa.provider.state.ServerListActivity;
-import ch.bergturbenthal.raoa.provider.store.FileStorage.ReadPolicy;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 import ch.bergturbenthal.raoa.provider.util.ObjectUtils;
 import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser;
 import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser.ThumbnailUriReceiver;
+import ch.bergturbenthal.raoa.util.store.FileStorage.ReadPolicy;
 
 public class SynchronisationServiceImpl extends Service implements ResultListener, SynchronisationService {
 	/**

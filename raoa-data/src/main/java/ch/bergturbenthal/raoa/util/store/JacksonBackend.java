@@ -1,7 +1,7 @@
 /*
  * (c) 2013 panter llc, Zurich, Switzerland.
  */
-package ch.bergturbenthal.raoa.provider.store;
+package ch.bergturbenthal.raoa.util.store;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +35,7 @@ public class JacksonBackend<T> extends AbstractFileBackend<T> {
 
 			@Override
 			public void writeToFile(final File f, final T value) throws IOException {
-				mapper.writer().writeValue(f, value);
+				mapper.writer().withDefaultPrettyPrinter().writeValue(f, value);
 			}
 		});
 		this.type = type;

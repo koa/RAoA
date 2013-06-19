@@ -1,4 +1,4 @@
-package ch.bergturbenthal.raoa.provider.store;
+package ch.bergturbenthal.raoa.util.store;
 
 import java.util.Collection;
 import java.util.Date;

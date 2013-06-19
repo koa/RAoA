@@ -16,6 +16,7 @@ import java.util.zip.GZIPOutputStream;
 import android.os.Parcel;
 import android.os.Parcelable;
 import ch.bergturbenthal.raoa.provider.util.IOUtil;
+import ch.bergturbenthal.raoa.util.store.AbstractFileBackend;
 
 public class ParcelableBackend<T extends Parcelable> extends AbstractFileBackend<T> {
 

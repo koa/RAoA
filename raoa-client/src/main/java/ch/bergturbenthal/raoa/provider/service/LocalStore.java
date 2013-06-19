@@ -13,11 +13,11 @@ import ch.bergturbenthal.raoa.provider.model.dto.AlbumIndex;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMeta;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMutationData;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumState;
-import ch.bergturbenthal.raoa.provider.store.FileBackend;
-import ch.bergturbenthal.raoa.provider.store.FileStorage;
-import ch.bergturbenthal.raoa.provider.store.FileStorage.ReadPolicy;
-import ch.bergturbenthal.raoa.provider.store.JacksonBackend;
 import ch.bergturbenthal.raoa.provider.store.ParcelableBackend;
+import ch.bergturbenthal.raoa.util.store.FileBackend;
+import ch.bergturbenthal.raoa.util.store.FileStorage;
+import ch.bergturbenthal.raoa.util.store.JacksonBackend;
+import ch.bergturbenthal.raoa.util.store.FileStorage.ReadPolicy;
 
 public class LocalStore {
 
