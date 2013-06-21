@@ -60,18 +60,18 @@ import android.os.IBinder;
 import android.util.Log;
 import android.util.LruCache;
 import android.util.Pair;
+import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.StorageEntry;
-import ch.bergturbenthal.raoa.data.model.StorageList;
 import ch.bergturbenthal.raoa.data.model.mutation.AlbumMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.CaptionMutationEntry;
 import ch.bergturbenthal.raoa.data.model.mutation.EntryMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.KeywordMutationEntry;
 import ch.bergturbenthal.raoa.data.model.mutation.KeywordMutationEntry.KeywordMutation;
+import ch.bergturbenthal.raoa.data.model.mutation.MetadataMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.data.model.mutation.RatingMutationEntry;
-import ch.bergturbenthal.raoa.data.model.mutation.StorageMutationEntry;
-import ch.bergturbenthal.raoa.data.model.mutation.StorageMutationEntry.StorageMutation;
+import ch.bergturbenthal.raoa.data.model.mutation.StorageMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.TitleImageMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.TitleMutation;
 import ch.bergturbenthal.raoa.data.model.state.Issue;
@@ -564,7 +564,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		}
 		final Collection<Pair<String, StorageEntry>> storagePairs = new ArrayList<Pair<String, StorageEntry>>();
 		for (final String archiv : archives) {
-			final StorageList storageList = store.getCurrentStorageList(archiv, ReadPolicy.READ_ONLY);
+			final ArchiveMeta storageList = store.getArchiveMeta(archiv, ReadPolicy.READ_ONLY);
 			if (storageList == null) {
 				continue;
 			}
@@ -660,22 +660,24 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				final String newStorages = values.getAsString(Client.Album.STORAGES);
 				if (newStorages != null) {
 					final AlbumMutationData mutationData = store.getAlbumMutationData(album, ReadPolicy.READ_OR_CREATE);
+					final ArchiveMeta archiveMeta = store.getArchiveMeta(album.getArchiveName(), ReadPolicy.READ_IF_EXISTS);
+					final String archiveMetaVersion = archiveMeta == null ? "undefined" : archiveMeta.getVersion();
 					final Collection<String> existingStorages = findStoragesOfAlbum(album, ReadPolicy.READ_IF_EXISTS);
 					final Collection<String> newStoragesCollection = Client.Album.decodeStorages(newStorages);
 					for (final String newStorage : newStoragesCollection) {
 						if (!existingStorages.contains(newStorage)) {
-							final StorageMutationEntry entry = new StorageMutationEntry();
-							entry.setAlbumLastModified(albumMeta.getLastModified());
-							entry.setMutation(StorageMutation.ADD);
+							final StorageMutation entry = new StorageMutation();
+							entry.setMetadataVersion(archiveMetaVersion);
+							entry.setMutation(StorageMutation.Mutation.ADD);
 							entry.setStorage(newStorage);
 							mutationData.getMutations().add(entry);
 						}
 					}
 					for (final String existingStorage : existingStorages) {
 						if (!newStoragesCollection.contains(existingStorage)) {
-							final StorageMutationEntry entry = new StorageMutationEntry();
-							entry.setAlbumLastModified(albumMeta.getLastModified());
-							entry.setMutation(StorageMutation.REMOVE);
+							final StorageMutation entry = new StorageMutation();
+							entry.setMetadataVersion(archiveMetaVersion);
+							entry.setMutation(StorageMutation.Mutation.REMOVE);
 							entry.setStorage(existingStorage);
 							mutationData.getMutations().add(entry);
 						}
@@ -815,7 +817,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	}
 
 	private Collection<String> findStoragesOfAlbum(final AlbumIndex key, final ReadPolicy policy) {
-		final StorageList storageList = store.getCurrentStorageList(key.getArchiveName(), policy);
+		final ArchiveMeta storageList = store.getArchiveMeta(key.getArchiveName(), policy);
 		final HashSet<String> ret = new HashSet<String>();
 		if (storageList != null) {
 			for (final StorageEntry entry : storageList.getClients()) {
@@ -827,8 +829,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		final AlbumMutationData mutationData = store.getAlbumMutationData(key, policy);
 		if (mutationData != null) {
 			for (final Mutation mutation : mutationData.getMutations()) {
-				if (mutation instanceof StorageMutationEntry) {
-					final StorageMutationEntry storageMutationEntry = (StorageMutationEntry) mutation;
+				if (mutation instanceof StorageMutation) {
+					final StorageMutation storageMutationEntry = (StorageMutation) mutation;
 					switch (storageMutationEntry.getMutation()) {
 					case ADD:
 						ret.add(storageMutationEntry.getStorage());
@@ -1691,13 +1693,27 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 							return callInTransaction(new Callable<Void>() {
 								@Override
 								public Void call() throws Exception {
-									final StorageList foundStorages = archiveConnection.listStorages();
+									final ArchiveMeta foundStorages = archiveConnection.listStorages();
 									if (foundStorages == null) {
 										return null;
 									}
-									final boolean updated = store.getCurrentStorageList(archiveName, ReadPolicy.READ_OR_CREATE).updateFrom(foundStorages);
+									final boolean updated = store.getArchiveMeta(archiveName, ReadPolicy.READ_OR_CREATE).updateFrom(foundStorages);
 									if (updated) {
 										cursorNotifications.notifyStoragesModified();
+									}
+									final String newVersion = foundStorages.getVersion();
+									for (final AlbumIndex album : store.listAlbumMeta()) {
+										final AlbumMutationData mutationData = store.getAlbumMutationData(album, ReadPolicy.READ_IF_EXISTS);
+										for (final Iterator<Mutation> mutationIterator = mutationData.getMutations().iterator();;) {
+											final Mutation mutation = mutationIterator.next();
+											if (mutation instanceof MetadataMutation) {
+												final MetadataMutation metaMutation = (MetadataMutation) mutation;
+												if (!metaMutation.getMetadataVersion().equals(newVersion)) {
+													cursorNotifications.notifySingleAlbumCursorChanged(album);
+													mutationIterator.remove();
+												}
+											}
+										}
 									}
 									return null;
 								}

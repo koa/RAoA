@@ -7,7 +7,7 @@ import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
-import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntries;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumIndex;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMeta;
@@ -31,7 +31,7 @@ public class LocalStore {
 																					(FileBackend<?>) new ParcelableBackend<AlbumMeta>(dataDir, AlbumMeta.class),
 																					(FileBackend<?>) new JacksonBackend<AlbumMutationData>(dataDir, AlbumMutationData.class),
 																					(FileBackend<?>) new JacksonBackend<AlbumState>(dataDir, AlbumState.class),
-																					(FileBackend<?>) new JacksonBackend<StorageList>(dataDir, StorageList.class)
+																					(FileBackend<?>) new JacksonBackend<ArchiveMeta>(dataDir, ArchiveMeta.class)
 
 		));
 
@@ -64,8 +64,8 @@ public class LocalStore {
 		return store.getObject(relativePath, AlbumState.class, policy);
 	}
 
-	public StorageList getCurrentStorageList(final String archive, final ReadPolicy policy) {
-		return store.getObject("storages/" + archive, StorageList.class, policy);
+	public ArchiveMeta getArchiveMeta(final String archive, final ReadPolicy policy) {
+		return store.getObject("storages/" + archive, ArchiveMeta.class, policy);
 	}
 
 	public Collection<AlbumIndex> listAlbumMeta() {

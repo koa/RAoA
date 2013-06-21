@@ -7,12 +7,12 @@ import java.util.Date;
 import lombok.Data;
 
 @Data
-public class StorageList {
+public class ArchiveMeta {
 	private final Collection<StorageEntry> clients = new ArrayList<StorageEntry>();
 	private Date lastModified;
 	private String version;
 
-	public boolean updateFrom(final StorageList other) {
+	public boolean updateFrom(final ArchiveMeta other) {
 		if (other.version == null) {
 			return false;
 		}

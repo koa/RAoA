@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.server.StorageAccess;
 
 @Controller
@@ -20,7 +20,7 @@ public class StorageController {
 
 	@RequestMapping(method = RequestMethod.GET)
 	public @ResponseBody
-	StorageList listClients() {
+	ArchiveMeta listClients() {
 		return storageAccess.listKnownStorage();
 	}
 }

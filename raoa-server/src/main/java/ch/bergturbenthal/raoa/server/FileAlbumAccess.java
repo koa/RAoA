@@ -88,11 +88,12 @@ import org.springframework.web.client.RestTemplate;
 
 import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
+import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.StorageEntry;
-import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.mutation.MetadataMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
-import ch.bergturbenthal.raoa.data.model.mutation.StorageMutationEntry;
+import ch.bergturbenthal.raoa.data.model.mutation.StorageMutation;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.raoa.server.metadata.MetadataWrapper;
@@ -342,8 +343,8 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	@Override
-	public synchronized StorageList listKnownStorage() {
-		final StorageList storageList = new StorageList();
+	public synchronized ArchiveMeta listKnownStorage() {
+		final ArchiveMeta storageList = new ArchiveMeta();
 		final Map<String, StorageData> storages = store.getArchiveData(ReadPolicy.READ_ONLY).getStorages();
 		for (final Entry<String, StorageData> storageEntry : storages.entrySet()) {
 			final String name = storageEntry.getKey();
@@ -361,15 +362,10 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			entry.setTakeAllRepositories(storageData.isTakeAllRepositories());
 			storageList.getClients().add(entry);
 		}
-		try {
-			final Iterator<RevCommit> log = metaGit.log().setMaxCount(1).call().iterator();
-			if (log.hasNext()) {
-				final RevCommit currentCommit = log.next();
-				storageList.setVersion(currentCommit.getId().name());
-				storageList.setLastModified(new Date(currentCommit.getCommitTime() * 1000));
-			}
-		} catch (final GitAPIException e) {
-			throw new RuntimeException("Cannot read commit-log", e);
+		final RevCommit latestMetaCommit = findLatestMetaCommit();
+		if (latestMetaCommit != null) {
+			storageList.setVersion(latestMetaCommit.getId().name());
+			storageList.setLastModified(new Date(latestMetaCommit.getCommitTime() * 1000));
 		}
 		return storageList;
 	}
@@ -555,25 +551,28 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			public Void call() throws Exception {
 				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
 				for (final Mutation mutation : updateEntries) {
-					if (mutation instanceof StorageMutationEntry) {
-						final StorageMutationEntry mutationEntry = (StorageMutationEntry) mutation;
-						if (!mutationEntry.getAlbumLastModified().equals(foundAlbum.getLastModified())) {
-							continue;
-						}
-						final String storageName = Util.decodeStringOfUrl(mutationEntry.getStorage());
-						final String albumPath = Util.decodeStringOfUrl(albumId);
-						final Collection<String> albumCollection = albumPerStorage.get(storageName).getAlbumList();
+					if (mutation instanceof MetadataMutation) {
+						final MetadataMutation metadataMutation = (MetadataMutation) mutation;
+						final RevCommit latestMetaCommit = findLatestMetaCommit();
+						if (metadataMutation.getMetadataVersion().equals(latestMetaCommit.getId().name())) {
+							if (metadataMutation instanceof StorageMutation) {
+								final StorageMutation mutationEntry = (StorageMutation) metadataMutation;
+								final String storageName = Util.decodeStringOfUrl(mutationEntry.getStorage());
+								final String albumPath = Util.decodeStringOfUrl(albumId);
+								final Collection<String> albumCollection = albumPerStorage.get(storageName).getAlbumList();
 
-						if (!albumPerStorage.containsKey(storageName)) {
-							continue;
-						}
-						switch (mutationEntry.getMutation()) {
-						case ADD:
-							albumCollection.add(albumPath);
-							break;
-						case REMOVE:
-							albumCollection.remove(albumPath);
-							break;
+								if (!albumPerStorage.containsKey(storageName)) {
+									continue;
+								}
+								switch (mutationEntry.getMutation()) {
+								case ADD:
+									albumCollection.add(albumPath);
+									break;
+								case REMOVE:
+									albumCollection.remove(albumPath);
+									break;
+								}
+							}
 						}
 					}
 				}
@@ -798,6 +797,19 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			}
 		}
 		return ret;
+	}
+
+	private RevCommit findLatestMetaCommit() {
+		try {
+			final Iterator<RevCommit> log = metaGit.log().setMaxCount(1).call().iterator();
+			if (log.hasNext()) {
+				return log.next();
+			}
+			return null;
+		} catch (final GitAPIException e) {
+			throw new RuntimeException("Cannot read commit-log", e);
+		}
+
 	}
 
 	private void flushPreferences() {

@@ -1,9 +1,9 @@
 package ch.bergturbenthal.raoa.server;
 
-import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 
 public interface StorageAccess {
 
-	StorageList listKnownStorage();
+	ArchiveMeta listKnownStorage();
 
 }

@@ -44,7 +44,7 @@ import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
-import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.data.model.state.ServerState;
 
@@ -131,12 +131,12 @@ public class ServerConnection {
 		return readAlbumList();
 	}
 
-	public StorageList listStorages() {
-		return callOne(new ConnectionCallable<StorageList>() {
+	public ArchiveMeta listStorages() {
+		return callOne(new ConnectionCallable<ArchiveMeta>() {
 
 			@Override
-			public ResponseEntity<StorageList> call(final URL baseUrl) throws Exception {
-				return restTemplate.getForEntity(baseUrl.toExternalForm() + "/storages.json", StorageList.class);
+			public ResponseEntity<ArchiveMeta> call(final URL baseUrl) throws Exception {
+				return restTemplate.getForEntity(baseUrl.toExternalForm() + "/storages.json", ArchiveMeta.class);
 			}
 		});
 	}

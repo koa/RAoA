@@ -12,12 +12,12 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class StorageMutationEntry extends AlbumMutation {
-	public static enum StorageMutation {
+public class StorageMutation extends MetadataMutation {
+	public static enum Mutation {
 		ADD, REMOVE
 	}
 
 	private static final long serialVersionUID = -6702035328413062621L;
-	private StorageMutation mutation;
+	private Mutation mutation;
 	private String storage;
 }

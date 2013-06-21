@@ -24,7 +24,7 @@ import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
-import ch.bergturbenthal.raoa.data.model.StorageList;
+import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto;
@@ -197,11 +197,11 @@ public class ArchiveConnection {
 		return serverConnections.get();
 	}
 
-	public StorageList listStorages() {
-		StorageList ret = null;
+	public ArchiveMeta listStorages() {
+		ArchiveMeta ret = null;
 		Date lastModified = new Date(Long.MIN_VALUE);
 		for (final ServerConnection connection : serverConnections.get().values()) {
-			final StorageList storages = connection.listStorages();
+			final ArchiveMeta storages = connection.listStorages();
 			if (storages != null && storages.getLastModified().after(lastModified)) {
 				lastModified = storages.getLastModified();
 				ret = storages;
