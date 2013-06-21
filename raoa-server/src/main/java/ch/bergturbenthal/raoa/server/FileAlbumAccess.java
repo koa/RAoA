@@ -67,7 +67,9 @@ import org.codehaus.jackson.map.DeserializationConfig;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.util.DefaultPrettyPrinter;
+import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -654,6 +656,28 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			ret.addAll(collectImportFiles(dir));
 		}
 		return ret;
+	}
+
+	private void commitNeededFiles(final String message, final Git repo) throws GitAPIException {
+		final Status status = repo.status().call();
+		if (!status.isClean()) {
+			final AddCommand addCommand = repo.add();
+			final Set<String> modified = status.getModified();
+			if (modified != null && !modified.isEmpty()) {
+				for (final String modifiedFile : modified) {
+					addCommand.addFilepattern(modifiedFile);
+				}
+			}
+			final Set<String> untracked = status.getUntracked();
+			if (untracked != null && !untracked.isEmpty()) {
+				for (final String untrackedFile : untracked) {
+					addCommand.addFilepattern(untrackedFile);
+				}
+			}
+			addCommand.call();
+
+			repo.commit().setMessage(message).call();
+		}
 	}
 
 	private void configureFromPreferences() {
@@ -1289,10 +1313,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private synchronized <T> T updateMeta(final String message, final Callable<T> callable) {
 		try {
 			final T result = store.callInTransaction(callable);
-			metaGit.add().addFilepattern(".").call();
-			if (!metaGit.status().call().isClean()) {
-				metaGit.commit().setMessage(message).call();
-			}
+			commitNeededFiles(message, metaGit);
 			return result;
 		} catch (final Throwable e) {
 			throw new RuntimeException("Cannot update Metadata", e);
