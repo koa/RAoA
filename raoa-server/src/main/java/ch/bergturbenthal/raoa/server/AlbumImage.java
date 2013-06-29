@@ -240,8 +240,15 @@ public class AlbumImage {
 		} else {
 			baseName = name;
 		}
-
-		return new File(file.getParent(), baseName + ".xmp");
+		final File shortFilename = new File(file.getParentFile(), baseName + ".xmp");
+		if (shortFilename.exists()) {
+			return shortFilename;
+		}
+		final File longFilename = new File(file.getParentFile(), name + ".xmp");
+		if (longFilename.exists()) {
+			return longFilename;
+		}
+		return shortFilename;
 	}
 
 	/**
