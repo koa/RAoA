@@ -23,6 +23,7 @@ import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 public class MapperUtil {
 	private static class IndexedOderEntry {
 		private int index;
+		private boolean nullFirst;
 		private SortOrderEntry.Order order;
 	}
 
@@ -98,6 +99,7 @@ public class MapperUtil {
 			if (orderEntryOrder == null) {
 				continue;
 			}
+			final boolean nullFirst = orderEntry.isNullFirst();
 			final String columnName = orderEntry.getColumnName();
 			final int foundColumn = columnNames.indexOf(columnName);
 			final int columnIndex;
@@ -110,6 +112,7 @@ public class MapperUtil {
 			final IndexedOderEntry entry = new IndexedOderEntry();
 			entry.index = columnIndex;
 			entry.order = orderEntryOrder;
+			entry.nullFirst = nullFirst;
 			sortEntries.add(entry);
 		}
 		final List<Object[]> entries = new ArrayList<Object[]>();
@@ -125,7 +128,7 @@ public class MapperUtil {
 					for (final IndexedOderEntry sortColumn : sortEntries) {
 						final Comparable<Object> leftValue = (Comparable<Object>) lhs[sortColumn.index];
 						final Comparable<Object> rightValue = (Comparable<Object>) rhs[sortColumn.index];
-						final int cmp = compareRaw(leftValue, rightValue);
+						final int cmp = compareRaw(leftValue, rightValue, sortColumn.nullFirst);
 						if (cmp != 0) {
 							return sortColumn.order == Order.ASC ? cmp : -cmp;
 						}
@@ -133,12 +136,12 @@ public class MapperUtil {
 					return 0;
 				}
 
-				private int compareRaw(final Comparable<Object> leftValue, final Comparable<Object> rightValue) {
+				private int compareRaw(final Comparable<Object> leftValue, final Comparable<Object> rightValue, final boolean nullFirst) {
 					if (leftValue == null) {
-						return rightValue == null ? 0 : -1;
+						return rightValue == null ? 0 : nullFirst ? -1 : 1;
 					}
 					if (rightValue == null) {
-						return 1;
+						return nullFirst ? 1 : -1;
 					}
 					return leftValue.compareTo(rightValue);
 				}

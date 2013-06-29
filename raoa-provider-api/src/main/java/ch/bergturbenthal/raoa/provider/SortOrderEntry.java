@@ -9,5 +9,6 @@ public class SortOrderEntry {
 	}
 
 	private String columnName;
+	private boolean nullFirst = true;
 	private Order order;
 }
