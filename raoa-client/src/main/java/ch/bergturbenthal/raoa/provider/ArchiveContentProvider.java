@@ -23,6 +23,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
+import ch.bergturbenthal.raoa.provider.criterium.Criterium;
 import ch.bergturbenthal.raoa.provider.map.NotifyableMatrixCursor;
 import ch.bergturbenthal.raoa.provider.service.SynchronisationService;
 import ch.bergturbenthal.raoa.provider.service.SynchronisationServiceImpl;
@@ -49,10 +50,10 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	}
 
-	private static final Map<Class, NotifyableMatrixCursor> emptyCursors = new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
-
-	private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
 	static final String TAG = "Content Provider";
+
+	private static final Map<Class, NotifyableMatrixCursor> emptyCursors = new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
+	private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
 
 	private SynchronisationService service = null;
 	/** Defines callbacks for service binding, passed to bindService() */
@@ -170,26 +171,30 @@ public class ArchiveContentProvider extends ContentProvider {
 	public Cursor query(final Uri uri, final String[] projection, final String selection, final String[] selectionArgs, final String sortOrder) {
 		try {
 			Log.i(TAG, "Query called: " + uri);
+
+			final Criterium criterium = Criterium.decodeString(selection);
+			final SortOrder order = SortOrder.decodeString(sortOrder);
+
 			final List<String> segments = uri.getPathSegments();
 			switch (matcher.match(uri)) {
 			case ALBUM_LIST:
-				return getService().readAlbumList(projection);
+				return getService().readAlbumList(projection, criterium, order);
 			case ALBUM:
-				return getService().readSingleAlbum(segments.get(1), segments.get(2), projection);
+				return getService().readSingleAlbum(segments.get(1), segments.get(2), projection, criterium, order);
 			case ALBUM_ENTRY_LIST:
-				return getService().readAlbumEntryList(segments.get(1), segments.get(2), projection);
+				return getService().readAlbumEntryList(segments.get(1), segments.get(2), projection, criterium, order);
 			case ALBUM_ENTRY:
-				return getService().readSingleAlbumEntry(segments.get(1), segments.get(2), segments.get(4), projection);
+				return getService().readSingleAlbumEntry(segments.get(1), segments.get(2), segments.get(4), projection, criterium, order);
 			case SERVER_LIST:
-				return getService().readServerList(projection);
+				return getService().readServerList(projection, criterium, order);
 			case SERVER_PROGRESS_LIST:
-				return getService().readServerProgresList(segments.get(1), projection);
+				return getService().readServerProgresList(segments.get(1), projection, criterium, order);
 			case SERVER_ISSUE_LIST:
-				return getService().readServerIssueList(segments.get(1), projection);
+				return getService().readServerIssueList(segments.get(1), projection, criterium, order);
 			case KEYWORD:
-				return getService().readKeywordStatistics(projection);
+				return getService().readKeywordStatistics(projection, criterium, order);
 			case STORAGE_LIST:
-				return getService().readStorages(projection);
+				return getService().readStorages(projection, criterium, order);
 			case ALBUM_ENTRY_THUMBNAIL:
 			case ALBUM_ENTRY_THUMBNAIL_ALIAS:
 				return null;
@@ -272,47 +277,52 @@ public class ArchiveContentProvider extends ContentProvider {
 				}
 
 				@Override
-				public Cursor readAlbumEntryList(final String archiveName, final String albumName, final String[] projection) {
+				public Cursor readAlbumEntryList(final String archiveName, final String albumName, final String[] projection, final Criterium criterium, final SortOrder order) {
 					return getEmptyCursor(Client.AlbumEntry.class);
 				}
 
 				@Override
-				public Cursor readAlbumList(final String[] projection) {
+				public Cursor readAlbumList(final String[] projection, final Criterium criterium, final SortOrder order) {
 					return getEmptyCursor(Client.Album.class);
 				}
 
 				@Override
-				public Cursor readKeywordStatistics(final String[] projection) {
+				public Cursor readKeywordStatistics(final String[] projection, final Criterium criterium, final SortOrder order) {
 					return getEmptyCursor(Client.KeywordEntry.class);
 				}
 
 				@Override
-				public Cursor readServerIssueList(final String server, final String[] projection) {
+				public Cursor readServerIssueList(final String server, final String[] projection, final Criterium criterium, final SortOrder order) {
 					return getEmptyCursor(Client.IssueEntry.class);
 				}
 
 				@Override
-				public Cursor readServerList(final String[] projection) {
+				public Cursor readServerList(final String[] projection, final Criterium criterium, final SortOrder order) {
 					return getEmptyCursor(Client.ServerEntry.class);
 				}
 
 				@Override
-				public Cursor readServerProgresList(final String server, final String[] projection) {
+				public Cursor readServerProgresList(final String server, final String[] projection, final Criterium criterium, final SortOrder order) {
 					return getEmptyCursor(Client.ProgressEntry.class);
 				}
 
 				@Override
-				public Cursor readSingleAlbum(final String archiveName, final String albumName, final String[] projection) {
+				public Cursor readSingleAlbum(final String archiveName, final String albumName, final String[] projection, final Criterium criterium, final SortOrder order) {
 					return getEmptyCursor(Client.Album.class);
 				}
 
 				@Override
-				public Cursor readSingleAlbumEntry(final String archiveName, final String albumName, final String albumEntryName, final String[] projection) {
+				public Cursor readSingleAlbumEntry(	final String archiveName,
+																						final String albumName,
+																						final String albumEntryName,
+																						final String[] projection,
+																						final Criterium criterium,
+																						final SortOrder order) {
 					return getEmptyCursor(Client.AlbumEntry.class);
 				}
 
 				@Override
-				public Cursor readStorages(final String[] projection) {
+				public Cursor readStorages(final String[] projection, final Criterium criterium, final SortOrder order) {
 					return getEmptyCursor(Client.Storage.class);
 				}
 

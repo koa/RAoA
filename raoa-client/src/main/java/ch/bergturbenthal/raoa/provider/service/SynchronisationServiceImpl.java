@@ -13,7 +13,6 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -80,6 +79,7 @@ import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.raoa.provider.Client;
 import ch.bergturbenthal.raoa.provider.SortOrder;
 import ch.bergturbenthal.raoa.provider.SortOrderEntry.Order;
+import ch.bergturbenthal.raoa.provider.criterium.Criterium;
 import ch.bergturbenthal.raoa.provider.map.BooleanFieldReader;
 import ch.bergturbenthal.raoa.provider.map.FieldReader;
 import ch.bergturbenthal.raoa.provider.map.MapperUtil;
@@ -364,7 +364,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	}
 
 	@Override
-	public Cursor readAlbumEntryList(final String archiveName, final String albumId, final String[] projection) {
+	public Cursor readAlbumEntryList(final String archiveName, final String albumId, final String[] projection, final Criterium criterium, final SortOrder order) {
 		final AlbumIndex album = new AlbumIndex(archiveName, albumId);
 
 		final AlbumEntries albumDetail = store.getAlbumEntries(album, ReadPolicy.READ_ONLY);
@@ -374,16 +374,16 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				albumEntryIndices.add(new AlbumEntryIndex(album, dtoEntry.getCommId()));
 			}
 		}
-		return makeCursorForAlbumEntries(albumEntryIndices, projection, Collections.singleton(album));
+		return makeCursorForAlbumEntries(albumEntryIndices, projection, Collections.singleton(album), criterium, order);
 	}
 
 	@Override
-	public Cursor readAlbumList(final String[] projection) {
-		return makeCursorForAlbums(collectVisibleAlbums(), projection, true);
+	public Cursor readAlbumList(final String[] projection, final Criterium criterium, final SortOrder order) {
+		return makeCursorForAlbums(collectVisibleAlbums(), projection, true, criterium, order);
 	}
 
 	@Override
-	public Cursor readKeywordStatistics(final String[] projection) {
+	public Cursor readKeywordStatistics(final String[] projection, final Criterium criterium, final SortOrder order) {
 		final Map<String, Integer> keywordCounts = new TreeMap<String, Integer>();
 		for (final AlbumIndex entry : store.listAlbumMeta()) {
 			final AlbumMeta albumMeta = store.getAlbumMeta(entry, ReadPolicy.READ_ONLY);
@@ -438,11 +438,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return value.getValue();
 			}
 		});
-		return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(keywordCounts.entrySet(), projection, fieldReaders));
+		return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(keywordCounts.entrySet(), projection, fieldReaders, criterium, order));
 	}
 
 	@Override
-	public Cursor readServerIssueList(final String serverId, final String[] projection) {
+	public Cursor readServerIssueList(final String serverId, final String[] projection, final Criterium criterium, final SortOrder order) {
 
 		final ServerConnection serverConnection = getConnectionForServer(serverId);
 		if (serverConnection == null) {
@@ -465,11 +465,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return Long.valueOf(makeLongId(value.getIssueId()));
 			}
 		});
-		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders));
+		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders, criterium, order));
 	}
 
 	@Override
-	public Cursor readServerList(final String[] projection) {
+	public Cursor readServerList(final String[] projection, final Criterium criterium, final SortOrder order) {
 		final Map<String, ArchiveConnection> archives = connectionMap.get();
 
 		final Collection<Pair<String, ServerConnection>> connections = new ArrayList<Pair<String, ServerConnection>>();
@@ -508,12 +508,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			}
 		});
 
-		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(connections, projection, fieldReaders));
+		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(connections, projection, fieldReaders, criterium, order));
 
 	}
 
 	@Override
-	public Cursor readServerProgresList(final String serverId, final String[] projection) {
+	public Cursor readServerProgresList(final String serverId, final String[] projection, final Criterium criterium, final SortOrder order) {
 		final ServerConnection serverConnection = getConnectionForServer(serverId);
 		if (serverConnection == null) {
 			return null;
@@ -534,30 +534,39 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return Long.valueOf(makeLongId(value.getProgressId()));
 			}
 		});
-		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders));
+		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders, criterium, order));
 	}
 
 	@Override
-	public Cursor readSingleAlbum(final String archiveName, final String albumId, final String[] projection) {
-		return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false);
+	public Cursor readSingleAlbum(final String archiveName, final String albumId, final String[] projection, final Criterium criterium, final SortOrder order) {
+		return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false, criterium, order);
 	}
 
 	@Override
-	public Cursor readSingleAlbumEntry(final String archiveName, final String albumId, final String archiveEntryId, final String[] projection) {
+	public Cursor readSingleAlbumEntry(	final String archiveName,
+																			final String albumId,
+																			final String archiveEntryId,
+																			final String[] projection,
+																			final Criterium criterium,
+																			final SortOrder order) {
 		final AlbumIndex affectedAlbum = new AlbumIndex(archiveName, albumId);
 		final AlbumEntries albumEntries = store.getAlbumEntries(affectedAlbum, ReadPolicy.READ_ONLY);
 		if (albumEntries == null || albumEntries.getEntries() == null) {
-			return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum));
+			return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum), null, null);
 		}
 		final AlbumEntryDto entryDto = albumEntries.findEntryById(archiveEntryId);
 		if (entryDto == null) {
-			return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum));
+			return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum), null, null);
 		}
-		return makeCursorForAlbumEntries(Collections.singletonList(new AlbumEntryIndex(affectedAlbum, archiveEntryId)), projection, Collections.singleton(affectedAlbum));
+		return makeCursorForAlbumEntries(	Collections.singletonList(new AlbumEntryIndex(affectedAlbum, archiveEntryId)),
+																			projection,
+																			Collections.singleton(affectedAlbum),
+																			criterium,
+																			null);
 	}
 
 	@Override
-	public Cursor readStorages(final String[] projection) {
+	public Cursor readStorages(final String[] projection, final Criterium criterium, final SortOrder order) {
 		final HashSet<String> archives = new HashSet<String>();
 		for (final AlbumIndex albumEntry : store.listAlbumMeta()) {
 			archives.add(albumEntry.getArchiveName());
@@ -592,7 +601,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return value.first;
 			}
 		});
-		return cursorNotifications.addStorageCursor(MapperUtil.loadCollectionIntoCursor(storagePairs, projection, delegateFieldReaders));
+		return cursorNotifications.addStorageCursor(MapperUtil.loadCollectionIntoCursor(storagePairs, projection, delegateFieldReaders, criterium, order));
 	}
 
 	@Override
@@ -1052,7 +1061,18 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		}
 	}
 
-	private Cursor makeCursorForAlbumEntries(final Collection<AlbumEntryIndex> indices, final String[] projection, final Collection<AlbumIndex> albumsToNotify) {
+	private SortOrder makeAlbumDefaultSortOrder() {
+		final SortOrder defaultSortOrder = new SortOrder();
+		defaultSortOrder.addOrder(Client.Album.ALBUM_CAPTURE_DATE, Order.DESC);
+		defaultSortOrder.addOrder(Client.Album.NAME, Order.ASC);
+		return defaultSortOrder;
+	}
+
+	private Cursor makeCursorForAlbumEntries(	final Collection<AlbumEntryIndex> indices,
+																						final String[] projection,
+																						final Collection<AlbumIndex> albumsToNotify,
+																						final Criterium criterium,
+																						final SortOrder order) {
 		// Log.i(SERVICE_TAG, "Start query album entries");
 
 		final Lookup<AlbumIndex, AlbumMutationData> mutationDataLazyLoader = createReadOnlyAlbumMutationLazyLoader();
@@ -1142,11 +1162,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			}
 		});
 		try {
-			final SortOrder order = new SortOrder();
-			order.addOrder(Client.AlbumEntry.CAPTURE_DATE, Order.ASC, false);
-			order.addOrder(Client.AlbumEntry.NAME, Order.ASC, false);
-
-			final NotifyableMatrixCursor cursor = MapperUtil.loadCollectionIntoCursor(indices, projection, indexFieldReaders, order);
+			final NotifyableMatrixCursor cursor = MapperUtil.loadCollectionIntoCursor(indices,
+																																								projection,
+																																								indexFieldReaders,
+																																								criterium,
+																																								order == null ? makeDefaultAlbumEntiesOrder() : order);
 			final HashSet<AlbumIndex> affectedAlbums = new HashSet<AlbumIndex>(albumsToNotify);
 			for (final AlbumEntryIndex indexEntry : indices) {
 				affectedAlbums.add(indexEntry.getAlbumIndex());
@@ -1160,7 +1180,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		}
 	}
 
-	private Cursor makeCursorForAlbums(final Collection<AlbumIndex> visibleAlbums, final String[] projection, final boolean alsoSynced) throws SQLException {
+	private Cursor makeCursorForAlbums(	final Collection<AlbumIndex> visibleAlbums,
+																			final String[] projection,
+																			final boolean alsoSynced,
+																			final Criterium criterium,
+																			final SortOrder order) throws SQLException {
 		final Map<AlbumIndex, AlbumMeta> loadedAlbums = new HashMap<AlbumIndex, AlbumMeta>();
 		if (alsoSynced) {
 			final Collection<AlbumIndex> entryNames = store.listAlbumMeta();
@@ -1180,14 +1204,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			}
 		}
 		final ArrayList<AlbumMeta> albums = new ArrayList<AlbumMeta>(loadedAlbums.values());
-		Collections.sort(albums, new Comparator<AlbumMeta>() {
-			@Override
-			public int compare(final AlbumMeta lhs, final AlbumMeta rhs) {
-				final Date leftDate = lhs.getAlbumDate() == null ? new Date(0) : lhs.getAlbumDate();
-				final Date rightDate = rhs.getAlbumDate() == null ? new Date(0) : rhs.getAlbumDate();
-				return rightDate.compareTo(leftDate);
-			}
-		});
 		final Lookup<AlbumIndex, AlbumState> albumStateLoader = LazyLoader.loadLazy(new Lookup<AlbumIndex, AlbumState>() {
 			@Override
 			public AlbumState get(final AlbumIndex key) {
@@ -1280,7 +1296,18 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			}
 		});
 
-		return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(albums, projection, fieldReaders));
+		return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(	albums,
+																																											projection,
+																																											fieldReaders,
+																																											criterium,
+																																											order == null ? makeAlbumDefaultSortOrder() : order));
+	}
+
+	private SortOrder makeDefaultAlbumEntiesOrder() {
+		final SortOrder defaultOrder = new SortOrder();
+		defaultOrder.addOrder(Client.AlbumEntry.CAPTURE_DATE, Order.ASC, false);
+		defaultOrder.addOrder(Client.AlbumEntry.NAME, Order.ASC, false);
+		return defaultOrder;
 	}
 
 	private long makeLongId(final String stringId) {

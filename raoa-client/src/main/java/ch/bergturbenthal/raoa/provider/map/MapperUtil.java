@@ -18,6 +18,7 @@ import android.util.Log;
 import ch.bergturbenthal.raoa.provider.SortOrder;
 import ch.bergturbenthal.raoa.provider.SortOrderEntry;
 import ch.bergturbenthal.raoa.provider.SortOrderEntry.Order;
+import ch.bergturbenthal.raoa.provider.criterium.Criterium;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 
 public class MapperUtil {
@@ -81,39 +82,35 @@ public class MapperUtil {
 
 	public static <E> NotifyableMatrixCursor loadCollectionIntoCursor(final Iterable<E> collection,
 																																		final String[] projection,
-																																		final Map<String, FieldReader<E>> fieldReaders) {
-		return loadCollectionIntoCursor(collection, projection, fieldReaders, new SortOrder());
-	}
-
-	public static <E> NotifyableMatrixCursor loadCollectionIntoCursor(final Iterable<E> collection,
-																																		final String[] projection,
 																																		final Map<String, FieldReader<E>> fieldReaders,
-																																		final SortOrder order) {
+																																		Criterium criterium, final SortOrder order) {
 
 		final List<String> columnNames = projection != null ? new ArrayList<String>(Arrays.asList(projection)) : new ArrayList<String>(fieldReaders.keySet());
 		final int outputColumns = columnNames.size();
 
 		final List<IndexedOderEntry> sortEntries = new ArrayList<MapperUtil.IndexedOderEntry>();
-		for (final SortOrderEntry orderEntry : order.getEntries()) {
-			final Order orderEntryOrder = orderEntry.getOrder();
-			if (orderEntryOrder == null) {
-				continue;
+		if (order != null) {
+			for (final SortOrderEntry orderEntry : order.getEntries()) {
+				final Order orderEntryOrder = orderEntry.getOrder();
+				if (orderEntryOrder == null) {
+					continue;
+				}
+				final boolean nullFirst = orderEntry.isNullFirst();
+				final String columnName = orderEntry.getColumnName();
+				final int foundColumn = columnNames.indexOf(columnName);
+				final int columnIndex;
+				if (foundColumn < 0) {
+					columnIndex = columnNames.size();
+					columnNames.add(columnName);
+				} else {
+					columnIndex = foundColumn;
+				}
+				final IndexedOderEntry entry = new IndexedOderEntry();
+				entry.index = columnIndex;
+				entry.order = orderEntryOrder;
+				entry.nullFirst = nullFirst;
+				sortEntries.add(entry);
 			}
-			final boolean nullFirst = orderEntry.isNullFirst();
-			final String columnName = orderEntry.getColumnName();
-			final int foundColumn = columnNames.indexOf(columnName);
-			final int columnIndex;
-			if (foundColumn < 0) {
-				columnIndex = columnNames.size();
-				columnNames.add(columnName);
-			} else {
-				columnIndex = foundColumn;
-			}
-			final IndexedOderEntry entry = new IndexedOderEntry();
-			entry.index = columnIndex;
-			entry.order = orderEntryOrder;
-			entry.nullFirst = nullFirst;
-			sortEntries.add(entry);
 		}
 		final List<Object[]> entries = new ArrayList<Object[]>();
 		Log.i(TAG, "Start collection rows");
