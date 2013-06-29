@@ -28,33 +28,60 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 	@Override
 	public boolean makeVideoThumbnail(final File originalFile, final File thumbnailFile, final File tempDir) {
 		// no valid binary found -> cannot convert
-		if (binary == null)
+		if (binary == null) {
 			return false;
+		}
 		final File tempFile = new File(tempDir, originalFile.getName() + "-tmp.mp4");
 		if (tempFile.exists()) {
 			tempFile.delete();
 		}
 		final CommandLine cmdLine = new CommandLine(binary);
-		cmdLine.addArguments(new String[] { "-i",
-																				originalFile.getAbsolutePath(),
-																				"-vcodec",
-																				"libx264",
-																				"-b:v",
-																				"1024k",
-																				"-profile:v",
-																				"baseline",
-																				"-b:a",
-																				"24k",
-																				"-vf",
-																				"yadif",
-																				"-vf",
-																				"scale=1280:720",
-																				"-acodec",
-																				"libvo_aacenc",
-																				"-sn",
-																				"-r",
-																				"30",
-																				tempFile.getAbsolutePath() }, false);
+		final String[] arguments;
+		if (originalFile.length() < 100 * 1024 * 1024) {
+			arguments = new String[] { "-i",
+																originalFile.getAbsolutePath(),
+																"-vcodec",
+																"libx264",
+																"-b:v",
+																"512k",
+																"-profile:v",
+																"baseline",
+																"-b:a",
+																"24k",
+																"-vf",
+																"yadif",
+																"-vf",
+																"scale=1280:720",
+																"-acodec",
+																"libvo_aacenc",
+																"-sn",
+																"-r",
+																"30",
+																tempFile.getAbsolutePath() };
+		} else {
+			arguments = new String[] { "-i",
+																originalFile.getAbsolutePath(),
+																"-vf",
+																"yadif",
+																"-vf",
+																"scale=480:360",
+																"-vcodec",
+																"libx264",
+																"-b:v",
+																"128k",
+																"-profile:v",
+																"baseline",
+																"-b:a",
+																"24k",
+																"-acodec",
+																"libvo_aacenc",
+																"-sn",
+																"-r",
+																"30",
+																tempFile.getAbsolutePath() };
+		}
+
+		cmdLine.addArguments(arguments, false);
 		final File logfile = new File(tempDir, originalFile.getName() + ".log");
 		if (logfile.exists()) {
 			logfile.renameTo(new File(tempDir, originalFile.getName() + ".log.1"));
@@ -108,9 +135,10 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 
 	@PostConstruct
 	private void init() {
-		if (binary != null && testExecutable(binary))
+		if (binary != null && testExecutable(binary)) {
 			// binary is already configured and valid
 			return;
+		}
 		for (final String candidate : binaryCandiates) {
 			if (testExecutable(candidate)) {
 				binary = candidate;
@@ -121,8 +149,9 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 	}
 
 	private boolean testExecutable(final String executable) {
-		if (executable.trim().length() == 0)
+		if (executable.trim().length() == 0) {
 			return false;
+		}
 		final CommandLine cmdLine = new CommandLine(executable);
 		cmdLine.addArgument("-version");
 		try {
