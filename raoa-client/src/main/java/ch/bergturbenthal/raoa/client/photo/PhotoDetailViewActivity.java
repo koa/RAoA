@@ -91,6 +91,8 @@ public class PhotoDetailViewActivity extends Activity {
 
 	private final Map<String, Integer> tagHeatMap = new HashMap<String, Integer>();
 
+	private boolean tagsVisible = false;
+
 	private String[] visibleKeywords = new String[0];
 
 	@Override
@@ -332,7 +334,7 @@ public class PhotoDetailViewActivity extends Activity {
 				overlayLayout.setTag(updateHandler);
 				updateHandler.setVisibleTags(visibleKeywords);
 
-				if (isOverlayVisible) {
+				if (tagsVisible) {
 					// overlayLayout.removeAllViewsInLayout();
 					overlayLayout.setVisibility(View.VISIBLE);
 				} else {
@@ -492,6 +494,7 @@ public class PhotoDetailViewActivity extends Activity {
 	}
 
 	private void showTagTab(final boolean visibility) {
+		this.tagsVisible = visibility;
 		updateAllTagViews(new TagViewHandlerUpdater() {
 
 			@Override
