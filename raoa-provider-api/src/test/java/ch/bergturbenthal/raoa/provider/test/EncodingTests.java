@@ -1,12 +1,14 @@
 package ch.bergturbenthal.raoa.provider.test;
 
+import static ch.bergturbenthal.raoa.provider.criterium.Criterium.and;
+import static ch.bergturbenthal.raoa.provider.criterium.Criterium.eq;
+import static ch.bergturbenthal.raoa.provider.criterium.Criterium.not;
+
 import org.junit.Assert;
 import org.junit.Test;
 
 import ch.bergturbenthal.raoa.provider.SortOrder;
 import ch.bergturbenthal.raoa.provider.SortOrderEntry.Order;
-import ch.bergturbenthal.raoa.provider.criterium.Boolean;
-import ch.bergturbenthal.raoa.provider.criterium.Compare;
 import ch.bergturbenthal.raoa.provider.criterium.Constant;
 import ch.bergturbenthal.raoa.provider.criterium.Criterium;
 import ch.bergturbenthal.raoa.provider.criterium.Field;
@@ -14,7 +16,8 @@ import ch.bergturbenthal.raoa.provider.criterium.Field;
 public class EncodingTests {
 	@Test
 	public void testCriterium() {
-		final Criterium crit = Boolean.and(Compare.eq(new Field("col3"), new Field("col4")), Compare.eq(new Field("col1"), new Constant("v1")));
+
+		final Criterium crit = and(not(eq(new Field("col3"), new Field("col4"))), eq(new Field("col1"), new Constant("v1")));
 		final String criteriumString = crit.makeString();
 		// System.out.println(crit);
 		// System.out.println(criteriumString);

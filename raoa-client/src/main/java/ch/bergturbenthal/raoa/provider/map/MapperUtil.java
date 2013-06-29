@@ -12,13 +12,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.regex.Pattern;
 
 import android.database.Cursor;
 import android.util.Log;
 import ch.bergturbenthal.raoa.provider.SortOrder;
 import ch.bergturbenthal.raoa.provider.SortOrderEntry;
 import ch.bergturbenthal.raoa.provider.SortOrderEntry.Order;
+import ch.bergturbenthal.raoa.provider.criterium.Compare;
+import ch.bergturbenthal.raoa.provider.criterium.Constant;
 import ch.bergturbenthal.raoa.provider.criterium.Criterium;
+import ch.bergturbenthal.raoa.provider.criterium.Value;
+import ch.bergturbenthal.raoa.provider.util.LazyLoader;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 
 public class MapperUtil {
@@ -83,7 +88,8 @@ public class MapperUtil {
 	public static <E> NotifyableMatrixCursor loadCollectionIntoCursor(final Iterable<E> collection,
 																																		final String[] projection,
 																																		final Map<String, FieldReader<E>> fieldReaders,
-																																		Criterium criterium, final SortOrder order) {
+																																		final Criterium criterium,
+																																		final SortOrder order) {
 
 		final List<String> columnNames = projection != null ? new ArrayList<String>(Arrays.asList(projection)) : new ArrayList<String>(fieldReaders.keySet());
 		final int outputColumns = columnNames.size();
@@ -114,11 +120,39 @@ public class MapperUtil {
 		}
 		final List<Object[]> entries = new ArrayList<Object[]>();
 		Log.i(TAG, "Start collection rows");
+		long selectionTime = 0;
+		long takeRestTime = 0;
 		for (final E entry : collection) {
-			entries.add(makeRow(entry, columnNames, fieldReaders));
+
+			final Lookup<String, Object> columnLookup = LazyLoader.loadLazy(new Lookup<String, Object>() {
+
+				@Override
+				public Object get(final String key) {
+					return fieldReaders.get(key).getValue(entry);
+				}
+			});
+			if (criterium != null) {
+				selectionTime -= System.currentTimeMillis();
+				final boolean columnOk = columnOk(criterium, columnLookup);
+				selectionTime += System.currentTimeMillis();
+				if (!columnOk) {
+					continue;
+				}
+			}
+
+			final Object[] row = new Object[columnNames.size()];
+			takeRestTime -= System.currentTimeMillis();
+			for (int j = 0; j < row.length; j++) {
+				row[j] = columnLookup.get(columnNames.get(j));
+			}
+			takeRestTime += System.currentTimeMillis();
+
+			entries.add(row);
 		}
+		long orderTime = 0;
 		Log.i(TAG, "End collection " + entries.size() + " rows");
 		if (sortEntries.size() > 0) {
+			orderTime -= System.currentTimeMillis();
 			Collections.sort(entries, new Comparator<Object[]>() {
 				@Override
 				public int compare(final Object[] lhs, final Object[] rhs) {
@@ -133,17 +167,8 @@ public class MapperUtil {
 					return 0;
 				}
 
-				private int compareRaw(final Comparable<Object> leftValue, final Comparable<Object> rightValue, final boolean nullFirst) {
-					if (leftValue == null) {
-						return rightValue == null ? 0 : nullFirst ? -1 : 1;
-					}
-					if (rightValue == null) {
-						return nullFirst ? 1 : -1;
-					}
-					return leftValue.compareTo(rightValue);
-				}
 			});
-			Log.i(TAG, "End Sorting rows");
+			orderTime += System.currentTimeMillis();
 		}
 		final NotifyableMatrixCursor cursor = new NotifyableMatrixCursor(columnNames.subList(0, outputColumns).toArray(new String[outputColumns]));
 		if (outputColumns == columnNames.size()) {
@@ -157,7 +182,7 @@ public class MapperUtil {
 				cursor.addRow(dataValues);
 			}
 		}
-		Log.i(TAG, "Returning Cursor");
+		Log.i(TAG, "Returning Cursor " + entries.size() + " entries, selection-Time: " + selectionTime + ", orderTime: " + orderTime + ", rest " + takeRestTime);
 		return cursor;
 	}
 
@@ -326,12 +351,83 @@ public class MapperUtil {
 		}
 	}
 
-	private static <E> Object[] makeRow(final E entry, final List<String> columnNames, final Map<String, FieldReader<E>> fieldReaders) {
-		final Object[] row = new Object[columnNames.size()];
-		for (int j = 0; j < row.length; j++) {
-			row[j] = fieldReaders.get(columnNames.get(j)).getValue(entry);
+	private static boolean columnOk(final Criterium criterium, final Lookup<String, Object> columnLookup) {
+		if (criterium instanceof Compare) {
+			final Compare compare = (Compare) criterium;
+			final Object v1 = readValue(compare.getOp1(), columnLookup);
+			final Object v2 = readValue(compare.getOp1(), columnLookup);
+			switch (compare.getOperator()) {
+			case EQUALS:
+				return eq(v1, v2);
+			case GE:
+				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) >= 0;
+			case GT:
+				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) > 0;
+			case LE:
+				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) <= 0;
+			case LT:
+				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) < 0;
+			case MATCH:
+				return match(v1, v2);
+			case CONTAINS:
+				return contains(v1, v2);
+			}
 		}
-		return row;
+		if (criterium instanceof ch.bergturbenthal.raoa.provider.criterium.Boolean) {
+			final ch.bergturbenthal.raoa.provider.criterium.Boolean boolCrit = (ch.bergturbenthal.raoa.provider.criterium.Boolean) criterium;
+			switch (boolCrit.getOperator()) {
+			case AND:
+				return columnOk(boolCrit.getOp1(), columnLookup) && columnOk(boolCrit.getOp2(), columnLookup);
+			case OR:
+				return columnOk(boolCrit.getOp1(), columnLookup) || columnOk(boolCrit.getOp2(), columnLookup);
+			case XOR:
+				return columnOk(boolCrit.getOp1(), columnLookup) ^ columnOk(boolCrit.getOp2(), columnLookup);
+			}
+		}
+		throw new RuntimeException("Cannot interprete criterium " + criterium);
+	}
+
+	private static int compareRaw(final Comparable<Object> leftValue, final Comparable<Object> rightValue, final boolean nullFirst) {
+		if (leftValue == null) {
+			return rightValue == null ? 0 : nullFirst ? -1 : 1;
+		}
+		if (rightValue == null) {
+			return nullFirst ? 1 : -1;
+		}
+		return leftValue.compareTo(rightValue);
+	}
+
+	private static boolean contains(final Object value, final Object pattern) {
+		final String valueStr = String.valueOf(value);
+		final String patternStr = String.valueOf(pattern);
+		return patternStr.indexOf(valueStr) >= 0;
+	}
+
+	private static boolean eq(final Object v1, final Object v2) {
+		if (v1 == v2) {
+			return true;
+		}
+		if (v1 == null || v2 == null) {
+			return false;
+		}
+		return v1.equals(v2);
+	}
+
+	private static boolean match(final Object value, final Object pattern) {
+		final String valueStr = String.valueOf(value);
+		final String patternStr = String.valueOf(pattern);
+		return Pattern.compile(patternStr).matcher(valueStr).matches();
+	}
+
+	private static Object readValue(final Value v, final Lookup<String, Object> columnLookup) {
+		if (v instanceof Constant) {
+			return ((Constant) v).getValue();
+		}
+		if (v instanceof ch.bergturbenthal.raoa.provider.criterium.Field) {
+			final ch.bergturbenthal.raoa.provider.criterium.Field field = (ch.bergturbenthal.raoa.provider.criterium.Field) v;
+			return columnLookup.get(field.getFieldName());
+		}
+		return null;
 	}
 
 	private static Class<?> toBoxedType(final Class<?> type) {
