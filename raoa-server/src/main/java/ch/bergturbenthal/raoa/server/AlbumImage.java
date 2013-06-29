@@ -248,7 +248,7 @@ public class AlbumImage {
 		if (longFilename.exists()) {
 			return longFilename;
 		}
-		return shortFilename;
+		return longFilename;
 	}
 
 	/**
