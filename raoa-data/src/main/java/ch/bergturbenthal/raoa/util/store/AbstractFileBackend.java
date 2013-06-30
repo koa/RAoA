@@ -19,21 +19,29 @@ public abstract class AbstractFileBackend<T> implements FileBackend<T> {
 		public T readFromFile(final File f) throws IOException;
 	}
 
+	protected final File basePath;
+
+	private final int cacheWeight;
+	private final FileSerializer<T> serializer;
+
+	private final String suffix;
+
 	private static void mkdirIfNotExists(final File dir) {
 		if (!dir.exists()) {
 			dir.mkdirs();
 		}
 	}
 
-	protected final File basePath;
-	private final FileSerializer<T> serializer;
-
-	private final String suffix;
-
-	public AbstractFileBackend(final File basePath, final String suffix, final FileSerializer<T> serializer) {
+	public AbstractFileBackend(final File basePath, final String suffix, final FileSerializer<T> serializer, final int cacheWeight) {
 		this.basePath = basePath;
 		this.suffix = suffix;
 		this.serializer = serializer;
+		this.cacheWeight = cacheWeight;
+	}
+
+	@Override
+	public int cacheWeight() {
+		return cacheWeight;
 	}
 
 	@Override

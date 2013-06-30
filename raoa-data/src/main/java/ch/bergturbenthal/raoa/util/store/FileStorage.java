@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.util.store;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -12,6 +13,8 @@ import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+
+import org.apache.commons.collections.map.LRUMap;
 
 import ch.bergturbenthal.raoa.util.Pair;
 import ch.bergturbenthal.raoa.util.store.FileBackend.CommitExecutor;
@@ -59,9 +62,9 @@ public class FileStorage {
 							final Object value = entry.getValue();
 							final Pair<Class<Object>, String> key = entry.getKey();
 							if (value == null) {
-								readOnlyCache.remove(key);
+								readOnlySecondCache.remove(key);
 							} else {
-								readOnlyCache.put(key, new WeakReference<Object>(value));
+								readOnlySecondCache.put(key, new WeakReference<Object>(value));
 							}
 						}
 					} else {
@@ -135,6 +138,15 @@ public class FileStorage {
 		}
 	}
 
+	private int currentCacheSize;
+
+	private final ThreadLocal<Transaction> currentTransaction = new ThreadLocal<Transaction>();
+	private Map<Class<Object>, Map<String, Object>> readOnlyPrimaryCache;
+
+	private final Map<Pair<Class<Object>, String>, WeakReference<Object>> readOnlySecondCache = new ConcurrentHashMap<Pair<Class<Object>, String>, WeakReference<Object>>();
+
+	private final Map<Class<?>, FileBackend<?>> registeredBackends = new HashMap<Class<?>, FileBackend<?>>();
+
 	/**
 	 * @param <T>
 	 * @param lastModified
@@ -151,16 +163,12 @@ public class FileStorage {
 		return v1.equals(v2);
 	}
 
-	private final ThreadLocal<Transaction> currentTransaction = new ThreadLocal<Transaction>();
-
-	private final Map<Pair<Class<Object>, String>, WeakReference<Object>> readOnlyCache = new ConcurrentHashMap<Pair<Class<Object>, String>, WeakReference<Object>>();
-
-	private final Map<Class<?>, FileBackend<?>> registeredBackends = new HashMap<Class<?>, FileBackend<?>>();
-
 	public FileStorage(final Collection<FileBackend<?>> backends) {
 		for (final FileBackend<?> fileBackend : backends) {
 			registeredBackends.put(fileBackend.getType(), fileBackend);
 		}
+		currentCacheSize = 20;
+		setCacheSize(currentCacheSize);
 	}
 
 	public <V> V callInTransaction(final Callable<V> callable) {
@@ -219,6 +227,11 @@ public class FileStorage {
 		currentTransaction.get().putObject(relativePath, value);
 	}
 
+	public void reduceCurrentCacheSize() {
+		currentCacheSize = currentCacheSize * 4 / 5;
+		setCacheSize(currentCacheSize);
+	}
+
 	public <D> void removeObject(final String relativePath, final Class<D> type) {
 		currentTransaction.get().remove(relativePath, type);
 	}
@@ -230,19 +243,65 @@ public class FileStorage {
 
 	@SuppressWarnings("unchecked")
 	private <D> D getObjectReadOnly(final String relativePath, final Class<D> type) {
-		final Pair<Class<Object>, String> key = new Pair<Class<Object>, String>((Class<Object>) type, relativePath);
-		final WeakReference<D> existingEntry = (WeakReference<D>) readOnlyCache.get(key);
-		if (existingEntry != null && existingEntry.get() != null) {
-			return existingEntry.get();
+
+		final Map<String, Object> primaryTypeCache = readOnlyPrimaryCache.get(type);
+		if (primaryTypeCache != null) {
+			final D valueFromPrimaryCache = (D) primaryTypeCache.get(relativePath);
+			if (valueFromPrimaryCache != null) {
+				return valueFromPrimaryCache;
+			}
 		}
-		synchronized (readOnlyCache) {
-			final WeakReference<D> betweenLoadedEntry = (WeakReference<D>) readOnlyCache.get(key);
+		final Pair<Class<Object>, String> key = new Pair<Class<Object>, String>((Class<Object>) type, relativePath);
+		final WeakReference<D> existingEntry = (WeakReference<D>) readOnlySecondCache.get(key);
+		if (existingEntry != null) {
+			final D valueFromSecondaryCache = existingEntry.get();
+			if (valueFromSecondaryCache != null) {
+				if (primaryTypeCache != null) {
+					primaryTypeCache.put(relativePath, valueFromSecondaryCache);
+				}
+				return valueFromSecondaryCache;
+			}
+		}
+		synchronized (readOnlySecondCache) {
+			final WeakReference<D> betweenLoadedEntry = (WeakReference<D>) readOnlySecondCache.get(key);
 			if (betweenLoadedEntry != null && betweenLoadedEntry.get() != null) {
 				return betweenLoadedEntry.get();
 			}
 			final D loaded = getBackend(type).load(relativePath);
-			readOnlyCache.put(key, new WeakReference<Object>(loaded));
+			readOnlySecondCache.put(key, new WeakReference<Object>(loaded));
+			if (primaryTypeCache != null) {
+				primaryTypeCache.put(relativePath, loaded);
+			}
 			return loaded;
 		}
+	}
+
+	private void setCacheSize(final int totallyCacheSize) {
+		int remainingWeight = 0;
+		for (final FileBackend<?> backend : registeredBackends.values()) {
+			remainingWeight += backend.cacheWeight();
+		}
+		int remainingCacheSize = totallyCacheSize;
+		final Map<Class<Object>, Map<String, Object>> newCache = new ConcurrentHashMap<Class<Object>, Map<String, Object>>();
+
+		for (final Entry<Class<?>, FileBackend<?>> entry : registeredBackends.entrySet()) {
+			final int currentCacheWeight = entry.getValue().cacheWeight();
+			final int currentCacheSize = remainingWeight == 0 ? 0 : remainingCacheSize * currentCacheWeight / remainingWeight;
+			remainingWeight -= currentCacheWeight;
+			remainingCacheSize -= currentCacheSize;
+			if (currentCacheSize < 1) {
+				continue;
+			}
+			final Map<String, Object> typeCache = Collections.synchronizedMap(new LRUMap(currentCacheSize));
+			newCache.put((Class<Object>) entry.getKey(), typeCache);
+			if (readOnlyPrimaryCache != null) {
+				final Map<String, Object> oldTypeCache = readOnlyPrimaryCache.get(entry.getKey());
+				if (oldTypeCache != null) {
+					typeCache.putAll(oldTypeCache);
+				}
+			}
+		}
+
+		readOnlyPrimaryCache = newCache;
 	}
 }

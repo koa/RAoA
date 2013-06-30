@@ -22,10 +22,12 @@ public class JacksonBackend<T> extends AbstractFileBackend<T> {
 
 	/**
 	 * @param basePath
+	 * @param cacheWeight
+	 *          TODO
 	 * @param suffix
 	 * @param serializer
 	 */
-	public JacksonBackend(final File basePath, final Class<T> type) {
+	public JacksonBackend(final File basePath, final Class<T> type, final int cacheWeight) {
 		super(basePath, SUFFIX, new AbstractFileBackend.FileSerializer<T>() {
 
 			@Override
@@ -37,7 +39,7 @@ public class JacksonBackend<T> extends AbstractFileBackend<T> {
 			public void writeToFile(final File f, final T value) throws IOException {
 				mapper.writer().withDefaultPrettyPrinter().writeValue(f, value);
 			}
-		});
+		}, cacheWeight);
 		this.type = type;
 	}
 

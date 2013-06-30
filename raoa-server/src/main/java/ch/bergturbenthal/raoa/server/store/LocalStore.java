@@ -22,7 +22,7 @@ public class LocalStore {
 	private final FileStorage store;
 
 	public LocalStore(final File dataDir) {
-		final Collection<?> backends = Arrays.asList(((FileBackend<?>) new JacksonBackend<ArchiveData>(dataDir, ArchiveData.class)));
+		final Collection<?> backends = Arrays.asList(((FileBackend<?>) new JacksonBackend<ArchiveData>(dataDir, ArchiveData.class, 0)));
 		store = new FileStorage((Collection<FileBackend<?>>) backends);
 	}
 

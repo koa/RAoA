@@ -80,7 +80,7 @@ public class ParcelableBackend<T extends Parcelable> extends AbstractFileBackend
 		}
 	}
 
-	public ParcelableBackend(final File basePath, final Class<T> type) {
+	public ParcelableBackend(final File basePath, final Class<T> type, final int cacheWeight) {
 		super(basePath, SUFFIX, new FileSerializer<T>() {
 
 			@Override
@@ -115,7 +115,7 @@ public class ParcelableBackend<T extends Parcelable> extends AbstractFileBackend
 				}
 				parcel.recycle();
 			}
-		});
+		}, cacheWeight);
 		this.type = type;
 	}
 

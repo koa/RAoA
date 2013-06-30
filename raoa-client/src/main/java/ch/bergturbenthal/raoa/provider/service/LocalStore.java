@@ -16,8 +16,8 @@ import ch.bergturbenthal.raoa.provider.model.dto.AlbumState;
 import ch.bergturbenthal.raoa.provider.store.ParcelableBackend;
 import ch.bergturbenthal.raoa.util.store.FileBackend;
 import ch.bergturbenthal.raoa.util.store.FileStorage;
-import ch.bergturbenthal.raoa.util.store.JacksonBackend;
 import ch.bergturbenthal.raoa.util.store.FileStorage.ReadPolicy;
+import ch.bergturbenthal.raoa.util.store.JacksonBackend;
 
 public class LocalStore {
 
@@ -27,11 +27,11 @@ public class LocalStore {
 	@SuppressWarnings("unchecked")
 	public LocalStore(final File dataDir) {
 		ParcelableBackend.checkVersion(dataDir, 6);
-		store = new FileStorage(Arrays.asList((FileBackend<?>) new ParcelableBackend<AlbumEntries>(dataDir, AlbumEntries.class),
-																					(FileBackend<?>) new ParcelableBackend<AlbumMeta>(dataDir, AlbumMeta.class),
-																					(FileBackend<?>) new JacksonBackend<AlbumMutationData>(dataDir, AlbumMutationData.class),
-																					(FileBackend<?>) new JacksonBackend<AlbumState>(dataDir, AlbumState.class),
-																					(FileBackend<?>) new JacksonBackend<ArchiveMeta>(dataDir, ArchiveMeta.class)
+		store = new FileStorage(Arrays.asList((FileBackend<?>) new ParcelableBackend<AlbumEntries>(dataDir, AlbumEntries.class, 1),
+																					(FileBackend<?>) new ParcelableBackend<AlbumMeta>(dataDir, AlbumMeta.class, 1),
+																					(FileBackend<?>) new JacksonBackend<AlbumMutationData>(dataDir, AlbumMutationData.class, 0),
+																					(FileBackend<?>) new JacksonBackend<AlbumState>(dataDir, AlbumState.class, 0),
+																					(FileBackend<?>) new JacksonBackend<ArchiveMeta>(dataDir, ArchiveMeta.class, 0)
 
 		));
 

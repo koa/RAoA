@@ -23,4 +23,6 @@ public interface FileBackend<T> {
 	Collection<String> listRelativePath(final List<Pattern> pathPatterns);
 
 	CommitExecutor save(final String relativePath, final T value);
+
+	int cacheWeight();
 }
