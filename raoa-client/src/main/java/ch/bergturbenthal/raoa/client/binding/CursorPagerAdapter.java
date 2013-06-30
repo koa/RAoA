@@ -51,6 +51,10 @@ public class CursorPagerAdapter extends PagerAdapter {
 	 *          context of the whole thing
 	 * @param uri
 	 *          uri to query the cursor
+	 * @param selection
+	 *          selection-String
+	 * @param sortOrder
+	 *          ordering-string
 	 * @param layout
 	 *          Layout of a adapter-element
 	 * @param handlers
@@ -60,28 +64,16 @@ public class CursorPagerAdapter extends PagerAdapter {
 	public static CursorPagerAdapter registerLoaderManager(	final LoaderManager loaderManager,
 																													final Context context,
 																													final Uri uri,
-																													final int layout,
-																													final Collection<ViewHandler<? extends View>> handlers,
-																													final String[] additionalColumns) {
-		return registerLoaderManager(loaderManager, context, uri, null, null, null, layout, handlers, additionalColumns);
-
-	}
-
-	private static CursorPagerAdapter registerLoaderManager(final LoaderManager loaderManager,
-																													final Context context,
-																													final Uri uri,
 																													final String selection,
-																													final String[] selectionArgs,
 																													final String sortOrder,
 																													final int layout,
 																													final Collection<ViewHandler<? extends View>> handlers,
 																													final String[] additionalColumns) {
 		final CursorPagerAdapter adapter = new CursorPagerAdapter(context, layout, handlers, additionalColumns);
 		loaderManager.initLoader(0, null, new LoaderCallbacks<Cursor>() {
-
 			@Override
 			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
-				return new CursorLoader(context, uri, adapter.requiredFields(), selection, selectionArgs, sortOrder);
+				return new CursorLoader(context, uri, adapter.requiredFields(), selection, null, sortOrder);
 			}
 
 			@Override
