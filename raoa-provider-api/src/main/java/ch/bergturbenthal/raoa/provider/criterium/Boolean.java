@@ -1,13 +1,9 @@
 package ch.bergturbenthal.raoa.provider.criterium;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
-@NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 public class Boolean extends Criterium {
 	public enum Operator {
@@ -17,6 +13,17 @@ public class Boolean extends Criterium {
 	private Criterium op1;
 	private Criterium op2;
 	private Operator operator;
+
+	public Boolean() {
+		super();
+	}
+
+	public Boolean(final Criterium op1, final Criterium op2, final Operator operator) {
+		super();
+		this.op1 = op1;
+		this.op2 = op2;
+		this.operator = operator;
+	}
 
 	@Override
 	public String toString() {

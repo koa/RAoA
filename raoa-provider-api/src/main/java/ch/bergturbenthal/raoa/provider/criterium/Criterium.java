@@ -50,6 +50,11 @@ public abstract class Criterium {
 	public static Criterium match(final Value op1, final Value op2) {
 		return new Compare(op1, op2, Operator.MATCH);
 	}
+	
+	
+	public static Criterium contains(final Value op1, final Value op2) {
+		return new Compare(op1, op2, Operator.CONTAINS);
+	}
 
 	public static Criterium not(final Criterium op) {
 		return new Not(op);

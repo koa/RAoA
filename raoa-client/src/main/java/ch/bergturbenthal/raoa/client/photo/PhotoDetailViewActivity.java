@@ -53,6 +53,9 @@ import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.util.KeywordUtil;
 import ch.bergturbenthal.raoa.provider.Client;
+import ch.bergturbenthal.raoa.provider.criterium.Constant;
+import ch.bergturbenthal.raoa.provider.criterium.Criterium;
+import ch.bergturbenthal.raoa.provider.criterium.Field;
 
 public class PhotoDetailViewActivity extends Activity {
 
@@ -175,10 +178,12 @@ public class PhotoDetailViewActivity extends Activity {
 		final ProgressDialog progressDialog = new ProgressDialog(this);
 		progressDialog.setMessage("Please wait...");
 		progressDialog.setCancelable(false);
+
+		final String filter = Criterium.contains(new Field(Client.AlbumEntry.META_KEYWORDS), new Constant("Ponytreff 2013")).makeString();
 		adapter = CursorPagerAdapter.registerLoaderManager(	getLoaderManager(),
 																												this,
 																												albumUri,
-																												null,
+																												filter,
 																												null,
 																												R.layout.photo_detailview_item,
 																												makeHandlers(),
@@ -189,7 +194,10 @@ public class PhotoDetailViewActivity extends Activity {
 			public void run() {
 				pager.setCurrentItem(actPos, false);
 				invalidateOptionsMenu();
-				progressDialog.hide();
+				if (progressDialog.isShowing()) {
+					progressDialog.hide();
+					progressDialog.dismiss();
+				}
 			}
 		});
 		detailContainer.setOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {

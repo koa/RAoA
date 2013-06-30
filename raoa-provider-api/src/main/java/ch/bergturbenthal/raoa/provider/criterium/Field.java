@@ -1,16 +1,21 @@
 package ch.bergturbenthal.raoa.provider.criterium;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
 
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 public class Field extends Value {
 	private String fieldName;
+
+	public Field() {
+		super();
+	}
+
+	public Field(final String fieldName) {
+		super();
+		this.fieldName = fieldName;
+	}
 
 	@Override
 	public String toString() {

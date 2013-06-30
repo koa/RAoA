@@ -1,16 +1,21 @@
 package ch.bergturbenthal.raoa.provider.criterium;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
-@NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 public class Not extends Criterium {
 	private Criterium criterium;
+
+	public Not() {
+		super();
+	}
+
+	public Not(final Criterium criterium) {
+		super();
+		this.criterium = criterium;
+	}
 
 	@Override
 	public String toString() {

@@ -1,13 +1,9 @@
 package ch.bergturbenthal.raoa.provider.criterium;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
-@NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 public class Compare extends Criterium {
 	public enum Operator {
@@ -17,6 +13,17 @@ public class Compare extends Criterium {
 	private Value op1;
 	private Value op2;
 	private Operator operator;
+
+	public Compare() {
+		super();
+	}
+
+	public Compare(final Value op1, final Value op2, final Operator operator) {
+		super();
+		this.op1 = op1;
+		this.op2 = op2;
+		this.operator = operator;
+	}
 
 	@Override
 	public String toString() {

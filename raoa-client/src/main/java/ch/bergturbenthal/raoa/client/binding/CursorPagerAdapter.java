@@ -113,10 +113,11 @@ public class CursorPagerAdapter extends PagerAdapter {
 		if (cursor == null) {
 			return null;
 		}
-		cursor.moveToPosition(position);
 		final Object[] ret = new Object[additionalColumns.length];
-		for (int i = 0; i < ret.length; i++) {
-			ret[i] = viewBinder.getValueOfColumn(cursor, additionalColumns[i]);
+		if (cursor.moveToPosition(position)) {
+			for (int i = 0; i < ret.length; i++) {
+				ret[i] = viewBinder.getValueOfColumn(cursor, additionalColumns[i]);
+			}
 		}
 		return ret;
 	}

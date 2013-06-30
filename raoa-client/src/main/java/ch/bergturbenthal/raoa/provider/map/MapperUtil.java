@@ -355,7 +355,7 @@ public class MapperUtil {
 		if (criterium instanceof Compare) {
 			final Compare compare = (Compare) criterium;
 			final Object v1 = readValue(compare.getOp1(), columnLookup);
-			final Object v2 = readValue(compare.getOp1(), columnLookup);
+			final Object v2 = readValue(compare.getOp2(), columnLookup);
 			switch (compare.getOperator()) {
 			case EQUALS:
 				return eq(v1, v2);
@@ -400,7 +400,7 @@ public class MapperUtil {
 	private static boolean contains(final Object value, final Object pattern) {
 		final String valueStr = String.valueOf(value);
 		final String patternStr = String.valueOf(pattern);
-		return patternStr.indexOf(valueStr) >= 0;
+		return valueStr.indexOf(patternStr) >= 0;
 	}
 
 	private static boolean eq(final Object v1, final Object v2) {
