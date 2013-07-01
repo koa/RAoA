@@ -30,18 +30,6 @@ public class CursorPagerAdapter extends PagerAdapter {
 		int getCurrentPos();
 	}
 
-	private final String[] additionalColumns;
-
-	private final Context context;
-
-	private int currentPosition;
-	private Cursor cursor = null;
-	private Runnable cursorLoadedHandler;
-	private final LayoutInflater inflater;
-	private final int layout;
-
-	private final CursorViewBinder viewBinder;
-
 	/**
 	 * Register a new {@link Cursor} on a given {@link LoaderManager}
 	 * 
@@ -93,6 +81,18 @@ public class CursorPagerAdapter extends PagerAdapter {
 		return adapter;
 	}
 
+	private final String[] additionalColumns;
+
+	private final Context context;
+	private int currentPosition;
+	private Cursor cursor = null;
+	private Runnable cursorLoadedHandler;
+	private final LayoutInflater inflater;
+
+	private final int layout;
+
+	private final CursorViewBinder viewBinder;
+
 	public CursorPagerAdapter(final Context context, final int layout, final Collection<ViewHandler<? extends View>> handlers, final String[] additionalColumns) {
 		this.context = context;
 		this.layout = layout;
@@ -113,11 +113,12 @@ public class CursorPagerAdapter extends PagerAdapter {
 		if (cursor == null) {
 			return null;
 		}
+		if (!cursor.moveToPosition(position)) {
+			return null;
+		}
 		final Object[] ret = new Object[additionalColumns.length];
-		if (cursor.moveToPosition(position)) {
-			for (int i = 0; i < ret.length; i++) {
-				ret[i] = viewBinder.getValueOfColumn(cursor, additionalColumns[i]);
-			}
+		for (int i = 0; i < ret.length; i++) {
+			ret[i] = viewBinder.getValueOfColumn(cursor, additionalColumns[i]);
 		}
 		return ret;
 	}

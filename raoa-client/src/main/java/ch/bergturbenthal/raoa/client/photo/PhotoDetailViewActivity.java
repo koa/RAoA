@@ -53,9 +53,6 @@ import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.util.KeywordUtil;
 import ch.bergturbenthal.raoa.provider.Client;
-import ch.bergturbenthal.raoa.provider.criterium.Constant;
-import ch.bergturbenthal.raoa.provider.criterium.Criterium;
-import ch.bergturbenthal.raoa.provider.criterium.Field;
 
 public class PhotoDetailViewActivity extends Activity {
 
@@ -69,11 +66,12 @@ public class PhotoDetailViewActivity extends Activity {
 		void doUpdate(final TagViewHandler handler);
 	}
 
+	public static final String ACTUAL_POS = "actPos";
+
+	public static final String ALBUM_URI = "album_uri";
+
+	public static final String CURRENT_FILTER = "current_filter";
 	protected static final int VISIBLE_KEYWORD_COUNT = 5;
-
-	private static final String ACTUAL_POS = "actPos";
-
-	private static final String ALBUM_ID = "album_uri";
 
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
 
@@ -173,17 +171,17 @@ public class PhotoDetailViewActivity extends Activity {
 
 		// get album id and photo id out of intent
 		final Bundle bundle = getIntent().getExtras();
-		albumUri = Uri.parse(bundle.getString(ALBUM_ID));
+		albumUri = Uri.parse(bundle.getString(ALBUM_URI));
+		final String currentFilter = bundle.getString(CURRENT_FILTER);
 		actPos = bundle.getInt(ACTUAL_POS);
 		final ProgressDialog progressDialog = new ProgressDialog(this);
 		progressDialog.setMessage("Please wait...");
 		progressDialog.setCancelable(false);
 
-		final String filter = Criterium.contains(new Field(Client.AlbumEntry.META_KEYWORDS), new Constant("Ponytreff 2013")).makeString();
 		adapter = CursorPagerAdapter.registerLoaderManager(	getLoaderManager(),
 																												this,
 																												albumUri,
-																												filter,
+																												currentFilter,
 																												null,
 																												R.layout.photo_detailview_item,
 																												makeHandlers(),

@@ -78,6 +78,7 @@ public class PhotoOverviewActivity extends Activity {
 	private Uri albumEntriesUri;
 	private String albumTitle = null;
 	private Uri albumUri;
+	private String currentFilter;
 	private int currentItemIndex;
 
 	private UiMode currentMode = UiMode.NAVIGATION;
@@ -163,6 +164,7 @@ public class PhotoOverviewActivity extends Activity {
 			final MenuItem shareItem = menu.findItem(R.id.photo_overview_share_album);
 			final SubMenu subMenu = shareItem.getSubMenu();
 			subMenu.clear();
+			final Handler handler = new Handler();
 			new SimpleAsync() {
 
 				private final List<Pair<String, String>> menuEntries = new ArrayList<Pair<String, String>>();
@@ -190,6 +192,14 @@ public class PhotoOverviewActivity extends Activity {
 							menuEntries.add(new Pair<String, String>(storageId, storageName));
 						} while (storagesCursor.moveToNext());
 					}
+					storagesCursor.registerContentObserver(new ContentObserver(handler) {
+
+						@Override
+						public void onChange(final boolean selfChange) {
+							super.onChange(selfChange);
+							invalidateOptionsMenu();
+						}
+					});
 					Collections.sort(menuEntries, new Comparator<Pair<String, String>>() {
 						@Override
 						public int compare(final Pair<String, String> lhs, final Pair<String, String> rhs) {
@@ -288,7 +298,7 @@ public class PhotoOverviewActivity extends Activity {
 
 			@Override
 			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
-				return new CursorLoader(PhotoOverviewActivity.this, albumEntriesUri, adapter.requiredFields(), null, null, null);
+				return new CursorLoader(PhotoOverviewActivity.this, albumEntriesUri, adapter.requiredFields(), currentFilter, null, null);
 			}
 
 			@Override
@@ -516,8 +526,9 @@ public class PhotoOverviewActivity extends Activity {
 
 	private void openDetailView(final int position) {
 		final Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailViewActivity.class);
-		intent.putExtra("album_uri", albumEntriesUri.toString());
-		intent.putExtra("actPos", position);
+		intent.putExtra(PhotoDetailViewActivity.ALBUM_URI, albumEntriesUri.toString());
+		intent.putExtra(PhotoDetailViewActivity.ACTUAL_POS, position);
+		intent.putExtra(PhotoDetailViewActivity.CURRENT_FILTER, currentFilter);
 		startActivityForResult(intent, 1);
 	}
 
