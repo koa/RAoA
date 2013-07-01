@@ -231,16 +231,17 @@ public class PhotoOverviewActivity extends Activity {
 
 			}.execute();
 			final MenuItem searchClearItem = menu.findItem(R.id.photo_overview_clear_search_album);
+			final SearchView searchView = (SearchView) menu.findItem(R.id.photo_overview_search_album).getActionView();
 			searchClearItem.setVisible(currentFilter != null);
 			searchClearItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
 
 				@Override
 				public boolean onMenuItemClick(final MenuItem item) {
 					initLoaderWithFilter(null);
+					searchView.setQuery("", false);
 					return true;
 				}
 			});
-			final SearchView searchView = (SearchView) menu.findItem(R.id.photo_overview_search_album).getActionView();
 			if (currentFilter != null) {
 				final Criterium filter = Criterium.decodeString(currentFilter);
 				if (filter instanceof Compare) {
