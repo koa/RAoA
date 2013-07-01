@@ -80,6 +80,7 @@ import ch.bergturbenthal.raoa.provider.Client;
 import ch.bergturbenthal.raoa.provider.SortOrder;
 import ch.bergturbenthal.raoa.provider.SortOrderEntry.Order;
 import ch.bergturbenthal.raoa.provider.criterium.Criterium;
+import ch.bergturbenthal.raoa.provider.criterium.Value;
 import ch.bergturbenthal.raoa.provider.map.BooleanFieldReader;
 import ch.bergturbenthal.raoa.provider.map.FieldReader;
 import ch.bergturbenthal.raoa.provider.map.MapperUtil;
@@ -379,7 +380,21 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public Cursor readAlbumList(final String[] projection, final Criterium criterium, final SortOrder order) {
-		return makeCursorForAlbums(collectVisibleAlbums(), projection, true, criterium, order);
+		final Collection<AlbumIndex> visibleAlbumIndizes = collectVisibleAlbums();
+		final ArrayList<ch.bergturbenthal.raoa.util.Pair<String, String>> visibleAlbumPairs = new ArrayList<ch.bergturbenthal.raoa.util.Pair<String, String>>(visibleAlbumIndizes.size());
+		for (final AlbumIndex albumIndex : visibleAlbumIndizes) {
+			visibleAlbumPairs.add(new ch.bergturbenthal.raoa.util.Pair<String, String>(albumIndex.getArchiveName(), albumIndex.getAlbumId()));
+		}
+		final Criterium visibleCriterium = Criterium.in(Value.pair(Value.field(Client.Album.ARCHIVE_NAME), Value.field(Client.Album.ID)), Value.constant(visibleAlbumPairs));
+		final Criterium syncedCriterium = Criterium.eq(Value.field(Client.Album.SHOULD_SYNC), Value.constant(Integer.valueOf(1)));
+		final Criterium combinedEnabledCriterium = Criterium.or(visibleCriterium, syncedCriterium);
+		final Criterium queryCriterium;
+		if (criterium == null) {
+			queryCriterium = combinedEnabledCriterium;
+		} else {
+			queryCriterium = Criterium.and(combinedEnabledCriterium, criterium);
+		}
+		return makeCursorForAlbums(projection, queryCriterium, order);
 	}
 
 	@Override
@@ -539,7 +554,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public Cursor readSingleAlbum(final String archiveName, final String albumId, final String[] projection, final Criterium criterium, final SortOrder order) {
-		return makeCursorForAlbums(Collections.singletonList(new AlbumIndex(archiveName, albumId)), projection, false, criterium, order);
+		return makeCursorForAlbums(projection, criterium, order);
 	}
 
 	@Override
@@ -1180,28 +1195,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		}
 	}
 
-	private Cursor makeCursorForAlbums(	final Collection<AlbumIndex> visibleAlbums,
-																			final String[] projection,
-																			final boolean alsoSynced,
+	private Cursor makeCursorForAlbums(	final String[] projection,
 																			final Criterium criterium,
 																			final SortOrder order) throws SQLException {
 		final Map<AlbumIndex, AlbumMeta> loadedAlbums = new HashMap<AlbumIndex, AlbumMeta>();
-		if (alsoSynced) {
-			final Collection<AlbumIndex> entryNames = store.listAlbumMeta();
-			for (final AlbumIndex entry : entryNames) {
-				final AlbumMeta albumEntry = store.getAlbumMeta(entry, ReadPolicy.READ_ONLY);
-				final AlbumState albumState = store.getAlbumState(entry, ReadPolicy.READ_ONLY);
-				if (albumState == null || !albumState.isShouldSync()) {
-					continue;
-				}
-				loadedAlbums.put(entry, albumEntry);
-			}
-		}
-		for (final AlbumIndex visibleAlbumIndex : visibleAlbums) {
-			final AlbumMeta visibleAlbum = store.getAlbumMeta(new AlbumIndex(visibleAlbumIndex.getArchiveName(), visibleAlbumIndex.getAlbumId()), ReadPolicy.READ_ONLY);
-			if (visibleAlbum != null) {
-				loadedAlbums.put(visibleAlbumIndex, visibleAlbum);
-			}
+		final Collection<AlbumIndex> entryNames = store.listAlbumMeta();
+		for (final AlbumIndex entry : entryNames) {
+			final AlbumMeta albumEntry = store.getAlbumMeta(entry, ReadPolicy.READ_ONLY);
+			loadedAlbums.put(entry, albumEntry);
 		}
 		final ArrayList<AlbumMeta> albums = new ArrayList<AlbumMeta>(loadedAlbums.values());
 		final Lookup<AlbumIndex, AlbumState> albumStateLoader = LazyLoader.loadLazy(new Lookup<AlbumIndex, AlbumState>() {

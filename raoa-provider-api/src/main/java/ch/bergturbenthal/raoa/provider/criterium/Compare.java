@@ -7,7 +7,7 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class Compare extends Criterium {
 	public enum Operator {
-		CONTAINS, EQUALS, GE, GT, LE, LT, MATCH
+		CONTAINS, EQUALS, GE, GT, IN, LE, LT, MATCH
 	}
 
 	private Value op1;
@@ -41,6 +41,8 @@ public class Compare extends Criterium {
 		case MATCH:
 		case CONTAINS:
 			return op1 + " =~ " + op2;
+		case IN:
+			return op1 + " in " + op2;
 		}
 		return null;
 	}

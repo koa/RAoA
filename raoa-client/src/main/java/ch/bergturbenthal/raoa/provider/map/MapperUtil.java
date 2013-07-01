@@ -5,6 +5,7 @@ import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -22,9 +23,11 @@ import ch.bergturbenthal.raoa.provider.SortOrderEntry.Order;
 import ch.bergturbenthal.raoa.provider.criterium.Compare;
 import ch.bergturbenthal.raoa.provider.criterium.Constant;
 import ch.bergturbenthal.raoa.provider.criterium.Criterium;
+import ch.bergturbenthal.raoa.provider.criterium.PairValue;
 import ch.bergturbenthal.raoa.provider.criterium.Value;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
+import ch.bergturbenthal.raoa.util.Pair;
 
 public class MapperUtil {
 	private static class IndexedOderEntry {
@@ -371,6 +374,8 @@ public class MapperUtil {
 				return match(v1, v2);
 			case CONTAINS:
 				return contains(v1, v2);
+			case IN:
+				return in(v1, v2);
 			}
 		}
 		if (criterium instanceof ch.bergturbenthal.raoa.provider.criterium.Boolean) {
@@ -413,6 +418,24 @@ public class MapperUtil {
 		return v1.equals(v2);
 	}
 
+	/**
+	 * @param v1
+	 * @param v2
+	 * @return
+	 */
+	private static boolean in(final Object v1, final Object v2) {
+		if (v2 == null) {
+			return false;
+		}
+		if (v2 instanceof Collection) {
+			return ((Collection) v2).contains(v1);
+		}
+		if (v2.getClass().isArray()) {
+			return Arrays.asList((Object[]) v2).contains(v1);
+		}
+		return eq(v1, v2);
+	}
+
 	private static boolean match(final Object value, final Object pattern) {
 		final String valueStr = String.valueOf(value);
 		final String patternStr = String.valueOf(pattern);
@@ -426,6 +449,10 @@ public class MapperUtil {
 		if (v instanceof ch.bergturbenthal.raoa.provider.criterium.Field) {
 			final ch.bergturbenthal.raoa.provider.criterium.Field field = (ch.bergturbenthal.raoa.provider.criterium.Field) v;
 			return columnLookup.get(field.getFieldName());
+		}
+		if (v instanceof PairValue) {
+			final PairValue pairValue = (PairValue) v;
+			return new Pair<Object, Object>(readValue(pairValue.getV1(), columnLookup), readValue(pairValue.getV2(), columnLookup));
 		}
 		return null;
 	}
