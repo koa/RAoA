@@ -398,8 +398,8 @@ public class MapperUtil {
 	}
 
 	private static boolean contains(final Object value, final Object pattern) {
-		final String valueStr = String.valueOf(value);
-		final String patternStr = String.valueOf(pattern);
+		final String valueStr = String.valueOf(value).toLowerCase();
+		final String patternStr = String.valueOf(pattern).toLowerCase();
 		return valueStr.indexOf(patternStr) >= 0;
 	}
 
