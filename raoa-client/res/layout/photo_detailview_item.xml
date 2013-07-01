@@ -65,5 +65,11 @@
             android:text="@string/photo_detailview_button_select_tag" />
 
     </LinearLayout>
-
+    <ImageView
+        android:id="@+id/photo_view_play_video_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:src="@drawable/ic_play_icon" />
+    
 </FrameLayout>

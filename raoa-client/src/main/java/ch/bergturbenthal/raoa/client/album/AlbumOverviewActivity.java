@@ -105,7 +105,7 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 
 	private List<ViewHandler<? extends View>> makeViewHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		ret.add(new PhotoViewHandler(R.id.album_item_image, Client.Album.THUMBNAIL, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
+		ret.add(new PhotoViewHandler(R.id.album_item_image, Client.Album.THUMBNAIL, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width), 0));
 		ret.add(new TextViewHandler(R.id.album_item_name, Client.Album.TITLE));
 		// ret.add(new TextViewHandler(R.id.album_item_size, Client.Album.ENTRY_COUNT));
 		ret.add(new AbstractViewHandler<TextView>(R.id.album_item_size) {

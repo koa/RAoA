@@ -53,6 +53,7 @@ import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.util.KeywordUtil;
 import ch.bergturbenthal.raoa.provider.Client;
+import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryType;
 
 public class PhotoDetailViewActivity extends Activity {
 
@@ -282,8 +283,38 @@ public class PhotoDetailViewActivity extends Activity {
 
 	private ArrayList<ViewHandler<? extends View>> makeHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL_ALIAS, PhotoViewHandler.FULLSCREEN_CALCULATOR));
-		ret.add(new AbstractViewHandler<View>(R.id.FrameLayout1) {
+		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL_ALIAS, PhotoViewHandler.FULLSCREEN_CALCULATOR, 0));
+		ret.add(makeTagButtonsViewHandler());
+		ret.add(new AbstractViewHandler<View>(R.id.photo_view_play_video_button) {
+
+			@Override
+			public void bindView(final View view, final Context context, final Map<String, Object> values) {
+				final boolean isVideo = values.get(Client.AlbumEntry.ENTRY_TYPE).equals(AlbumEntryType.VIDEO.name());
+				if (isVideo) {
+					view.setVisibility(View.VISIBLE);
+					final String thumbnail = (String) values.get(Client.AlbumEntry.THUMBNAIL_ALIAS);
+					view.setOnClickListener(new OnClickListener() {
+
+						@Override
+						public void onClick(final View v) {
+							startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(thumbnail)));
+						}
+					});
+				} else {
+					view.setVisibility(View.INVISIBLE);
+				}
+			}
+
+			@Override
+			public String[] usedFields() {
+				return new String[] { Client.AlbumEntry.ENTRY_TYPE, Client.AlbumEntry.THUMBNAIL_ALIAS };
+			}
+		});
+		return ret;
+	}
+
+	private AbstractViewHandler<View> makeTagButtonsViewHandler() {
+		return new AbstractViewHandler<View>(R.id.FrameLayout1) {
 
 			@Override
 			public void bindView(final View view, final Context context, final Map<String, Object> values) {
@@ -421,8 +452,7 @@ public class PhotoDetailViewActivity extends Activity {
 			public String[] usedFields() {
 				return new String[] { Client.AlbumEntry.META_KEYWORDS, Client.AlbumEntry.ENTRY_URI };
 			}
-		});
-		return ret;
+		};
 	}
 
 	private void placeNewTag(final String text) {

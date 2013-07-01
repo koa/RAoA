@@ -86,11 +86,13 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 	private final TargetSizeCalculator targetSizeCalculator;
 	private final Executor THREAD_POOL_EXECUTOR = new ThreadPoolExecutor(5, 15, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1000));
 	private final String uriColumn;
+	private final int videoPlayButtonId;
 
-	public PhotoViewHandler(final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator) {
+	public PhotoViewHandler(final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator, final int videoPlayButtonId) {
 		super(viewId);
 		this.uriColumn = uriColumn;
 		this.targetSizeCalculator = targetSizeCalculator;
+		this.videoPlayButtonId = videoPlayButtonId;
 	}
 
 	@Override
@@ -123,7 +125,6 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 		final AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
 
 			private Bitmap bitmap;
-			private final boolean isDetailView = false;
 
 			@Override
 			protected Void doInBackground(final Void... params) {

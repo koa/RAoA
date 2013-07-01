@@ -544,7 +544,7 @@ public class PhotoOverviewActivity extends Activity {
 	 */
 	private Collection<ViewHandler<? extends View>> makeHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL_ALIAS, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width)));
+		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL_ALIAS, new PhotoViewHandler.DimensionCalculator(R.dimen.image_width), 0));
 		ret.add(new TextViewHandler(R.id.photo_name, Client.AlbumEntry.NAME));
 		ret.add(new AbstractViewHandler<View>(R.id.photos_overview_grid_item) {
 
