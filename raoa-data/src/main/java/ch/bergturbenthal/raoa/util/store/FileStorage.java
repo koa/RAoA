@@ -61,10 +61,19 @@ public class FileStorage {
 						for (final Entry<Pair<Class<Object>, String>, Object> entry : referencedObjects.entrySet()) {
 							final Object value = entry.getValue();
 							final Pair<Class<Object>, String> key = entry.getKey();
+							final Map<String, Object> primaryCache = readOnlyPrimaryCache.get(key.getFirst());
+							final String path = key.getSecond();
 							if (value == null) {
 								readOnlySecondCache.remove(key);
+								if (primaryCache != null) {
+									primaryCache.remove(path);
+								}
 							} else {
 								readOnlySecondCache.put(key, new WeakReference<Object>(value));
+								if (primaryCache != null && primaryCache.containsKey(path)) {
+									primaryCache.put(path, value);
+								}
+
 							}
 						}
 					} else {
@@ -138,15 +147,6 @@ public class FileStorage {
 		}
 	}
 
-	private int currentCacheSize;
-
-	private final ThreadLocal<Transaction> currentTransaction = new ThreadLocal<Transaction>();
-	private Map<Class<Object>, Map<String, Object>> readOnlyPrimaryCache;
-
-	private final Map<Pair<Class<Object>, String>, WeakReference<Object>> readOnlySecondCache = new ConcurrentHashMap<Pair<Class<Object>, String>, WeakReference<Object>>();
-
-	private final Map<Class<?>, FileBackend<?>> registeredBackends = new HashMap<Class<?>, FileBackend<?>>();
-
 	/**
 	 * @param <T>
 	 * @param lastModified
@@ -162,6 +162,15 @@ public class FileStorage {
 		}
 		return v1.equals(v2);
 	}
+
+	private int currentCacheSize;
+	private final ThreadLocal<Transaction> currentTransaction = new ThreadLocal<Transaction>();
+
+	private Map<Class<Object>, Map<String, Object>> readOnlyPrimaryCache;
+
+	private final Map<Pair<Class<Object>, String>, WeakReference<Object>> readOnlySecondCache = new ConcurrentHashMap<Pair<Class<Object>, String>, WeakReference<Object>>();
+
+	private final Map<Class<?>, FileBackend<?>> registeredBackends = new HashMap<Class<?>, FileBackend<?>>();
 
 	public FileStorage(final Collection<FileBackend<?>> backends) {
 		for (final FileBackend<?> fileBackend : backends) {
