@@ -380,12 +380,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public Cursor readAlbumList(final String[] projection, final Criterium criterium, final SortOrder order) {
-		final Collection<AlbumIndex> visibleAlbumIndizes = collectVisibleAlbums();
-		final ArrayList<ch.bergturbenthal.raoa.util.Pair<String, String>> visibleAlbumPairs = new ArrayList<ch.bergturbenthal.raoa.util.Pair<String, String>>(visibleAlbumIndizes.size());
-		for (final AlbumIndex albumIndex : visibleAlbumIndizes) {
-			visibleAlbumPairs.add(new ch.bergturbenthal.raoa.util.Pair<String, String>(albumIndex.getArchiveName(), albumIndex.getAlbumId()));
-		}
-		final Criterium visibleCriterium = Criterium.in(Value.pair(Value.field(Client.Album.ARCHIVE_NAME), Value.field(Client.Album.ID)), Value.constant(visibleAlbumPairs));
+		final Criterium visibleCriterium = Criterium.ge(Value.field(Client.Album.VISIBLE_SERVER_COUNT), Value.constant(Integer.valueOf(1)));
 		final Criterium syncedCriterium = Criterium.eq(Value.field(Client.Album.SHOULD_SYNC), Value.constant(Integer.valueOf(1)));
 		final Criterium combinedEnabledCriterium = Criterium.or(visibleCriterium, syncedCriterium);
 		final Criterium queryCriterium;
@@ -554,7 +549,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public Cursor readSingleAlbum(final String archiveName, final String albumId, final String[] projection, final Criterium criterium, final SortOrder order) {
-		return makeCursorForAlbums(projection, criterium, order);
+		final Criterium entryCriterium = Criterium.and(	Criterium.eq(Value.field(Client.Album.ARCHIVE_NAME), Value.constant(archiveName)),
+																										Criterium.eq(Value.field(Client.Album.ID), Value.constant(albumId)));
+		final Criterium queryCriterium;
+		if (criterium == null) {
+			queryCriterium = entryCriterium;
+		} else {
+			queryCriterium = Criterium.and(entryCriterium, criterium);
+		}
+		return makeCursorForAlbums(projection, queryCriterium, order);
 	}
 
 	@Override
@@ -1195,9 +1198,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		}
 	}
 
-	private Cursor makeCursorForAlbums(	final String[] projection,
-																			final Criterium criterium,
-																			final SortOrder order) throws SQLException {
+	private Cursor makeCursorForAlbums(final String[] projection, final Criterium criterium, final SortOrder order) throws SQLException {
 		final Map<AlbumIndex, AlbumMeta> loadedAlbums = new HashMap<AlbumIndex, AlbumMeta>();
 		final Collection<AlbumIndex> entryNames = store.listAlbumMeta();
 		for (final AlbumIndex entry : entryNames) {
@@ -1211,7 +1212,21 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return store.getAlbumState(key, ReadPolicy.READ_ONLY);
 			}
 		});
+		final LazyLoader.Callable<Collection<AlbumIndex>> visibleAlbumsLoader = LazyLoader.loadLazy(new LazyLoader.Callable<Collection<AlbumIndex>>() {
+			@Override
+			public Collection<AlbumIndex> call() {
+				return collectVisibleAlbums();
+			}
+		});
 		final Map<String, FieldReader<AlbumMeta>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumMeta.class);
+		fieldReaders.put(Client.Album.VISIBLE_SERVER_COUNT, new NumericFieldReader<AlbumMeta>(Cursor.FIELD_TYPE_INTEGER) {
+
+			@Override
+			public Number getNumber(final AlbumMeta value) {
+				final AlbumIndex index = new AlbumIndex(value.getArchiveName(), value.getAlbumId());
+				return Integer.valueOf(visibleAlbumsLoader.call().contains(index) ? 1 : 0);
+			}
+		});
 		fieldReaders.put(Client.Album.THUMBNAIL, new StringFieldReader<AlbumMeta>() {
 			@Override
 			public String getString(final AlbumMeta value) {

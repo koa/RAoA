@@ -34,6 +34,7 @@ public class Client {
 		public static final String THUMBNAIL = "thumbnail";
 		public static final String THUMBNAILS_SIZE = "thumbnailsSize";
 		public static final String TITLE = "title";
+		public static final String VISIBLE_SERVER_COUNT = "visibleServerCount";
 
 		public static Collection<String> decodeStorages(final String storagesValue) {
 			return decodeArray(storagesValue);

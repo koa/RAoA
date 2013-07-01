@@ -13,6 +13,10 @@ import android.util.LruCache;
  * 
  */
 public class LazyLoader {
+	public static interface Callable<V> {
+		V call();
+	}
+
 	public static interface Lookup<K, V> {
 		V get(final K key);
 	}
@@ -30,6 +34,40 @@ public class LazyLoader {
 			@Override
 			public V get(final K key) {
 				return cache.get(key);
+			}
+		};
+	}
+
+	public static <V> Callable<V> loadLazy(final Callable<V> loader) {
+		return new Callable<V>() {
+
+			private boolean alreadyLoaded = false;
+			private V result;
+
+			@Override
+			public V call() {
+				if (!alreadyLoaded) {
+					result = loader.call();
+					alreadyLoaded = true;
+				}
+				return result;
+			}
+		};
+	}
+
+	public static <V> java.util.concurrent.Callable<V> loadLazy(final java.util.concurrent.Callable<V> loader) {
+		return new java.util.concurrent.Callable<V>() {
+
+			private boolean alreadyLoaded = false;
+			private V result;
+
+			@Override
+			public V call() throws Exception {
+				if (!alreadyLoaded) {
+					result = loader.call();
+					alreadyLoaded = true;
+				}
+				return result;
 			}
 		};
 	}
