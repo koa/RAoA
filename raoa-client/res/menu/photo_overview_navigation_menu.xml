@@ -2,10 +2,22 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android" >
 
     <item
+        android:id="@+id/photo_overview_search_album"
+        android:actionViewClass="android.widget.SearchView"
+        android:icon="@drawable/ic_menu_search"
+        android:showAsAction="ifRoom"
+        android:title="@android:string/search_go"/>
+    <item
+        android:id="@+id/photo_overview_clear_search_album"
+        android:icon="@drawable/ic_action_photo_overview_clear_search" android:showAsAction="ifRoom">
+    </item>
+    <item
         android:id="@+id/photo_overview_share_album"
         android:icon="@drawable/ic_action_share"
-        android:title="@string/photo_overview_menu_share_title" android:showAsAction="ifRoom">
-        <menu></menu>
+        android:showAsAction="ifRoom"
+        android:title="@string/photo_overview_menu_share_title">
+        <menu>
+        </menu>
     </item>
 
 </menu>

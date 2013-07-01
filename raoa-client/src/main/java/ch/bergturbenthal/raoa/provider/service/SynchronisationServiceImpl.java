@@ -123,15 +123,18 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private final static String SERVICE_TAG = "Synchronisation Service";
 	private static final String THUMBNAIL_SUFFIX = ".thumbnail";
 
+	private static int dateCompare(final Date date1, final Date date2) {
+		return (date1 == null ? new Date(0) : date1).compareTo(date2 == null ? new Date(0) : date2);
+	}
+
 	// Binder given to clients
 	private final IBinder binder = new LocalBinder();
 
 	private final AtomicReference<Map<String, ArchiveConnection>> connectionMap = new AtomicReference<Map<String, ArchiveConnection>>(Collections.<String, ArchiveConnection> emptyMap());
-
 	private final CursorNotification cursorNotifications = new CursorNotification();
 	private File dataDir;
-	private MDnsListener dnsListener;
 
+	private MDnsListener dnsListener;
 	private ScheduledThreadPoolExecutor executorService;
 	private ScheduledFuture<?> fastUpdatePollingFuture;
 	private final LruCache<String, Long> idCache = new LruCache<String, Long>(100) {
@@ -147,9 +150,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private final int NOTIFICATION = 0;
 	private NotificationManager notificationManager;
 	private final Semaphore pollServerSemaphore = new Semaphore(1);
-	private final AtomicBoolean running = new AtomicBoolean(false);
 
+	private final AtomicBoolean running = new AtomicBoolean(false);
 	private ScheduledFuture<?> slowUpdatePollingFuture = null;
+
 	private LocalStore store;
 
 	private File tempDir;
@@ -167,10 +171,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private final ConcurrentMap<String, ConcurrentMap<String, String>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, String>>();
 
 	private ExecutorService wrappedExecutorService;
-
-	private static int dateCompare(final Date date1, final Date date2) {
-		return (date1 == null ? new Date(0) : date1).compareTo(date2 == null ? new Date(0) : date2);
-	}
 
 	@Override
 	public void createAlbumOnServer(final String serverId, final String fullAlbumName, final Date autoAddDate) {
@@ -1731,13 +1731,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 									final String newVersion = foundStorages.getVersion();
 									for (final AlbumIndex album : store.listAlbumMeta()) {
 										final AlbumMutationData mutationData = store.getAlbumMutationData(album, ReadPolicy.READ_IF_EXISTS);
-										for (final Iterator<Mutation> mutationIterator = mutationData.getMutations().iterator();;) {
-											final Mutation mutation = mutationIterator.next();
-											if (mutation instanceof MetadataMutation) {
-												final MetadataMutation metaMutation = (MetadataMutation) mutation;
-												if (!metaMutation.getMetadataVersion().equals(newVersion)) {
-													cursorNotifications.notifySingleAlbumCursorChanged(album);
-													mutationIterator.remove();
+										if (mutationData != null) {
+											for (final Iterator<Mutation> mutationIterator = mutationData.getMutations().iterator();;) {
+												final Mutation mutation = mutationIterator.next();
+												if (mutation instanceof MetadataMutation) {
+													final MetadataMutation metaMutation = (MetadataMutation) mutation;
+													if (!metaMutation.getMetadataVersion().equals(newVersion)) {
+														cursorNotifications.notifySingleAlbumCursorChanged(album);
+														mutationIterator.remove();
+													}
 												}
 											}
 										}

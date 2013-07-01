@@ -37,6 +37,8 @@ import android.widget.AdapterView.OnItemClickListener;
 import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.EditText;
 import android.widget.GridView;
+import android.widget.SearchView;
+import android.widget.SearchView.OnQueryTextListener;
 import android.widget.ShareActionProvider;
 import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.album.AlbumOverviewActivity;
@@ -48,6 +50,12 @@ import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.util.KeywordUtil;
 import ch.bergturbenthal.raoa.client.util.SimpleAsync;
 import ch.bergturbenthal.raoa.provider.Client;
+import ch.bergturbenthal.raoa.provider.criterium.Compare;
+import ch.bergturbenthal.raoa.provider.criterium.Compare.Operator;
+import ch.bergturbenthal.raoa.provider.criterium.Constant;
+import ch.bergturbenthal.raoa.provider.criterium.Criterium;
+import ch.bergturbenthal.raoa.provider.criterium.Field;
+import ch.bergturbenthal.raoa.provider.criterium.Value;
 
 public class PhotoOverviewActivity extends Activity {
 	private static class EntryValues {
@@ -64,15 +72,7 @@ public class PhotoOverviewActivity extends Activity {
 	}
 
 	private static final String CURR_ITEM_INDEX = "currentItemIndex";
-
-	/**
-	 * 
-	 */
 	private static final String MODE_KEY = PhotoOverviewActivity.class.getName() + "-mode";
-
-	/**
-	 * 
-	 */
 	private static final String SELECTION_KEY = PhotoOverviewActivity.class.getName() + "-selection";
 
 	private Uri albumEntriesUri;
@@ -230,6 +230,45 @@ public class PhotoOverviewActivity extends Activity {
 				}
 
 			}.execute();
+			final MenuItem searchClearItem = menu.findItem(R.id.photo_overview_clear_search_album);
+			searchClearItem.setVisible(currentFilter != null);
+			searchClearItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+
+				@Override
+				public boolean onMenuItemClick(final MenuItem item) {
+					initLoaderWithFilter(null);
+					return true;
+				}
+			});
+			final SearchView searchView = (SearchView) menu.findItem(R.id.photo_overview_search_album).getActionView();
+			if (currentFilter != null) {
+				final Criterium filter = Criterium.decodeString(currentFilter);
+				if (filter instanceof Compare) {
+					final Compare comp = (Compare) filter;
+					final Value op1 = comp.getOp1();
+					final Value op2 = comp.getOp2();
+					if (op1 instanceof Field && ((Field) op1).getFieldName().equals(Client.AlbumEntry.META_KEYWORDS)
+							&& comp.getOperator() == Operator.CONTAINS
+							&& op2 instanceof Constant) {
+						final String value = (String) ((Constant) op2).getValue();
+						searchView.setQuery(value, false);
+						searchView.setIconified(false);
+					}
+				}
+			}
+			searchView.setOnQueryTextListener(new OnQueryTextListener() {
+
+				@Override
+				public boolean onQueryTextChange(final String newText) {
+					return false;
+				}
+
+				@Override
+				public boolean onQueryTextSubmit(final String query) {
+					initLoaderWithFilter(Criterium.contains(new Field(Client.AlbumEntry.META_KEYWORDS), new Constant(query.trim())).makeString());
+					return true;
+				}
+			});
 			break;
 		}
 
@@ -291,47 +330,10 @@ public class PhotoOverviewActivity extends Activity {
 			}
 		}
 
-		final ComplexCursorAdapter adapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
-																																																																		Client.AlbumEntry.META_KEYWORDS,
-																																																																		Client.AlbumEntry.THUMBNAIL_ALIAS });
-		getLoaderManager().initLoader(0, null, new LoaderCallbacks<Cursor>() {
-
-			@Override
-			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
-				return new CursorLoader(PhotoOverviewActivity.this, albumEntriesUri, adapter.requiredFields(), currentFilter, null, null);
-			}
-
-			@Override
-			public void onLoaderReset(final Loader<Cursor> loader) {
-				adapter.swapCursor(null);
-			}
-
-			@Override
-			public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
-				final Collection<String> oldSelectedEntries = new HashSet<String>(selectedEntries.keySet());
-				selectedEntries.clear();
-				try {
-					if (data == null || !data.moveToFirst()) {
-						return;
-					}
-					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
-					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
-					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL_ALIAS);
-					do {
-						final String uri = data.getString(entryColumn);
-						if (oldSelectedEntries.contains(uri)) {
-							selectedEntries.put(uri, makeEntry(data.getString(keywordsColumn), data.getString(thumbnailColumn)));
-						}
-					} while (data.moveToNext());
-				} finally {
-					adapter.swapCursor(data);
-					invalidateOptionsMenu();
-				}
-			}
-		});
-
-		// Create an empty adapter we will use to display the loaded data.
-		cursorAdapter = adapter;
+		cursorAdapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
+																																																								Client.AlbumEntry.META_KEYWORDS,
+																																																								Client.AlbumEntry.THUMBNAIL_ALIAS });
+		initLoaderWithFilter(null);
 
 		gridview = (GridView) findViewById(R.id.photo_overview);
 		gridview.setAdapter(cursorAdapter);
@@ -420,6 +422,45 @@ public class PhotoOverviewActivity extends Activity {
 				}
 			}
 		}.execute();
+	}
+
+	private void initLoaderWithFilter(final String filter) {
+		currentFilter = filter;
+		getLoaderManager().restartLoader(0, null, new LoaderCallbacks<Cursor>() {
+
+			@Override
+			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
+				return new CursorLoader(PhotoOverviewActivity.this, albumEntriesUri, cursorAdapter.requiredFields(), currentFilter, null, null);
+			}
+
+			@Override
+			public void onLoaderReset(final Loader<Cursor> loader) {
+				cursorAdapter.swapCursor(null);
+			}
+
+			@Override
+			public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
+				final Collection<String> oldSelectedEntries = new HashSet<String>(selectedEntries.keySet());
+				selectedEntries.clear();
+				try {
+					if (data == null || !data.moveToFirst()) {
+						return;
+					}
+					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
+					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
+					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL_ALIAS);
+					do {
+						final String uri = data.getString(entryColumn);
+						if (oldSelectedEntries.contains(uri)) {
+							selectedEntries.put(uri, makeEntry(data.getString(keywordsColumn), data.getString(thumbnailColumn)));
+						}
+					} while (data.moveToNext());
+				} finally {
+					cursorAdapter.swapCursor(data);
+					invalidateOptionsMenu();
+				}
+			}
+		});
 	}
 
 	private void loadAlbumEntry(final Uri albumUri) {
