@@ -1,5 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <artifactId>raoa-server</artifactId>
   <packaging>jar</packaging>
@@ -130,6 +129,11 @@
       <artifactId>spring-web</artifactId>
       <version>3.2.1.RELEASE</version>
     </dependency>
+    <dependency>
+      <groupId>com.googlecode.mp4parser</groupId>
+      <artifactId>isoparser</artifactId>
+      <version>1.0-RC-15</version>
+    </dependency>
   </dependencies>
 
   <repositories>
@@ -149,6 +153,16 @@
       <testResource>
         <directory>src/test/resources</directory>
         <filtering>true</filtering>
+        <excludes>
+          <exclude>*.MP4</exclude>
+        </excludes>
+      </testResource>
+      <testResource>
+        <directory>src/test/resources</directory>
+        <filtering>false</filtering>
+        <includes>
+          <include>*.MP4</include>
+        </includes>
       </testResource>
     </testResources>
     <plugins>
@@ -163,8 +177,7 @@
     </plugins>
     <pluginManagement>
       <plugins>
-        <!--This plugin's configuration is used to store Eclipse m2e settings 
-          only. It has no influence on the Maven build itself. -->
+        <!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself. -->
         <plugin>
           <groupId>org.eclipse.m2e</groupId>
           <artifactId>lifecycle-mapping</artifactId>
