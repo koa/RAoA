@@ -130,10 +130,10 @@
       <version>3.2.1.RELEASE</version>
     </dependency>
     <dependency>
-      <groupId>com.googlecode.mp4parser</groupId>
-      <artifactId>isoparser</artifactId>
-      <version>1.0-RC-15</version>
-    </dependency>
+      <groupId>org.jcodec</groupId>
+      <artifactId>jcodec</artifactId>
+      <version>0.1.6-KOA</version>
+    </dependency>  
   </dependencies>
 
   <repositories>
@@ -154,14 +154,16 @@
         <directory>src/test/resources</directory>
         <filtering>true</filtering>
         <excludes>
-          <exclude>*.MP4</exclude>
+          <exclude>DCIM/*.MP4</exclude>
+          <exclude>photos/testalbum/*</exclude>
         </excludes>
       </testResource>
       <testResource>
         <directory>src/test/resources</directory>
         <filtering>false</filtering>
         <includes>
-          <include>*.MP4</include>
+          <include>DCIM/*.MP4</include>
+          <include>photos/testalbum/*</include>
         </includes>
       </testResource>
     </testResources>
