@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 import org.apache.commons.collections.map.LRUMap;
@@ -147,6 +148,17 @@ public class FileStorage {
 		}
 	}
 
+	private static Logger logger = Logger.getLogger(FileStorage.class.getName());
+
+	private int currentCacheSize;
+
+	private final ThreadLocal<Transaction> currentTransaction = new ThreadLocal<Transaction>();
+	private Map<Class<Object>, Map<String, Object>> readOnlyPrimaryCache;
+
+	private final Map<Pair<Class<Object>, String>, WeakReference<Object>> readOnlySecondCache = new ConcurrentHashMap<Pair<Class<Object>, String>, WeakReference<Object>>();
+
+	private final Map<Class<?>, FileBackend<?>> registeredBackends = new HashMap<Class<?>, FileBackend<?>>();
+
 	/**
 	 * @param <T>
 	 * @param lastModified
@@ -162,15 +174,6 @@ public class FileStorage {
 		}
 		return v1.equals(v2);
 	}
-
-	private int currentCacheSize;
-	private final ThreadLocal<Transaction> currentTransaction = new ThreadLocal<Transaction>();
-
-	private Map<Class<Object>, Map<String, Object>> readOnlyPrimaryCache;
-
-	private final Map<Pair<Class<Object>, String>, WeakReference<Object>> readOnlySecondCache = new ConcurrentHashMap<Pair<Class<Object>, String>, WeakReference<Object>>();
-
-	private final Map<Class<?>, FileBackend<?>> registeredBackends = new HashMap<Class<?>, FileBackend<?>>();
 
 	public FileStorage(final Collection<FileBackend<?>> backends) {
 		for (final FileBackend<?> fileBackend : backends) {
@@ -257,6 +260,7 @@ public class FileStorage {
 		if (primaryTypeCache != null) {
 			final D valueFromPrimaryCache = (D) primaryTypeCache.get(relativePath);
 			if (valueFromPrimaryCache != null) {
+				logger.info("Primary Cache: " + relativePath);
 				return valueFromPrimaryCache;
 			}
 		}
@@ -268,14 +272,17 @@ public class FileStorage {
 				if (primaryTypeCache != null) {
 					primaryTypeCache.put(relativePath, valueFromSecondaryCache);
 				}
+				logger.info("Secondary Cache: " + relativePath);
 				return valueFromSecondaryCache;
 			}
 		}
 		synchronized (readOnlySecondCache) {
 			final WeakReference<D> betweenLoadedEntry = (WeakReference<D>) readOnlySecondCache.get(key);
 			if (betweenLoadedEntry != null && betweenLoadedEntry.get() != null) {
+				logger.info("Secondary Cache: " + relativePath);
 				return betweenLoadedEntry.get();
 			}
+			logger.info("No Cache: " + relativePath);
 			final D loaded = getBackend(type).load(relativePath);
 			readOnlySecondCache.put(key, new WeakReference<Object>(loaded));
 			if (primaryTypeCache != null) {

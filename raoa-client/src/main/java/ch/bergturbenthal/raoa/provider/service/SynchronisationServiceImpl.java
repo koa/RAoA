@@ -1,7 +1,9 @@
 package ch.bergturbenthal.raoa.provider.service;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileFilter;
+import java.io.IOException;
 import java.net.ConnectException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -124,18 +126,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private final static String SERVICE_TAG = "Synchronisation Service";
 	private static final String THUMBNAIL_SUFFIX = ".thumbnail";
 
-	private static int dateCompare(final Date date1, final Date date2) {
-		return (date1 == null ? new Date(0) : date1).compareTo(date2 == null ? new Date(0) : date2);
-	}
-
 	// Binder given to clients
 	private final IBinder binder = new LocalBinder();
 
 	private final AtomicReference<Map<String, ArchiveConnection>> connectionMap = new AtomicReference<Map<String, ArchiveConnection>>(Collections.<String, ArchiveConnection> emptyMap());
+
 	private final CursorNotification cursorNotifications = new CursorNotification();
 	private File dataDir;
-
 	private MDnsListener dnsListener;
+
 	private ScheduledThreadPoolExecutor executorService;
 	private ScheduledFuture<?> fastUpdatePollingFuture;
 	private final LruCache<String, Long> idCache = new LruCache<String, Long>(100) {
@@ -151,10 +150,9 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private final int NOTIFICATION = 0;
 	private NotificationManager notificationManager;
 	private final Semaphore pollServerSemaphore = new Semaphore(1);
-
 	private final AtomicBoolean running = new AtomicBoolean(false);
-	private ScheduledFuture<?> slowUpdatePollingFuture = null;
 
+	private ScheduledFuture<?> slowUpdatePollingFuture = null;
 	private LocalStore store;
 
 	private File tempDir;
@@ -172,6 +170,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private final ConcurrentMap<String, ConcurrentMap<String, String>> visibleAlbums = new ConcurrentHashMap<String, ConcurrentMap<String, String>>();
 
 	private ExecutorService wrappedExecutorService;
+
+	private static int dateCompare(final Date date1, final Date date2) {
+		return (date1 == null ? new Date(0) : date1).compareTo(date2 == null ? new Date(0) : date2);
+	}
 
 	@Override
 	public void createAlbumOnServer(final String serverId, final String fullAlbumName, final Date autoAddDate) {
@@ -813,6 +815,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		});
 	}
 
+	private void closeIfCloseable(final Object object) {
+		if (object instanceof Closeable) {
+			try {
+				((Closeable) object).close();
+			} catch (final IOException e) {
+				throw new RuntimeException("Cannot close " + object, e);
+			}
+		}
+
+	}
+
 	private Collection<AlbumIndex> collectVisibleAlbums() {
 		final Collection<AlbumIndex> ret = new LinkedHashSet<AlbumIndex>();
 		for (final Entry<String, ConcurrentMap<String, String>> archiveEntry : visibleAlbums.entrySet()) {
@@ -1081,7 +1094,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	private SortOrder makeAlbumDefaultSortOrder() {
 		final SortOrder defaultSortOrder = new SortOrder();
-		defaultSortOrder.addOrder(Client.Album.ALBUM_CAPTURE_DATE, Order.DESC);
+		// defaultSortOrder.addOrder(Client.Album.ALBUM_CAPTURE_DATE, Order.DESC);
 		defaultSortOrder.addOrder(Client.Album.NAME, Order.ASC);
 		return defaultSortOrder;
 	}
@@ -1194,6 +1207,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			}
 			return cursor;
 		} finally {
+			closeIfCloseable(albumEntryLookup);
+			closeIfCloseable(albumEntriesLazyLoader);
 			// Log.i(SERVICE_TAG, "Returning");
 		}
 	}
