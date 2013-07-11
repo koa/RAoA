@@ -125,13 +125,18 @@ public class Client {
 	public static final String PARAMETER_FULL_ALBUM_NAME = "fullAlbumName";
 	public static final Uri SERVER_URI;
 	public static final Uri STORAGE_URI;
+	private static final String ALBUM_URI_STRING;
 	private static final ObjectMapper mapper = new ObjectMapper();
 	private static final CollectionType stringListType = CollectionType.construct(List.class, SimpleType.construct(String.class));
+	private final ContentResolver provider;
+
 	static {
 		ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
 		SERVER_URI = Uri.parse("content://" + AUTHORITY + "/servers");
 		KEYWORDS_URI = Uri.parse("content://" + AUTHORITY + "/keywords");
 		STORAGE_URI = Uri.parse("content://" + AUTHORITY + "/storages");
+
+		ALBUM_URI_STRING = ALBUM_URI.toString();
 	}
 
 	public static Uri makeAlbumEntriesUri(final String archiveName, final String albumId) {
@@ -140,6 +145,10 @@ public class Client {
 		builder.appendPath(albumId);
 		builder.appendPath("entries");
 		return builder.build();
+	}
+
+	public static String makeAlbumEntryString(final String archiveName, final String albumId, final String albumEntryId) {
+		return ALBUM_URI_STRING + "/" + archiveName + "/" + albumId + "/entries/" + albumEntryId;
 	}
 
 	public static Uri makeAlbumEntryUri(final String archiveName, final String albumId, final String albumEntryId) {
@@ -170,6 +179,10 @@ public class Client {
 		builder.appendPath(serverId);
 		builder.appendPath("progress");
 		return builder.build();
+	}
+
+	public static String makeThumbnailString(final String archiveName, final String albumId, final String albumEntryId) {
+		return ALBUM_URI_STRING + "/" + archiveName + "/" + albumId + "/entries/" + albumEntryId + "/thumbnail";
 	}
 
 	/**
@@ -209,8 +222,6 @@ public class Client {
 			throw new RuntimeException("Cannot encode value " + keywords, e);
 		}
 	}
-
-	private final ContentResolver provider;
 
 	public Client(final ContentResolver provider) {
 		this.provider = provider;

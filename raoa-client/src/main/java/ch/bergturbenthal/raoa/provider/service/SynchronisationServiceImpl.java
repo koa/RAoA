@@ -1094,7 +1094,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	private SortOrder makeAlbumDefaultSortOrder() {
 		final SortOrder defaultSortOrder = new SortOrder();
-		// defaultSortOrder.addOrder(Client.Album.ALBUM_CAPTURE_DATE, Order.DESC);
+		defaultSortOrder.addOrder(Client.Album.ALBUM_CAPTURE_DATE, Order.DESC);
 		defaultSortOrder.addOrder(Client.Album.NAME, Order.ASC);
 		return defaultSortOrder;
 	}
@@ -1104,7 +1104,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 																						final Collection<AlbumIndex> albumsToNotify,
 																						final Criterium criterium,
 																						final SortOrder order) {
-		// Log.i(SERVICE_TAG, "Start query album entries");
+		Log.i(SERVICE_TAG, "Start prepare album entries");
 
 		final Lookup<AlbumIndex, AlbumMutationData> mutationDataLazyLoader = createReadOnlyAlbumMutationLazyLoader();
 		final Lookup<AlbumIndex, Map<String, AlbumEntryDto>> albumEntriesLazyLoader = LazyLoader.loadLazy(new Lookup<AlbumIndex, Map<String, AlbumEntryDto>>() {
@@ -1174,7 +1174,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public String getString(final AlbumEntryIndex value) {
 				final AlbumEntryDto entryDto = albumEntryLookup.get(value);
-				return Client.makeThumbnailUri(value.getAlbumIndex().getArchiveName(), value.getAlbumIndex().getAlbumId(), value.getAlbumEntryId()).toString() + "/"
+				return Client.makeThumbnailString(value.getAlbumIndex().getArchiveName(), value.getAlbumIndex().getAlbumId(), value.getAlbumEntryId()).toString() + "/"
 								+ entryDto.getFileName();
 			}
 		});
@@ -1189,15 +1189,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 			@Override
 			public String getString(final AlbumEntryIndex value) {
-				return Client.makeAlbumEntryUri(value.getAlbumIndex().getArchiveName(), value.getAlbumIndex().getAlbumId(), value.getAlbumEntryId()).toString();
+				return Client.makeAlbumEntryString(value.getAlbumIndex().getArchiveName(), value.getAlbumIndex().getAlbumId(), value.getAlbumEntryId());
 			}
 		});
+		Log.i(SERVICE_TAG, "End Prepare, Start iteration");
 		try {
 			final NotifyableMatrixCursor cursor = MapperUtil.loadCollectionIntoCursor(indices,
 																																								projection,
 																																								indexFieldReaders,
 																																								criterium,
 																																								order == null ? makeDefaultAlbumEntiesOrder() : order);
+			Log.i(SERVICE_TAG, "End iteration");
 			final HashSet<AlbumIndex> affectedAlbums = new HashSet<AlbumIndex>(albumsToNotify);
 			for (final AlbumEntryIndex indexEntry : indices) {
 				affectedAlbums.add(indexEntry.getAlbumIndex());
@@ -1209,7 +1211,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		} finally {
 			closeIfCloseable(albumEntryLookup);
 			closeIfCloseable(albumEntriesLazyLoader);
-			// Log.i(SERVICE_TAG, "Returning");
+			Log.i(SERVICE_TAG, "Returning");
 		}
 	}
 
@@ -1257,7 +1259,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				if (thumbnailId == null) {
 					return null;
 				}
-				return Client.makeThumbnailUri(value.getArchiveName(), value.getAlbumId(), thumbnailId).toString();
+				return Client.makeThumbnailString(value.getArchiveName(), value.getAlbumId(), thumbnailId);
 			}
 		});
 		fieldReaders.put(Client.Album.TITLE, new StringFieldReader<AlbumMeta>() {

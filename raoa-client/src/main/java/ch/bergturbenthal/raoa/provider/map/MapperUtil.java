@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import android.database.Cursor;
@@ -40,6 +41,74 @@ public class MapperUtil {
 
 	private interface RawFieldReader<V> {
 		Object read(final V value) throws Exception;
+	}
+
+	private static class SingleNumberFieldReader implements SingleFieldReader {
+		private final int currentFieldType;
+		private final Callable<Number> numberCallable;
+
+		private SingleNumberFieldReader(final int currentFieldType, final Callable<Number> numberCallable) {
+			this.currentFieldType = currentFieldType;
+			this.numberCallable = numberCallable;
+		}
+
+		@Override
+		public Number getNumber() {
+			return numberCallable.call();
+		}
+
+		@Override
+		public String getString() {
+			return numberCallable.call().toString();
+		}
+
+		@Override
+		public int getType() {
+			return currentFieldType;
+		}
+
+		@Override
+		public Object getValue() {
+			return numberCallable.call();
+		}
+
+		@Override
+		public boolean isNull() {
+			return numberCallable.call() == null;
+		}
+	}
+
+	private static class SingleStringFieldReader implements SingleFieldReader {
+		private final Callable<String> stringCallable;
+
+		private SingleStringFieldReader(final Callable<String> stringCallable) {
+			this.stringCallable = stringCallable;
+		}
+
+		@Override
+		public Number getNumber() {
+			return null;
+		}
+
+		@Override
+		public String getString() {
+			return stringCallable.call();
+		}
+
+		@Override
+		public int getType() {
+			return Cursor.FIELD_TYPE_STRING;
+		}
+
+		@Override
+		public Object getValue() {
+			return stringCallable.call();
+		}
+
+		@Override
+		public boolean isNull() {
+			return stringCallable.call() == null;
+		}
 	}
 
 	private static final SingleFieldReader NULL_READER = new SingleFieldReader() {
@@ -157,9 +226,10 @@ public class MapperUtil {
 		long takeRestTime = 0;
 		final long[] columnTimes = new long[columnNames.size()];
 		Arrays.fill(columnTimes, 0);
+		final Set<Entry<String, FieldReader<E>>> fieldReaderEntries = fieldReaders.entrySet();
 		for (final E entry : collection) {
 			final Map<String, SingleFieldReader> columnFieldReaders = new HashMap<String, NotifyableMatrixCursor.SingleFieldReader>();
-			for (final Entry<String, FieldReader<E>> readerEntry : fieldReaders.entrySet()) {
+			for (final Entry<String, FieldReader<E>> readerEntry : fieldReaderEntries) {
 				final FieldReader<E> fieldReader = readerEntry.getValue();
 				final SingleFieldReader singleFieldReader;
 				final int currentFieldType = fieldReader.getType();
@@ -168,77 +238,22 @@ public class MapperUtil {
 					singleFieldReader = NULL_READER;
 					break;
 				case Cursor.FIELD_TYPE_STRING:
-					final Callable<String> stringCallable = LazyLoader.loadLazy(new Callable<String>() {
-
+					singleFieldReader = new SingleStringFieldReader(LazyLoader.loadLazy(new Callable<String>() {
 						@Override
 						public String call() {
 							return fieldReader.getString(entry);
 						}
-					});
-					singleFieldReader = new SingleFieldReader() {
-
-						@Override
-						public Number getNumber() {
-							return null;
-						}
-
-						@Override
-						public String getString() {
-							return stringCallable.call();
-						}
-
-						@Override
-						public int getType() {
-							return currentFieldType;
-						}
-
-						@Override
-						public Object getValue() {
-							return stringCallable.call();
-						}
-
-						@Override
-						public boolean isNull() {
-							return stringCallable.call() == null;
-						}
-					};
+					}));
 					break;
 				case Cursor.FIELD_TYPE_FLOAT:
 				case Cursor.FIELD_TYPE_INTEGER:
-					final Callable<Number> numberCallable = LazyLoader.loadLazy(new Callable<Number>() {
+					singleFieldReader = new SingleNumberFieldReader(currentFieldType, LazyLoader.loadLazy(new Callable<Number>() {
 
 						@Override
 						public Number call() {
 							return fieldReader.getNumber(entry);
 						}
-					});
-					singleFieldReader = new SingleFieldReader() {
-
-						@Override
-						public Number getNumber() {
-							return numberCallable.call();
-						}
-
-						@Override
-						public String getString() {
-							return numberCallable.call().toString();
-						}
-
-						@Override
-						public int getType() {
-							return currentFieldType;
-						}
-
-						@Override
-						public Object getValue() {
-							return numberCallable.call();
-						}
-
-						@Override
-						public boolean isNull() {
-							return numberCallable.call() == null;
-						}
-					};
+					}));
 					break;
 				default:
 					throw new RuntimeException("Unsupportet type " + currentFieldType);

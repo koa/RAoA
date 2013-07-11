@@ -91,7 +91,7 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	@Override
 	public String getType(final Uri uri) {
-		Log.i(TAG, "getType called");
+		// Log.i(TAG, "getType called");
 		switch (matcher.match(uri)) {
 		case ALBUM_LIST:
 			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/album";
@@ -142,7 +142,7 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	@Override
 	public ParcelFileDescriptor openFile(final Uri uri, final String mode) throws FileNotFoundException {
-		Log.i(TAG, "Open called for " + uri);
+		// Log.i(TAG, "Open called for " + uri);
 		final UriType match = matcher.match(uri);
 		if (match == null) {
 			return super.openFile(uri, mode);
@@ -169,8 +169,9 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	@Override
 	public Cursor query(final Uri uri, final String[] projection, final String selection, final String[] selectionArgs, final String sortOrder) {
+		final long startTime = System.currentTimeMillis();
 		try {
-			Log.i(TAG, "Query called: " + uri);
+			// Log.i(TAG, "Query called: " + uri);
 
 			final Criterium criterium = Criterium.decodeString(selection);
 			final SortOrder order = SortOrder.decodeString(sortOrder);
@@ -202,6 +203,8 @@ public class ArchiveContentProvider extends ContentProvider {
 			throw new UnsupportedOperationException("Query of " + uri + " is not supported");
 		} catch (final Throwable e) {
 			throw new RuntimeException("Cannot query for " + uri, e);
+		} finally {
+			Log.i(TAG, "Query for " + uri + " took " + (System.currentTimeMillis() - startTime));
 		}
 	}
 
@@ -225,6 +228,7 @@ public class ArchiveContentProvider extends ContentProvider {
 		case KEYWORD:
 		}
 		throw new UnsupportedOperationException("Update of " + uri + " is not supported");
+
 	}
 
 	protected Cursor getEmptyCursor(final Class<?> klass) {

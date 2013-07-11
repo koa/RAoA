@@ -260,7 +260,7 @@ public class FileStorage {
 		if (primaryTypeCache != null) {
 			final D valueFromPrimaryCache = (D) primaryTypeCache.get(relativePath);
 			if (valueFromPrimaryCache != null) {
-				logger.info("Primary Cache: " + relativePath);
+				// logger.info("Primary Cache: " + relativePath);
 				return valueFromPrimaryCache;
 			}
 		}
@@ -272,17 +272,17 @@ public class FileStorage {
 				if (primaryTypeCache != null) {
 					primaryTypeCache.put(relativePath, valueFromSecondaryCache);
 				}
-				logger.info("Secondary Cache: " + relativePath);
+				// logger.info("Secondary Cache: " + relativePath);
 				return valueFromSecondaryCache;
 			}
 		}
 		synchronized (readOnlySecondCache) {
 			final WeakReference<D> betweenLoadedEntry = (WeakReference<D>) readOnlySecondCache.get(key);
 			if (betweenLoadedEntry != null && betweenLoadedEntry.get() != null) {
-				logger.info("Secondary Cache: " + relativePath);
+				// logger.info("Secondary Cache: " + relativePath);
 				return betweenLoadedEntry.get();
 			}
-			logger.info("No Cache: " + relativePath);
+			// logger.info("No Cache: " + relativePath);
 			final D loaded = getBackend(type).load(relativePath);
 			readOnlySecondCache.put(key, new WeakReference<Object>(loaded));
 			if (primaryTypeCache != null) {
