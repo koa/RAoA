@@ -3,6 +3,9 @@
  */
 package ch.bergturbenthal.raoa.client.binding;
 
+import java.util.Map;
+
+import android.content.Context;
 import android.view.View;
 
 /**
@@ -13,15 +16,26 @@ import android.view.View;
  */
 public abstract class AbstractViewHandler<V extends View> implements ViewHandler<V> {
 
-	private final int affectedView;
+	private final int[] affectedViews;
 
 	protected AbstractViewHandler(final int affectedView) {
-		this.affectedView = affectedView;
+		this.affectedViews = new int[] { affectedView };
+	}
+
+	protected AbstractViewHandler(final int[] affectedViews) {
+		this.affectedViews = affectedViews;
 	}
 
 	@Override
-	public int affectedView() {
-		return affectedView;
+	public int[] affectedViews() {
+		return affectedViews;
 	}
+
+	@Override
+	public void bindView(final V[] views, final Context context, final Map<String, Object> values) {
+		bindView(views[0], context, values);
+	}
+
+	protected abstract void bindView(final V view, final Context context, final Map<String, Object> values);
 
 }

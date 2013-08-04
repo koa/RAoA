@@ -32,7 +32,7 @@ import ch.bergturbenthal.raoa.client.util.BitmapUtil;
  * Display a Photo on a ImageView
  * 
  */
-public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
+public class PhotoViewHandler implements ViewHandler<View> {
 	public static class DimensionCalculator implements TargetSizeCalculator {
 		private final int dimension;
 
@@ -81,34 +81,42 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 	};
 
 	private static final String TAG = "PhotoViewHandler";
+	private int[] affectedViews;
 	private final Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
+	private final int imageViewId;
 	private final Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
 	private final TargetSizeCalculator targetSizeCalculator;
 	private final Executor THREAD_POOL_EXECUTOR = new ThreadPoolExecutor(5, 15, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1000));
-	private final String uriColumn;
-	private final int videoPlayButtonId;
 
-	public PhotoViewHandler(final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator, final int videoPlayButtonId) {
-		super(viewId);
+	private final String uriColumn;
+
+	public PhotoViewHandler(final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator) {
+		this.imageViewId = viewId;
 		this.uriColumn = uriColumn;
 		this.targetSizeCalculator = targetSizeCalculator;
-		this.videoPlayButtonId = videoPlayButtonId;
+		affectedViews = new int[] { imageViewId };
 	}
 
 	@Override
-	public void bindView(final ImageView view, final Context context, final Map<String, Object> values) {
+	public int[] affectedViews() {
+		return affectedViews;
+	}
+
+	@Override
+	public void bindView(final View[] views, final Context context, final Map<String, Object> values) {
+		final ImageView imageView = (ImageView) views[0];
+		final View idleView = views.length > 1 ? views[1] : null;
 		final String thumbnailUriString = (String) values.get(uriColumn);
 
-		final AsyncTask<Void, Void, Void> runningOldTask = runningBgTasks.get(view);
+		final AsyncTask<Void, Void, Void> runningOldTask = runningBgTasks.get(imageView);
 
 		if (runningOldTask != null) {
 			runningOldTask.cancel(false);
 		}
 
-		final ImageView imageView = view;
 		// skip this entry
 		if (thumbnailUriString == null) {
-			imageView.setImageResource(android.R.drawable.picture_frame);
+			showEmpty(imageView, idleView);
 			return;
 		}
 
@@ -120,7 +128,7 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 				return;
 			}
 		}
-		imageView.setImageResource(android.R.drawable.picture_frame);
+		showEmpty(imageView, idleView);
 
 		final AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
 
@@ -131,7 +139,7 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 				final Uri uri = Uri.parse(thumbnailUriString);
 				try {
 					// get the real image
-					final ContentResolver contentResolver = view.getContext().getContentResolver();
+					final ContentResolver contentResolver = imageView.getContext().getContentResolver();
 					final String contentType = contentResolver.getType(uri);
 					if (contentType == null) {
 						return null;
@@ -194,18 +202,35 @@ public class PhotoViewHandler extends AbstractViewHandler<ImageView> {
 			protected void onPostExecute(final Void result) {
 				if (bitmap != null) {
 					imageView.setImageBitmap(bitmap);
+					if (idleView != null) {
+						idleView.setVisibility(View.GONE);
+						imageView.setVisibility(View.VISIBLE);
+					}
 				}
 				runningBgTasks.remove(imageView);
 			}
 		};
-		runningBgTasks.put(view, asyncTask);
+		runningBgTasks.put(imageView, asyncTask);
 		asyncTask.executeOnExecutor(THREAD_POOL_EXECUTOR);
 
+	}
+
+	public void setIdleView(final int idleViewId) {
+		affectedViews = new int[] { imageViewId, idleViewId };
 	}
 
 	@Override
 	public String[] usedFields() {
 		return new String[] { uriColumn };
+	}
+
+	private void showEmpty(final ImageView imageView, final View idleView) {
+		if (idleView != null) {
+			imageView.setVisibility(View.GONE);
+			idleView.setVisibility(View.VISIBLE);
+		} else {
+			imageView.setImageResource(android.R.drawable.picture_frame);
+		}
 	}
 
 }

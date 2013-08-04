@@ -276,7 +276,9 @@ public class PhotoDetailViewActivity extends Activity {
 
 	private ArrayList<ViewHandler<? extends View>> makeHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		ret.add(new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL_ALIAS, PhotoViewHandler.FULLSCREEN_CALCULATOR, 0));
+		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL_ALIAS, PhotoViewHandler.FULLSCREEN_CALCULATOR);
+		photoViewHandler.setIdleView(R.id.photo_view_empty_layout);
+		ret.add(photoViewHandler);
 		ret.add(makeTagButtonsViewHandler());
 		ret.add(new AbstractViewHandler<View>(R.id.photo_view_play_video_button) {
 

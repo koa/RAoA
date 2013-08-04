@@ -26,5 +26,6 @@
     <string name="visible_servers">Sichtbare Server:</string>
     <string name="searching_server">Suche Server &#8230;</string>
     <string name="photo_detailview_loading_data">Lade Daten &#8230;</string>
-
+    <string name="wait_for_image">Lade Photo</string>
+    
 </resources>

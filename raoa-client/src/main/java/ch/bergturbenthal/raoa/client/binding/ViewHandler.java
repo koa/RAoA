@@ -12,7 +12,7 @@ public interface ViewHandler<V extends View> {
 
 	String[] usedFields();
 
-	int affectedView();
+	int[] affectedViews();
 
-	void bindView(final V view, final Context context, final Map<String, Object> values);
+	void bindView(final V[] views, final Context context, final Map<String, Object> values);
 }

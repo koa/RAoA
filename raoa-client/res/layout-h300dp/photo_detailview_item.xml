@@ -79,7 +79,6 @@
             android:background="@color/gray"
             android:padding="4dp"
             android:text="@string/photo_detailview_button_select_tag" />
-
     </LinearLayout>
 
     <ImageView
@@ -88,5 +87,26 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:src="@drawable/ic_play_icon" />
+
+    <LinearLayout
+        android:id="@+id/photo_view_empty_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical" >
+
+        <ProgressBar
+            style="?android:attr/progressBarStyleLarge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="@string/wait_for_image"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+    </LinearLayout>
 
 </FrameLayout>

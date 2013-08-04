@@ -46,9 +46,13 @@ public class CursorViewBinder {
 	public void bindView(final View view, final Context context, final Cursor cursor) {
 
 		for (final ViewHandler<View> handler : handlers) {
-			final View foundView = view.findViewById(handler.affectedView());
+			final int[] viewIds = handler.affectedViews();
+			final View[] foundViews = new View[viewIds.length];
+			for (int i = 0; i < viewIds.length; i++) {
+				foundViews[i] = view.findViewById(viewIds[i]);
+			}
 			final Map<String, Object> fieldsMap = makeMapForFields(cursor, handler.usedFields());
-			handler.bindView(foundView, context, fieldsMap);
+			handler.bindView(foundViews, context, fieldsMap);
 		}
 	}
 
