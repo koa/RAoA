@@ -961,12 +961,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return (int) referencedFile.length() / 1024;
 			}
 		};
-		executorService.execute(new Runnable() {
+		executorService.schedule(new Callable<Void>() {
 			@Override
-			public void run() {
+			public Void call() throws Exception {
 				refreshThumbnailsFromFiles();
+				return null;
 			}
-		});
+		}, 10, TimeUnit.SECONDS);
 	}
 
 	private String lastPart(final String[] split) {
