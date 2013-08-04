@@ -28,5 +28,8 @@
     <string name="tag">Tag</string>
     <string name="photo_detailview_button_select_tag">Select other Keyword &#8230;</string>
     <string name="photo_overview_menu_add_tag_hint">Input Keyword</string>
-    <string name="please_wait">Please wait...</string>
+    <string name="please_wait">Please wait &#8230;</string>
+    <string name="loading_albums">Loading albums.</string>
+    <string name="visible_servers">Visible servers:</string>
+    <string name="searching_server">Searching server &#8230;</string>
 </resources>
