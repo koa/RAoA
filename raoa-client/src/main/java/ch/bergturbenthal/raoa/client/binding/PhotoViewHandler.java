@@ -116,7 +116,7 @@ public class PhotoViewHandler implements ViewHandler<View> {
 
 		// skip this entry
 		if (thumbnailUriString == null) {
-			showEmpty(imageView, idleView);
+			showBitmap(imageView, idleView, null);
 			return;
 		}
 
@@ -124,11 +124,11 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		if (cacheReference != null) {
 			final Bitmap cachedBitmap = cacheReference.get();
 			if (cachedBitmap != null) {
-				imageView.setImageBitmap(cachedBitmap);
+				showBitmap(imageView, idleView, cachedBitmap);
 				return;
 			}
 		}
-		showEmpty(imageView, idleView);
+		showBitmap(imageView, idleView, null);
 
 		final AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
 
@@ -200,13 +200,7 @@ public class PhotoViewHandler implements ViewHandler<View> {
 
 			@Override
 			protected void onPostExecute(final Void result) {
-				if (bitmap != null) {
-					imageView.setImageBitmap(bitmap);
-					if (idleView != null) {
-						idleView.setVisibility(View.GONE);
-						imageView.setVisibility(View.VISIBLE);
-					}
-				}
+				showBitmap(imageView, idleView, bitmap);
 				runningBgTasks.remove(imageView);
 			}
 		};
@@ -224,12 +218,20 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		return new String[] { uriColumn };
 	}
 
-	private void showEmpty(final ImageView imageView, final View idleView) {
-		if (idleView != null) {
-			imageView.setVisibility(View.GONE);
-			idleView.setVisibility(View.VISIBLE);
+	private void showBitmap(final ImageView imageView, final View idleView, final Bitmap bitmap) {
+		if (bitmap != null) {
+			imageView.setImageBitmap(bitmap);
+			if (idleView != null) {
+				idleView.setVisibility(View.GONE);
+				imageView.setVisibility(View.VISIBLE);
+			}
 		} else {
-			imageView.setImageResource(android.R.drawable.picture_frame);
+			if (idleView != null) {
+				imageView.setVisibility(View.GONE);
+				idleView.setVisibility(View.VISIBLE);
+			} else {
+				imageView.setImageResource(android.R.drawable.picture_frame);
+			}
 		}
 	}
 
