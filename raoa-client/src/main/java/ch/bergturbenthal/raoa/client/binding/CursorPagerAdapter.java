@@ -30,6 +30,21 @@ public class CursorPagerAdapter extends PagerAdapter {
 		int getCurrentPos();
 	}
 
+	private final String[] additionalColumns;
+
+	private final Context context;
+
+	private int currentPosition;
+
+	private Cursor cursor = null;
+	private Runnable cursorLoadedHandler;
+	private View emptyView;
+	private final LayoutInflater inflater;
+	private final int layout;
+	private View listView;
+
+	private final CursorViewBinder viewBinder;
+
 	/**
 	 * Register a new {@link Cursor} on a given {@link LoaderManager}
 	 * 
@@ -61,18 +76,20 @@ public class CursorPagerAdapter extends PagerAdapter {
 		loaderManager.initLoader(0, null, new LoaderCallbacks<Cursor>() {
 			@Override
 			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
+				adapter.showList(false);
 				return new CursorLoader(context, uri, adapter.requiredFields(), selection, null, sortOrder);
 			}
 
 			@Override
 			public void onLoaderReset(final Loader<Cursor> loader) {
 				adapter.swapCursor(null);
-
+				adapter.showList(false);
 			}
 
 			@Override
 			public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
 				adapter.swapCursor(data);
+				adapter.showList(data != null && data.getCount() > 0);
 				if (adapter.cursorLoadedHandler != null) {
 					adapter.cursorLoadedHandler.run();
 				}
@@ -80,18 +97,6 @@ public class CursorPagerAdapter extends PagerAdapter {
 		});
 		return adapter;
 	}
-
-	private final String[] additionalColumns;
-
-	private final Context context;
-	private int currentPosition;
-	private Cursor cursor = null;
-	private Runnable cursorLoadedHandler;
-	private final LayoutInflater inflater;
-
-	private final int layout;
-
-	private final CursorViewBinder viewBinder;
 
 	public CursorPagerAdapter(final Context context, final int layout, final Collection<ViewHandler<? extends View>> handlers, final String[] additionalColumns) {
 		this.context = context;
@@ -160,6 +165,14 @@ public class CursorPagerAdapter extends PagerAdapter {
 		this.cursorLoadedHandler = cursorLoadedHandler;
 	}
 
+	public void setEmptyView(final View emptyView) {
+		this.emptyView = emptyView;
+	}
+
+	public void setListView(final View listView) {
+		this.listView = listView;
+	}
+
 	@Override
 	public void setPrimaryItem(final View container, final int position, final Object object) {
 		currentPosition = position;
@@ -185,6 +198,13 @@ public class CursorPagerAdapter extends PagerAdapter {
 			return requiredFields.toArray(new String[requiredFields.size()]);
 		}
 		return viewBinder.requiredFields();
+	}
+
+	protected void showList(final boolean show) {
+		if (emptyView != null && listView != null) {
+			emptyView.setVisibility(show ? View.GONE : View.VISIBLE);
+			listView.setVisibility(show ? View.VISIBLE : View.GONE);
+		}
 	}
 
 }

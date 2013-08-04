@@ -19,7 +19,6 @@ import android.app.ActionBar.TabListener;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.FragmentTransaction;
-import android.app.ProgressDialog;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -52,7 +51,6 @@ import ch.bergturbenthal.raoa.client.binding.CursorPagerAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.util.KeywordUtil;
-import ch.bergturbenthal.raoa.client.util.ProgressDialogUtil;
 import ch.bergturbenthal.raoa.provider.Client;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryType;
 
@@ -176,7 +174,6 @@ public class PhotoDetailViewActivity extends Activity {
 		albumUri = Uri.parse(bundle.getString(ALBUM_URI));
 		final String currentFilter = bundle.getString(CURRENT_FILTER);
 		actPos = bundle.getInt(ACTUAL_POS);
-		final ProgressDialog progressDialog = ProgressDialogUtil.createProgressDialog(this);
 
 		adapter = CursorPagerAdapter.registerLoaderManager(	getLoaderManager(),
 																												this,
@@ -192,12 +189,10 @@ public class PhotoDetailViewActivity extends Activity {
 			public void run() {
 				pager.setCurrentItem(actPos, false);
 				invalidateOptionsMenu();
-				if (progressDialog.isShowing()) {
-					progressDialog.hide();
-					progressDialog.dismiss();
-				}
 			}
 		});
+		adapter.setListView(detailContainer);
+		adapter.setEmptyView(findViewById(R.id.photo_detailview_empty_view));
 		detailContainer.setOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {
 			@Override
 			public void onPageScrolled(final int position, final float positionOffset, final int positionOffsetPixels) {
@@ -254,7 +249,6 @@ public class PhotoDetailViewActivity extends Activity {
 			}
 		}
 		setupActionBar();
-		progressDialog.show();
 	}
 
 	@Override
