@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.client.album;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +29,7 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.ListAdapter;
 import android.widget.TextView;
 import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.client.binding.AbstractViewHandler;
@@ -88,8 +90,23 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 																																makeViewHandlers(),
 																																new String[] { Client.Album.ENTRY_URI, Client.Album.ALBUM_ENTRIES_URI });
 		final GridView gridview = (GridView) findViewById(R.id.album_overview);
+		gridview.setEmptyView(findViewById(R.id.no_albums_visible));
 		gridview.setAdapter(cursorAdapter);
 
+		@SuppressWarnings("unchecked")
+		final AdapterView<ListAdapter> serverListView = (AdapterView<ListAdapter>) findViewById(R.id.server_list);
+		final ComplexCursorAdapter serverCursorAdapter = ComplexCursorAdapter.registerLoaderManager(getLoaderManager(),
+																																																1,
+																																																this,
+																																																Client.SERVER_URI,
+																																																null,
+																																																null,
+																																																null,
+																																																android.R.layout.two_line_list_item,
+																																																makeServerViewHandlers(),
+																																																null);
+		serverListView.setAdapter(serverCursorAdapter);
+		serverListView.setEmptyView(findViewById(R.id.no_servers_visible));
 		// Handle clicks on album image
 		gridview.setOnItemClickListener(new OnItemClickListener() {
 			@Override
@@ -101,6 +118,13 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 				startActivity(intent);
 			}
 		});
+	}
+
+	private Collection<ViewHandler<? extends View>> makeServerViewHandlers() {
+		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
+		ret.add(new TextViewHandler(android.R.id.text1, Client.ServerEntry.SERVER_NAME));
+		ret.add(new TextViewHandler(android.R.id.text2, Client.ServerEntry.ARCHIVE_NAME));
+		return ret;
 	}
 
 	private List<ViewHandler<? extends View>> makeViewHandlers() {

@@ -52,6 +52,7 @@ import ch.bergturbenthal.raoa.client.binding.CursorPagerAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
 import ch.bergturbenthal.raoa.client.binding.ViewHandler;
 import ch.bergturbenthal.raoa.client.util.KeywordUtil;
+import ch.bergturbenthal.raoa.client.util.ProgressDialogUtil;
 import ch.bergturbenthal.raoa.provider.Client;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryType;
 
@@ -175,9 +176,7 @@ public class PhotoDetailViewActivity extends Activity {
 		albumUri = Uri.parse(bundle.getString(ALBUM_URI));
 		final String currentFilter = bundle.getString(CURRENT_FILTER);
 		actPos = bundle.getInt(ACTUAL_POS);
-		final ProgressDialog progressDialog = new ProgressDialog(this);
-		progressDialog.setMessage("Please wait...");
-		progressDialog.setCancelable(false);
+		final ProgressDialog progressDialog = ProgressDialogUtil.createProgressDialog(this);
 
 		adapter = CursorPagerAdapter.registerLoaderManager(	getLoaderManager(),
 																												this,

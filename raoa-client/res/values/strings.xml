@@ -28,4 +28,5 @@
     <string name="tag">Tag</string>
     <string name="photo_detailview_button_select_tag">Select other Keyword &#8230;</string>
     <string name="photo_overview_menu_add_tag_hint">Input Keyword</string>
+    <string name="please_wait">Please wait...</string>
 </resources>

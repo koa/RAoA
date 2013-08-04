@@ -25,6 +25,8 @@ import android.widget.ResourceCursorAdapter;
 public class ComplexCursorAdapter extends ResourceCursorAdapter {
 	private final String[] additionalColumns;
 
+	private Runnable cursorLoadedHandler;
+
 	private final CursorViewBinder viewBinder;
 
 	/**
@@ -50,11 +52,12 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 																														final int layout,
 																														final Collection<ViewHandler<? extends View>> handlers,
 																														final String[] additionalColumns) {
-		return registerLoaderManager(loaderManager, context, uri, null, null, null, layout, handlers, additionalColumns);
+		return registerLoaderManager(loaderManager, 0, context, uri, null, null, null, layout, handlers, additionalColumns);
 
 	}
 
 	public static ComplexCursorAdapter registerLoaderManager(	final LoaderManager loaderManager,
+																														final int loaderManagerId,
 																														final Context context,
 																														final Uri uri,
 																														final String selection,
@@ -64,7 +67,7 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 																														final Collection<ViewHandler<? extends View>> handlers,
 																														final String[] additionalColumns) {
 		final ComplexCursorAdapter adapter = new ComplexCursorAdapter(context, layout, handlers, additionalColumns);
-		loaderManager.initLoader(0, null, new LoaderCallbacks<Cursor>() {
+		loaderManager.initLoader(loaderManagerId, null, new LoaderCallbacks<Cursor>() {
 
 			@Override
 			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
@@ -79,6 +82,9 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 			@Override
 			public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
 				adapter.swapCursor(data);
+				if (adapter.cursorLoadedHandler != null) {
+					adapter.cursorLoadedHandler.run();
+				}
 			}
 		});
 		return adapter;
@@ -104,8 +110,9 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 	}
 
 	public Object[] getAdditionalValues(final int position) {
-		if (additionalColumns == null)
+		if (additionalColumns == null) {
 			return null;
+		}
 		final Cursor cursor = getCursor();
 		cursor.moveToPosition(position);
 		final Object[] ret = new Object[additionalColumns.length];
@@ -128,6 +135,10 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 		}
 		fields.add("_id");
 		return fields.toArray(new String[fields.size()]);
+	}
+
+	public void setCursorLoadedHandler(final Runnable cursorLoadedHandler) {
+		this.cursorLoadedHandler = cursorLoadedHandler;
 	}
 
 	@Override
