@@ -330,6 +330,7 @@ public class PhotoOverviewActivity extends Activity {
 				}
 			}
 		}
+		loadAlbumEntry(albumUri);
 
 		cursorAdapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
 																																																								Client.AlbumEntry.META_KEYWORDS,
@@ -355,7 +356,6 @@ public class PhotoOverviewActivity extends Activity {
 			}
 		});
 		gridview.setWillNotCacheDrawing(false);
-		loadAlbumEntry(albumUri);
 
 		final UiMode mode = savedInstanceState == null ? UiMode.NAVIGATION : UiMode.valueOf(savedInstanceState.getString(MODE_KEY, UiMode.NAVIGATION.name()));
 		switch (mode) {
@@ -497,6 +497,7 @@ public class PhotoOverviewActivity extends Activity {
 			@Override
 			protected void onPostExecute() {
 				invalidateOptionsMenu();
+				getActionBar().setTitle(albumTitle);
 			}
 		}.execute();
 	}
