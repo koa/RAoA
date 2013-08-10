@@ -155,458 +155,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	private final Semaphore updateAlbumListSemaphore = new Semaphore(1);
 
-	@Override
-	public Collection<String> clientsPerAlbum(final String albumId) {
-		final String albumName = Util.decodeStringOfUrl(albumId);
-		final HashSet<String> ret = new HashSet<String>();
-		for (final Entry<String, StorageData> albumEntry : store.getArchiveData(ReadPolicy.READ_ONLY).getStorages().entrySet()) {
-			if (albumEntry.getValue().getAlbumList().contains(albumName)) {
-				ret.add(albumEntry.getKey());
-			}
-		}
-		return ret;
-	}
-
-	@Override
-	public synchronized Album createAlbum(final String[] pathNames) {
-		final Map<String, Album> albums = loadAlbums(true);
-		final File basePath = getBasePath();
-		File newAlbumPath = basePath;
-		for (final String pathComp : pathNames) {
-			newAlbumPath = new File(newAlbumPath, pathComp);
-		}
-		if (!newAlbumPath.getAbsolutePath().startsWith(basePath.getAbsolutePath())) {
-			throw new RuntimeException("Cannot create Album " + pathNames);
-		}
-		if (newAlbumPath.exists()) {
-			for (final Entry<String, Album> albumEntry : albums.entrySet()) {
-				final Album existingAlbum = albumEntry.getValue();
-				if (Arrays.asList(pathNames).equals(existingAlbum.getNameComps())) {
-					// album already exists
-					return albumEntry.getValue();
-				}
-			}
-			throw new RuntimeException("Directory " + newAlbumPath + " already exsists");
-		}
-		if (!newAlbumPath.exists()) {
-			final boolean createParent = newAlbumPath.mkdirs();
-			if (!createParent) {
-				throw new RuntimeException("Cannot create Directory " + newAlbumPath);
-			}
-		}
-
-		return appendAlbum(loadedAlbums, newAlbumPath, null, null);
-	}
-
-	@Override
-	public Album getAlbum(final String albumId) {
-		return listAlbums().get(albumId);
-	}
-
-	@Override
-	public String getArchiveName() {
-		return store.getArchiveData(ReadPolicy.READ_ONLY).getArchiveName();
-	}
-
-	@Override
-	public File getBaseDir() {
-		return baseDir;
-	}
-
-	@Override
-	public String getCollectionId() {
-		return store.getArchiveData(ReadPolicy.READ_ONLY).getArchiveName();
-	}
-
-	@Override
-	public File getImportBaseDir() {
-		return importBaseDir;
-	}
-
-	@Override
-	public String getInstanceId() {
-		return instanceId;
-	}
-
-	@Override
-	public String getInstanceName() {
-		if (instanceName == null) {
-			synchronized (instanceNameLoadLock) {
-				final File inFile = makeClientIdFile();
-				if (!inFile.exists()) {
-					return null;
-				}
-				try {
-					@Cleanup
-					final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(inFile), "utf-8"));
-					instanceName = reader.readLine();
-				} catch (final IOException e) {
-					throw new RuntimeException("Cannot read " + inFile, e);
-				}
-
-			}
-		}
-		return instanceName;
-	}
-
-	@Override
-	public Repository getMetaRepository() {
-		return metaGit.getRepository();
-	}
-
-	@Override
-	public StorageStatistics getStatistics() {
-		try {
-			final File statFile = new File(getServercacheDir(), "statistics.json");
-			if (!statFile.exists()) {
-				return null;
-			}
-			return mapper.readValue(statFile, StorageStatistics.class);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot read Statistics data", e);
-		}
-	}
-
-	@Override
-	public void importFiles(final File importDir) {
-
-		try {
-			if (!importDir.getAbsolutePath().startsWith(importBaseDir.getAbsolutePath())) {
-				logger.error("Secutity-Error: Not allowed to read Images from " + importDir + " (Import-Path is " + importBaseDir + ")");
-				return;
-			}
-			final HashSet<Album> modifiedAlbums = new HashSet<Album>();
-			final SortedMap<Date, Album> importAlbums = new TreeMap<Date, Album>();
-			for (final Album album : loadAlbums(true).values()) {
-				final Date beginDate = album.getAutoAddBeginDate();
-				if (beginDate != null) {
-					importAlbums.put(beginDate, album);
-				}
-			}
-			for (final Entry<Date, Album> album : importAlbums.entrySet()) {
-				logger.info(album.getValue() + ", Date: " + album.getKey());
-			}
-			final Collection<File> deleteFiles = new ArrayList<File>();
-			final Collection<File> importCandicates = collectImportFiles(importDir);
-			for (final File file : importCandicates) {
-				try {
-					// logger.info("Read: " + file.getName());
-					final Metadata metadata = ImageMetadataReader.readMetadata(file);
-					if (metadata == null) {
-						continue;
-					}
-					final Date createDate = new MetadataWrapper(metadata).readCreateDate();
-					if (createDate == null) {
-						// skip images without creation date
-						continue;
-					}
-					final SortedMap<Date, Album> entriesBeforeDate = importAlbums.headMap(createDate);
-					if (entriesBeforeDate.isEmpty()) {
-						// no matching album found
-						continue;
-					}
-					final Album album = entriesBeforeDate.get(entriesBeforeDate.lastKey());
-					// logger.info(" ->" + album.getName());
-					if (album.importImage(file, createDate)) {
-						modifiedAlbums.add(album);
-						logger.debug("image " + file + " imported successfully to " + album.getName());
-						deleteFiles.add(file);
-					} else {
-						logger.warn("Could not import image " + file);
-					}
-				} catch (final ImageProcessingException e) {
-					throw new RuntimeException("Cannot import file " + file, e);
-				} catch (final IOException e) {
-					throw new RuntimeException("Cannot import file " + file, e);
-				}
-			}
-			for (final Album album : modifiedAlbums) {
-				album.commit("automatically imported");
-			}
-			for (final File file : deleteFiles) {
-				final boolean deleted = file.delete();
-				if (!deleted) {
-					logger.error("Cannot delete File " + file);
-				}
-			}
-		} finally {
-			refreshCache(true);
-		}
-	}
-
-	@PostConstruct
-	public void initExecutorService() {
-		safeExecutorService = ExecutorServiceUtil.wrap(executorService);
-	}
-
-	@Override
-	public Map<String, Album> listAlbums() {
-		return loadAlbums(false);
-	}
-
-	@Override
-	public synchronized ArchiveMeta listKnownStorage() {
-		final ArchiveMeta storageList = new ArchiveMeta();
-		final Map<String, StorageData> storages = store.getArchiveData(ReadPolicy.READ_ONLY).getStorages();
-		for (final Entry<String, StorageData> storageEntry : storages.entrySet()) {
-			final String name = storageEntry.getKey();
-			final StorageEntry entry = new StorageEntry();
-			entry.setStorageName(name);
-			entry.setStorageId(Util.encodeStringForUrl(name));
-			final StorageData storageData = storageEntry.getValue();
-			final int mBytesAvailable = storageData.getMBytesAvailable();
-			if (mBytesAvailable != Integer.MAX_VALUE) {
-				entry.setMBytesAvailable((long) mBytesAvailable);
-			}
-			for (final String albumName : storageData.getAlbumList()) {
-				entry.getAlbumList().add(Util.encodeStringForUrl(albumName));
-			}
-			entry.setTakeAllRepositories(storageData.isTakeAllRepositories());
-			storageList.getClients().add(entry);
-		}
-		final RevCommit latestMetaCommit = findLatestMetaCommit();
-		if (latestMetaCommit != null) {
-			storageList.setVersion(latestMetaCommit.getId().name());
-			storageList.setLastModified(new Date(latestMetaCommit.getCommitTime() * 1000));
-		}
-		return storageList;
-	}
-
-	public ArchiveData loadMetaConfigFile(final File configFile) {
-		try {
-			final ArchiveData readValue = mapper.readValue(configFile, ArchiveData.class);
-			return readValue;
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot read meta-config from " + configFile, e);
-		}
-	}
-
-	@Override
-	public void notifyCameraStorePlugged(final File path) {
-		importFiles(path);
-	}
-
-	@Override
-	public void notifySyncBareDiskPlugged(final File path) {
-		syncExternal(path, true);
-	}
-
-	@Override
-	public void notifySyncDiskPlugged(final File path) {
-		syncExternal(path, false);
-	}
-
-	public String readClientId(final File path, final boolean bare) throws IOException, FileNotFoundException {
-		String remoteName = null;
-		@SuppressWarnings("unchecked")
-		final List<String> clientIdLines = IOUtils.readLines(new FileInputStream(new File(path, bare ? ".bareid" : CLIENTID_FILENAME)), "utf-8");
-		for (final String line : clientIdLines) {
-			if (!line.trim().isEmpty()) {
-				remoteName = line.trim();
-			}
-		}
-		return remoteName;
-	}
-
-	@Override
-	public synchronized void registerClient(final String albumId, final String clientId) {
-		final String albumPath = Util.decodeStringOfUrl(albumId);
-		updateMeta("added " + albumPath + " to client " + clientId, new Callable<Void>() {
-
-			@Override
-			public Void call() throws Exception {
-				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
-
-				final Collection<String> albumCollection;
-				if (albumPerStorage.containsKey(clientId)) {
-					albumCollection = albumPerStorage.get(clientId).getAlbumList();
-				} else {
-					final StorageData storageData = new StorageData();
-					albumCollection = storageData.getAlbumList();
-					albumPerStorage.put(clientId, storageData);
-				}
-				if (!albumCollection.contains(albumPath)) {
-					albumCollection.add(albumPath);
-				}
-				return null;
-			}
-		});
-	}
-
-	@Override
-	public void setApplicationContext(final ApplicationContext applicationContext) throws BeansException {
-		this.applicationContext = applicationContext;
-	}
-
-	@Override
-	public void setArchiveName(final String archiveName) {
-		updateMeta("ArchiveName upated", new Callable<Void>() {
-
-			@Override
-			public Void call() throws Exception {
-				store.getArchiveData(ReadPolicy.READ_OR_CREATE).setArchiveName(archiveName);
-				return null;
-			}
-		});
-		executorService.submit(new Runnable() {
-
-			@Override
-			public void run() {
-				pollCurrentKnownPeers();
-			}
-		});
-	}
-
-	@Override
-	public synchronized void setBaseDir(final File baseDir) {
-		if (ObjectUtils.equals(this.baseDir, baseDir)) {
-			return;
-		}
-		this.baseDir = baseDir;
-		store = new LocalStore(new File(baseDir, META_REPOSITORY));
-		loadedAlbums = new HashMap<>();
-		lastLoadedDate.set(0);
-		if (preferences != null) {
-			preferences.put(ALBUM_PATH_PREFERENCE, baseDir.getAbsolutePath());
-			flushPreferences();
-		}
-		loadMetaConfig();
-		if (executorService != null) {
-			executorService.submit(new Runnable() {
-
-				@Override
-				public void run() {
-					refreshCache(false);
-				}
-			});
-		}
-	}
-
-	public void setExecutorService(final ScheduledExecutorService executorService) {
-		this.executorService = executorService;
-	}
-
-	@Override
-	public void setImportBaseDir(final File importBaseDir) {
-		if (ObjectUtils.equals(this.importBaseDir, importBaseDir)) {
-			return;
-		}
-		this.importBaseDir = importBaseDir;
-		if (importBaseDir != null && executorService != null) {
-			if (fileWatcher != null) {
-				fileWatcher.close();
-				fileWatcher = createFileWatcher();
-			}
-		}
-		if (preferences != null) {
-			preferences.put(IMPORT_BASE_PATH_REFERENCE, importBaseDir.getAbsolutePath());
-			flushPreferences();
-		}
-	}
-
-	@Override
-	public void setInstanceName(final String instanceName) {
-		if (ObjectUtils.equals(this.instanceName, instanceName)) {
-			return;
-		}
-		this.instanceName = instanceName;
-		final File outFile = makeClientIdFile();
-		try {
-			@Cleanup
-			final PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(outFile), "utf-8"));
-			writer.println(instanceName);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot write instance name to " + outFile, e);
-		}
-	}
-
-	@Override
-	public void unRegisterClient(final String albumId, final String clientId) {
-		final String albumPath = Util.decodeStringOfUrl(albumId);
-		updateMeta("removed " + albumPath + " from client " + clientId, new Callable<Void>() {
-
-			@Override
-			public Void call() throws Exception {
-				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
-
-				if (!albumPerStorage.containsKey(clientId)) {
-					return null;
-				}
-				final Collection<String> albumCollection = albumPerStorage.get(clientId).getAlbumList();
-				if (albumCollection.contains(albumPath)) {
-					albumCollection.remove(albumPath);
-				}
-				return null;
-			}
-		});
-	}
-
-	@Override
-	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
-		final Map<String, Album> albums = loadAlbums(false);
-		final Album foundAlbum = albums.get(albumId);
-		if (foundAlbum == null) {
-			return;
-		}
-		updateMeta("Metadata updated", new Callable<Void>() {
-			@Override
-			public Void call() throws Exception {
-				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
-				for (final Mutation mutation : updateEntries) {
-					if (mutation instanceof MetadataMutation) {
-						final MetadataMutation metadataMutation = (MetadataMutation) mutation;
-						final RevCommit latestMetaCommit = findLatestMetaCommit();
-						if (metadataMutation.getMetadataVersion().equals(latestMetaCommit.getId().name())) {
-							if (metadataMutation instanceof StorageMutation) {
-								final StorageMutation mutationEntry = (StorageMutation) metadataMutation;
-								final String storageName = Util.decodeStringOfUrl(mutationEntry.getStorage());
-								final String albumPath = Util.decodeStringOfUrl(albumId);
-								final Collection<String> albumCollection = albumPerStorage.get(storageName).getAlbumList();
-
-								if (!albumPerStorage.containsKey(storageName)) {
-									continue;
-								}
-								switch (mutationEntry.getMutation()) {
-								case ADD:
-									albumCollection.add(albumPath);
-									break;
-								case REMOVE:
-									albumCollection.remove(albumPath);
-									break;
-								}
-							}
-						}
-					}
-				}
-				return null;
-			}
-		});
-		foundAlbum.updateMetadata(updateEntries);
-	}
-
-	@Override
-	public void waitForAlbums() {
-		loadAlbums(true);
-	}
-
-	/**
-	 * Start scheduling automatically after initializing
-	 */
-	@PostConstruct
-	protected void startScheduling() {
-		executorService.scheduleWithFixedDelay(new Runnable() {
-
-			@Override
-			public void run() {
-				try {
-					refreshCache(false);
-				} catch (final Throwable t) {
-					logger.warn("Exception while refreshing thumbnails", t);
-				}
-			}
-		}, 60, 2 * 60, TimeUnit.MINUTES);
-	}
-
 	private Album appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri, final String serverName) {
 		final String[] nameComps = evaluateNameComps(albumDir);
 		final String albumId = makeAlbumId(nameComps);
@@ -627,6 +175,18 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			return relativeDirectoryName.substring(0, relativeDirectoryName.length() - 4);
 		}
 		return relativeDirectoryName;
+	}
+
+	@Override
+	public Collection<String> clientsPerAlbum(final String albumId) {
+		final String albumName = Util.decodeStringOfUrl(albumId);
+		final HashSet<String> ret = new HashSet<String>();
+		for (final Entry<String, StorageData> albumEntry : store.getArchiveData(ReadPolicy.READ_ONLY).getStorages().entrySet()) {
+			if (albumEntry.getValue().getAlbumList().contains(albumName)) {
+				ret.add(albumEntry.getKey());
+			}
+		}
+		return ret;
 	}
 
 	private Collection<File> collectImportFiles(final File importDir) {
@@ -691,6 +251,37 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				}
 			});
 		}
+	}
+
+	@Override
+	public synchronized Album createAlbum(final String[] pathNames) {
+		final Map<String, Album> albums = loadAlbums(true);
+		final File basePath = getBasePath();
+		File newAlbumPath = basePath;
+		for (final String pathComp : pathNames) {
+			newAlbumPath = new File(newAlbumPath, pathComp);
+		}
+		if (!newAlbumPath.getAbsolutePath().startsWith(basePath.getAbsolutePath())) {
+			throw new RuntimeException("Cannot create Album " + pathNames);
+		}
+		if (newAlbumPath.exists()) {
+			for (final Entry<String, Album> albumEntry : albums.entrySet()) {
+				final Album existingAlbum = albumEntry.getValue();
+				if (Arrays.asList(pathNames).equals(existingAlbum.getNameComps())) {
+					// album already exists
+					return albumEntry.getValue();
+				}
+			}
+			throw new RuntimeException("Directory " + newAlbumPath + " already exsists");
+		}
+		if (!newAlbumPath.exists()) {
+			final boolean createParent = newAlbumPath.mkdirs();
+			if (!createParent) {
+				throw new RuntimeException("Cannot create Directory " + newAlbumPath);
+			}
+		}
+
+		return appendAlbum(loadedAlbums, newAlbumPath, null, null);
 	}
 
 	private FileWatcher createFileWatcher() {
@@ -844,6 +435,11 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		}
 	}
 
+	@Override
+	public Album getAlbum(final String albumId) {
+		return listAlbums().get(albumId);
+	}
+
 	private Object getAlbumLock(final File albumFile) {
 		final String key = albumFile.getAbsolutePath();
 		if (createAlbumLocks.containsKey(key)) {
@@ -854,12 +450,58 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	}
 
+	@Override
+	public String getArchiveName() {
+		return store.getArchiveData(ReadPolicy.READ_ONLY).getArchiveName();
+	}
+
+	@Override
+	public File getBaseDir() {
+		return baseDir;
+	}
+
 	private File getBasePath() {
 		return getBaseDir().getAbsoluteFile();
 	}
 
+	@Override
+	public String getCollectionId() {
+		return store.getArchiveData(ReadPolicy.READ_ONLY).getArchiveName();
+	}
+
 	private File getConfigFile() {
 		return new File(getMetaDir(), "config.json");
+	}
+
+	@Override
+	public File getImportBaseDir() {
+		return importBaseDir;
+	}
+
+	@Override
+	public String getInstanceId() {
+		return instanceId;
+	}
+
+	@Override
+	public String getInstanceName() {
+		if (instanceName == null) {
+			synchronized (instanceNameLoadLock) {
+				final File inFile = makeClientIdFile();
+				if (!inFile.exists()) {
+					return null;
+				}
+				try {
+					@Cleanup
+					final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(inFile), "utf-8"));
+					instanceName = reader.readLine();
+				} catch (final IOException e) {
+					throw new RuntimeException("Cannot read " + inFile, e);
+				}
+
+			}
+		}
+		return instanceName;
 	}
 
 	private File getMetaDir() {
@@ -870,6 +512,11 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		return metaDir;
 	}
 
+	@Override
+	public Repository getMetaRepository() {
+		return metaGit.getRepository();
+	}
+
 	private File getServercacheDir() {
 		final File cacheDir = new File(getMetaDir(), ".servercache");
 		if (!cacheDir.exists()) {
@@ -878,12 +525,102 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		return cacheDir;
 	}
 
+	@Override
+	public StorageStatistics getStatistics() {
+		try {
+			final File statFile = new File(getServercacheDir(), "statistics.json");
+			if (!statFile.exists()) {
+				return null;
+			}
+			return mapper.readValue(statFile, StorageStatistics.class);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot read Statistics data", e);
+		}
+	}
+
+	@Override
+	public void importFiles(final File importDir) {
+
+		try {
+			if (!importDir.getAbsolutePath().startsWith(importBaseDir.getAbsolutePath())) {
+				logger.error("Secutity-Error: Not allowed to read Images from " + importDir + " (Import-Path is " + importBaseDir + ")");
+				return;
+			}
+			final HashSet<Album> modifiedAlbums = new HashSet<Album>();
+			final SortedMap<Date, Album> importAlbums = new TreeMap<Date, Album>();
+			for (final Album album : loadAlbums(true).values()) {
+				final Date beginDate = album.getAutoAddBeginDate();
+				if (beginDate != null) {
+					importAlbums.put(beginDate, album);
+				}
+			}
+			for (final Entry<Date, Album> album : importAlbums.entrySet()) {
+				logger.info(album.getValue() + ", Date: " + album.getKey());
+			}
+			final Collection<File> deleteFiles = new ArrayList<File>();
+			final Collection<File> importCandicates = collectImportFiles(importDir);
+			for (final File file : importCandicates) {
+				try {
+					// logger.info("Read: " + file.getName());
+					final Metadata metadata = ImageMetadataReader.readMetadata(file);
+					if (metadata == null) {
+						continue;
+					}
+					final Date createDate = new MetadataWrapper(metadata).readCreateDate();
+					if (createDate == null) {
+						// skip images without creation date
+						continue;
+					}
+					final SortedMap<Date, Album> entriesBeforeDate = importAlbums.headMap(createDate);
+					if (entriesBeforeDate.isEmpty()) {
+						// no matching album found
+						continue;
+					}
+					final Album album = entriesBeforeDate.get(entriesBeforeDate.lastKey());
+					// logger.info(" ->" + album.getName());
+					if (album.importImage(file, createDate)) {
+						modifiedAlbums.add(album);
+						logger.debug("image " + file + " imported successfully to " + album.getName());
+						deleteFiles.add(file);
+					} else {
+						logger.warn("Could not import image " + file);
+					}
+				} catch (final ImageProcessingException e) {
+					throw new RuntimeException("Cannot import file " + file, e);
+				} catch (final IOException e) {
+					throw new RuntimeException("Cannot import file " + file, e);
+				}
+			}
+			for (final Album album : modifiedAlbums) {
+				album.commit("automatically imported");
+			}
+			for (final File file : deleteFiles) {
+				final boolean deleted = file.delete();
+				if (!deleted) {
+					logger.error("Cannot delete File " + file);
+				}
+			}
+		} finally {
+			refreshCache(true);
+		}
+	}
+
 	@PostConstruct
 	private void init() {
 		configureFromPreferences();
 		if (importBaseDir != null && executorService != null) {
 			fileWatcher = createFileWatcher();
 		}
+	}
+
+	@PostConstruct
+	public void initExecutorService() {
+		safeExecutorService = ExecutorServiceUtil.wrap(executorService);
+	}
+
+	@Override
+	public Map<String, Album> listAlbums() {
+		return loadAlbums(false);
 	}
 
 	@PostConstruct
@@ -921,6 +658,34 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				pollCurrentKnownPeers();
 			}
 		});
+	}
+
+	@Override
+	public synchronized ArchiveMeta listKnownStorage() {
+		final ArchiveMeta storageList = new ArchiveMeta();
+		final Map<String, StorageData> storages = store.getArchiveData(ReadPolicy.READ_ONLY).getStorages();
+		for (final Entry<String, StorageData> storageEntry : storages.entrySet()) {
+			final String name = storageEntry.getKey();
+			final StorageEntry entry = new StorageEntry();
+			entry.setStorageName(name);
+			entry.setStorageId(Util.encodeStringForUrl(name));
+			final StorageData storageData = storageEntry.getValue();
+			final int mBytesAvailable = storageData.getMBytesAvailable();
+			if (mBytesAvailable != Integer.MAX_VALUE) {
+				entry.setMBytesAvailable((long) mBytesAvailable);
+			}
+			for (final String albumName : storageData.getAlbumList()) {
+				entry.getAlbumList().add(Util.encodeStringForUrl(albumName));
+			}
+			entry.setTakeAllRepositories(storageData.isTakeAllRepositories());
+			storageList.getClients().add(entry);
+		}
+		final RevCommit latestMetaCommit = findLatestMetaCommit();
+		if (latestMetaCommit != null) {
+			storageList.setVersion(latestMetaCommit.getId().name());
+			storageList.setLastModified(new Date(latestMetaCommit.getCommitTime() * 1000));
+		}
+		return storageList;
 	}
 
 	private Map<String, Album> loadAlbums(final boolean wait) {
@@ -983,6 +748,15 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		});
 	}
 
+	public ArchiveData loadMetaConfigFile(final File configFile) {
+		try {
+			final ArchiveData readValue = mapper.readValue(configFile, ArchiveData.class);
+			return readValue;
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot read meta-config from " + configFile, e);
+		}
+	}
+
 	private String makeAlbumId(final File albumDir) {
 		return makeAlbumId(evaluateNameComps(albumDir));
 	}
@@ -1012,6 +786,21 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	private boolean needToLoadAlbumList() {
 		return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
+	}
+
+	@Override
+	public void notifyCameraStorePlugged(final File path) {
+		importFiles(path);
+	}
+
+	@Override
+	public void notifySyncBareDiskPlugged(final File path) {
+		syncExternal(path, true);
+	}
+
+	@Override
+	public void notifySyncDiskPlugged(final File path) {
+		syncExternal(path, false);
 	}
 
 	private ResponseEntity<PingResponse> ping(final URI uri) {
@@ -1058,6 +847,18 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			logger.info(" - " + peerEntry.getKey() + ": " + peerEntry.getValue());
 		}
 		updateAllRepositories(foundPeers.values());
+	}
+
+	public String readClientId(final File path, final boolean bare) throws IOException, FileNotFoundException {
+		String remoteName = null;
+		@SuppressWarnings("unchecked")
+		final List<String> clientIdLines = IOUtils.readLines(new FileInputStream(new File(path, bare ? ".bareid" : CLIENTID_FILENAME)), "utf-8");
+		for (final String line : clientIdLines) {
+			if (!line.trim().isEmpty()) {
+				remoteName = line.trim();
+			}
+		}
+		return remoteName;
 	}
 
 	private void readLocalSettingsFromPreferences() {
@@ -1134,6 +935,118 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		});
 	}
 
+	@Override
+	public synchronized void registerClient(final String albumId, final String clientId) {
+		final String albumPath = Util.decodeStringOfUrl(albumId);
+		updateMeta("added " + albumPath + " to client " + clientId, new Callable<Void>() {
+
+			@Override
+			public Void call() throws Exception {
+				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
+
+				final Collection<String> albumCollection;
+				if (albumPerStorage.containsKey(clientId)) {
+					albumCollection = albumPerStorage.get(clientId).getAlbumList();
+				} else {
+					final StorageData storageData = new StorageData();
+					albumCollection = storageData.getAlbumList();
+					albumPerStorage.put(clientId, storageData);
+				}
+				if (!albumCollection.contains(albumPath)) {
+					albumCollection.add(albumPath);
+				}
+				return null;
+			}
+		});
+	}
+
+	@Override
+	public void setApplicationContext(final ApplicationContext applicationContext) throws BeansException {
+		this.applicationContext = applicationContext;
+	}
+
+	@Override
+	public void setArchiveName(final String archiveName) {
+		updateMeta("ArchiveName upated", new Callable<Void>() {
+
+			@Override
+			public Void call() throws Exception {
+				store.getArchiveData(ReadPolicy.READ_OR_CREATE).setArchiveName(archiveName);
+				return null;
+			}
+		});
+		executorService.submit(new Runnable() {
+
+			@Override
+			public void run() {
+				pollCurrentKnownPeers();
+			}
+		});
+	}
+
+	@Override
+	public synchronized void setBaseDir(final File baseDir) {
+		if (ObjectUtils.equals(this.baseDir, baseDir)) {
+			return;
+		}
+		this.baseDir = baseDir;
+		store = new LocalStore(new File(baseDir, META_REPOSITORY));
+		loadedAlbums = new HashMap<>();
+		lastLoadedDate.set(0);
+		if (preferences != null) {
+			preferences.put(ALBUM_PATH_PREFERENCE, baseDir.getAbsolutePath());
+			flushPreferences();
+		}
+		loadMetaConfig();
+		if (executorService != null) {
+			executorService.submit(new Runnable() {
+
+				@Override
+				public void run() {
+					refreshCache(false);
+				}
+			});
+		}
+	}
+
+	public void setExecutorService(final ScheduledExecutorService executorService) {
+		this.executorService = executorService;
+	}
+
+	@Override
+	public void setImportBaseDir(final File importBaseDir) {
+		if (ObjectUtils.equals(this.importBaseDir, importBaseDir)) {
+			return;
+		}
+		this.importBaseDir = importBaseDir;
+		if (importBaseDir != null && executorService != null) {
+			if (fileWatcher != null) {
+				fileWatcher.close();
+				fileWatcher = createFileWatcher();
+			}
+		}
+		if (preferences != null) {
+			preferences.put(IMPORT_BASE_PATH_REFERENCE, importBaseDir.getAbsolutePath());
+			flushPreferences();
+		}
+	}
+
+	@Override
+	public void setInstanceName(final String instanceName) {
+		if (ObjectUtils.equals(this.instanceName, instanceName)) {
+			return;
+		}
+		this.instanceName = instanceName;
+		final File outFile = makeClientIdFile();
+		try {
+			@Cleanup
+			final PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(outFile), "utf-8"));
+			writer.println(instanceName);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot write instance name to " + outFile, e);
+		}
+	}
+
 	@PreDestroy
 	private void shutdownDnsListener() throws IOException {
 		if (jmmDNS != null) {
@@ -1147,6 +1060,24 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		if (fileWatcher != null) {
 			fileWatcher.close();
 		}
+	}
+
+	/**
+	 * Start scheduling automatically after initializing
+	 */
+	@PostConstruct
+	protected void startScheduling() {
+		executorService.scheduleWithFixedDelay(new Runnable() {
+
+			@Override
+			public void run() {
+				try {
+					refreshCache(false);
+				} catch (final Throwable t) {
+					logger.warn("Exception while refreshing thumbnails", t);
+				}
+			}
+		}, 60, 2 * 60, TimeUnit.MINUTES);
 	}
 
 	private void syncExternal(final File path, final boolean bare) {
@@ -1252,6 +1183,27 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		}
 	}
 
+	@Override
+	public void unRegisterClient(final String albumId, final String clientId) {
+		final String albumPath = Util.decodeStringOfUrl(albumId);
+		updateMeta("removed " + albumPath + " from client " + clientId, new Callable<Void>() {
+
+			@Override
+			public Void call() throws Exception {
+				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
+
+				if (!albumPerStorage.containsKey(clientId)) {
+					return null;
+				}
+				final Collection<String> albumCollection = albumPerStorage.get(clientId).getAlbumList();
+				if (albumCollection.contains(albumPath)) {
+					albumCollection.remove(albumPath);
+				}
+				return null;
+			}
+		});
+	}
+
 	private void updateAllRepositories(final Collection<URI> collection) {
 		// @Cleanup
 		// final ProgressHandler peerServerProgressHandler =
@@ -1320,11 +1272,59 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		}
 	}
 
+	@Override
+	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
+		final Map<String, Album> albums = loadAlbums(false);
+		final Album foundAlbum = albums.get(albumId);
+		if (foundAlbum == null) {
+			return;
+		}
+		updateMeta("Metadata updated", new Callable<Void>() {
+			@Override
+			public Void call() throws Exception {
+				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
+				for (final Mutation mutation : updateEntries) {
+					if (mutation instanceof MetadataMutation) {
+						final MetadataMutation metadataMutation = (MetadataMutation) mutation;
+						final RevCommit latestMetaCommit = findLatestMetaCommit();
+						if (metadataMutation.getMetadataVersion().equals(latestMetaCommit.getId().name())) {
+							if (metadataMutation instanceof StorageMutation) {
+								final StorageMutation mutationEntry = (StorageMutation) metadataMutation;
+								final String storageName = Util.decodeStringOfUrl(mutationEntry.getStorage());
+								final String albumPath = Util.decodeStringOfUrl(albumId);
+								final Collection<String> albumCollection = albumPerStorage.get(storageName).getAlbumList();
+
+								if (!albumPerStorage.containsKey(storageName)) {
+									continue;
+								}
+								switch (mutationEntry.getMutation()) {
+								case ADD:
+									albumCollection.add(albumPath);
+									break;
+								case REMOVE:
+									albumCollection.remove(albumPath);
+									break;
+								}
+							}
+						}
+					}
+				}
+				return null;
+			}
+		});
+		foundAlbum.updateMetadata(updateEntries);
+	}
+
 	private void updateStatistics(final ConcurrentMap<String, AtomicInteger> countByTag) throws IOException, JsonGenerationException, JsonMappingException {
 		final StorageStatistics statistics = new StorageStatistics();
 		for (final Entry<String, AtomicInteger> keywordEntry : countByTag.entrySet()) {
 			statistics.getKeywordCount().put(keywordEntry.getKey(), Integer.valueOf(keywordEntry.getValue().intValue()));
 		}
 		mapper.writer().withPrettyPrinter(new DefaultPrettyPrinter()).writeValue(new File(getServercacheDir(), "statistics.json"), statistics);
+	}
+
+	@Override
+	public void waitForAlbums() {
+		loadAlbums(true);
 	}
 }
