@@ -221,22 +221,29 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private void commitNeededFiles(final String message, final Git repo) throws GitAPIException {
 		final Status status = repo.status().call();
 		if (!status.isClean()) {
+			boolean fileFound = false;
 			final AddCommand addCommand = repo.add();
 			final Set<String> modified = status.getModified();
 			if (modified != null && !modified.isEmpty()) {
 				for (final String modifiedFile : modified) {
+					fileFound = true;
 					addCommand.addFilepattern(modifiedFile);
 				}
 			}
 			final Set<String> untracked = status.getUntracked();
 			if (untracked != null && !untracked.isEmpty()) {
 				for (final String untrackedFile : untracked) {
+					fileFound = true;
 					addCommand.addFilepattern(untrackedFile);
 				}
 			}
-			addCommand.call();
 
-			repo.commit().setMessage(message).call();
+			if (fileFound) {
+				addCommand.call();
+				repo.commit().setMessage(message).call();
+			} else {
+				logger.warn("Repository modified " + repo.getRepository());
+			}
 		}
 	}
 
