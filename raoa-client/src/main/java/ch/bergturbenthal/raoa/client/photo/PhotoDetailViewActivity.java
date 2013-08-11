@@ -45,7 +45,6 @@ import android.widget.LinearLayout;
 import android.widget.ShareActionProvider;
 import android.widget.ToggleButton;
 import ch.bergturbenthal.raoa.R;
-import ch.bergturbenthal.raoa.client.album.AlbumOverviewActivity;
 import ch.bergturbenthal.raoa.client.binding.AbstractViewHandler;
 import ch.bergturbenthal.raoa.client.binding.CursorPagerAdapter;
 import ch.bergturbenthal.raoa.client.binding.PhotoViewHandler;
@@ -68,12 +67,12 @@ public class PhotoDetailViewActivity extends Activity {
 
 	public static final String ACTUAL_POS = "actPos";
 
+	public static final String ALBUM_ENTRIES_URI = "album_entries_uri";
+
 	public static final String ALBUM_URI = "album_uri";
-
 	public static final String CURRENT_FILTER = "current_filter";
-	protected static final int VISIBLE_KEYWORD_COUNT = 5;
 
-	private static final String CURR_ITEM_INDEX = "currentItemIndex";
+	protected static final int VISIBLE_KEYWORD_COUNT = 5;
 
 	private static final String TAG_HEAT_MAP = "tagHeatMap";
 	protected List<String> knownKeywords = Collections.emptyList();
@@ -81,7 +80,11 @@ public class PhotoDetailViewActivity extends Activity {
 	private int actPos;
 
 	private CursorPagerAdapter adapter;
+	private String albumEntryUri;
+
 	private Uri albumUri;
+
+	private String currentFilter;
 
 	private PhotoDetailContainer detailContainer;
 
@@ -100,7 +103,7 @@ public class PhotoDetailViewActivity extends Activity {
 	@Override
 	public void onBackPressed() {
 		final Intent output = new Intent();
-		output.putExtra(CURR_ITEM_INDEX, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
+		output.putExtra(PhotoOverviewActivity.CURR_ITEM_INDEX, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
 		setResult(RESULT_OK, output);
 		super.onBackPressed();
 	}
@@ -138,8 +141,12 @@ public class PhotoDetailViewActivity extends Activity {
 			//
 			// http://developer.android.com/design/patterns/navigation.html#up-vs-back
 			//
-			final Intent upIntent = new Intent(this, AlbumOverviewActivity.class);
+			final Intent upIntent = new Intent(this, PhotoOverviewActivity.class);
 			upIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+			upIntent.putExtra(PhotoOverviewActivity.ALBUM_URI, albumEntryUri);
+			upIntent.putExtra(PhotoOverviewActivity.ALBUM_ENTRIES_URI, albumUri.toString());
+			upIntent.putExtra(PhotoOverviewActivity.CURR_ITEM_INDEX, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
+			upIntent.putExtra(PhotoOverviewActivity.CURRENT_FILTER, currentFilter);
 			startActivity(upIntent);
 			finish();
 			return true;
@@ -163,16 +170,15 @@ public class PhotoDetailViewActivity extends Activity {
 		super.onCreate(savedInstanceState);
 
 		requestWindowFeature(Window.FEATURE_ACTION_BAR_OVERLAY);
-		setFullscreen(true);
-
 		setContentView(R.layout.photo_detailview);
 		detailContainer = (PhotoDetailContainer) findViewById(R.id.photo_detailview_container);
 		pager = detailContainer.getViewPager();
 
 		// get album id and photo id out of intent
 		final Bundle bundle = getIntent().getExtras();
-		albumUri = Uri.parse(bundle.getString(ALBUM_URI));
-		final String currentFilter = bundle.getString(CURRENT_FILTER);
+		albumUri = Uri.parse(bundle.getString(ALBUM_ENTRIES_URI));
+		albumEntryUri = bundle.getString(ALBUM_URI);
+		currentFilter = bundle.getString(CURRENT_FILTER);
 		actPos = bundle.getInt(ACTUAL_POS);
 
 		adapter = CursorPagerAdapter.registerLoaderManager(	getLoaderManager(),

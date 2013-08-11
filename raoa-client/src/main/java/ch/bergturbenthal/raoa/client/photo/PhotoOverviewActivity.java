@@ -71,8 +71,14 @@ public class PhotoOverviewActivity extends Activity {
 		NAVIGATION, SELECTION
 	}
 
-	private static final String CURR_ITEM_INDEX = "currentItemIndex";
+	public static final String ALBUM_ENTRIES_URI = "album_entries_uri";
+
+	public static final String ALBUM_URI = "album_uri";
+
+	public static final String CURR_ITEM_INDEX = "currentItemIndex";
+	public static final String CURRENT_FILTER = "currentFilter";
 	private static final String MODE_KEY = PhotoOverviewActivity.class.getName() + "-mode";
+
 	private static final String SELECTION_KEY = PhotoOverviewActivity.class.getName() + "-selection";
 
 	private Uri albumEntriesUri;
@@ -88,6 +94,8 @@ public class PhotoOverviewActivity extends Activity {
 	private Collection<String> enabledStorages = Collections.emptyList();
 
 	private GridView gridview;
+
+	private Handler handler;
 
 	private List<String> knownKeywords;
 
@@ -314,12 +322,15 @@ public class PhotoOverviewActivity extends Activity {
 
 	@Override
 	protected void onCreate(final Bundle savedInstanceState) {
+		handler = new Handler();
 		super.onCreate(savedInstanceState);
 		getActionBar().setDisplayHomeAsUpEnabled(true);
 		// get album id out of intent
 		final Bundle bundle = getIntent().getExtras();
-		albumEntriesUri = Uri.parse(bundle.getString("album_entries_uri"));
-		albumUri = Uri.parse(bundle.getString("album_uri"));
+		albumEntriesUri = Uri.parse(bundle.getString(ALBUM_ENTRIES_URI));
+		albumUri = Uri.parse(bundle.getString(ALBUM_URI));
+		currentItemIndex = bundle.getInt(CURR_ITEM_INDEX, currentItemIndex);
+		currentFilter = bundle.getString(CURRENT_FILTER);
 		setContentView(R.layout.photo_overview);
 
 		if (savedInstanceState != null) {
@@ -335,10 +346,11 @@ public class PhotoOverviewActivity extends Activity {
 		cursorAdapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
 																																																								Client.AlbumEntry.META_KEYWORDS,
 																																																								Client.AlbumEntry.THUMBNAIL_ALIAS });
-		initLoaderWithFilter(null);
+		initLoaderWithFilter(currentFilter);
 
 		gridview = (GridView) findViewById(R.id.photo_overview);
 		gridview.setAdapter(cursorAdapter);
+		gridview.smoothScrollToPosition(currentItemIndex);
 
 		// Handle click on photo
 		gridview.setOnItemClickListener(new OnItemClickListener() {
@@ -428,6 +440,7 @@ public class PhotoOverviewActivity extends Activity {
 	private void initLoaderWithFilter(final String filter) {
 		currentFilter = filter;
 		getLoaderManager().restartLoader(0, null, new LoaderCallbacks<Cursor>() {
+			private boolean listVisible = false;
 
 			@Override
 			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
@@ -437,6 +450,7 @@ public class PhotoOverviewActivity extends Activity {
 			@Override
 			public void onLoaderReset(final Loader<Cursor> loader) {
 				cursorAdapter.swapCursor(null);
+				listVisible = false;
 			}
 
 			@Override
@@ -457,15 +471,28 @@ public class PhotoOverviewActivity extends Activity {
 						}
 					} while (data.moveToNext());
 				} finally {
+					if (listVisible) {
+						currentItemIndex = gridview.getFirstVisiblePosition();
+					}
 					cursorAdapter.swapCursor(data);
 					invalidateOptionsMenu();
+
+					handler.postDelayed(new Runnable() {
+
+						@Override
+						public void run() {
+							gridview.smoothScrollToPosition(currentItemIndex);
+						}
+					}, 500);
+
+					listVisible = true;
 				}
 			}
 		});
 	}
 
 	private void loadAlbumEntry(final Uri albumUri) {
-		final Handler handler = new Handler();
+		final Handler handler = getWindow().getDecorView().getHandler();
 		new SimpleAsync() {
 
 			@Override
@@ -573,7 +600,8 @@ public class PhotoOverviewActivity extends Activity {
 
 	private void openDetailView(final int position) {
 		final Intent intent = new Intent(PhotoOverviewActivity.this, PhotoDetailViewActivity.class);
-		intent.putExtra(PhotoDetailViewActivity.ALBUM_URI, albumEntriesUri.toString());
+		intent.putExtra(PhotoDetailViewActivity.ALBUM_ENTRIES_URI, albumEntriesUri.toString());
+		intent.putExtra(PhotoDetailViewActivity.ALBUM_URI, albumUri.toString());
 		intent.putExtra(PhotoDetailViewActivity.ACTUAL_POS, position);
 		intent.putExtra(PhotoDetailViewActivity.CURRENT_FILTER, currentFilter);
 		startActivityForResult(intent, 1);
