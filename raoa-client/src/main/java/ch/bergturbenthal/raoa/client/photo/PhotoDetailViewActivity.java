@@ -8,9 +8,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 import android.app.ActionBar;
@@ -75,13 +77,11 @@ public class PhotoDetailViewActivity extends Activity {
 	protected static final int VISIBLE_KEYWORD_COUNT = 5;
 
 	private static final String TAG_HEAT_MAP = "tagHeatMap";
-	protected List<String> knownKeywords = Collections.emptyList();
-
 	private int actPos;
 
 	private CursorPagerAdapter adapter;
-	private String albumEntryUri;
 
+	private String albumEntryUri;
 	private Uri albumUri;
 
 	private String currentFilter;
@@ -89,6 +89,8 @@ public class PhotoDetailViewActivity extends Activity {
 	private PhotoDetailContainer detailContainer;
 
 	private boolean isOverlayVisible = false;
+
+	private List<String> knownKeywords = Collections.emptyList();
 
 	private ViewPager pager;
 
@@ -188,11 +190,44 @@ public class PhotoDetailViewActivity extends Activity {
 																												null,
 																												R.layout.photo_detailview_item,
 																												makeHandlers(),
-																												new String[] { Client.AlbumEntry.THUMBNAIL_ALIAS });
+																												new String[] { Client.AlbumEntry.THUMBNAIL_ALIAS, Client.AlbumEntry.META_KEYWORDS });
 		adapter.setCursorLoadedHandler(new Runnable() {
 
 			@Override
 			public void run() {
+				final Map<String, Integer> keywordCountInAlbum = new HashMap<String, Integer>();
+				for (int i = 0; i < adapter.getCount(); i++) {
+					final String keywordValue = (String) adapter.getAdditionalValues(i)[1];
+					if (keywordValue == null || keywordValue.isEmpty()) {
+						continue;
+					}
+					final Collection<String> keywords = Client.AlbumEntry.decodeKeywords(keywordValue);
+					for (final String keyword : keywords) {
+						final Integer oldValue = keywordCountInAlbum.get(keyword);
+						if (oldValue == null) {
+							keywordCountInAlbum.put(keyword, Integer.valueOf(1));
+						} else {
+							keywordCountInAlbum.put(keyword, Integer.valueOf(oldValue.intValue() + 1));
+						}
+					}
+				}
+				final String[] visibleKeywordsToShow;
+				final ArrayList<String> keywordsInAlbum = KeywordUtil.orderKeywordsByFrequent(keywordCountInAlbum);
+				if (keywordCountInAlbum.size() >= VISIBLE_KEYWORD_COUNT) {
+					visibleKeywordsToShow = keywordsInAlbum.subList(0, VISIBLE_KEYWORD_COUNT).toArray(new String[VISIBLE_KEYWORD_COUNT]);
+				} else {
+					final Set<String> keywords = new LinkedHashSet<String>();
+					keywords.addAll(keywordsInAlbum);
+					keywords.addAll(KeywordUtil.getKnownKeywords(getContentResolver()));
+					final Collection<String> visibleEntries;
+					if (keywords.size() > VISIBLE_KEYWORD_COUNT) {
+						visibleEntries = new ArrayList<String>(keywords).subList(0, VISIBLE_KEYWORD_COUNT);
+					} else {
+						visibleEntries = keywords;
+					}
+					visibleKeywordsToShow = visibleEntries.toArray(new String[visibleEntries.size()]);
+				}
+				updateVisibleKeywords(visibleKeywordsToShow);
 				pager.setCurrentItem(actPos, false);
 				invalidateOptionsMenu();
 			}
@@ -242,7 +277,7 @@ public class PhotoDetailViewActivity extends Activity {
 			@Override
 			protected void onPostExecute(final Void result) {
 				updateVisibleKeywords(visibleKeywords);
-				PhotoDetailViewActivity.this.knownKeywords = knownKeywords;
+				PhotoDetailViewActivity.this.knownKeywords = new ArrayList<String>(knownKeywords);
 			}
 		}.execute();
 
