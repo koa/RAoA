@@ -196,6 +196,7 @@ public class PhotoDetailViewActivity extends Activity {
 
 			@Override
 			public void run() {
+				pager.setCurrentItem(actPos, false);
 				new AsyncTask<Void, Void, Void>() {
 
 					String[] visibleKeywordsToShow = null;
@@ -246,7 +247,6 @@ public class PhotoDetailViewActivity extends Activity {
 						if (visibleKeywordsToShow != null) {
 							updateVisibleKeywords(visibleKeywordsToShow);
 						}
-						pager.setCurrentItem(actPos, false);
 						invalidateOptionsMenu();
 					}
 				}.execute();
