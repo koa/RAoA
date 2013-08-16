@@ -7,6 +7,7 @@ import ch.bergturbenthal.raoa.data.model.AlbumDetail;
 import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
+import ch.bergturbenthal.raoa.data.model.ImportFileRequest;
 import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 
 public interface Album {
@@ -26,4 +27,6 @@ public interface Album {
 	void unRegisterClient(final String albumId, final String clientId);
 
 	void updateMetadata(final String albumId, final UpdateMetadataRequest request);
+
+	void importFile(final ImportFileRequest request);
 }

@@ -41,4 +41,6 @@ public interface SynchronisationService {
 	Cursor readKeywordStatistics(final String[] projection, final Criterium criterium, final SortOrder order);
 
 	Cursor readStorages(final String[] projection, final Criterium criterium, final SortOrder order);
+
+	void importFile(String serverName, final String filename, final byte[] data);
 }

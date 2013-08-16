@@ -9,6 +9,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.InetAddress;
@@ -123,8 +124,12 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private static final ObjectMapper mapper = new ObjectMapper().disable(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES);
 	private static final String META_CACHE = "cache";
 	private static final String META_REPOSITORY = ".meta";
-
 	private static final String SERVICE_TYPE = "_images._tcp.local.";
+	private static final File TEMP_DIR;
+
+	static {
+		TEMP_DIR = new File(System.getProperty("java.io.tmpdir"));
+	}
 	private ApplicationContext applicationContext;
 	private File baseDir;
 	private final ConcurrentMap<String, Object> createAlbumLocks = new ConcurrentHashMap<String, Object>();
@@ -155,28 +160,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	private final Semaphore updateAlbumListSemaphore = new Semaphore(1);
 
-	private Album appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri, final String serverName) {
-		final String[] nameComps = evaluateNameComps(albumDir);
-		final String albumId = makeAlbumId(nameComps);
-		synchronized (getAlbumLock(albumDir)) {
-			if (!albumMap.containsKey(albumId)) {
-				final Album newAlbum = (Album) applicationContext.getBean("album", albumDir, nameComps, remoteUri, serverName);
-				albumMap.put(albumId, newAlbum);
-			}
-		}
-		return albumMap.get(albumId);
-	}
-
-	private String cleanAlbumName(final boolean bare, final String relativeDirectoryName) {
-		if (bare) {
-			if (!relativeDirectoryName.endsWith(".git")) {
-				throw new RuntimeException(relativeDirectoryName + " not ends with .git");
-			}
-			return relativeDirectoryName.substring(0, relativeDirectoryName.length() - 4);
-		}
-		return relativeDirectoryName;
-	}
-
 	@Override
 	public Collection<String> clientsPerAlbum(final String albumId) {
 		final String albumName = Util.decodeStringOfUrl(albumId);
@@ -187,77 +170,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			}
 		}
 		return ret;
-	}
-
-	private Collection<File> collectImportFiles(final File importDir) {
-		if (!importDir.isDirectory()) {
-			return Collections.emptyList();
-		}
-		final ArrayList<File> ret = new ArrayList<File>();
-		ret.addAll(Arrays.asList(importDir.listFiles(new FileFilter() {
-			@Override
-			public boolean accept(final File pathname) {
-				if (!pathname.canRead()) {
-					return false;
-				}
-				if (!pathname.isFile()) {
-					return false;
-				}
-				final String lowerFilename = pathname.getName().toLowerCase();
-				return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".nef") || lowerFilename.endsWith(".jpeg");
-			}
-		})));
-		for (final File dir : importDir.listFiles(new FileFilter() {
-			@Override
-			public boolean accept(final File pathname) {
-				return pathname.isDirectory();
-			}
-		})) {
-			ret.addAll(collectImportFiles(dir));
-		}
-		return ret;
-	}
-
-	private void commitNeededFiles(final String message, final Git repo) throws GitAPIException {
-		final Status status = repo.status().call();
-		if (!status.isClean()) {
-			boolean fileFound = false;
-			final AddCommand addCommand = repo.add();
-			final Set<String> modified = status.getModified();
-			if (modified != null && !modified.isEmpty()) {
-				for (final String modifiedFile : modified) {
-					fileFound = true;
-					addCommand.addFilepattern(modifiedFile);
-				}
-			}
-			final Set<String> untracked = status.getUntracked();
-			if (untracked != null && !untracked.isEmpty()) {
-				for (final String untrackedFile : untracked) {
-					fileFound = true;
-					addCommand.addFilepattern(untrackedFile);
-				}
-			}
-
-			if (fileFound) {
-				addCommand.call();
-				repo.commit().setMessage(message).call();
-			} else {
-				logger.warn("Repository modified " + repo.getRepository());
-			}
-		}
-	}
-
-	private void configureFromPreferences() {
-		if (getBaseDir() == null) {
-			preferences = Preferences.userNodeForPackage(FileAlbumAccess.class);
-			readLocalSettingsFromPreferences();
-			preferences.addPreferenceChangeListener(new PreferenceChangeListener() {
-				@Override
-				public void preferenceChange(final PreferenceChangeEvent arg0) {
-					readLocalSettingsFromPreferences();
-				}
-			});
-		}
 	}
 
 	@Override
@@ -291,170 +203,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		return appendAlbum(loadedAlbums, newAlbumPath, null, null);
 	}
 
-	private FileWatcher createFileWatcher() {
-		return (FileWatcher) applicationContext.getBean("fileWatcher", importBaseDir);
-	}
-
-	private void doLoadAlbums(final boolean forceWait) {
-		if (forceWait) {
-			try {
-				updateAlbumListSemaphore.acquire();
-			} catch (final InterruptedException e) {
-				// interrupted
-				return;
-			}
-		} else {
-			final boolean hasLock = updateAlbumListSemaphore.tryAcquire();
-			if (!hasLock) {
-				return;
-			}
-		}
-		try {
-			if (needToLoadAlbumList()) {
-				try {
-					final Map<String, Album> ret = new ConcurrentHashMap<String, Album>();
-					final File basePath = getBasePath();
-					logger.debug("Load Repositories from: " + basePath);
-					final int basePathLength = basePath.getAbsolutePath().length();
-					final Collection<Future<?>> futures = new ArrayList<>();
-					for (final File albumDir : findAlbums(basePath, false)) {
-						futures.add(safeExecutorService.submit(new Runnable() {
-
-							@Override
-							public void run() {
-								logger.debug("Load Repository " + albumDir);
-								final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
-								if (relativePath.equals(META_REPOSITORY)) {
-									return;
-								}
-								try {
-									appendAlbum(ret, albumDir, null, null);
-									stateManager.clearException(relativePath);
-								} catch (final BeanCreationException ex) {
-									stateManager.recordException(relativePath, ex);
-								}
-							}
-						}));
-					}
-					for (final Future<?> future : futures) {
-						future.get();
-					}
-					lastLoadedDate.set(System.currentTimeMillis());
-					loadedAlbums = ret;
-					long archiveSize = 0;
-					for (final Album album : ret.values()) {
-						archiveSize += album.getRepositorySize();
-						for (final AlbumImage image : album.listImages().values()) {
-							archiveSize += image.getAllFilesSize();
-						}
-					}
-					final long availableSize = archiveSize + getBaseDir().getFreeSpace();
-					final int availableMBytes = (int) (availableSize / 1024 / 1024);
-					final String storageName = getInstanceName();
-					updateMeta("available size of " + storageName + " updated", new Callable<Void>() {
-
-						@Override
-						public Void call() throws Exception {
-							final ArchiveData archiveData = store.getArchiveData(ReadPolicy.READ_OR_CREATE);
-							if (archiveData.getStorages() == null) {
-								archiveData.setStorages(new HashMap<String, StorageData>());
-							}
-							final Map<String, StorageData> storages = archiveData.getStorages();
-							if (storages.containsKey(storageName)) {
-								storages.get(storageName).setMBytesAvailable(availableMBytes);
-							} else {
-								final StorageData storageData = new StorageData();
-								for (final Album album : ret.values()) {
-									storageData.getAlbumList().add(album.getName());
-								}
-								storageData.setMBytesAvailable(availableMBytes);
-								storages.put(storageName, storageData);
-							}
-							return null;
-						}
-					});
-				} catch (final Throwable e) {
-					if (forceWait) {
-						throw new RuntimeException("Troubles while accessing resource " + getBaseDir(), e);
-					} else {
-						logger.error("Troubles while accessing resource " + getBaseDir(), e);
-					}
-				}
-			}
-		} finally {
-			updateAlbumListSemaphore.release();
-		}
-	}
-
-	private String[] evaluateNameComps(final File albumDir) {
-		return albumDir.getAbsolutePath().substring(getBasePath().getAbsolutePath().length() + 1).split(File.pathSeparator);
-	}
-
-	private Collection<String> evaluateRepositoriesToSync(final String instanceName, final Set<String> existingRepositories, final ArchiveData config) {
-		final Collection<String> ret = new HashSet<>(existingRepositories);
-		if (config != null && config.getStorages().containsKey(instanceName)) {
-			final StorageData storageData = config.getStorages().get(instanceName);
-			if (!storageData.isTakeAllRepositories()) {
-				ret.retainAll(storageData.getAlbumList());
-			}
-		}
-		return ret;
-	}
-
-	private Collection<File> findAlbums(final File dir, final boolean pure) {
-		if (repositoryService.isRepository(dir, pure)) {
-			return Collections.singleton(dir);
-		}
-		final File[] foundFiles = dir.listFiles(new FileFilter() {
-			@Override
-			public boolean accept(final File pathname) {
-				return pathname.isDirectory();
-			}
-		});
-		final ArrayList<File> ret = new ArrayList<File>();
-		if (foundFiles != null) {
-			Arrays.sort(foundFiles);
-			for (final File subDir : foundFiles) {
-				ret.addAll(findAlbums(subDir, pure));
-			}
-		}
-		return ret;
-	}
-
-	private RevCommit findLatestMetaCommit() {
-		try {
-			final Iterator<RevCommit> log = metaGit.log().setMaxCount(1).call().iterator();
-			if (log.hasNext()) {
-				return log.next();
-			}
-			return null;
-		} catch (final GitAPIException e) {
-			throw new RuntimeException("Cannot read commit-log", e);
-		}
-
-	}
-
-	private void flushPreferences() {
-		try {
-			preferences.flush();
-		} catch (final BackingStoreException e) {
-			logger.warn("Cannot persist config", e);
-		}
-	}
-
 	@Override
 	public Album getAlbum(final String albumId) {
 		return listAlbums().get(albumId);
-	}
-
-	private Object getAlbumLock(final File albumFile) {
-		final String key = albumFile.getAbsolutePath();
-		if (createAlbumLocks.containsKey(key)) {
-			return createAlbumLocks.get(key);
-		}
-		createAlbumLocks.putIfAbsent(key, new Object());
-		return createAlbumLocks.get(key);
-
 	}
 
 	@Override
@@ -467,17 +218,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		return baseDir;
 	}
 
-	private File getBasePath() {
-		return getBaseDir().getAbsoluteFile();
-	}
-
 	@Override
 	public String getCollectionId() {
 		return store.getArchiveData(ReadPolicy.READ_ONLY).getArchiveName();
-	}
-
-	private File getConfigFile() {
-		return new File(getMetaDir(), "config.json");
 	}
 
 	@Override
@@ -511,25 +254,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		return instanceName;
 	}
 
-	private File getMetaDir() {
-		final File metaDir = new File(getBasePath(), META_REPOSITORY);
-		if (!metaDir.exists()) {
-			metaDir.mkdirs();
-		}
-		return metaDir;
-	}
-
 	@Override
 	public Repository getMetaRepository() {
 		return metaGit.getRepository();
-	}
-
-	private File getServercacheDir() {
-		final File cacheDir = new File(getMetaDir(), ".servercache");
-		if (!cacheDir.exists()) {
-			cacheDir.mkdirs();
-		}
-		return cacheDir;
 	}
 
 	@Override
@@ -545,79 +272,37 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		}
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see ch.bergturbenthal.raoa.server.AlbumAccess#importFile(java.lang.String, byte[])
+	 */
 	@Override
-	public void importFiles(final File importDir) {
-
+	public void importFile(final String filename, final byte[] data) {
 		try {
-			if (!importDir.getAbsolutePath().startsWith(importBaseDir.getAbsolutePath())) {
-				logger.error("Secutity-Error: Not allowed to read Images from " + importDir + " (Import-Path is " + importBaseDir + ")");
-				return;
+			final File inFile = new File(filename);
+			final File inDir = new File(TEMP_DIR, System.currentTimeMillis() + "-in");
+			inDir.mkdirs();
+			final File tempInFile = new File(inDir, inFile.getName());
+			{
+				@Cleanup
+				final OutputStream os = new FileOutputStream(tempInFile);
+				IOUtils.write(data, os);
 			}
-			final HashSet<Album> modifiedAlbums = new HashSet<Album>();
-			final SortedMap<Date, Album> importAlbums = new TreeMap<Date, Album>();
-			for (final Album album : loadAlbums(true).values()) {
-				final Date beginDate = album.getAutoAddBeginDate();
-				if (beginDate != null) {
-					importAlbums.put(beginDate, album);
-				}
-			}
-			for (final Entry<Date, Album> album : importAlbums.entrySet()) {
-				logger.info(album.getValue() + ", Date: " + album.getKey());
-			}
-			final Collection<File> deleteFiles = new ArrayList<File>();
-			final Collection<File> importCandicates = collectImportFiles(importDir);
-			for (final File file : importCandicates) {
-				try {
-					// logger.info("Read: " + file.getName());
-					final Metadata metadata = ImageMetadataReader.readMetadata(file);
-					if (metadata == null) {
-						continue;
-					}
-					final Date createDate = new MetadataWrapper(metadata).readCreateDate();
-					if (createDate == null) {
-						// skip images without creation date
-						continue;
-					}
-					final SortedMap<Date, Album> entriesBeforeDate = importAlbums.headMap(createDate);
-					if (entriesBeforeDate.isEmpty()) {
-						// no matching album found
-						continue;
-					}
-					final Album album = entriesBeforeDate.get(entriesBeforeDate.lastKey());
-					// logger.info(" ->" + album.getName());
-					if (album.importImage(file, createDate)) {
-						modifiedAlbums.add(album);
-						logger.debug("image " + file + " imported successfully to " + album.getName());
-						deleteFiles.add(file);
-					} else {
-						logger.warn("Could not import image " + file);
-					}
-				} catch (final ImageProcessingException e) {
-					throw new RuntimeException("Cannot import file " + file, e);
-				} catch (final IOException e) {
-					throw new RuntimeException("Cannot import file " + file, e);
-				}
-			}
-			for (final Album album : modifiedAlbums) {
-				album.commit("automatically imported");
-			}
-			for (final File file : deleteFiles) {
-				final boolean deleted = file.delete();
-				if (!deleted) {
-					logger.error("Cannot delete File " + file);
-				}
-			}
-		} finally {
-			refreshCache(true);
+			importInternal(inDir);
+			inDir.delete();
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot import File " + filename, e);
 		}
 	}
 
-	@PostConstruct
-	private void init() {
-		configureFromPreferences();
-		if (importBaseDir != null && executorService != null) {
-			fileWatcher = createFileWatcher();
+	@Override
+	public void importFiles(final File importDir) {
+		if (!importDir.getAbsolutePath().startsWith(importBaseDir.getAbsolutePath())) {
+			logger.error("Secutity-Error: Not allowed to read Images from " + importDir + " (Import-Path is " + importBaseDir + ")");
+			return;
 		}
+		importInternal(importDir);
 	}
 
 	@PostConstruct
@@ -628,43 +313,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	@Override
 	public Map<String, Album> listAlbums() {
 		return loadAlbums(false);
-	}
-
-	@PostConstruct
-	private void listenPeers() {
-		if (jmmDNS != null) {
-			return;
-		}
-		jmmDNS = JmmDNS.Factory.getInstance();
-		final ServiceListener serviceListener = new ServiceListener() {
-
-			@Override
-			public void serviceAdded(final ServiceEvent event) {
-				event.getDNS().requestServiceInfo(event.getType(), event.getName());
-			}
-
-			@Override
-			public void serviceRemoved(final ServiceEvent event) {
-				pollCurrentKnownPeers();
-			}
-
-			@Override
-			public void serviceResolved(final ServiceEvent event) {
-				pollCurrentKnownPeers();
-			}
-		};
-		jmmDNS.addNetworkTopologyListener(new NetworkTopologyListener() {
-
-			@Override
-			public void inetAddressAdded(final NetworkTopologyEvent event) {
-				event.getDNS().addServiceListener(SERVICE_TYPE, serviceListener);
-			}
-
-			@Override
-			public void inetAddressRemoved(final NetworkTopologyEvent event) {
-				pollCurrentKnownPeers();
-			}
-		});
 	}
 
 	@Override
@@ -695,66 +343,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		return storageList;
 	}
 
-	private Map<String, Album> loadAlbums(final boolean wait) {
-		if (needToLoadAlbumList()) {
-			if (wait) {
-				doLoadAlbums(true);
-			} else {
-				executorService.submit(new Runnable() {
-					@Override
-					public void run() {
-						doLoadAlbums(false);
-					}
-				});
-			}
-		}
-		return loadedAlbums;
-	}
-
-	private void loadMetaConfig() {
-		final File metaDir = getMetaDir();
-
-		if (new File(metaDir, ".git").exists()) {
-			try {
-				metaGit = Git.open(metaDir);
-			} catch (final IOException e) {
-				throw new RuntimeException("Cannot access to git-repository of " + getBaseDir(), e);
-			}
-		} else {
-			try {
-				metaGit = Git.init().setDirectory(metaDir).call();
-			} catch (final GitAPIException e) {
-				throw new RuntimeException("Cannot create meta repository", e);
-			}
-		}
-		final File gitignore = new File(metaDir, ".gitignore");
-		if (!gitignore.exists()) {
-			try {
-				@Cleanup
-				final PrintWriter ignoreWriter = new PrintWriter(gitignore);
-				ignoreWriter.println(".servercache");
-			} catch (final FileNotFoundException e) {
-				throw new RuntimeException("Cannot creare .gitignore", e);
-			}
-		}
-		final File cacheDir = new File(metaDir, META_CACHE);
-		if (!cacheDir.exists()) {
-			cacheDir.mkdirs();
-		}
-
-		updateMeta("config.json built", new Callable<Void>() {
-
-			@Override
-			public Void call() {
-				final ArchiveData archiveData = store.getArchiveData(ReadPolicy.READ_OR_CREATE);
-				if (archiveData.getArchiveName() == null) {
-					archiveData.setArchiveName(UUID.randomUUID().toString());
-				}
-				return null;
-			}
-		});
-	}
-
 	public ArchiveData loadMetaConfigFile(final File configFile) {
 		try {
 			final ArchiveData readValue = mapper.readValue(configFile, ArchiveData.class);
@@ -762,37 +350,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		} catch (final IOException e) {
 			throw new RuntimeException("Cannot read meta-config from " + configFile, e);
 		}
-	}
-
-	private String makeAlbumId(final File albumDir) {
-		return makeAlbumId(evaluateNameComps(albumDir));
-	}
-
-	private String makeAlbumId(final String[] nameComps) {
-		return Util.encodeStringForUrl(StringUtils.join(nameComps, "/"));
-	}
-
-	private File makeClientIdFile() {
-		return new File(getBaseDir(), CLIENTID_FILENAME);
-	}
-
-	private String makeDefaultInstanceName() {
-		try {
-			return InetAddress.getLocalHost().getHostName();
-		} catch (final UnknownHostException e) {
-			return UUID.randomUUID().toString();
-		}
-	}
-
-	private String makeRepositoryDirectoryName(final boolean pure, final String baseName) {
-		if (pure) {
-			return baseName + ".git";
-		}
-		return baseName;
-	}
-
-	private boolean needToLoadAlbumList() {
-		return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
 	}
 
 	@Override
@@ -810,52 +367,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		syncExternal(path, false);
 	}
 
-	private ResponseEntity<PingResponse> ping(final URI uri) {
-		return restTemplate.getForEntity(uri.resolve("ping.json"), PingResponse.class);
-	}
-
-	private void pollCurrentKnownPeers() {
-		processFoundServices(jmmDNS.list(SERVICE_TYPE));
-		refreshCache(true);
-	}
-
-	private synchronized void processFoundServices(final ServiceInfo[] services) {
-		final Map<String, URI> foundPeers = new HashMap<String, URI>();
-		for (final ServiceInfo serviceInfo : services) {
-			final int peerPort = serviceInfo.getPort();
-			final InetAddress[] addresses = serviceInfo.getInetAddresses();
-			for (final InetAddress inetAddress : addresses) {
-				if (inetAddress.isLinkLocalAddress()) {
-					continue;
-				}
-				try {
-					final URI candidateUri = new URI("http", null, inetAddress.getHostAddress(), peerPort, "/rest/", null, null);
-					final ResponseEntity<PingResponse> responseEntity = ping(candidateUri);
-					if (!responseEntity.hasBody() || responseEntity.getStatusCode().series() != Series.SUCCESSFUL) {
-						continue;
-					}
-					final PingResponse pingResponse = responseEntity.getBody();
-					if (!pingResponse.getArchiveId().equals(getArchiveName())) {
-						continue;
-					}
-					if (pingResponse.getServerId().equals(getInstanceId())) {
-						continue;
-					}
-					foundPeers.put(pingResponse.getServerId(), candidateUri);
-				} catch (final URISyntaxException e) {
-					logger.warn("Cannot build URL for " + serviceInfo, e);
-				} catch (final RestClientException e) {
-					logger.warn("ping " + serviceInfo, e);
-				}
-			}
-		}
-		logger.info("Found peers: ");
-		for (final Entry<String, URI> peerEntry : foundPeers.entrySet()) {
-			logger.info(" - " + peerEntry.getKey() + ": " + peerEntry.getValue());
-		}
-		updateAllRepositories(foundPeers.values());
-	}
-
 	public String readClientId(final File path, final boolean bare) throws IOException, FileNotFoundException {
 		String remoteName = null;
 		@SuppressWarnings("unchecked")
@@ -866,80 +377,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			}
 		}
 		return remoteName;
-	}
-
-	private void readLocalSettingsFromPreferences() {
-		setBaseDir(new File(preferences.get(ALBUM_PATH_PREFERENCE, new File(System.getProperty("user.home"), "images").getAbsolutePath())));
-		setImportBaseDir(new File(preferences.get(IMPORT_BASE_PATH_REFERENCE, "nowhere")));
-	}
-
-	private void refreshCache(final boolean wait) {
-		ConcurrentUtil.executeSequencially(refreshThumbnailsSemaphore, wait, new Callable<Void>() {
-
-			@Override
-			public Void call() throws Exception {
-				try {
-					final AtomicInteger imageCount = new AtomicInteger();
-					final ConcurrentMap<String, AtomicInteger> countByTag = new ConcurrentHashMap<>();
-
-					// limit the queue size for take not too much memory
-					final Semaphore queueLimitSemaphore = new Semaphore(100);
-					final long startTime = System.currentTimeMillis();
-					final Collection<Album> albums = loadAlbums(wait).values();
-					@Cleanup
-					final ProgressHandler albumProgress = stateManager.newProgress(albums.size(), ProgressType.REFRESH_THUMBNAIL, instanceName);
-					for (final Album album : albums) {
-						@Cleanup
-						final Closeable albumStep = albumProgress.notfiyProgress(album.getName());
-						final Collection<AlbumImage> images = album.listImages().values();
-						// final ProgressHandler thumbnailProgress =
-						// stateManager.newProgress(images.size(),
-						// ProgressType.REFRESH_THUMBNAIL, album.getName());
-						for (final AlbumImage image : images) {
-							queueLimitSemaphore.acquire();
-							executorService.submit(new Runnable() {
-
-								@Override
-								public void run() {
-									try {
-										// thumbnailProgress.notfiyProgress(image.getName());
-										// read Metadata
-										image.captureDate();
-										// read Thumbnail
-										image.getThumbnail();
-										final AlbumEntryData albumEntryData = image.getAlbumEntryData();
-										if (albumEntryData != null && albumEntryData.getKeywords() != null) {
-											for (final String keyword : albumEntryData.getKeywords()) {
-												countByTag.putIfAbsent(keyword, new AtomicInteger(0));
-												countByTag.get(keyword).incrementAndGet();
-											}
-										}
-									} finally {
-										imageCount.incrementAndGet();
-										queueLimitSemaphore.release();
-										// thumbnailProgress.finishProgress();
-									}
-								}
-							});
-						}
-					}
-					// wait until the end
-					queueLimitSemaphore.acquire(100);
-					final long endTime = System.currentTimeMillis();
-					final Duration duration = new Duration(startTime, endTime);
-					final StringBuffer buf = new StringBuffer("Refresh-Time: ");
-					PeriodFormat.wordBased().getPrinter().printTo(buf, duration.toPeriod(), Locale.getDefault());
-					buf.append(", ");
-					buf.append(imageCount.intValue());
-					buf.append(" Images");
-					logger.info(buf.toString());
-					updateStatistics(countByTag);
-				} catch (final InterruptedException e) {
-					logger.info("cache refresh interrupted");
-				}
-				return null;
-			}
-		});
 	}
 
 	@Override
@@ -1054,19 +491,73 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		}
 	}
 
-	@PreDestroy
-	private void shutdownDnsListener() throws IOException {
-		if (jmmDNS != null) {
-			jmmDNS.close();
-			jmmDNS = null;
-		}
+	@Override
+	public void unRegisterClient(final String albumId, final String clientId) {
+		final String albumPath = Util.decodeStringOfUrl(albumId);
+		updateMeta("removed " + albumPath + " from client " + clientId, new Callable<Void>() {
+
+			@Override
+			public Void call() throws Exception {
+				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
+
+				if (!albumPerStorage.containsKey(clientId)) {
+					return null;
+				}
+				final Collection<String> albumCollection = albumPerStorage.get(clientId).getAlbumList();
+				if (albumCollection.contains(albumPath)) {
+					albumCollection.remove(albumPath);
+				}
+				return null;
+			}
+		});
 	}
 
-	@PreDestroy
-	private void shutdownFileWatcher() {
-		if (fileWatcher != null) {
-			fileWatcher.close();
+	@Override
+	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
+		final Map<String, Album> albums = loadAlbums(false);
+		final Album foundAlbum = albums.get(albumId);
+		if (foundAlbum == null) {
+			return;
 		}
+		updateMeta("Metadata updated", new Callable<Void>() {
+			@Override
+			public Void call() throws Exception {
+				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
+				for (final Mutation mutation : updateEntries) {
+					if (mutation instanceof MetadataMutation) {
+						final MetadataMutation metadataMutation = (MetadataMutation) mutation;
+						final RevCommit latestMetaCommit = findLatestMetaCommit();
+						if (metadataMutation.getMetadataVersion().equals(latestMetaCommit.getId().name())) {
+							if (metadataMutation instanceof StorageMutation) {
+								final StorageMutation mutationEntry = (StorageMutation) metadataMutation;
+								final String storageName = Util.decodeStringOfUrl(mutationEntry.getStorage());
+								final String albumPath = Util.decodeStringOfUrl(albumId);
+								final Collection<String> albumCollection = albumPerStorage.get(storageName).getAlbumList();
+
+								if (!albumPerStorage.containsKey(storageName)) {
+									continue;
+								}
+								switch (mutationEntry.getMutation()) {
+								case ADD:
+									albumCollection.add(albumPath);
+									break;
+								case REMOVE:
+									albumCollection.remove(albumPath);
+									break;
+								}
+							}
+						}
+					}
+				}
+				return null;
+			}
+		});
+		foundAlbum.updateMetadata(updateEntries);
+	}
+
+	@Override
+	public void waitForAlbums() {
+		loadAlbums(true);
 	}
 
 	/**
@@ -1085,6 +576,622 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				}
 			}
 		}, 60, 2 * 60, TimeUnit.MINUTES);
+	}
+
+	private Album appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri, final String serverName) {
+		final String[] nameComps = evaluateNameComps(albumDir);
+		final String albumId = makeAlbumId(nameComps);
+		synchronized (getAlbumLock(albumDir)) {
+			if (!albumMap.containsKey(albumId)) {
+				final Album newAlbum = (Album) applicationContext.getBean("album", albumDir, nameComps, remoteUri, serverName);
+				albumMap.put(albumId, newAlbum);
+			}
+		}
+		return albumMap.get(albumId);
+	}
+
+	private String cleanAlbumName(final boolean bare, final String relativeDirectoryName) {
+		if (bare) {
+			if (!relativeDirectoryName.endsWith(".git")) {
+				throw new RuntimeException(relativeDirectoryName + " not ends with .git");
+			}
+			return relativeDirectoryName.substring(0, relativeDirectoryName.length() - 4);
+		}
+		return relativeDirectoryName;
+	}
+
+	private SortedMap<Date, Album> collectImportAlbums() {
+		final SortedMap<Date, Album> importAlbums = new TreeMap<Date, Album>();
+		for (final Album album : loadAlbums(true).values()) {
+			final Date beginDate = album.getAutoAddBeginDate();
+			if (beginDate != null) {
+				importAlbums.put(beginDate, album);
+			}
+		}
+		return importAlbums;
+	}
+
+	private Collection<File> collectImportFiles(final File importDir) {
+		if (!importDir.isDirectory()) {
+			return Collections.emptyList();
+		}
+		final ArrayList<File> ret = new ArrayList<File>();
+		ret.addAll(Arrays.asList(importDir.listFiles(new FileFilter() {
+			@Override
+			public boolean accept(final File pathname) {
+				if (!pathname.canRead()) {
+					return false;
+				}
+				if (!pathname.isFile()) {
+					return false;
+				}
+				final String lowerFilename = pathname.getName().toLowerCase();
+				return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".nef") || lowerFilename.endsWith(".jpeg");
+			}
+		})));
+		for (final File dir : importDir.listFiles(new FileFilter() {
+			@Override
+			public boolean accept(final File pathname) {
+				return pathname.isDirectory();
+			}
+		})) {
+			ret.addAll(collectImportFiles(dir));
+		}
+		return ret;
+	}
+
+	private void commitNeededFiles(final String message, final Git repo) throws GitAPIException {
+		final Status status = repo.status().call();
+		if (!status.isClean()) {
+			boolean fileFound = false;
+			final AddCommand addCommand = repo.add();
+			final Set<String> modified = status.getModified();
+			if (modified != null && !modified.isEmpty()) {
+				for (final String modifiedFile : modified) {
+					fileFound = true;
+					addCommand.addFilepattern(modifiedFile);
+				}
+			}
+			final Set<String> untracked = status.getUntracked();
+			if (untracked != null && !untracked.isEmpty()) {
+				for (final String untrackedFile : untracked) {
+					fileFound = true;
+					addCommand.addFilepattern(untrackedFile);
+				}
+			}
+
+			if (fileFound) {
+				addCommand.call();
+				repo.commit().setMessage(message).call();
+			} else {
+				logger.warn("Repository modified " + repo.getRepository());
+			}
+		}
+	}
+
+	private void configureFromPreferences() {
+		if (getBaseDir() == null) {
+			preferences = Preferences.userNodeForPackage(FileAlbumAccess.class);
+			readLocalSettingsFromPreferences();
+			preferences.addPreferenceChangeListener(new PreferenceChangeListener() {
+				@Override
+				public void preferenceChange(final PreferenceChangeEvent arg0) {
+					readLocalSettingsFromPreferences();
+				}
+			});
+		}
+	}
+
+	private FileWatcher createFileWatcher() {
+		return (FileWatcher) applicationContext.getBean("fileWatcher", importBaseDir);
+	}
+
+	private void doLoadAlbums(final boolean forceWait) {
+		if (forceWait) {
+			try {
+				updateAlbumListSemaphore.acquire();
+			} catch (final InterruptedException e) {
+				// interrupted
+				return;
+			}
+		} else {
+			final boolean hasLock = updateAlbumListSemaphore.tryAcquire();
+			if (!hasLock) {
+				return;
+			}
+		}
+		try {
+			if (needToLoadAlbumList()) {
+				try {
+					final Map<String, Album> ret = new ConcurrentHashMap<String, Album>();
+					final File basePath = getBasePath();
+					logger.debug("Load Repositories from: " + basePath);
+					final int basePathLength = basePath.getAbsolutePath().length();
+					final Collection<Future<?>> futures = new ArrayList<>();
+					for (final File albumDir : findAlbums(basePath, false)) {
+						futures.add(safeExecutorService.submit(new Runnable() {
+
+							@Override
+							public void run() {
+								logger.debug("Load Repository " + albumDir);
+								final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
+								if (relativePath.equals(META_REPOSITORY)) {
+									return;
+								}
+								try {
+									appendAlbum(ret, albumDir, null, null);
+									stateManager.clearException(relativePath);
+								} catch (final BeanCreationException ex) {
+									stateManager.recordException(relativePath, ex);
+								}
+							}
+						}));
+					}
+					for (final Future<?> future : futures) {
+						future.get();
+					}
+					lastLoadedDate.set(System.currentTimeMillis());
+					loadedAlbums = ret;
+					long archiveSize = 0;
+					for (final Album album : ret.values()) {
+						archiveSize += album.getRepositorySize();
+						for (final AlbumImage image : album.listImages().values()) {
+							archiveSize += image.getAllFilesSize();
+						}
+					}
+					final long availableSize = archiveSize + getBaseDir().getFreeSpace();
+					final int availableMBytes = (int) (availableSize / 1024 / 1024);
+					final String storageName = getInstanceName();
+					updateMeta("available size of " + storageName + " updated", new Callable<Void>() {
+
+						@Override
+						public Void call() throws Exception {
+							final ArchiveData archiveData = store.getArchiveData(ReadPolicy.READ_OR_CREATE);
+							if (archiveData.getStorages() == null) {
+								archiveData.setStorages(new HashMap<String, StorageData>());
+							}
+							final Map<String, StorageData> storages = archiveData.getStorages();
+							if (storages.containsKey(storageName)) {
+								storages.get(storageName).setMBytesAvailable(availableMBytes);
+							} else {
+								final StorageData storageData = new StorageData();
+								for (final Album album : ret.values()) {
+									storageData.getAlbumList().add(album.getName());
+								}
+								storageData.setMBytesAvailable(availableMBytes);
+								storages.put(storageName, storageData);
+							}
+							return null;
+						}
+					});
+				} catch (final Throwable e) {
+					if (forceWait) {
+						throw new RuntimeException("Troubles while accessing resource " + getBaseDir(), e);
+					} else {
+						logger.error("Troubles while accessing resource " + getBaseDir(), e);
+					}
+				}
+			}
+		} finally {
+			updateAlbumListSemaphore.release();
+		}
+	}
+
+	private String[] evaluateNameComps(final File albumDir) {
+		return albumDir.getAbsolutePath().substring(getBasePath().getAbsolutePath().length() + 1).split(File.pathSeparator);
+	}
+
+	private Collection<String> evaluateRepositoriesToSync(final String instanceName, final Set<String> existingRepositories, final ArchiveData config) {
+		final Collection<String> ret = new HashSet<>(existingRepositories);
+		if (config != null && config.getStorages().containsKey(instanceName)) {
+			final StorageData storageData = config.getStorages().get(instanceName);
+			if (!storageData.isTakeAllRepositories()) {
+				ret.retainAll(storageData.getAlbumList());
+			}
+		}
+		return ret;
+	}
+
+	private Album findAlbumForDate(final SortedMap<Date, Album> importAlbums, final Date createDate) {
+		if (createDate == null) {
+			return null;
+		}
+		final SortedMap<Date, Album> entriesBeforeDate = importAlbums.headMap(createDate);
+		if (entriesBeforeDate.isEmpty()) {
+			return null;
+		}
+		return entriesBeforeDate.get(entriesBeforeDate.lastKey());
+	}
+
+	private Collection<File> findAlbums(final File dir, final boolean pure) {
+		if (repositoryService.isRepository(dir, pure)) {
+			return Collections.singleton(dir);
+		}
+		final File[] foundFiles = dir.listFiles(new FileFilter() {
+			@Override
+			public boolean accept(final File pathname) {
+				return pathname.isDirectory();
+			}
+		});
+		final ArrayList<File> ret = new ArrayList<File>();
+		if (foundFiles != null) {
+			Arrays.sort(foundFiles);
+			for (final File subDir : foundFiles) {
+				ret.addAll(findAlbums(subDir, pure));
+			}
+		}
+		return ret;
+	}
+
+	private RevCommit findLatestMetaCommit() {
+		try {
+			final Iterator<RevCommit> log = metaGit.log().setMaxCount(1).call().iterator();
+			if (log.hasNext()) {
+				return log.next();
+			}
+			return null;
+		} catch (final GitAPIException e) {
+			throw new RuntimeException("Cannot read commit-log", e);
+		}
+
+	}
+
+	private void flushPreferences() {
+		try {
+			preferences.flush();
+		} catch (final BackingStoreException e) {
+			logger.warn("Cannot persist config", e);
+		}
+	}
+
+	private Object getAlbumLock(final File albumFile) {
+		final String key = albumFile.getAbsolutePath();
+		if (createAlbumLocks.containsKey(key)) {
+			return createAlbumLocks.get(key);
+		}
+		createAlbumLocks.putIfAbsent(key, new Object());
+		return createAlbumLocks.get(key);
+
+	}
+
+	private File getBasePath() {
+		return getBaseDir().getAbsoluteFile();
+	}
+
+	private File getConfigFile() {
+		return new File(getMetaDir(), "config.json");
+	}
+
+	private File getMetaDir() {
+		final File metaDir = new File(getBasePath(), META_REPOSITORY);
+		if (!metaDir.exists()) {
+			metaDir.mkdirs();
+		}
+		return metaDir;
+	}
+
+	private File getServercacheDir() {
+		final File cacheDir = new File(getMetaDir(), ".servercache");
+		if (!cacheDir.exists()) {
+			cacheDir.mkdirs();
+		}
+		return cacheDir;
+	}
+
+	private void importInternal(final File importDir) {
+		try {
+			final HashSet<Album> modifiedAlbums = new HashSet<Album>();
+			final SortedMap<Date, Album> importAlbums = collectImportAlbums();
+			final Collection<File> deleteFiles = new ArrayList<File>();
+			for (final File file : collectImportFiles(importDir)) {
+				try {
+					// logger.info("Read: " + file.getName());
+					final Metadata metadata = ImageMetadataReader.readMetadata(file);
+					if (metadata == null) {
+						continue;
+					}
+					final Album album = findAlbumForDate(importAlbums, new MetadataWrapper(metadata).readCreateDate());
+					if (album == null) {
+						// no album found
+						continue;
+					}
+					// logger.info(" ->" + album.getName());
+					if (album.importImage(file, new MetadataWrapper(metadata).readCreateDate())) {
+						modifiedAlbums.add(album);
+						logger.debug("image " + file + " imported successfully to " + album.getName());
+						deleteFiles.add(file);
+					} else {
+						logger.warn("Could not import image " + file);
+					}
+				} catch (final ImageProcessingException e) {
+					throw new RuntimeException("Cannot import file " + file, e);
+				} catch (final IOException e) {
+					throw new RuntimeException("Cannot import file " + file, e);
+				}
+			}
+			for (final Album album : modifiedAlbums) {
+				album.commit("automatically imported");
+			}
+			for (final File file : deleteFiles) {
+				final boolean deleted = file.delete();
+				if (!deleted) {
+					logger.error("Cannot delete File " + file);
+				}
+			}
+		} finally {
+			refreshCache(true);
+		}
+	}
+
+	@PostConstruct
+	private void init() {
+		configureFromPreferences();
+		if (importBaseDir != null && executorService != null) {
+			fileWatcher = createFileWatcher();
+		}
+	}
+
+	@PostConstruct
+	private void listenPeers() {
+		if (jmmDNS != null) {
+			return;
+		}
+		jmmDNS = JmmDNS.Factory.getInstance();
+		final ServiceListener serviceListener = new ServiceListener() {
+
+			@Override
+			public void serviceAdded(final ServiceEvent event) {
+				event.getDNS().requestServiceInfo(event.getType(), event.getName());
+			}
+
+			@Override
+			public void serviceRemoved(final ServiceEvent event) {
+				pollCurrentKnownPeers();
+			}
+
+			@Override
+			public void serviceResolved(final ServiceEvent event) {
+				pollCurrentKnownPeers();
+			}
+		};
+		jmmDNS.addNetworkTopologyListener(new NetworkTopologyListener() {
+
+			@Override
+			public void inetAddressAdded(final NetworkTopologyEvent event) {
+				event.getDNS().addServiceListener(SERVICE_TYPE, serviceListener);
+			}
+
+			@Override
+			public void inetAddressRemoved(final NetworkTopologyEvent event) {
+				pollCurrentKnownPeers();
+			}
+		});
+	}
+
+	private Map<String, Album> loadAlbums(final boolean wait) {
+		if (needToLoadAlbumList()) {
+			if (wait) {
+				doLoadAlbums(true);
+			} else {
+				executorService.submit(new Runnable() {
+					@Override
+					public void run() {
+						doLoadAlbums(false);
+					}
+				});
+			}
+		}
+		return loadedAlbums;
+	}
+
+	private void loadMetaConfig() {
+		final File metaDir = getMetaDir();
+
+		if (new File(metaDir, ".git").exists()) {
+			try {
+				metaGit = Git.open(metaDir);
+			} catch (final IOException e) {
+				throw new RuntimeException("Cannot access to git-repository of " + getBaseDir(), e);
+			}
+		} else {
+			try {
+				metaGit = Git.init().setDirectory(metaDir).call();
+			} catch (final GitAPIException e) {
+				throw new RuntimeException("Cannot create meta repository", e);
+			}
+		}
+		final File gitignore = new File(metaDir, ".gitignore");
+		if (!gitignore.exists()) {
+			try {
+				@Cleanup
+				final PrintWriter ignoreWriter = new PrintWriter(gitignore);
+				ignoreWriter.println(".servercache");
+			} catch (final FileNotFoundException e) {
+				throw new RuntimeException("Cannot creare .gitignore", e);
+			}
+		}
+		final File cacheDir = new File(metaDir, META_CACHE);
+		if (!cacheDir.exists()) {
+			cacheDir.mkdirs();
+		}
+
+		updateMeta("config.json built", new Callable<Void>() {
+
+			@Override
+			public Void call() {
+				final ArchiveData archiveData = store.getArchiveData(ReadPolicy.READ_OR_CREATE);
+				if (archiveData.getArchiveName() == null) {
+					archiveData.setArchiveName(UUID.randomUUID().toString());
+				}
+				return null;
+			}
+		});
+	}
+
+	private String makeAlbumId(final File albumDir) {
+		return makeAlbumId(evaluateNameComps(albumDir));
+	}
+
+	private String makeAlbumId(final String[] nameComps) {
+		return Util.encodeStringForUrl(StringUtils.join(nameComps, "/"));
+	}
+
+	private File makeClientIdFile() {
+		return new File(getBaseDir(), CLIENTID_FILENAME);
+	}
+
+	private String makeDefaultInstanceName() {
+		try {
+			return InetAddress.getLocalHost().getHostName();
+		} catch (final UnknownHostException e) {
+			return UUID.randomUUID().toString();
+		}
+	}
+
+	private String makeRepositoryDirectoryName(final boolean pure, final String baseName) {
+		if (pure) {
+			return baseName + ".git";
+		}
+		return baseName;
+	}
+
+	private boolean needToLoadAlbumList() {
+		return loadedAlbums == null || (System.currentTimeMillis() - lastLoadedDate.get()) > TimeUnit.MINUTES.toMillis(5);
+	}
+
+	private ResponseEntity<PingResponse> ping(final URI uri) {
+		return restTemplate.getForEntity(uri.resolve("ping.json"), PingResponse.class);
+	}
+
+	private void pollCurrentKnownPeers() {
+		processFoundServices(jmmDNS.list(SERVICE_TYPE));
+		refreshCache(true);
+	}
+
+	private synchronized void processFoundServices(final ServiceInfo[] services) {
+		final Map<String, URI> foundPeers = new HashMap<String, URI>();
+		for (final ServiceInfo serviceInfo : services) {
+			final int peerPort = serviceInfo.getPort();
+			final InetAddress[] addresses = serviceInfo.getInetAddresses();
+			for (final InetAddress inetAddress : addresses) {
+				if (inetAddress.isLinkLocalAddress()) {
+					continue;
+				}
+				try {
+					final URI candidateUri = new URI("http", null, inetAddress.getHostAddress(), peerPort, "/rest/", null, null);
+					final ResponseEntity<PingResponse> responseEntity = ping(candidateUri);
+					if (!responseEntity.hasBody() || responseEntity.getStatusCode().series() != Series.SUCCESSFUL) {
+						continue;
+					}
+					final PingResponse pingResponse = responseEntity.getBody();
+					if (!pingResponse.getArchiveId().equals(getArchiveName())) {
+						continue;
+					}
+					if (pingResponse.getServerId().equals(getInstanceId())) {
+						continue;
+					}
+					foundPeers.put(pingResponse.getServerId(), candidateUri);
+				} catch (final URISyntaxException e) {
+					logger.warn("Cannot build URL for " + serviceInfo, e);
+				} catch (final RestClientException e) {
+					logger.warn("ping " + serviceInfo, e);
+				}
+			}
+		}
+		logger.info("Found peers: ");
+		for (final Entry<String, URI> peerEntry : foundPeers.entrySet()) {
+			logger.info(" - " + peerEntry.getKey() + ": " + peerEntry.getValue());
+		}
+		updateAllRepositories(foundPeers.values());
+	}
+
+	private void readLocalSettingsFromPreferences() {
+		setBaseDir(new File(preferences.get(ALBUM_PATH_PREFERENCE, new File(System.getProperty("user.home"), "images").getAbsolutePath())));
+		setImportBaseDir(new File(preferences.get(IMPORT_BASE_PATH_REFERENCE, "nowhere")));
+	}
+
+	private void refreshCache(final boolean wait) {
+		ConcurrentUtil.executeSequencially(refreshThumbnailsSemaphore, wait, new Callable<Void>() {
+
+			@Override
+			public Void call() throws Exception {
+				try {
+					final AtomicInteger imageCount = new AtomicInteger();
+					final ConcurrentMap<String, AtomicInteger> countByTag = new ConcurrentHashMap<>();
+
+					// limit the queue size for take not too much memory
+					final Semaphore queueLimitSemaphore = new Semaphore(100);
+					final long startTime = System.currentTimeMillis();
+					final Collection<Album> albums = loadAlbums(wait).values();
+					@Cleanup
+					final ProgressHandler albumProgress = stateManager.newProgress(albums.size(), ProgressType.REFRESH_THUMBNAIL, instanceName);
+					for (final Album album : albums) {
+						@Cleanup
+						final Closeable albumStep = albumProgress.notfiyProgress(album.getName());
+						final Collection<AlbumImage> images = album.listImages().values();
+						// final ProgressHandler thumbnailProgress =
+						// stateManager.newProgress(images.size(),
+						// ProgressType.REFRESH_THUMBNAIL, album.getName());
+						for (final AlbumImage image : images) {
+							queueLimitSemaphore.acquire();
+							executorService.submit(new Runnable() {
+
+								@Override
+								public void run() {
+									try {
+										// thumbnailProgress.notfiyProgress(image.getName());
+										// read Metadata
+										image.captureDate();
+										// read Thumbnail
+										image.getThumbnail();
+										final AlbumEntryData albumEntryData = image.getAlbumEntryData();
+										if (albumEntryData != null && albumEntryData.getKeywords() != null) {
+											for (final String keyword : albumEntryData.getKeywords()) {
+												countByTag.putIfAbsent(keyword, new AtomicInteger(0));
+												countByTag.get(keyword).incrementAndGet();
+											}
+										}
+									} finally {
+										imageCount.incrementAndGet();
+										queueLimitSemaphore.release();
+										// thumbnailProgress.finishProgress();
+									}
+								}
+							});
+						}
+					}
+					// wait until the end
+					queueLimitSemaphore.acquire(100);
+					final long endTime = System.currentTimeMillis();
+					final Duration duration = new Duration(startTime, endTime);
+					final StringBuffer buf = new StringBuffer("Refresh-Time: ");
+					PeriodFormat.wordBased().getPrinter().printTo(buf, duration.toPeriod(), Locale.getDefault());
+					buf.append(", ");
+					buf.append(imageCount.intValue());
+					buf.append(" Images");
+					logger.info(buf.toString());
+					updateStatistics(countByTag);
+				} catch (final InterruptedException e) {
+					logger.info("cache refresh interrupted");
+				}
+				return null;
+			}
+		});
+	}
+
+	@PreDestroy
+	private void shutdownDnsListener() throws IOException {
+		if (jmmDNS != null) {
+			jmmDNS.close();
+			jmmDNS = null;
+		}
+	}
+
+	@PreDestroy
+	private void shutdownFileWatcher() {
+		if (fileWatcher != null) {
+			fileWatcher.close();
+		}
 	}
 
 	private void syncExternal(final File path, final boolean bare) {
@@ -1190,27 +1297,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		}
 	}
 
-	@Override
-	public void unRegisterClient(final String albumId, final String clientId) {
-		final String albumPath = Util.decodeStringOfUrl(albumId);
-		updateMeta("removed " + albumPath + " from client " + clientId, new Callable<Void>() {
-
-			@Override
-			public Void call() throws Exception {
-				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
-
-				if (!albumPerStorage.containsKey(clientId)) {
-					return null;
-				}
-				final Collection<String> albumCollection = albumPerStorage.get(clientId).getAlbumList();
-				if (albumCollection.contains(albumPath)) {
-					albumCollection.remove(albumPath);
-				}
-				return null;
-			}
-		});
-	}
-
 	private void updateAllRepositories(final Collection<URI> collection) {
 		// @Cleanup
 		// final ProgressHandler peerServerProgressHandler =
@@ -1279,59 +1365,11 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		}
 	}
 
-	@Override
-	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
-		final Map<String, Album> albums = loadAlbums(false);
-		final Album foundAlbum = albums.get(albumId);
-		if (foundAlbum == null) {
-			return;
-		}
-		updateMeta("Metadata updated", new Callable<Void>() {
-			@Override
-			public Void call() throws Exception {
-				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
-				for (final Mutation mutation : updateEntries) {
-					if (mutation instanceof MetadataMutation) {
-						final MetadataMutation metadataMutation = (MetadataMutation) mutation;
-						final RevCommit latestMetaCommit = findLatestMetaCommit();
-						if (metadataMutation.getMetadataVersion().equals(latestMetaCommit.getId().name())) {
-							if (metadataMutation instanceof StorageMutation) {
-								final StorageMutation mutationEntry = (StorageMutation) metadataMutation;
-								final String storageName = Util.decodeStringOfUrl(mutationEntry.getStorage());
-								final String albumPath = Util.decodeStringOfUrl(albumId);
-								final Collection<String> albumCollection = albumPerStorage.get(storageName).getAlbumList();
-
-								if (!albumPerStorage.containsKey(storageName)) {
-									continue;
-								}
-								switch (mutationEntry.getMutation()) {
-								case ADD:
-									albumCollection.add(albumPath);
-									break;
-								case REMOVE:
-									albumCollection.remove(albumPath);
-									break;
-								}
-							}
-						}
-					}
-				}
-				return null;
-			}
-		});
-		foundAlbum.updateMetadata(updateEntries);
-	}
-
 	private void updateStatistics(final ConcurrentMap<String, AtomicInteger> countByTag) throws IOException, JsonGenerationException, JsonMappingException {
 		final StorageStatistics statistics = new StorageStatistics();
 		for (final Entry<String, AtomicInteger> keywordEntry : countByTag.entrySet()) {
 			statistics.getKeywordCount().put(keywordEntry.getKey(), Integer.valueOf(keywordEntry.getValue().intValue()));
 		}
 		mapper.writer().withPrettyPrinter(new DefaultPrettyPrinter()).writeValue(new File(getServercacheDir(), "statistics.json"), statistics);
-	}
-
-	@Override
-	public void waitForAlbums() {
-		loadAlbums(true);
 	}
 }

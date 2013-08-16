@@ -69,4 +69,10 @@ public interface AlbumAccess {
 	 * @return Statistics
 	 */
 	StorageStatistics getStatistics();
+
+	/**
+	 * @param filename
+	 * @param data
+	 */
+	void importFile(final String filename, final byte[] data);
 }

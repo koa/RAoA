@@ -50,10 +50,10 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	}
 
-	static final String TAG = "Content Provider";
-
 	private static final Map<Class, NotifyableMatrixCursor> emptyCursors = new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
+
 	private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
+	static final String TAG = "Content Provider";
 
 	private SynchronisationService service = null;
 	/** Defines callbacks for service binding, passed to bindService() */
@@ -80,6 +80,12 @@ public class ArchiveContentProvider extends ContentProvider {
 			final String fullAlbumName = extras.getString(Client.PARAMETER_FULL_ALBUM_NAME);
 			final Date autoAddDate = extras.containsKey(Client.PARAMETER_AUTOADD_DATE) ? new Date(extras.getLong(Client.PARAMETER_AUTOADD_DATE)) : null;
 			getService().createAlbumOnServer(server, fullAlbumName, autoAddDate);
+		}
+		if (Client.METHOD_IMPORT_FILE.equals(method)) {
+			final String filename = arg;
+			final byte[] data = extras.getByteArray(Client.PARAMETER_FILEDATA);
+			final String serverName = extras.getString(Client.PARAMETER_SERVERNAME);
+			getService().importFile(serverName, filename, data);
 		}
 		return null;
 	}
@@ -278,6 +284,10 @@ public class ArchiveContentProvider extends ContentProvider {
 				public File getLoadedThumbnail(final String archiveName, final String albumName, final String albumEntryName) {
 					// TODO Auto-generated method stub
 					return null;
+				}
+
+				@Override
+				public void importFile(final String serverName, final String filename, final byte[] data) {
 				}
 
 				@Override

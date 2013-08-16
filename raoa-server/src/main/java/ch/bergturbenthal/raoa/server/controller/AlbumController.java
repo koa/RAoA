@@ -32,6 +32,7 @@ import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
+import ch.bergturbenthal.raoa.data.model.ImportFileRequest;
 import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.server.Album;
 import ch.bergturbenthal.raoa.server.AlbumAccess;
@@ -67,6 +68,18 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	public void importDirectory(@RequestParam("path") final String path, final HttpServletResponse response) throws IOException, InterruptedException, ExecutionException {
 		directoryNotificationService.notifyDirectory(new File(path)).get();
 		response.getWriter().println("Import finished");
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see ch.bergturbenthal.raoa.data.api.Album#importFile(ch.bergturbenthal.raoa.data.model.ImportFileRequest)
+	 */
+	@Override
+	@RequestMapping(value = "import", method = RequestMethod.PUT)
+	@ResponseBody
+	public void importFile(@RequestBody final ImportFileRequest request) {
+		albumAccess.importFile(request.getFilename(), request.getData());
 	}
 
 	@Override

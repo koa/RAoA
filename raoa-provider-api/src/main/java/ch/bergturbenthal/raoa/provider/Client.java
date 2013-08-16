@@ -121,15 +121,16 @@ public class Client {
 	public static final String AUTHORITY = "ch.bergturbenthal.raoa.provider";
 	public static final Uri KEYWORDS_URI;
 	public static final String METHOD_CREATE_ALBUM_ON_SERVER = "createAlbumOnServer";
+	public static final String METHOD_IMPORT_FILE = "importFile";
 	public static final String PARAMETER_AUTOADD_DATE = "autoaddDate";
+	public static final String PARAMETER_FILEDATA = "fileData";
 	public static final String PARAMETER_FULL_ALBUM_NAME = "fullAlbumName";
+	public static final String PARAMETER_SERVERNAME = "servername";
 	public static final Uri SERVER_URI;
 	public static final Uri STORAGE_URI;
 	private static final String ALBUM_URI_STRING;
 	private static final ObjectMapper mapper = new ObjectMapper();
 	private static final CollectionType stringListType = CollectionType.construct(List.class, SimpleType.construct(String.class));
-	private final ContentResolver provider;
-
 	static {
 		ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
 		SERVER_URI = Uri.parse("content://" + AUTHORITY + "/servers");
@@ -223,6 +224,8 @@ public class Client {
 		}
 	}
 
+	private final ContentResolver provider;
+
 	public Client(final ContentResolver provider) {
 		this.provider = provider;
 	}
@@ -235,5 +238,14 @@ public class Client {
 			extras.putLong(PARAMETER_AUTOADD_DATE, autoAddDate.getTime());
 		}
 		provider.call(SERVER_URI, METHOD_CREATE_ALBUM_ON_SERVER, serverId, extras);
+	}
+
+	public void importFile(final String servername, final String filename, final byte[] data) {
+		assert filename != null;
+		assert data != null;
+		final Bundle extras = new Bundle();
+		extras.putString(PARAMETER_SERVERNAME, servername);
+		extras.putByteArray(PARAMETER_FILEDATA, data);
+		provider.call(SERVER_URI, METHOD_IMPORT_FILE, filename, extras);
 	}
 }
