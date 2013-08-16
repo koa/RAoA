@@ -77,8 +77,17 @@
         <activity android:name=".provider.activity.ShareReceiveActivity" >
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
+
                 <category android:name="android.intent.category.DEFAULT" />
+
                 <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="application/vnd.google.panorama360+jpg" />
             </intent-filter>
         </activity>
     </application>
