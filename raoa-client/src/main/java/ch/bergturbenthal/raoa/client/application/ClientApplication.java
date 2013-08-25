@@ -11,13 +11,11 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-import android.annotation.SuppressLint;
 import android.app.Application;
 import android.util.Log;
 import android.widget.Toast;
 
 public class ClientApplication extends Application {
-	@SuppressLint("SimpleDateFormat")
 	@Override
 	public void onCreate() {
 		super.onCreate();
