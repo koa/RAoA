@@ -8,7 +8,7 @@ import lombok.Data;
 @Data
 public class StorageEntry {
 	private final Set<String> albumList = new TreeSet<String>();
-	private Long mBytesAvailable;
+	private Long gBytesAvailable;
 	private String storageId;
 	private String storageName;
 	private boolean takeAllRepositories;
