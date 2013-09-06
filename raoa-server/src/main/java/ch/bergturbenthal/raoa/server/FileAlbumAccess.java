@@ -1299,6 +1299,8 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 							if (!responseEntity.hasBody()) {
 								return;
 							}
+							final String remoteHost = peerServerUri.getHost();
+							final int remotePort = pingResponse.getGitPort();
 							final AlbumEntry album = remoteAlbums.get(albumName);
 							final Album localAlbumForRemote = localAlbums.get(album.getId());
 							@Cleanup
