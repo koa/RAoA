@@ -5,11 +5,13 @@ import android.app.ListFragment;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.Context;
 import android.content.CursorLoader;
+import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.CursorAdapter;
+import android.widget.ListView;
 import android.widget.ResourceCursorAdapter;
 import android.widget.TextView;
 import ch.bergturbenthal.raoa.R;
@@ -61,7 +63,23 @@ public class ServerIssueFragment extends ListFragment {
 				}
 			});
 		}
+	}
 
+	@Override
+	public void onListItemClick(final ListView l, final View v, final int position, final long id) {
+		final Cursor cursor = (Cursor) adapter.getItem(position);
+		final Intent intent = new Intent(getActivity(), ShowIssueActivity.class);
+		for (final String column : new String[] { Client.IssueEntry.ALBUM_NAME,
+																							Client.IssueEntry.ALBUM_ENTRY_NAME,
+																							Client.IssueEntry.ISSUE_TYPE,
+																							Client.IssueEntry.STACK_TRACE }) {
+			final int index = cursor.getColumnIndexOrThrow(column);
+			final String value = cursor.getString(index);
+			intent.putExtra(column, value);
+		}
+		final int timeColumnIndex = cursor.getColumnIndexOrThrow(Client.IssueEntry.ISSUE_TIME);
+		intent.putExtra(Client.IssueEntry.ISSUE_TIME, cursor.getLong(timeColumnIndex));
+		startActivity(intent);
 	}
 
 }
