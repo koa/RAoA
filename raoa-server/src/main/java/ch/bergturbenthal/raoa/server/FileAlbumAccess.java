@@ -1289,20 +1289,31 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			final ProgressHandler albumProgress = stateManager.newProgress(albumNames.size(), ProgressType.SYNC_REMOTE_SERVER, pingResponse.getServerName());
 			final Collection<String> repositoriesToSync = evaluateRepositoriesToSync(getArchiveName(), remoteAlbums.keySet(), store.getArchiveData(ReadPolicy.READ_ONLY));
 			for (final String albumName : repositoriesToSync) {
-				try {
-					final AlbumEntry album = remoteAlbums.get(albumName);
-					final Album localAlbumForRemote = localAlbums.get(album.getId());
-					@Cleanup
-					final Closeable albumStep = albumProgress.notfiyProgress(albumName);
-					final String remoteUri = new URI("git", null, remoteHost, remotePort, "/" + album.getId(), null, null).toASCIIString();
-					if (localAlbumForRemote == null) {
-						appendAlbum(loadedAlbums, new File(getBaseDir(), albumName), remoteUri, pingResponse.getServerName());
-					} else {
-						localAlbumForRemote.pull(remoteUri, pingResponse.getServerName());
+				syncExecutorService.submit(new Runnable() {
+
+					@Override
+					public void run() {
+						try {
+							// ping to check if the server is staying online
+							final ResponseEntity<PingResponse> responseEntity = ping(peerServerUri);
+							if (!responseEntity.hasBody()) {
+								return;
+							}
+							final AlbumEntry album = remoteAlbums.get(albumName);
+							final Album localAlbumForRemote = localAlbums.get(album.getId());
+							@Cleanup
+							final Closeable albumStep = albumProgress.notfiyProgress(albumName);
+							final String remoteUri = new URI("git", null, remoteHost, remotePort, "/" + album.getId(), null, null).toASCIIString();
+							if (localAlbumForRemote == null) {
+								appendAlbum(loadedAlbums, new File(getBaseDir(), albumName), remoteUri, pingResponse.getServerName());
+							} else {
+								localAlbumForRemote.pull(remoteUri, pingResponse.getServerName());
+							}
+						} catch (final Throwable e) {
+							logger.error("Cannot sync with " + remoteHost, e);
+						}
 					}
-				} catch (final Throwable e) {
-					logger.error("Cannot sync with " + remoteHost, e);
-				}
+				});
 			}
 		}
 	}
