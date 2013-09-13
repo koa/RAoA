@@ -51,7 +51,6 @@ import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.CommitCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.LogCommand;
-import org.eclipse.jgit.api.RmCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
@@ -218,13 +217,13 @@ public class Album implements ApplicationContextAware {
 			final Status status = git.status().call();
 			if (!status.isClean() && status.getConflicting().isEmpty()) {
 				git.add().addFilepattern(".").call();
-				if (!status.getMissing().isEmpty()) {
-					final RmCommand rm = git.rm();
-					for (final String missing : status.getMissing()) {
-						rm.addFilepattern(missing);
-					}
-					rm.call();
-				}
+				// if (!status.getMissing().isEmpty()) {
+				// final RmCommand rm = git.rm();
+				// for (final String missing : status.getMissing()) {
+				// rm.addFilepattern(missing);
+				// }
+				// rm.call();
+				// }
 				modified = true;
 			}
 		} catch (final GitAPIException e) {
