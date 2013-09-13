@@ -26,7 +26,6 @@ import org.eclipse.jgit.api.errors.CannotDeleteCurrentBranchException;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NotMergedException;
 import org.eclipse.jgit.diff.DiffEntry;
-import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
@@ -40,6 +39,7 @@ import org.eclipse.jgit.notes.Note;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.revwalk.filter.RevFilter;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
@@ -114,6 +114,16 @@ public class RepositoryServiceImpl implements RepositoryService {
 		// }
 	}
 
+	private Collection<Entry<String, Ref>> collectConflictBranches(final Git git) {
+		final Collection<Entry<String, Ref>> foundConflicts = new ArrayList<Entry<String, Ref>>();
+		for (final Entry<String, Ref> refEntry : git.getRepository().getAllRefs().entrySet()) {
+			if (refEntry.getKey().startsWith(CONFLICT_BRANCH_PREFIX)) {
+				foundConflicts.add(refEntry);
+			}
+		}
+		return foundConflicts;
+	}
+
 	/*
 	 * (non-Javadoc)
 	 * 
@@ -135,12 +145,26 @@ public class RepositoryServiceImpl implements RepositoryService {
 		for (final Entry<String, Ref> entry : collectConflictBranches(git)) {
 			try {
 				final ObjectReader objectReader = git.getRepository().newObjectReader();
-
 				final CanonicalTreeParser branchTree;
 				try {
 					final RevWalk revWalk = new RevWalk(objectReader);
-					final RevCommit commit = revWalk.parseCommit(entry.getValue().getObjectId());
-					branchTree = new CanonicalTreeParser(null, objectReader, commit.getTree().getId());
+					try {
+						final RevCommit branchCommit = revWalk.parseCommit(entry.getValue().getObjectId());
+						branchTree = new CanonicalTreeParser(null, objectReader, branchCommit.getTree().getId());
+						revWalk.reset();
+						final RevCommit masterCommit = revWalk.parseCommit(git.getRepository().getRef("master").getObjectId());
+						revWalk.reset();
+						revWalk.setRevFilter(RevFilter.MERGE_BASE);
+						revWalk.markStart(branchCommit);
+						revWalk.markStart(masterCommit);
+						final RevCommit commonCommit = revWalk.next();
+						if (commonCommit == null) {
+							logger.warn("no common commit");
+							continue;
+						}
+					} finally {
+						revWalk.dispose();
+					}
 				} finally {
 					objectReader.release();
 				}
@@ -160,16 +184,26 @@ public class RepositoryServiceImpl implements RepositoryService {
 				conflictEntry.setDiffs(diffs);
 				conflictEntry.setMeta(conflictMeta);
 				ret.add(conflictEntry);
-			} catch (final GitAPIException e) {
-				logger.error("Cannot parse branch " + entry.getKey(), e);
-			} catch (final IncorrectObjectTypeException e) {
-				logger.error("Cannot parse branch " + entry.getKey(), e);
-			} catch (final IOException e) {
+			} catch (final Throwable e) {
 				logger.error("Cannot parse branch " + entry.getKey(), e);
 			}
 
 		}
 		return ret;
+	}
+
+	private String findNextFreeConflictBranch(final Git localRepo, final String serverName, final Iterator<String> iterator) {
+		final Collection<String> existingConfictBranches = new HashSet<String>();
+		for (final Entry<String, Ref> entry : collectConflictBranches(localRepo)) {
+			existingConfictBranches.add(entry.getKey().substring(CONFLICT_BRANCH_PREFIX.length()));
+		}
+		while (iterator.hasNext()) {
+			final String nextCandidate = serverName.replace(' ', '_') + "/" + iterator.next();
+			if (!existingConfictBranches.contains(nextCandidate)) {
+				return nextCandidate;
+			}
+		}
+		return null;
 	}
 
 	@Override
@@ -304,28 +338,5 @@ public class RepositoryServiceImpl implements RepositoryService {
 		} catch (final Throwable e) {
 			throw new RuntimeException("Cannot sync " + localRepository.getRepository() + " to " + externalDir, e);
 		}
-	}
-
-	private Collection<Entry<String, Ref>> collectConflictBranches(final Git git) {
-		final Collection<Entry<String, Ref>> foundConflicts = new ArrayList<Entry<String, Ref>>();
-		for (final Entry<String, Ref> refEntry : git.getRepository().getAllRefs().entrySet()) {
-			if (refEntry.getKey().startsWith(CONFLICT_BRANCH_PREFIX)) {
-				foundConflicts.add(refEntry);
-			}
-		}
-		return foundConflicts;
-	}
-
-	private String findNextFreeConflictBranch(final Git localRepo, final String serverName, final Iterator<String> iterator) {
-		final Collection<String> existingConfictBranches = new HashSet<String>();
-		for (final Entry<String, Ref> entry : collectConflictBranches(localRepo)) {
-			existingConfictBranches.add(entry.getKey().substring(CONFLICT_BRANCH_PREFIX.length()));
-		}
-		while (iterator.hasNext()) {
-			final String nextCandidate = serverName.replace(' ', '_') + "/" + iterator.next();
-			if (!existingConfictBranches.contains(nextCandidate))
-				return nextCandidate;
-		}
-		return null;
 	}
 }
