@@ -1172,6 +1172,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 							if (localAlbumForRemote == null) {
 								if (remoteDir != null) {
 									final File albumDir = new File(getBaseDir(), albumName);
+									if (albumDir.exists()) {
+										return null;
+									}
 									try {
 										final Album album = appendAlbum(loadedAlbums, albumDir, remoteDir.toURI().toString(), remoteName);
 										if (albumsToSync.contains(album.getName())) {
