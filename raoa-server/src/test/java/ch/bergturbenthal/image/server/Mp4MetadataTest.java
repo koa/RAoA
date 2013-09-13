@@ -12,12 +12,22 @@ import org.jcodec.containers.mp4.boxes.NodeBox;
 import org.jcodec.containers.mp4.boxes.TrackHeaderBox;
 import org.jcodec.containers.mp4.boxes.TrakBox;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.core.io.ClassPathResource;
 
 import ch.bergturbenthal.raoa.server.metadata.Mp4MetadataUtil;
 
 public class Mp4MetadataTest {
+	private static void dumpBoxes(final NodeBox movieBox, final int level) {
+		for (final Box box : movieBox.getBoxes()) {
+			System.out.println(StringUtils.repeat("  ", level) + box.getFourcc() + "  " + box.getClass().getSimpleName());
+			if (box instanceof NodeBox) {
+				dumpBoxes((NodeBox) box, level + 1);
+			}
+		}
+	}
+
 	public static void main(final String[] args) throws IOException {
 		final ClassPathResource resource = new ClassPathResource("DCIM/MVI_0002.MP4");
 		System.out.println("Readable: " + resource.isReadable());
@@ -28,21 +38,13 @@ public class Mp4MetadataTest {
 		final TrakBox[] tracks = movieBox.getTracks();
 		for (final TrakBox trakBox : tracks) {
 			final TrackHeaderBox header2 = trakBox.getTrackHeader();
-			System.out.println(new Date(header2.getCreated()));
+			// System.out.println(new Date(header2.getCreated()));
 		}
 
-	}
-
-	private static void dumpBoxes(final NodeBox movieBox, final int level) {
-		for (final Box box : movieBox.getBoxes()) {
-			System.out.println(StringUtils.repeat("  ", level) + box.getFourcc() + "  " + box.getClass().getSimpleName());
-			if (box instanceof NodeBox) {
-				dumpBoxes((NodeBox) box, level + 1);
-			}
-		}
 	}
 
 	@Test
+	@Ignore
 	public void testReadCreationDate() throws IOException {
 		final ClassPathResource resource = new ClassPathResource("DCIM/MVI_0002.MP4");
 		final Date date = Mp4MetadataUtil.findCreationDateOf(resource.getFile());

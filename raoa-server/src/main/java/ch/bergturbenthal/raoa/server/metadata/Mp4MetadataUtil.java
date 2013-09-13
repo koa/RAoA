@@ -19,7 +19,7 @@ public class Mp4MetadataUtil {
 				if (trackHeader == null) {
 					continue;
 				}
-				return new Date(trackHeader.getCreated());
+				// return new Date(trackHeader.getCreated());
 			}
 			return null;
 		} catch (final IOException e) {
