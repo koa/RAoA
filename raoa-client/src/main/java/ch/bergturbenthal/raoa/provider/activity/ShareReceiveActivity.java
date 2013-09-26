@@ -65,8 +65,9 @@ public class ShareReceiveActivity extends ListActivity {
 
 			@Override
 			public void onItemClick(final AdapterView<?> parent, final View view, final int position, final long id) {
-				cursor.move(position);
-				final String serverId = cursor.getString(2);
+				cursor.move(position - 1);
+				final int index = cursor.getColumnIndexOrThrow(Client.ServerEntry.SERVER_ID);
+				final String serverId = cursor.getString(index);
 				new AsyncTask<Void, Void, Void>() {
 
 					@Override
