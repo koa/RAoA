@@ -4,6 +4,7 @@
 package ch.bergturbenthal.raoa.client.util;
 
 import android.os.AsyncTask;
+import android.util.Log;
 
 /**
  * TODO: add type comment.
@@ -11,11 +12,17 @@ import android.os.AsyncTask;
  */
 public abstract class SimpleAsync extends AsyncTask<Void, Void, Void> {
 
+	private static final String TAG = "SimpleAsync";
+
 	protected abstract void doInBackground();
 
 	@Override
 	protected Void doInBackground(final Void... params) {
-		doInBackground();
+		try {
+			doInBackground();
+		} catch (final Throwable ex) {
+			Log.e(TAG, "Error in Background", ex);
+		}
 		return null;
 	}
 
@@ -24,7 +31,11 @@ public abstract class SimpleAsync extends AsyncTask<Void, Void, Void> {
 
 	@Override
 	protected void onPostExecute(final Void result) {
-		onPostExecute();
+		try {
+			onPostExecute();
+		} catch (final Throwable ex) {
+			Log.e(TAG, "Error on PostExecute", ex);
+		}
 	}
 
 }
