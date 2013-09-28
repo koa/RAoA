@@ -329,6 +329,8 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			if (needToLoadAlbumList()) {
 				try {
 					final Map<String, Album> ret = new ConcurrentHashMap<String, Album>();
+					if(loadedAlbums!=null)
+						ret.putAll(loadedAlbums);
 					final File basePath = getBasePath();
 					logger.debug("Load Repositories from: " + basePath);
 					final int basePathLength = basePath.getAbsolutePath().length();
