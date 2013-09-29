@@ -1188,7 +1188,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 									} catch (final Exception e) {
 										logger.warn("Cannot read Repository " + path, e);
 										// cleanup failed repository
-										for (final File file : (Collection<File>) FileUtils.listFiles(albumDir, null, true)) {
+										for (final File file : FileUtils.listFiles(albumDir, null, true)) {
 											file.setWritable(true, false);
 										}
 										FileUtils.deleteDirectory(albumDir);
