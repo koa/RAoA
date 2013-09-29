@@ -171,73 +171,8 @@ public class PhotoOverviewActivity extends Activity {
 			getMenuInflater().inflate(R.menu.photo_overview_navigation_menu, menu);
 			final MenuItem shareItem = menu.findItem(R.id.photo_overview_share_album);
 			final SubMenu subMenu = shareItem.getSubMenu();
-			subMenu.clear();
 			final Handler handler = new Handler();
-			new SimpleAsync() {
-
-				private final List<Pair<String, String>> menuEntries = new ArrayList<Pair<String, String>>();
-
-				@Override
-				protected void doInBackground() {
-					final Cursor storagesCursor = getContentResolver().query(	Client.STORAGE_URI,
-																																		new String[] { Client.Storage.STORAGE_ID,
-																																									Client.Storage.STORAGE_NAME,
-																																									Client.Storage.TAKE_ALL_REPOSITORIES },
-																																		null,
-																																		null,
-																																		null);
-
-					if (storagesCursor.moveToFirst()) {
-						final int idColumn = storagesCursor.getColumnIndexOrThrow(Client.Storage.STORAGE_ID);
-						final int nameColumn = storagesCursor.getColumnIndexOrThrow(Client.Storage.STORAGE_NAME);
-						final int allRepositoriesColumn = storagesCursor.getColumnIndexOrThrow(Client.Storage.TAKE_ALL_REPOSITORIES);
-						do {
-							final String storageId = storagesCursor.getString(idColumn);
-							final String storageName = storagesCursor.getString(nameColumn);
-							if (storagesCursor.getInt(allRepositoriesColumn) != 0) {
-								continue;
-							}
-							menuEntries.add(new Pair<String, String>(storageId, storageName));
-						} while (storagesCursor.moveToNext());
-					}
-					storagesCursor.registerContentObserver(new ContentObserver(handler) {
-
-						@Override
-						public void onChange(final boolean selfChange) {
-							super.onChange(selfChange);
-							invalidateOptionsMenu();
-						}
-					});
-					Collections.sort(menuEntries, new Comparator<Pair<String, String>>() {
-						@Override
-						public int compare(final Pair<String, String> lhs, final Pair<String, String> rhs) {
-							return lhs.second.compareTo(rhs.second);
-						}
-					});
-				}
-
-				@Override
-				protected void onPostExecute() {
-					for (final Pair<String, String> entry : menuEntries) {
-						final String entryId = entry.first;
-						final String entryName = entry.second;
-						final MenuItem storageItem = subMenu.add(entryName);
-						storageItem.setCheckable(true);
-						final boolean enabled = enabledStorages.contains(entryId);
-						storageItem.setChecked(enabled);
-						storageItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
-
-							@Override
-							public boolean onMenuItemClick(final MenuItem item) {
-								enableStorage(entryId, !enabled);
-								return true;
-							}
-
-						});
-					}
-				}
-
-			}.execute();
+			loadStorageList(subMenu, handler);
 			final MenuItem searchClearItem = menu.findItem(R.id.photo_overview_clear_search_album);
 			final SearchView searchView = (SearchView) menu.findItem(R.id.photo_overview_search_album).getActionView();
 			searchClearItem.setVisible(currentFilter != null);
@@ -526,6 +461,77 @@ public class PhotoOverviewActivity extends Activity {
 				invalidateOptionsMenu();
 				getActionBar().setTitle(albumTitle);
 			}
+		}.execute();
+	}
+
+	private void loadStorageList(final SubMenu subMenu, final Handler handler) {
+		new SimpleAsync() {
+
+			private final List<Pair<String, String>> menuEntries = new ArrayList<Pair<String, String>>();
+
+			@Override
+			protected void doInBackground() {
+				final Cursor storagesCursor = getContentResolver().query(	Client.STORAGE_URI,
+																																	new String[] { Client.Storage.STORAGE_ID,
+																																								Client.Storage.STORAGE_NAME,
+																																								Client.Storage.TAKE_ALL_REPOSITORIES },
+																																	null,
+																																	null,
+																																	null);
+
+				if (storagesCursor.moveToFirst()) {
+					final int idColumn = storagesCursor.getColumnIndexOrThrow(Client.Storage.STORAGE_ID);
+					final int nameColumn = storagesCursor.getColumnIndexOrThrow(Client.Storage.STORAGE_NAME);
+					final int allRepositoriesColumn = storagesCursor.getColumnIndexOrThrow(Client.Storage.TAKE_ALL_REPOSITORIES);
+					do {
+						final String storageId = storagesCursor.getString(idColumn);
+						final String storageName = storagesCursor.getString(nameColumn);
+						if (storagesCursor.getInt(allRepositoriesColumn) != 0) {
+							continue;
+						}
+						menuEntries.add(new Pair<String, String>(storageId, storageName));
+					} while (storagesCursor.moveToNext());
+				}
+				storagesCursor.registerContentObserver(new ContentObserver(handler) {
+
+					@Override
+					public void onChange(final boolean selfChange) {
+						super.onChange(selfChange);
+						invalidateOptionsMenu();
+					}
+				});
+				Collections.sort(menuEntries, new Comparator<Pair<String, String>>() {
+					@Override
+					public int compare(final Pair<String, String> lhs, final Pair<String, String> rhs) {
+						return lhs.second.compareTo(rhs.second);
+					}
+				});
+			}
+
+			@Override
+			protected void onPostExecute() {
+				subMenu.clear();
+				for (final Pair<String, String> entry : menuEntries) {
+					final String entryId = entry.first;
+					final String entryName = entry.second;
+					final MenuItem storageItem = subMenu.add(entryName);
+					storageItem.setCheckable(true);
+					final boolean enabled = enabledStorages.contains(entryId);
+					storageItem.setChecked(enabled);
+					storageItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+
+						@Override
+						public boolean onMenuItemClick(final MenuItem item) {
+							enableStorage(entryId, !enabled);
+							item.setEnabled(!enabled);
+							loadStorageList(subMenu, handler);
+							return true;
+						}
+
+					});
+				}
+			}
+
 		}.execute();
 	}
 

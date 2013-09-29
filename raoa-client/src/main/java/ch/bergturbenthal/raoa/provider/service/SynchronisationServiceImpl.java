@@ -615,7 +615,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			}
 		}
 		final Map<String, String> mappedFields = new HashMap<String, String>();
-		mappedFields.put(Client.Storage.MBYTES_AVAILABLE, "mBytesAvailable");
+		mappedFields.put(Client.Storage.GBYTES_AVAILABLE, "gBytesAvailable");
 		mappedFields.put(Client.Storage.STORAGE_NAME, "storageName");
 		mappedFields.put(Client.Storage.TAKE_ALL_REPOSITORIES, "takeAllRepositories");
 		mappedFields.put(Client.Storage.STORAGE_ID, "storageId");
