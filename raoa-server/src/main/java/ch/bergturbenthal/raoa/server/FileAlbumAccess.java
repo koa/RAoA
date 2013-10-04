@@ -482,7 +482,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	@Override
 	public Album getAlbum(final String albumId) {
-		return listAlbums().get(albumId);
+		return loadAlbums(false).get(albumId);
 	}
 
 	private Object getAlbumLock(final File albumFile) {
@@ -676,7 +676,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	@Override
 	public Map<String, Album> listAlbums() {
-		return loadAlbums(false);
+		return new HashMap<>(loadAlbums(false));
 	}
 
 	@PostConstruct
@@ -938,7 +938,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					// limit the queue size for take not too much memory
 					final Semaphore queueLimitSemaphore = new Semaphore(100);
 					final long startTime = System.currentTimeMillis();
-					final Collection<Album> albums = loadAlbums(wait).values();
+					final Collection<Album> albums = new ArrayList<Album>(loadAlbums(wait).values());
 					@Cleanup
 					final ProgressHandler albumProgress = stateManager.newProgress(albums.size(), ProgressType.REFRESH_THUMBNAIL, instanceName);
 					for (final Album album : albums) {
