@@ -489,22 +489,7 @@ public class Album implements ApplicationContextAware {
 		if (initRemoteUri != null) {
 			pull(initRemoteUri, initRemoteServerName);
 		}
-
-		final boolean modified = checkup();
 		cacheDir = new File(baseDir, CACHE_DIR);
-		if (!cacheDir.exists()) {
-			cacheDir.mkdirs();
-		}
-		if (autoaddFile().exists()) {
-			loadImportEntries();
-		}
-		if (metadataCacheFile().exists()) {
-			loadMetadataCache();
-		}
-
-		if (modified) {
-			commit("initialized repository for image-server");
-		}
 	}
 
 	private synchronized boolean isMaster() throws GitAPIException {
@@ -757,6 +742,26 @@ public class Album implements ApplicationContextAware {
 
 	private AlbumEntryData readAlbumEntryDataFromCache(final String filename) {
 		return albumEntriesMetadataCache.get(filename);
+	}
+
+	/**
+	 * Check the current album against the file system
+	 */
+	public synchronized void reCheck() {
+		final boolean modified = checkup();
+		if (!cacheDir.exists()) {
+			cacheDir.mkdirs();
+		}
+		if (autoaddFile().exists()) {
+			loadImportEntries();
+		}
+		if (metadataCacheFile().exists()) {
+			loadMetadataCache();
+		}
+
+		if (modified) {
+			commit("detected changes on filesystem");
+		}
 	}
 
 	private void saveMetadataWithoutCommit(final AlbumMetadata metadata) throws IOException, JsonGenerationException, JsonMappingException {
