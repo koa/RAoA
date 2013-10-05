@@ -71,6 +71,7 @@ public class CursorNotification {
 
 	public <V> V doWithNotify(final Callable<V> callable) {
 		allAlbumCursorModified.set(Boolean.FALSE);
+		storagesCursorModified.set(Boolean.FALSE);
 		final Collection<AlbumIndex> modifiedCursors = singleAlbumCursorModified.get();
 		modifiedCursors.clear();
 		collectingNotifications.set(Boolean.TRUE);
@@ -102,26 +103,6 @@ public class CursorNotification {
 		}
 	}
 
-	public void notifyServerStateModified() {
-		notifyCursors(stateCursors);
-	}
-
-	public void notifySingleAlbumCursorChanged(final AlbumIndex albumId) {
-		if (collectingNotifications.get().booleanValue()) {
-			singleAlbumCursorModified.get().add(albumId);
-		} else {
-			notifyModifiedAlbums(Arrays.asList(albumId));
-		}
-	}
-
-	public void notifyStoragesModified() {
-		if (collectingNotifications.get().booleanValue()) {
-			storagesCursorModified.set(Boolean.TRUE);
-		} else {
-			notifyCursors(storageCursors);
-		}
-	}
-
 	private void notifyCursors(final Collection<WeakReference<NotifyableMatrixCursor>> cursors) {
 		for (final Iterator<WeakReference<NotifyableMatrixCursor>> i = cursors.iterator(); i.hasNext();) {
 			final WeakReference<NotifyableMatrixCursor> reference = i.next();
@@ -143,6 +124,26 @@ public class CursorNotification {
 					notifyCursors(registeresCursors);
 				}
 			}
+		}
+	}
+
+	public void notifyServerStateModified() {
+		notifyCursors(stateCursors);
+	}
+
+	public void notifySingleAlbumCursorChanged(final AlbumIndex albumId) {
+		if (collectingNotifications.get().booleanValue()) {
+			singleAlbumCursorModified.get().add(albumId);
+		} else {
+			notifyModifiedAlbums(Arrays.asList(albumId));
+		}
+	}
+
+	public void notifyStoragesModified() {
+		if (collectingNotifications.get().booleanValue()) {
+			storagesCursorModified.set(Boolean.TRUE);
+		} else {
+			notifyCursors(storageCursors);
 		}
 	}
 
