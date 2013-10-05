@@ -23,8 +23,8 @@ import ch.bergturbenthal.raoa.data.model.AlbumDetail;
 import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
-import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
+import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto;
@@ -49,6 +49,20 @@ public class ArchiveConnection {
 		this.executorService = executorService;
 	}
 
+	private <K, V> Map<K, V> collect(final Map<K, Future<V>> results) {
+		final HashMap<K, V> ret = new HashMap<K, V>();
+		for (final Entry<K, Future<V>> entries : results.entrySet()) {
+			try {
+				ret.put(entries.getKey(), entries.getValue().get());
+			} catch (final InterruptedException e) {
+				throw new RuntimeException("Cannot get Value from Future for key " + entries.getKey(), e);
+			} catch (final ExecutionException e) {
+				throw new RuntimeException("Cannot get Value from Future for key " + entries.getKey(), e);
+			}
+		}
+		return ret;
+	}
+
 	public Collection<ServerStateDto> collectServerStates() {
 		final ArrayList<ServerStateDto> ret = new ArrayList<ServerStateDto>();
 		for (final ServerConnection connection : serverConnections.get().values()) {
@@ -66,8 +80,9 @@ public class ArchiveConnection {
 
 	public Map<String, AlbumConnection> getAlbums() {
 		final Map<String, AlbumConnection> cached = cachedAlbums.get();
-		if (cached != null)
+		if (cached != null) {
 			return cached;
+		}
 		return listAlbums();
 	}
 
@@ -82,7 +97,12 @@ public class ArchiveConnection {
 			results.put(connectionEntry.getKey(), executorService.submit(new Callable<AlbumList>() {
 				@Override
 				public AlbumList call() throws Exception {
-					return connection.listAlbums();
+					try {
+						return connection.listAlbums();
+					} catch (final Throwable t) {
+						Log.w("ARCHIVE_CONNECTION", "Cannot list data from server " + connection.getServerName(), t);
+						return null;
+					}
 				}
 			}));
 		}
@@ -93,7 +113,11 @@ public class ArchiveConnection {
 		final Map<String, AlbumEntry> mostCurrentAlbumEntries = new HashMap<String, AlbumEntry>();
 		for (final Entry<String, AlbumList> serverEntry : collectedResults.entrySet()) {
 			final String serverId = serverEntry.getKey();
-			for (final AlbumEntry albumEntry : serverEntry.getValue().getAlbumNames()) {
+			final AlbumList albumList = serverEntry.getValue();
+			if (albumList == null) {
+				continue;
+			}
+			for (final AlbumEntry albumEntry : albumList.getAlbumNames()) {
 				final String albumName = albumEntry.getName();
 				// skip albums without modification time
 				if (albumEntry.getLastModified() == null) {
@@ -168,8 +192,9 @@ public class ArchiveConnection {
 						if (serverConnection == null) {
 							continue;
 						}
-						if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile))
+						if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile)) {
 							return true;
+						}
 					}
 					return false;
 				}
@@ -242,19 +267,5 @@ public class ArchiveConnection {
 			newConnections.put(serverId, connection);
 		}
 		serverConnections.set(Collections.unmodifiableMap(newConnections));
-	}
-
-	private <K, V> Map<K, V> collect(final Map<K, Future<V>> results) {
-		final HashMap<K, V> ret = new HashMap<K, V>();
-		for (final Entry<K, Future<V>> entries : results.entrySet()) {
-			try {
-				ret.put(entries.getKey(), entries.getValue().get());
-			} catch (final InterruptedException e) {
-				throw new RuntimeException("Cannot get Value from Future for key " + entries.getKey(), e);
-			} catch (final ExecutionException e) {
-				throw new RuntimeException("Cannot get Value from Future for key " + entries.getKey(), e);
-			}
-		}
-		return ret;
 	}
 }
