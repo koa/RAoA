@@ -21,6 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.codehaus.jackson.map.ObjectMapper;
@@ -32,6 +33,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJacksonHttpMessageConverter;
 import org.springframework.web.client.RequestCallback;
@@ -71,6 +73,37 @@ public class ServerConnection {
 	public ServerConnection(final String instanceId) {
 		this.instanceId = instanceId;
 		restTemplate.setMessageConverters((List<HttpMessageConverter<?>>) (List<?>) Collections.singletonList((HttpMessageConverter<?>) new MappingJacksonHttpMessageConverter()));
+		final SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+		requestFactory.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(3));
+		requestFactory.setReadTimeout((int) TimeUnit.SECONDS.toMillis(20));
+		restTemplate.setRequestFactory(requestFactory);
+	}
+
+	private <V> V callOne(final ConnectionCallable<V> callable) {
+		Throwable t = null;
+		for (final URL connection : connections.get()) {
+			try {
+				// Log.d("CONNECTION", "Start connect to " + connection);
+				// final long startTime = System.currentTimeMillis();
+				final ResponseEntity<V> response = callable.call(connection);
+				// final long endTime = System.currentTimeMillis();
+				// Log.i("CONNECTION", "connected to " + connection + ", time: " +
+				// (endTime - startTime) + " ms");
+				if (response != null && okStates.contains(response.getStatusCode())) {
+					return response.getBody();
+				}
+			} catch (final Throwable ex) {
+				if (t != null) {
+					Log.w("Server-connection", "Exception while calling server " + serverName, t);
+				}
+				t = ex;
+			}
+		}
+		if (t != null) {
+			throw new RuntimeException("Cannot connect to server " + serverName, t);
+		} else {
+			throw new RuntimeException("Cannot connect to server " + serverName + ", no valid connection found");
+		}
 	}
 
 	public AlbumEntry createAlbum(final String albumName, final Date autoaddDate) {
@@ -82,6 +115,15 @@ public class ServerConnection {
 				return restTemplate.postForEntity(baseUrl.toExternalForm() + "/albums", request, AlbumEntry.class);
 			}
 		});
+	}
+
+	private ResponseEntity<Void> executePut(final String url, final Object data, final Object... urlVariables) {
+
+		final HttpHeaders headers = new HttpHeaders();
+		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+		headers.setContentType(new MediaType("application", "json", Charset.defaultCharset()));
+
+		return restTemplate.exchange(url, HttpMethod.PUT, new HttpEntity<Object>(data, headers), Void.class, urlVariables);
 	}
 
 	public AlbumDetail getAlbumDetail(final String albumId) {
@@ -153,6 +195,19 @@ public class ServerConnection {
 				return restTemplate.getForEntity(baseUrl.toExternalForm() + "/storages.json", ArchiveMeta.class);
 			}
 		});
+	}
+
+	private AlbumList readAlbumList() {
+
+		final AlbumList albums = callOne(new ConnectionCallable<AlbumList>() {
+
+			@Override
+			public ResponseEntity<AlbumList> call(final URL baseUrl) throws Exception {
+				return restTemplate.getForEntity(baseUrl.toExternalForm() + "/albums.json", AlbumList.class);
+			}
+		});
+		albumIds.set(new SoftReference<AlbumList>(albums));
+		return albums;
 	}
 
 	public boolean readThumbnail(final String albumId, final String fileId, final File tempFile, final File targetFile) {
@@ -246,54 +301,5 @@ public class ServerConnection {
 
 	public void updateServerConnections(final Collection<URL> value) {
 		connections.set(value);
-	}
-
-	private <V> V callOne(final ConnectionCallable<V> callable) {
-		Throwable t = null;
-		for (final URL connection : connections.get()) {
-			try {
-				// Log.d("CONNECTION", "Start connect to " + connection);
-				// final long startTime = System.currentTimeMillis();
-				final ResponseEntity<V> response = callable.call(connection);
-				// final long endTime = System.currentTimeMillis();
-				// Log.i("CONNECTION", "connected to " + connection + ", time: " +
-				// (endTime - startTime) + " ms");
-				if (response != null && okStates.contains(response.getStatusCode())) {
-					return response.getBody();
-				}
-			} catch (final Throwable ex) {
-				if (t != null) {
-					Log.w("Server-connection", "Exception while calling server " + serverName, t);
-				}
-				t = ex;
-			}
-		}
-		if (t != null) {
-			throw new RuntimeException("Cannot connect to server " + serverName, t);
-		} else {
-			throw new RuntimeException("Cannot connect to server " + serverName + ", no valid connection found");
-		}
-	}
-
-	private ResponseEntity<Void> executePut(final String url, final Object data, final Object... urlVariables) {
-
-		final HttpHeaders headers = new HttpHeaders();
-		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-		headers.setContentType(new MediaType("application", "json", Charset.defaultCharset()));
-
-		return restTemplate.exchange(url, HttpMethod.PUT, new HttpEntity<Object>(data, headers), Void.class, urlVariables);
-	}
-
-	private AlbumList readAlbumList() {
-
-		final AlbumList albums = callOne(new ConnectionCallable<AlbumList>() {
-
-			@Override
-			public ResponseEntity<AlbumList> call(final URL baseUrl) throws Exception {
-				return restTemplate.getForEntity(baseUrl.toExternalForm() + "/albums.json", AlbumList.class);
-			}
-		});
-		albumIds.set(new SoftReference<AlbumList>(albums));
-		return albums;
 	}
 }
