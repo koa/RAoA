@@ -80,11 +80,7 @@ public class MetadataWrapper {
 		if (gpsDate != null) {
 			return gpsDate;
 		}
-		final Date cameraDate = readCameraDate();
-		if (cameraDate != null) {
-			return cameraDate;
-		}
-		return readOriginalDate();
+		return readCameraDate();
 	}
 
 	public Date readGpsDate() {
