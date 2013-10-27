@@ -25,8 +25,8 @@
             <configuration>
               <artifactItems>
                 <artifactItem>
-                  <groupId>ch.bergturbenthal.image.client</groupId>
-                  <artifactId>image-client</artifactId>
+                  <groupId>ch.bergturbenthal.raoa</groupId>
+                  <artifactId>raoa-client</artifactId>
                   <version>${project.version}</version>
                   <type>apk</type>
                   <overWrite>true</overWrite>
