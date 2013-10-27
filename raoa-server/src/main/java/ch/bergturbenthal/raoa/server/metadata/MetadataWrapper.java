@@ -72,7 +72,7 @@ public class MetadataWrapper {
 		if (date != null) {
 			return date;
 		}
-		return null;
+		return readDate(ExifSubIFDDirectory.class, ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
 	}
 
 	public Date readCreateDate() {
@@ -106,14 +106,6 @@ public class MetadataWrapper {
 			logger.warn("Cannot read Gps-Date", e);
 			return null;
 		}
-	}
-
-	public Date readOriginalDate() {
-		final Date date = readDate(ExifSubIFDDirectory.class, ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
-		if (date != null) {
-			return date;
-		}
-		return null;
 	}
 
 	private String readCameraMake() {
