@@ -143,18 +143,18 @@ public class Album implements ApplicationContextAware {
 	private File cacheDir;
 	private Git git;
 	private Collection<ImportEntry> importEntries = null;
-	private boolean importPending = false;
 	private final String initRemoteServerName;
-
 	private final String initRemoteUri;
-	private final AtomicBoolean metadataModified = new AtomicBoolean(false);
 
+	private final AtomicBoolean metadataModified = new AtomicBoolean(false);
 	private final String[] nameComps;
+
 	@Autowired
 	private RepositoryService repositoryService;
-
 	@Autowired
 	private StateManager stateManager;
+
+	private boolean updatePending = false;
 
 	private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
 
@@ -167,7 +167,7 @@ public class Album implements ApplicationContextAware {
 	}
 
 	public synchronized void commit(final String message) {
-		importPending = false;
+		updatePending = false;
 		try {
 			final Status status = git.status().call();
 			if (!status.isClean()) {
@@ -258,7 +258,7 @@ public class Album implements ApplicationContextAware {
 		}
 		final String sha1OfFile = makeSha1(imageFile);
 		synchronized (this) {
-			importPending = true;
+			updatePending = true;
 			final ImportEntry existingImportEntry = findExistingImportEntry(sha1OfFile);
 			if (existingImportEntry != null) {
 				final File file = new File(baseDir, existingImportEntry.getFilename());
@@ -350,7 +350,7 @@ public class Album implements ApplicationContextAware {
 	 * Check the current album against the file system
 	 */
 	public synchronized void reCheck() {
-		if (importPending) {
+		if (updatePending) {
 			return;
 		}
 		final boolean modified = checkup();
