@@ -9,6 +9,12 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -76,19 +82,19 @@ public class PhotoOverviewActivity extends Activity {
 	public static final String ALBUM_URI = "album_uri";
 
 	public static final String CURR_ITEM_INDEX = "currentItemIndex";
+
 	public static final String CURRENT_FILTER = "currentFilter";
+
 	private static final String MODE_KEY = PhotoOverviewActivity.class.getName() + "-mode";
-
 	private static final String SELECTION_KEY = PhotoOverviewActivity.class.getName() + "-selection";
-
 	private Uri albumEntriesUri;
+
 	private String albumTitle = null;
+
 	private Uri albumUri;
 	private String currentFilter;
 	private int currentItemIndex;
-
 	private UiMode currentMode = UiMode.NAVIGATION;
-
 	private ComplexCursorAdapter cursorAdapter;
 
 	private Collection<String> enabledStorages = Collections.emptyList();
@@ -103,217 +109,7 @@ public class PhotoOverviewActivity extends Activity {
 
 	private final Map<String, EntryValues> selectedEntries = new HashMap<String, EntryValues>();
 
-	@Override
-	public boolean onCreateOptionsMenu(final Menu menu) {
-		switch (currentMode) {
-		case SELECTION:
-			getMenuInflater().inflate(R.menu.photo_overview_selection_menu, menu);
-
-			final ShareActionProvider shareActionProvider = (ShareActionProvider) menu.findItem(R.id.photo_overview_menu_share).getActionProvider();
-			final Intent shareIntent = new Intent(Intent.ACTION_SEND_MULTIPLE);
-			shareIntent.setType("image/jpeg");
-			shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, makeCurrentSelectedUris());
-			shareActionProvider.setShareIntent(shareIntent);
-
-			final MenuItem addTagsMenu = menu.findItem(R.id.photo_overview_menu_add_tag_menu);
-			final SubMenu tagsSubmenu = addTagsMenu.getSubMenu();
-			tagsSubmenu.removeGroup(R.id.photo_overview_menu_existing_tag);
-			final Map<String, Integer> selectedKeywordCounts = new HashMap<String, Integer>();
-			for (final EntryValues entryValues : selectedEntries.values()) {
-				for (final String keyword : entryValues.keywords) {
-					final Integer existingKeyword = selectedKeywordCounts.get(keyword);
-					if (existingKeyword != null) {
-						selectedKeywordCounts.put(keyword, Integer.valueOf(existingKeyword.intValue() + 1));
-					} else {
-						selectedKeywordCounts.put(keyword, Integer.valueOf(1));
-					}
-					if (!knownKeywords.contains(keyword)) {
-						knownKeywords.add(keyword);
-					}
-				}
-			}
-			for (final String keyword : knownKeywords) {
-				final Integer count = selectedKeywordCounts.get(keyword);
-				final String keywordDisplay = count != null ? keyword + " (" + count + ")" : keyword;
-				final MenuItem item = tagsSubmenu.add(R.id.photo_overview_menu_existing_tag, Menu.NONE, Menu.NONE, keywordDisplay);
-				item.setOnMenuItemClickListener(new OnMenuItemClickListener() {
-
-					@Override
-					public boolean onMenuItemClick(final MenuItem item) {
-						setTagToSelectedEntries(keyword);
-						return true;
-					}
-				});
-			}
-
-			final MenuItem removeTagsMenu = menu.findItem(R.id.photo_overview_menu_remove_tag_menu);
-			final SubMenu removeTagsSubmenu = removeTagsMenu.getSubMenu();
-			removeTagsSubmenu.clear();
-			final ArrayList<String> keywordsByCount = KeywordUtil.orderKeywordsByFrequent(selectedKeywordCounts);
-			for (final String keyword : keywordsByCount) {
-				final String keywordDisplay = keyword + " (" + selectedKeywordCounts.get(keyword) + ")";
-				final MenuItem removeTagItem = removeTagsSubmenu.add(keywordDisplay);
-				removeTagItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
-					@Override
-					public boolean onMenuItemClick(final MenuItem item) {
-						removeTagFromSelectedEntries(keyword);
-						return true;
-					}
-
-				});
-			}
-
-			// final SubMenu subMenu = findItem.getSubMenu();
-			// subMenu.clear();
-			// subMenu.add("Hello Tag");
-			break;
-		case NAVIGATION:
-			getMenuInflater().inflate(R.menu.photo_overview_navigation_menu, menu);
-			final MenuItem shareItem = menu.findItem(R.id.photo_overview_share_album);
-			final SubMenu subMenu = shareItem.getSubMenu();
-			final Handler handler = new Handler();
-			loadStorageList(subMenu, handler);
-			final MenuItem searchClearItem = menu.findItem(R.id.photo_overview_clear_search_album);
-			final SearchView searchView = (SearchView) menu.findItem(R.id.photo_overview_search_album).getActionView();
-			searchClearItem.setVisible(currentFilter != null);
-			searchClearItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
-
-				@Override
-				public boolean onMenuItemClick(final MenuItem item) {
-					initLoaderWithFilter(null);
-					searchView.setQuery("", false);
-					return true;
-				}
-			});
-			if (currentFilter != null) {
-				final Criterium filter = Criterium.decodeString(currentFilter);
-				if (filter instanceof Compare) {
-					final Compare comp = (Compare) filter;
-					final Value op1 = comp.getOp1();
-					final Value op2 = comp.getOp2();
-					if (op1 instanceof Field && ((Field) op1).getFieldName().equals(Client.AlbumEntry.META_KEYWORDS)
-							&& comp.getOperator() == Operator.CONTAINS
-							&& op2 instanceof Constant) {
-						final String value = (String) ((Constant) op2).getValue();
-						searchView.setQuery(value, false);
-						searchView.setIconified(false);
-					}
-				}
-			}
-			searchView.setOnQueryTextListener(new OnQueryTextListener() {
-
-				@Override
-				public boolean onQueryTextChange(final String newText) {
-					return false;
-				}
-
-				@Override
-				public boolean onQueryTextSubmit(final String query) {
-					initLoaderWithFilter(Criterium.contains(new Field(Client.AlbumEntry.META_KEYWORDS), new Constant(query.trim())).makeString());
-					return true;
-				}
-			});
-			break;
-		}
-
-		return true;
-	}
-
-	@Override
-	public boolean onOptionsItemSelected(final MenuItem item) {
-		switch (item.getItemId()) {
-		case android.R.id.home:
-			// This ID represents the Home or Up button. In the case of this
-			// activity, the Up button is shown. Use NavUtils to allow users
-			// to navigate up one level in the application structure. For
-			// more details, see the Navigation pattern on Android Design:
-			//
-			// http://developer.android.com/design/patterns/navigation.html#up-vs-back
-			//
-			final Intent upIntent = new Intent(this, AlbumOverviewActivity.class);
-			upIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-			startActivity(upIntent);
-			finish();
-			return true;
-		case R.id.photo_overview_menu_add_new_tag:
-			setNewTag();
-			return true;
-		case R.id.photo_overview_menu_close_selection:
-			activateNavigationMode();
-			return true;
-		}
-		return super.onOptionsItemSelected(item);
-	}
-
-	@Override
-	protected void onActivityResult(final int requestCode, final int resultCode, final Intent data) {
-		super.onActivityResult(requestCode, resultCode, data);
-		if (data != null) {
-			final Bundle bundle = data.getExtras();
-			currentItemIndex = bundle.getInt(CURR_ITEM_INDEX);
-			gridview.setSelection(currentItemIndex);
-		}
-	}
-
-	@Override
-	protected void onCreate(final Bundle savedInstanceState) {
-		handler = new Handler();
-		super.onCreate(savedInstanceState);
-		getActionBar().setDisplayHomeAsUpEnabled(true);
-		// get album id out of intent
-		final Bundle bundle = getIntent().getExtras();
-		albumEntriesUri = Uri.parse(bundle.getString(ALBUM_ENTRIES_URI));
-		albumUri = Uri.parse(bundle.getString(ALBUM_URI));
-		currentItemIndex = bundle.getInt(CURR_ITEM_INDEX, currentItemIndex);
-		currentFilter = bundle.getString(CURRENT_FILTER);
-		setContentView(R.layout.photo_overview);
-
-		if (savedInstanceState != null) {
-			final String[] savedSelection = savedInstanceState.getStringArray(SELECTION_KEY);
-			if (savedSelection != null) {
-				for (final String selectedEntry : savedSelection) {
-					selectedEntries.put(selectedEntry, new EntryValues());
-				}
-			}
-		}
-		loadAlbumEntry(albumUri);
-
-		cursorAdapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
-																																																								Client.AlbumEntry.META_KEYWORDS,
-																																																								Client.AlbumEntry.THUMBNAIL_ALIAS });
-		initLoaderWithFilter(currentFilter);
-
-		gridview = (GridView) findViewById(R.id.photo_overview);
-		gridview.setAdapter(cursorAdapter);
-		gridview.smoothScrollToPosition(currentItemIndex);
-
-		// Handle click on photo
-		gridview.setOnItemClickListener(new OnItemClickListener() {
-			@Override
-			public void onItemClick(final AdapterView<?> parent, final View v, final int position, final long id) {
-				shortClick(position);
-			}
-
-		});
-		gridview.setOnItemLongClickListener(new OnItemLongClickListener() {
-
-			@Override
-			public boolean onItemLongClick(final AdapterView<?> parent, final View view, final int position, final long id) {
-				return longClick(position);
-			}
-		});
-		gridview.setWillNotCacheDrawing(false);
-
-		final UiMode mode = savedInstanceState == null ? UiMode.NAVIGATION : UiMode.valueOf(savedInstanceState.getString(MODE_KEY, UiMode.NAVIGATION.name()));
-		switch (mode) {
-		case NAVIGATION:
-			activateNavigationMode();
-			break;
-		case SELECTION:
-			activateSelectionMode();
-			break;
-		}
-	}
+	private ExecutorService threadPoolExecutor;
 
 	private void activateNavigationMode() {
 		currentMode = UiMode.NAVIGATION;
@@ -580,7 +376,8 @@ public class PhotoOverviewActivity extends Activity {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
 		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	R.id.photos_item_image,
 																																		Client.AlbumEntry.THUMBNAIL_ALIAS,
-																																		new PhotoViewHandler.DimensionCalculator(R.dimen.image_width));
+																																		new PhotoViewHandler.DimensionCalculator(R.dimen.image_width),
+																																		threadPoolExecutor);
 		photoViewHandler.setIdleView(R.id.photo_item_empty_layout);
 		ret.add(photoViewHandler);
 		ret.add(new TextViewHandler(R.id.photo_name, Client.AlbumEntry.NAME));
@@ -602,6 +399,238 @@ public class PhotoOverviewActivity extends Activity {
 			}
 		});
 		return ret;
+	}
+
+	@Override
+	protected void onActivityResult(final int requestCode, final int resultCode, final Intent data) {
+		super.onActivityResult(requestCode, resultCode, data);
+		if (data != null) {
+			final Bundle bundle = data.getExtras();
+			currentItemIndex = bundle.getInt(CURR_ITEM_INDEX);
+			gridview.setSelection(currentItemIndex);
+		}
+	}
+
+	@Override
+	protected void onCreate(final Bundle savedInstanceState) {
+		handler = new Handler();
+		super.onCreate(savedInstanceState);
+
+		threadPoolExecutor = new ThreadPoolExecutor(5, 15, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1000), new ThreadFactory() {
+			final AtomicInteger nextThreadIndex = new AtomicInteger(0);
+
+			@Override
+			public Thread newThread(final Runnable r) {
+				final Thread thread = new Thread(r, "photo-overview-background-photo-loader-" + nextThreadIndex.getAndIncrement());
+				thread.setPriority(3);
+				return thread;
+			}
+		});
+
+		getActionBar().setDisplayHomeAsUpEnabled(true);
+		// get album id out of intent
+		final Bundle bundle = getIntent().getExtras();
+		albumEntriesUri = Uri.parse(bundle.getString(ALBUM_ENTRIES_URI));
+		albumUri = Uri.parse(bundle.getString(ALBUM_URI));
+		currentItemIndex = bundle.getInt(CURR_ITEM_INDEX, currentItemIndex);
+		currentFilter = bundle.getString(CURRENT_FILTER);
+		setContentView(R.layout.photo_overview);
+
+		if (savedInstanceState != null) {
+			final String[] savedSelection = savedInstanceState.getStringArray(SELECTION_KEY);
+			if (savedSelection != null) {
+				for (final String selectedEntry : savedSelection) {
+					selectedEntries.put(selectedEntry, new EntryValues());
+				}
+			}
+		}
+		loadAlbumEntry(albumUri);
+
+		cursorAdapter = new ComplexCursorAdapter(this, R.layout.photo_overview_item, makeHandlers(), new String[] { Client.AlbumEntry.ENTRY_URI,
+																																																								Client.AlbumEntry.META_KEYWORDS,
+																																																								Client.AlbumEntry.THUMBNAIL_ALIAS });
+		initLoaderWithFilter(currentFilter);
+
+		gridview = (GridView) findViewById(R.id.photo_overview);
+		gridview.setAdapter(cursorAdapter);
+		gridview.smoothScrollToPosition(currentItemIndex);
+
+		// Handle click on photo
+		gridview.setOnItemClickListener(new OnItemClickListener() {
+			@Override
+			public void onItemClick(final AdapterView<?> parent, final View v, final int position, final long id) {
+				shortClick(position);
+			}
+
+		});
+		gridview.setOnItemLongClickListener(new OnItemLongClickListener() {
+
+			@Override
+			public boolean onItemLongClick(final AdapterView<?> parent, final View view, final int position, final long id) {
+				return longClick(position);
+			}
+		});
+		gridview.setWillNotCacheDrawing(false);
+
+		final UiMode mode = savedInstanceState == null ? UiMode.NAVIGATION : UiMode.valueOf(savedInstanceState.getString(MODE_KEY, UiMode.NAVIGATION.name()));
+		switch (mode) {
+		case NAVIGATION:
+			activateNavigationMode();
+			break;
+		case SELECTION:
+			activateSelectionMode();
+			break;
+		}
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(final Menu menu) {
+		switch (currentMode) {
+		case SELECTION:
+			getMenuInflater().inflate(R.menu.photo_overview_selection_menu, menu);
+
+			final ShareActionProvider shareActionProvider = (ShareActionProvider) menu.findItem(R.id.photo_overview_menu_share).getActionProvider();
+			final Intent shareIntent = new Intent(Intent.ACTION_SEND_MULTIPLE);
+			shareIntent.setType("image/jpeg");
+			shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, makeCurrentSelectedUris());
+			shareActionProvider.setShareIntent(shareIntent);
+
+			final MenuItem addTagsMenu = menu.findItem(R.id.photo_overview_menu_add_tag_menu);
+			final SubMenu tagsSubmenu = addTagsMenu.getSubMenu();
+			tagsSubmenu.removeGroup(R.id.photo_overview_menu_existing_tag);
+			final Map<String, Integer> selectedKeywordCounts = new HashMap<String, Integer>();
+			for (final EntryValues entryValues : selectedEntries.values()) {
+				for (final String keyword : entryValues.keywords) {
+					final Integer existingKeyword = selectedKeywordCounts.get(keyword);
+					if (existingKeyword != null) {
+						selectedKeywordCounts.put(keyword, Integer.valueOf(existingKeyword.intValue() + 1));
+					} else {
+						selectedKeywordCounts.put(keyword, Integer.valueOf(1));
+					}
+					if (!knownKeywords.contains(keyword)) {
+						knownKeywords.add(keyword);
+					}
+				}
+			}
+			for (final String keyword : knownKeywords) {
+				final Integer count = selectedKeywordCounts.get(keyword);
+				final String keywordDisplay = count != null ? keyword + " (" + count + ")" : keyword;
+				final MenuItem item = tagsSubmenu.add(R.id.photo_overview_menu_existing_tag, Menu.NONE, Menu.NONE, keywordDisplay);
+				item.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+
+					@Override
+					public boolean onMenuItemClick(final MenuItem item) {
+						setTagToSelectedEntries(keyword);
+						return true;
+					}
+				});
+			}
+
+			final MenuItem removeTagsMenu = menu.findItem(R.id.photo_overview_menu_remove_tag_menu);
+			final SubMenu removeTagsSubmenu = removeTagsMenu.getSubMenu();
+			removeTagsSubmenu.clear();
+			final ArrayList<String> keywordsByCount = KeywordUtil.orderKeywordsByFrequent(selectedKeywordCounts);
+			for (final String keyword : keywordsByCount) {
+				final String keywordDisplay = keyword + " (" + selectedKeywordCounts.get(keyword) + ")";
+				final MenuItem removeTagItem = removeTagsSubmenu.add(keywordDisplay);
+				removeTagItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+					@Override
+					public boolean onMenuItemClick(final MenuItem item) {
+						removeTagFromSelectedEntries(keyword);
+						return true;
+					}
+
+				});
+			}
+
+			// final SubMenu subMenu = findItem.getSubMenu();
+			// subMenu.clear();
+			// subMenu.add("Hello Tag");
+			break;
+		case NAVIGATION:
+			getMenuInflater().inflate(R.menu.photo_overview_navigation_menu, menu);
+			final MenuItem shareItem = menu.findItem(R.id.photo_overview_share_album);
+			final SubMenu subMenu = shareItem.getSubMenu();
+			final Handler handler = new Handler();
+			loadStorageList(subMenu, handler);
+			final MenuItem searchClearItem = menu.findItem(R.id.photo_overview_clear_search_album);
+			final SearchView searchView = (SearchView) menu.findItem(R.id.photo_overview_search_album).getActionView();
+			searchClearItem.setVisible(currentFilter != null);
+			searchClearItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+
+				@Override
+				public boolean onMenuItemClick(final MenuItem item) {
+					initLoaderWithFilter(null);
+					searchView.setQuery("", false);
+					return true;
+				}
+			});
+			if (currentFilter != null) {
+				final Criterium filter = Criterium.decodeString(currentFilter);
+				if (filter instanceof Compare) {
+					final Compare comp = (Compare) filter;
+					final Value op1 = comp.getOp1();
+					final Value op2 = comp.getOp2();
+					if (op1 instanceof Field && ((Field) op1).getFieldName().equals(Client.AlbumEntry.META_KEYWORDS)
+							&& comp.getOperator() == Operator.CONTAINS
+							&& op2 instanceof Constant) {
+						final String value = (String) ((Constant) op2).getValue();
+						searchView.setQuery(value, false);
+						searchView.setIconified(false);
+					}
+				}
+			}
+			searchView.setOnQueryTextListener(new OnQueryTextListener() {
+
+				@Override
+				public boolean onQueryTextChange(final String newText) {
+					return false;
+				}
+
+				@Override
+				public boolean onQueryTextSubmit(final String query) {
+					initLoaderWithFilter(Criterium.contains(new Field(Client.AlbumEntry.META_KEYWORDS), new Constant(query.trim())).makeString());
+					return true;
+				}
+			});
+			break;
+		}
+
+		return true;
+	}
+
+	@Override
+	protected void onDestroy() {
+		if (threadPoolExecutor != null) {
+			threadPoolExecutor.shutdownNow();
+		}
+		super.onDestroy();
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(final MenuItem item) {
+		switch (item.getItemId()) {
+		case android.R.id.home:
+			// This ID represents the Home or Up button. In the case of this
+			// activity, the Up button is shown. Use NavUtils to allow users
+			// to navigate up one level in the application structure. For
+			// more details, see the Navigation pattern on Android Design:
+			//
+			// http://developer.android.com/design/patterns/navigation.html#up-vs-back
+			//
+			final Intent upIntent = new Intent(this, AlbumOverviewActivity.class);
+			upIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+			startActivity(upIntent);
+			finish();
+			return true;
+		case R.id.photo_overview_menu_add_new_tag:
+			setNewTag();
+			return true;
+		case R.id.photo_overview_menu_close_selection:
+			activateNavigationMode();
+			return true;
+		}
+		return super.onOptionsItemSelected(item);
 	}
 
 	private void openDetailView(final int position) {

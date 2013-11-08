@@ -9,9 +9,6 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -83,17 +80,19 @@ public class PhotoViewHandler implements ViewHandler<View> {
 	private static final String TAG = "PhotoViewHandler";
 	private int[] affectedViews;
 	private final Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
+	private final Executor executor;
 	private final int imageViewId;
 	private final Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
+
 	private final TargetSizeCalculator targetSizeCalculator;
-	private final Executor THREAD_POOL_EXECUTOR = new ThreadPoolExecutor(5, 15, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1000));
 
 	private final String uriColumn;
 
-	public PhotoViewHandler(final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator) {
+	public PhotoViewHandler(final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator, final Executor executor) {
 		this.imageViewId = viewId;
 		this.uriColumn = uriColumn;
 		this.targetSizeCalculator = targetSizeCalculator;
+		this.executor = executor;
 		affectedViews = new int[] { imageViewId };
 	}
 
@@ -205,17 +204,12 @@ public class PhotoViewHandler implements ViewHandler<View> {
 			}
 		};
 		runningBgTasks.put(imageView, asyncTask);
-		asyncTask.executeOnExecutor(THREAD_POOL_EXECUTOR);
+		asyncTask.executeOnExecutor(executor);
 
 	}
 
 	public void setIdleView(final int idleViewId) {
 		affectedViews = new int[] { imageViewId, idleViewId };
-	}
-
-	@Override
-	public String[] usedFields() {
-		return new String[] { uriColumn };
 	}
 
 	private void showBitmap(final ImageView imageView, final View idleView, final Bitmap bitmap) {
@@ -233,6 +227,11 @@ public class PhotoViewHandler implements ViewHandler<View> {
 				imageView.setImageResource(android.R.drawable.picture_frame);
 			}
 		}
+	}
+
+	@Override
+	public String[] usedFields() {
+		return new String[] { uriColumn };
 	}
 
 }

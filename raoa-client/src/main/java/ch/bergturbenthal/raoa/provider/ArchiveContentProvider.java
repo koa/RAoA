@@ -21,6 +21,7 @@ import android.database.SQLException;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import ch.bergturbenthal.raoa.provider.criterium.Criterium;
@@ -93,148 +94,6 @@ public class ArchiveContentProvider extends ContentProvider {
 	@Override
 	public int delete(final Uri uri, final String selection, final String[] selectionArgs) {
 		throw new UnsupportedOperationException("delete not supported");
-	}
-
-	@Override
-	public String getType(final Uri uri) {
-		// Log.i(TAG, "getType called");
-		switch (matcher.match(uri)) {
-		case ALBUM_LIST:
-			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/album";
-		case ALBUM:
-			return "vnd.android.cursor.item/vnd." + Client.AUTHORITY + "/album";
-		case ALBUM_ENTRY_LIST:
-			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/album/entry";
-		case ALBUM_ENTRY:
-			return "vnd.android.cursor.item/vnd." + Client.AUTHORITY + "/album/entry";
-		case ALBUM_ENTRY_THUMBNAIL:
-		case ALBUM_ENTRY_THUMBNAIL_ALIAS: {
-			final List<String> segments = uri.getPathSegments();
-			final String archive = segments.get(1);
-			final String albumId = segments.get(2);
-			final String image = segments.get(4);
-			return getService().getContenttype(archive, albumId, image);
-		}
-		case SERVER_LIST:
-			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server";
-		case SERVER_PROGRESS_LIST:
-			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server/progress";
-		case SERVER_ISSUE_LIST:
-			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server/issues";
-		case KEYWORD:
-			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/keyword";
-		case STORAGE_LIST:
-			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/storage";
-		}
-		throw new SQLException("Unknown Uri: " + uri);
-	}
-
-	@Override
-	public Uri insert(final Uri uri, final ContentValues values) {
-		switch (matcher.match(uri)) {
-		default:
-			throw new UnsupportedOperationException("insert not supported");
-		}
-	}
-
-	@Override
-	public boolean onCreate() {
-
-		getContext().bindService(new Intent(getContext(), SynchronisationServiceImpl.class), serviceConnection, Context.BIND_AUTO_CREATE);
-
-		Log.i(TAG, "Content-Provider created");
-		return true;
-	}
-
-	@Override
-	public ParcelFileDescriptor openFile(final Uri uri, final String mode) throws FileNotFoundException {
-		// Log.i(TAG, "Open called for " + uri);
-		final UriType match = matcher.match(uri);
-		if (match == null) {
-			return super.openFile(uri, mode);
-		}
-		switch (match) {
-		case ALBUM_ENTRY_THUMBNAIL:
-		case ALBUM_ENTRY_THUMBNAIL_ALIAS:
-
-			final File thumbnail = ThumbnailUriParser.parseUri(uri, new ThumbnailUriReceiver<File>() {
-				@Override
-				public File execute(final String archiveName, final String albumId, final String thumbnailId) {
-					return getService().getLoadedThumbnail(archiveName, albumId, thumbnailId);
-				}
-			});
-			if (thumbnail == null) {
-				throw new FileNotFoundException("Thumbnail-Image " + uri + " not found");
-			}
-			return ParcelFileDescriptor.open(thumbnail, ParcelFileDescriptor.MODE_READ_ONLY);
-		default:
-			break;
-		}
-		return super.openFile(uri, mode);
-	}
-
-	@Override
-	public Cursor query(final Uri uri, final String[] projection, final String selection, final String[] selectionArgs, final String sortOrder) {
-		final long startTime = System.currentTimeMillis();
-		try {
-			// Log.i(TAG, "Query called: " + uri);
-
-			final Criterium criterium = Criterium.decodeString(selection);
-			final SortOrder order = SortOrder.decodeString(sortOrder);
-
-			final List<String> segments = uri.getPathSegments();
-			switch (matcher.match(uri)) {
-			case ALBUM_LIST:
-				return getService().readAlbumList(projection, criterium, order);
-			case ALBUM:
-				return getService().readSingleAlbum(segments.get(1), segments.get(2), projection, criterium, order);
-			case ALBUM_ENTRY_LIST:
-				return getService().readAlbumEntryList(segments.get(1), segments.get(2), projection, criterium, order);
-			case ALBUM_ENTRY:
-				return getService().readSingleAlbumEntry(segments.get(1), segments.get(2), segments.get(4), projection, criterium, order);
-			case SERVER_LIST:
-				return getService().readServerList(projection, criterium, order);
-			case SERVER_PROGRESS_LIST:
-				return getService().readServerProgresList(segments.get(1), projection, criterium, order);
-			case SERVER_ISSUE_LIST:
-				return getService().readServerIssueList(segments.get(1), projection, criterium, order);
-			case KEYWORD:
-				return getService().readKeywordStatistics(projection, criterium, order);
-			case STORAGE_LIST:
-				return getService().readStorages(projection, criterium, order);
-			case ALBUM_ENTRY_THUMBNAIL:
-			case ALBUM_ENTRY_THUMBNAIL_ALIAS:
-				return null;
-			}
-			throw new UnsupportedOperationException("Query of " + uri + " is not supported");
-		} catch (final Throwable e) {
-			throw new RuntimeException("Cannot query for " + uri, e);
-		} finally {
-			Log.i(TAG, "Query for " + uri + " took " + (System.currentTimeMillis() - startTime));
-		}
-	}
-
-	@Override
-	public int update(final Uri uri, final ContentValues values, final String selection, final String[] selectionArgs) {
-		Log.i(TAG, "Update called: " + uri);
-		final List<String> segments = uri.getPathSegments();
-		switch (matcher.match(uri)) {
-		case ALBUM:
-			return getService().updateAlbum(segments.get(1), segments.get(2), values);
-		case ALBUM_ENTRY:
-			return getService().updateAlbumEntry(segments.get(1), segments.get(2), segments.get(4), values);
-		case ALBUM_ENTRY_LIST:
-		case ALBUM_ENTRY_THUMBNAIL:
-		case ALBUM_ENTRY_THUMBNAIL_ALIAS:
-		case ALBUM_LIST:
-		case SERVER_LIST:
-		case SERVER_PROGRESS_LIST:
-		case SERVER_ISSUE_LIST:
-		case STORAGE_LIST:
-		case KEYWORD:
-		}
-		throw new UnsupportedOperationException("Update of " + uri + " is not supported");
-
 	}
 
 	protected Cursor getEmptyCursor(final Class<?> klass) {
@@ -356,10 +215,155 @@ public class ArchiveContentProvider extends ContentProvider {
 		return service;
 	}
 
+	@Override
+	public String getType(final Uri uri) {
+		// Log.i(TAG, "getType called");
+		switch (matcher.match(uri)) {
+		case ALBUM_LIST:
+			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/album";
+		case ALBUM:
+			return "vnd.android.cursor.item/vnd." + Client.AUTHORITY + "/album";
+		case ALBUM_ENTRY_LIST:
+			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/album/entry";
+		case ALBUM_ENTRY:
+			return "vnd.android.cursor.item/vnd." + Client.AUTHORITY + "/album/entry";
+		case ALBUM_ENTRY_THUMBNAIL:
+		case ALBUM_ENTRY_THUMBNAIL_ALIAS: {
+			final List<String> segments = uri.getPathSegments();
+			final String archive = segments.get(1);
+			final String albumId = segments.get(2);
+			final String image = segments.get(4);
+			return getService().getContenttype(archive, albumId, image);
+		}
+		case SERVER_LIST:
+			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server";
+		case SERVER_PROGRESS_LIST:
+			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server/progress";
+		case SERVER_ISSUE_LIST:
+			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/server/issues";
+		case KEYWORD:
+			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/keyword";
+		case STORAGE_LIST:
+			return "vnd.android.cursor.dir/vnd." + Client.AUTHORITY + "/storage";
+		}
+		throw new SQLException("Unknown Uri: " + uri);
+	}
+
+	@Override
+	public Uri insert(final Uri uri, final ContentValues values) {
+		switch (matcher.match(uri)) {
+		default:
+			throw new UnsupportedOperationException("insert not supported");
+		}
+	}
+
+	@Override
+	public boolean onCreate() {
+
+		getContext().bindService(new Intent(getContext(), SynchronisationServiceImpl.class), serviceConnection, Context.BIND_AUTO_CREATE);
+
+		Log.i(TAG, "Content-Provider created");
+		return true;
+	}
+
+	@Override
+	public ParcelFileDescriptor openFile(final Uri uri, final String mode) throws FileNotFoundException {
+		// Log.i(TAG, "Open called for " + uri);
+		final UriType match = matcher.match(uri);
+		if (match == null) {
+			return super.openFile(uri, mode);
+		}
+		switch (match) {
+		case ALBUM_ENTRY_THUMBNAIL:
+		case ALBUM_ENTRY_THUMBNAIL_ALIAS:
+
+			final File thumbnail = ThumbnailUriParser.parseUri(uri, new ThumbnailUriReceiver<File>() {
+				@Override
+				public File execute(final String archiveName, final String albumId, final String thumbnailId) {
+					return getService().getLoadedThumbnail(archiveName, albumId, thumbnailId);
+				}
+			});
+			if (thumbnail == null) {
+				throw new FileNotFoundException("Thumbnail-Image " + uri + " not found");
+			}
+			return ParcelFileDescriptor.open(thumbnail, ParcelFileDescriptor.MODE_READ_ONLY);
+		default:
+			break;
+		}
+		return super.openFile(uri, mode);
+	}
+
+	@Override
+	public Cursor query(final Uri uri, final String[] projection, final String selection, final String[] selectionArgs, final String sortOrder) {
+		if (Looper.getMainLooper().getThread() == Thread.currentThread()) {
+			throw new RuntimeException("Don't call a query on UI-Thread");
+		}
+		final long startTime = System.currentTimeMillis();
+		try {
+			// Log.i(TAG, "Query called: " + uri);
+
+			final Criterium criterium = Criterium.decodeString(selection);
+			final SortOrder order = SortOrder.decodeString(sortOrder);
+
+			final List<String> segments = uri.getPathSegments();
+			switch (matcher.match(uri)) {
+			case ALBUM_LIST:
+				return getService().readAlbumList(projection, criterium, order);
+			case ALBUM:
+				return getService().readSingleAlbum(segments.get(1), segments.get(2), projection, criterium, order);
+			case ALBUM_ENTRY_LIST:
+				return getService().readAlbumEntryList(segments.get(1), segments.get(2), projection, criterium, order);
+			case ALBUM_ENTRY:
+				return getService().readSingleAlbumEntry(segments.get(1), segments.get(2), segments.get(4), projection, criterium, order);
+			case SERVER_LIST:
+				return getService().readServerList(projection, criterium, order);
+			case SERVER_PROGRESS_LIST:
+				return getService().readServerProgresList(segments.get(1), projection, criterium, order);
+			case SERVER_ISSUE_LIST:
+				return getService().readServerIssueList(segments.get(1), projection, criterium, order);
+			case KEYWORD:
+				return getService().readKeywordStatistics(projection, criterium, order);
+			case STORAGE_LIST:
+				return getService().readStorages(projection, criterium, order);
+			case ALBUM_ENTRY_THUMBNAIL:
+			case ALBUM_ENTRY_THUMBNAIL_ALIAS:
+				return null;
+			}
+			throw new UnsupportedOperationException("Query of " + uri + " is not supported");
+		} catch (final Throwable e) {
+			throw new RuntimeException("Cannot query for " + uri, e);
+		} finally {
+			Log.i(TAG, "Query for " + uri + " took " + (System.currentTimeMillis() - startTime));
+		}
+	}
+
 	private void setService(final SynchronisationService service) {
 		this.service = service;
 		for (final NotifyableMatrixCursor cursor : emptyCursors.values()) {
 			cursor.onChange(false);
 		}
+	}
+
+	@Override
+	public int update(final Uri uri, final ContentValues values, final String selection, final String[] selectionArgs) {
+		Log.i(TAG, "Update called: " + uri);
+		final List<String> segments = uri.getPathSegments();
+		switch (matcher.match(uri)) {
+		case ALBUM:
+			return getService().updateAlbum(segments.get(1), segments.get(2), values);
+		case ALBUM_ENTRY:
+			return getService().updateAlbumEntry(segments.get(1), segments.get(2), segments.get(4), values);
+		case ALBUM_ENTRY_LIST:
+		case ALBUM_ENTRY_THUMBNAIL:
+		case ALBUM_ENTRY_THUMBNAIL_ALIAS:
+		case ALBUM_LIST:
+		case SERVER_LIST:
+		case SERVER_PROGRESS_LIST:
+		case SERVER_ISSUE_LIST:
+		case STORAGE_LIST:
+		case KEYWORD:
+		}
+		throw new UnsupportedOperationException("Update of " + uri + " is not supported");
+
 	}
 }

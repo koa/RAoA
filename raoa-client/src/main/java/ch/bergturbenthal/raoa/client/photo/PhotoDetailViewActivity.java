@@ -14,6 +14,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import android.app.ActionBar;
 import android.app.ActionBar.Tab;
@@ -56,7 +62,6 @@ import ch.bergturbenthal.raoa.provider.Client;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryType;
 
 public class PhotoDetailViewActivity extends Activity {
-
 	private static interface TagViewHandler {
 		void setVisibleTags(final String[] tags);
 
@@ -72,18 +77,18 @@ public class PhotoDetailViewActivity extends Activity {
 	public static final String ALBUM_ENTRIES_URI = "album_entries_uri";
 
 	public static final String ALBUM_URI = "album_uri";
+
 	public static final String CURRENT_FILTER = "current_filter";
+	private static final String TAG_HEAT_MAP = "tagHeatMap";
 
 	protected static final int VISIBLE_KEYWORD_COUNT = 5;
 
-	private static final String TAG_HEAT_MAP = "tagHeatMap";
 	private int actPos;
-
 	private CursorPagerAdapter adapter;
 
 	private String albumEntryUri;
-	private Uri albumUri;
 
+	private Uri albumUri;
 	private String currentFilter;
 
 	private PhotoDetailContainer detailContainer;
@@ -100,209 +105,9 @@ public class PhotoDetailViewActivity extends Activity {
 
 	private boolean tagsVisible = false;
 
+	private ExecutorService threadPoolExecutor;
+
 	private String[] visibleKeywords = new String[0];
-
-	@Override
-	public void onBackPressed() {
-		final Intent output = new Intent();
-		output.putExtra(PhotoOverviewActivity.CURR_ITEM_INDEX, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
-		setResult(RESULT_OK, output);
-		super.onBackPressed();
-	}
-
-	@Override
-	public boolean onCreateOptionsMenu(final Menu menu) {
-		final Object[] additionalValues = adapter.getAdditionalValues(actPos);
-		if (additionalValues == null) {
-			return false;
-		}
-		getMenuInflater().inflate(R.menu.photo_detail_menu, menu);
-
-		final ShareActionProvider shareActionProvider = (ShareActionProvider) menu.findItem(R.id.photo_overview_menu_share).getActionProvider();
-		final Intent shareIntent = new Intent(Intent.ACTION_SEND);
-		shareIntent.setType("image/jpeg");
-		shareIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse((String) additionalValues[0]));
-		shareActionProvider.setShareIntent(shareIntent);
-		return true;
-	}
-
-	@Override
-	public void onLowMemory() {
-		decrementOffscreenPageLimit();
-		super.onLowMemory();
-	}
-
-	@Override
-	public boolean onOptionsItemSelected(final MenuItem item) {
-		switch (item.getItemId()) {
-		case android.R.id.home:
-			// This ID represents the Home or Up button. In the case of this
-			// activity, the Up button is shown. Use NavUtils to allow users
-			// to navigate up one level in the application structure. For
-			// more details, see the Navigation pattern on Android Design:
-			//
-			// http://developer.android.com/design/patterns/navigation.html#up-vs-back
-			//
-			final Intent upIntent = new Intent(this, PhotoOverviewActivity.class);
-			upIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-			upIntent.putExtra(PhotoOverviewActivity.ALBUM_URI, albumEntryUri);
-			upIntent.putExtra(PhotoOverviewActivity.ALBUM_ENTRIES_URI, albumUri.toString());
-			upIntent.putExtra(PhotoOverviewActivity.CURR_ITEM_INDEX, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
-			upIntent.putExtra(PhotoOverviewActivity.CURRENT_FILTER, currentFilter);
-			startActivity(upIntent);
-			finish();
-			return true;
-		}
-		return super.onOptionsItemSelected(item);
-	}
-
-	@Override
-	public boolean onTouchEvent(final MotionEvent event) {
-		final ActionBar actionBar = getActionBar();
-		if (actionBar.isShowing()) {
-			actionBar.hide();
-		} else {
-			actionBar.show();
-		}
-		return super.onTouchEvent(event);
-	}
-
-	@Override
-	protected void onCreate(final Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-
-		requestWindowFeature(Window.FEATURE_ACTION_BAR_OVERLAY);
-		setContentView(R.layout.photo_detailview);
-		detailContainer = (PhotoDetailContainer) findViewById(R.id.photo_detailview_container);
-		pager = detailContainer.getViewPager();
-
-		// get album id and photo id out of intent
-		final Bundle bundle = getIntent().getExtras();
-		albumUri = Uri.parse(bundle.getString(ALBUM_ENTRIES_URI));
-		albumEntryUri = bundle.getString(ALBUM_URI);
-		currentFilter = bundle.getString(CURRENT_FILTER);
-		actPos = bundle.getInt(ACTUAL_POS);
-
-		adapter = CursorPagerAdapter.registerLoaderManager(	getLoaderManager(),
-																												this,
-																												albumUri,
-																												currentFilter,
-																												null,
-																												R.layout.photo_detailview_item,
-																												makeHandlers(),
-																												new String[] { Client.AlbumEntry.THUMBNAIL_ALIAS, Client.AlbumEntry.META_KEYWORDS });
-		adapter.setCursorLoadedHandler(new Runnable() {
-			private boolean firstLoad = true;
-
-			@Override
-			public void run() {
-				pager.setCurrentItem(actPos, false);
-				new AsyncTask<Void, Void, Void>() {
-
-					String[] visibleKeywordsToShow = null;
-
-					@Override
-					protected Void doInBackground(final Void... params) {
-						knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
-						if (!firstLoad) {
-							return null;
-						}
-						final Map<String, Integer> keywordCountInAlbum = new HashMap<String, Integer>();
-						for (int i = 0; i < adapter.getCount(); i++) {
-							final String keywordValue = (String) adapter.getAdditionalValues(i)[1];
-							if (keywordValue == null || keywordValue.isEmpty()) {
-								continue;
-							}
-							final Collection<String> keywords = Client.AlbumEntry.decodeKeywords(keywordValue);
-							for (final String keyword : keywords) {
-								final Integer oldValue = keywordCountInAlbum.get(keyword);
-								if (oldValue == null) {
-									keywordCountInAlbum.put(keyword, Integer.valueOf(1));
-								} else {
-									keywordCountInAlbum.put(keyword, Integer.valueOf(oldValue.intValue() + 1));
-								}
-							}
-						}
-						final ArrayList<String> keywordsInAlbum = KeywordUtil.orderKeywordsByFrequent(keywordCountInAlbum);
-						if (keywordCountInAlbum.size() >= VISIBLE_KEYWORD_COUNT) {
-							visibleKeywordsToShow = keywordsInAlbum.subList(0, VISIBLE_KEYWORD_COUNT).toArray(new String[VISIBLE_KEYWORD_COUNT]);
-						} else {
-							final Set<String> keywords = new LinkedHashSet<String>();
-							keywords.addAll(keywordsInAlbum);
-							keywords.addAll(knownKeywords);
-							final Collection<String> visibleEntries;
-							if (keywords.size() > VISIBLE_KEYWORD_COUNT) {
-								visibleEntries = new ArrayList<String>(keywords).subList(0, VISIBLE_KEYWORD_COUNT);
-							} else {
-								visibleEntries = keywords;
-							}
-							visibleKeywordsToShow = visibleEntries.toArray(new String[visibleEntries.size()]);
-						}
-						firstLoad = false;
-						return null;
-					}
-
-					@Override
-					protected void onPostExecute(final Void result) {
-						if (visibleKeywordsToShow != null) {
-							updateVisibleKeywords(visibleKeywordsToShow);
-						}
-						invalidateOptionsMenu();
-					}
-				}.execute();
-			}
-		});
-		adapter.setListView(detailContainer);
-		adapter.setEmptyView(findViewById(R.id.photo_detailview_empty_view));
-		detailContainer.setOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {
-			@Override
-			public void onPageScrolled(final int position, final float positionOffset, final int positionOffsetPixels) {
-			}
-
-			@Override
-			public void onPageSelected(final int position) {
-				actPos = position;
-				invalidateOptionsMenu();
-			}
-
-		});
-
-		// View pager configuration
-		pager.setAdapter(adapter);
-
-		// Preload two pages
-		pager.setOffscreenPageLimit(3);
-
-		// Add a little space between pages
-		pager.setPageMargin(15);
-
-		// If hardware acceleration is enabled, you should also remove
-		// clipping on the pager for its children.
-		pager.setClipChildren(false);
-
-		if (savedInstanceState != null) {
-			actPos = savedInstanceState.getInt(ACTUAL_POS);
-			tagHeatMap.clear();
-			final Map<String, Integer> savedHeatMap = (Map<String, Integer>) savedInstanceState.getSerializable(TAG_HEAT_MAP);
-			if (savedHeatMap != null) {
-				tagHeatMap.putAll(savedHeatMap);
-			}
-		}
-		setupActionBar();
-	}
-
-	@Override
-	protected void onSaveInstanceState(final Bundle outState) {
-		super.onSaveInstanceState(outState);
-		outState.putInt(ACTUAL_POS, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
-		outState.putSerializable(TAG_HEAT_MAP, (Serializable) tagHeatMap);
-	}
-
-	protected final void reloadViewPager() {
-		final int currentItem = pager.getCurrentItem();
-		pager.setAdapter(adapter);
-		pager.setCurrentItem(currentItem, false);
-	}
 
 	/**
 	 * 
@@ -316,7 +121,10 @@ public class PhotoDetailViewActivity extends Activity {
 
 	private ArrayList<ViewHandler<? extends View>> makeHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(R.id.photos_item_image, Client.AlbumEntry.THUMBNAIL_ALIAS, PhotoViewHandler.FULLSCREEN_CALCULATOR);
+		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	R.id.photos_item_image,
+																																		Client.AlbumEntry.THUMBNAIL_ALIAS,
+																																		PhotoViewHandler.FULLSCREEN_CALCULATOR,
+																																		threadPoolExecutor);
 		photoViewHandler.setIdleView(R.id.photo_view_empty_layout);
 		ret.add(photoViewHandler);
 		ret.add(makeTagButtonsViewHandler());
@@ -490,6 +298,221 @@ public class PhotoDetailViewActivity extends Activity {
 		};
 	}
 
+	@Override
+	public void onBackPressed() {
+		final Intent output = new Intent();
+		output.putExtra(PhotoOverviewActivity.CURR_ITEM_INDEX, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
+		setResult(RESULT_OK, output);
+		super.onBackPressed();
+	}
+
+	@Override
+	protected void onCreate(final Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+
+		threadPoolExecutor = new ThreadPoolExecutor(5, 15, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1000), new ThreadFactory() {
+			final AtomicInteger nextThreadIndex = new AtomicInteger(0);
+
+			@Override
+			public Thread newThread(final Runnable r) {
+				final Thread thread = new Thread(r, "photo-detail-background-photo-loader-" + nextThreadIndex.getAndIncrement());
+				thread.setPriority(3);
+				return thread;
+			}
+		});
+
+		requestWindowFeature(Window.FEATURE_ACTION_BAR_OVERLAY);
+		setContentView(R.layout.photo_detailview);
+		detailContainer = (PhotoDetailContainer) findViewById(R.id.photo_detailview_container);
+		pager = detailContainer.getViewPager();
+
+		// get album id and photo id out of intent
+		final Bundle bundle = getIntent().getExtras();
+		albumUri = Uri.parse(bundle.getString(ALBUM_ENTRIES_URI));
+		albumEntryUri = bundle.getString(ALBUM_URI);
+		currentFilter = bundle.getString(CURRENT_FILTER);
+		actPos = bundle.getInt(ACTUAL_POS);
+
+		adapter = CursorPagerAdapter.registerLoaderManager(	getLoaderManager(),
+																												this,
+																												albumUri,
+																												currentFilter,
+																												null,
+																												R.layout.photo_detailview_item,
+																												makeHandlers(),
+																												new String[] { Client.AlbumEntry.THUMBNAIL_ALIAS, Client.AlbumEntry.META_KEYWORDS });
+		adapter.setCursorLoadedHandler(new Runnable() {
+			private boolean firstLoad = true;
+
+			@Override
+			public void run() {
+				pager.setCurrentItem(actPos, false);
+				new AsyncTask<Void, Void, Void>() {
+
+					String[] visibleKeywordsToShow = null;
+
+					@Override
+					protected Void doInBackground(final Void... params) {
+						knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
+						if (!firstLoad) {
+							return null;
+						}
+						final Map<String, Integer> keywordCountInAlbum = new HashMap<String, Integer>();
+						for (int i = 0; i < adapter.getCount(); i++) {
+							final String keywordValue = (String) adapter.getAdditionalValues(i)[1];
+							if (keywordValue == null || keywordValue.isEmpty()) {
+								continue;
+							}
+							final Collection<String> keywords = Client.AlbumEntry.decodeKeywords(keywordValue);
+							for (final String keyword : keywords) {
+								final Integer oldValue = keywordCountInAlbum.get(keyword);
+								if (oldValue == null) {
+									keywordCountInAlbum.put(keyword, Integer.valueOf(1));
+								} else {
+									keywordCountInAlbum.put(keyword, Integer.valueOf(oldValue.intValue() + 1));
+								}
+							}
+						}
+						final ArrayList<String> keywordsInAlbum = KeywordUtil.orderKeywordsByFrequent(keywordCountInAlbum);
+						if (keywordCountInAlbum.size() >= VISIBLE_KEYWORD_COUNT) {
+							visibleKeywordsToShow = keywordsInAlbum.subList(0, VISIBLE_KEYWORD_COUNT).toArray(new String[VISIBLE_KEYWORD_COUNT]);
+						} else {
+							final Set<String> keywords = new LinkedHashSet<String>();
+							keywords.addAll(keywordsInAlbum);
+							keywords.addAll(knownKeywords);
+							final Collection<String> visibleEntries;
+							if (keywords.size() > VISIBLE_KEYWORD_COUNT) {
+								visibleEntries = new ArrayList<String>(keywords).subList(0, VISIBLE_KEYWORD_COUNT);
+							} else {
+								visibleEntries = keywords;
+							}
+							visibleKeywordsToShow = visibleEntries.toArray(new String[visibleEntries.size()]);
+						}
+						firstLoad = false;
+						return null;
+					}
+
+					@Override
+					protected void onPostExecute(final Void result) {
+						if (visibleKeywordsToShow != null) {
+							updateVisibleKeywords(visibleKeywordsToShow);
+						}
+						invalidateOptionsMenu();
+					}
+				}.execute();
+			}
+		});
+		adapter.setListView(detailContainer);
+		adapter.setEmptyView(findViewById(R.id.photo_detailview_empty_view));
+		detailContainer.setOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {
+			@Override
+			public void onPageScrolled(final int position, final float positionOffset, final int positionOffsetPixels) {
+			}
+
+			@Override
+			public void onPageSelected(final int position) {
+				actPos = position;
+				invalidateOptionsMenu();
+			}
+
+		});
+
+		// View pager configuration
+		pager.setAdapter(adapter);
+
+		// Preload two pages
+		pager.setOffscreenPageLimit(3);
+
+		// Add a little space between pages
+		pager.setPageMargin(15);
+
+		// If hardware acceleration is enabled, you should also remove
+		// clipping on the pager for its children.
+		pager.setClipChildren(false);
+
+		if (savedInstanceState != null) {
+			actPos = savedInstanceState.getInt(ACTUAL_POS);
+			tagHeatMap.clear();
+			final Map<String, Integer> savedHeatMap = (Map<String, Integer>) savedInstanceState.getSerializable(TAG_HEAT_MAP);
+			if (savedHeatMap != null) {
+				tagHeatMap.putAll(savedHeatMap);
+			}
+		}
+		setupActionBar();
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(final Menu menu) {
+		final Object[] additionalValues = adapter.getAdditionalValues(actPos);
+		if (additionalValues == null) {
+			return false;
+		}
+		getMenuInflater().inflate(R.menu.photo_detail_menu, menu);
+
+		final ShareActionProvider shareActionProvider = (ShareActionProvider) menu.findItem(R.id.photo_overview_menu_share).getActionProvider();
+		final Intent shareIntent = new Intent(Intent.ACTION_SEND);
+		shareIntent.setType("image/jpeg");
+		shareIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse((String) additionalValues[0]));
+		shareActionProvider.setShareIntent(shareIntent);
+		return true;
+	}
+
+	@Override
+	protected void onDestroy() {
+		if (threadPoolExecutor != null) {
+			threadPoolExecutor.shutdownNow();
+		}
+		super.onDestroy();
+	}
+
+	@Override
+	public void onLowMemory() {
+		decrementOffscreenPageLimit();
+		super.onLowMemory();
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(final MenuItem item) {
+		switch (item.getItemId()) {
+		case android.R.id.home:
+			// This ID represents the Home or Up button. In the case of this
+			// activity, the Up button is shown. Use NavUtils to allow users
+			// to navigate up one level in the application structure. For
+			// more details, see the Navigation pattern on Android Design:
+			//
+			// http://developer.android.com/design/patterns/navigation.html#up-vs-back
+			//
+			final Intent upIntent = new Intent(this, PhotoOverviewActivity.class);
+			upIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+			upIntent.putExtra(PhotoOverviewActivity.ALBUM_URI, albumEntryUri);
+			upIntent.putExtra(PhotoOverviewActivity.ALBUM_ENTRIES_URI, albumUri.toString());
+			upIntent.putExtra(PhotoOverviewActivity.CURR_ITEM_INDEX, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
+			upIntent.putExtra(PhotoOverviewActivity.CURRENT_FILTER, currentFilter);
+			startActivity(upIntent);
+			finish();
+			return true;
+		}
+		return super.onOptionsItemSelected(item);
+	}
+
+	@Override
+	protected void onSaveInstanceState(final Bundle outState) {
+		super.onSaveInstanceState(outState);
+		outState.putInt(ACTUAL_POS, ((CursorPagerAdapter) pager.getAdapter()).getCurrentPosition());
+		outState.putSerializable(TAG_HEAT_MAP, (Serializable) tagHeatMap);
+	}
+
+	@Override
+	public boolean onTouchEvent(final MotionEvent event) {
+		final ActionBar actionBar = getActionBar();
+		if (actionBar.isShowing()) {
+			actionBar.hide();
+		} else {
+			actionBar.show();
+		}
+		return super.onTouchEvent(event);
+	}
+
 	private void placeNewTag(final String text) {
 		int replaceCandidate = -1;
 		int leastClickCount = Integer.MAX_VALUE;
@@ -518,6 +541,12 @@ public class PhotoDetailViewActivity extends Activity {
 				tagHeatMap.put(keyWord, Integer.valueOf(oldValue.intValue() + 1));
 			}
 		}
+	}
+
+	protected final void reloadViewPager() {
+		final int currentItem = pager.getCurrentItem();
+		pager.setAdapter(adapter);
+		pager.setCurrentItem(currentItem, false);
 	}
 
 	private void setFullscreen(final boolean fullscreen) {
