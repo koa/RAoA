@@ -1,6 +1,5 @@
 package ch.bergturbenthal.raoa.provider.state;
 
-import android.R;
 import android.app.Activity;
 import android.app.ListFragment;
 import android.app.LoaderManager.LoaderCallbacks;
@@ -72,8 +71,9 @@ public class ServerListFragment extends ListFragment {
 		super.onAttach(activity);
 
 		// Activities containing this fragment must implement its callbacks.
-		if (!(activity instanceof Callbacks))
+		if (!(activity instanceof Callbacks)) {
 			throw new IllegalStateException("Activity must implement fragment's callbacks.");
+		}
 
 		mCallbacks = (Callbacks) activity;
 	}
@@ -83,7 +83,7 @@ public class ServerListFragment extends ListFragment {
 		super.onCreate(savedInstanceState);
 
 		adapter = new SimpleCursorAdapter(getActivity(),
-																			R.layout.simple_list_item_activated_1,
+																			android.R.layout.simple_list_item_activated_1,
 																			null,
 																			new String[] { Client.ServerEntry.SERVER_NAME },
 																			new int[] { android.R.id.text1 },
@@ -149,15 +149,6 @@ public class ServerListFragment extends ListFragment {
 		}
 	}
 
-	/**
-	 * Turns on activate-on-click mode. When this mode is on, list items will be given the 'activated' state when touched.
-	 */
-	public void setActivateOnItemClick(final boolean activateOnItemClick) {
-		// When setting CHOICE_MODE_SINGLE, ListView will automatically
-		// give items the 'activated' state when touched.
-		getListView().setChoiceMode(activateOnItemClick ? AbsListView.CHOICE_MODE_SINGLE : AbsListView.CHOICE_MODE_NONE);
-	}
-
 	private void setActivatedPosition(final int position) {
 		if (position == AdapterView.INVALID_POSITION) {
 			getListView().setItemChecked(mActivatedPosition, false);
@@ -166,5 +157,14 @@ public class ServerListFragment extends ListFragment {
 		}
 
 		mActivatedPosition = position;
+	}
+
+	/**
+	 * Turns on activate-on-click mode. When this mode is on, list items will be given the 'activated' state when touched.
+	 */
+	public void setActivateOnItemClick(final boolean activateOnItemClick) {
+		// When setting CHOICE_MODE_SINGLE, ListView will automatically
+		// give items the 'activated' state when touched.
+		getListView().setChoiceMode(activateOnItemClick ? AbsListView.CHOICE_MODE_SINGLE : AbsListView.CHOICE_MODE_NONE);
 	}
 }

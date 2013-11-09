@@ -10,6 +10,7 @@ import java.lang.Thread.UncaughtExceptionHandler;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
 
 import android.app.Application;
 import android.util.Log;
@@ -20,7 +21,7 @@ public class ClientApplication extends Application {
 	public void onCreate() {
 		super.onCreate();
 		final File crashesDir = getDir("crash", MODE_WORLD_READABLE);
-		final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS");
+		final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.getDefault());
 		Thread.setDefaultUncaughtExceptionHandler(new UncaughtExceptionHandler() {
 			@Override
 			public void uncaughtException(final Thread thread, final Throwable ex) {

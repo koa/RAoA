@@ -97,17 +97,18 @@ public class ServerCreateAlbumFragment extends Fragment {
 			public void onClick(final View v) {
 				final String parentFolder = (String) selectFolderSpinner.getSelectedItem();
 				if (parentFolder == null) {
-					Toast.makeText(getActivity(), R.string.create_folder_error_no_parent, Toast.LENGTH_LONG);
+					Toast.makeText(getActivity(), R.string.create_folder_error_no_parent, Toast.LENGTH_LONG).show();
 					return;
 				}
 				final String albumName = albumNameInput.getText().toString();
 				if (albumName == null || albumName.trim().length() == 0) {
-					Toast.makeText(getActivity(), R.string.create_folder_error_no_album_name, Toast.LENGTH_LONG);
+					Toast.makeText(getActivity(), R.string.create_folder_error_no_album_name, Toast.LENGTH_LONG).show();
 					return;
 				}
 				final String serverId = getArguments() == null ? null : getArguments().getString(Client.ServerEntry.SERVER_ID);
-				if (serverId == null)
+				if (serverId == null) {
 					return;
+				}
 				final DateMidnight date = new DateTime(datePicker.getDate()).toDateMidnight();
 
 				final long autoAddDate = date.getMillis() + TimeUnit.HOURS.toMillis(timePicker.getCurrentHour()) + TimeUnit.MINUTES.toMillis(timePicker.getCurrentMinute());
@@ -127,7 +128,7 @@ public class ServerCreateAlbumFragment extends Fragment {
 
 					@Override
 					protected void onPostExecute(final Void result) {
-						Toast.makeText(getActivity(), R.string.create_folder_folder_created, Toast.LENGTH_LONG);
+						Toast.makeText(getActivity(), R.string.create_folder_folder_created, Toast.LENGTH_LONG).show();
 					}
 
 				}.execute();

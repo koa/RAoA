@@ -7,7 +7,6 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.net.URLConnection;
 
-import android.R;
 import android.app.ListActivity;
 import android.content.Intent;
 import android.database.Cursor;
@@ -31,6 +30,14 @@ import ch.bergturbenthal.raoa.provider.util.IOUtil;
  * 
  */
 public class ShareReceiveActivity extends ListActivity {
+	private String guessType(final Uri dataUri) {
+		final String guessedType = URLConnection.guessContentTypeFromName(dataUri.toString());
+		if (guessedType == null) {
+			return "image/jpeg";
+		}
+		return guessedType;
+	}
+
 	@Override
 	protected void onCreate(final Bundle savedInstance) {
 		super.onCreate(savedInstance);
@@ -55,10 +62,10 @@ public class ShareReceiveActivity extends ListActivity {
 																											null);
 		startManagingCursor(cursor);
 		final ListAdapter adapter = new SimpleCursorAdapter(this,
-																												R.layout.simple_list_item_1,
+																												android.R.layout.simple_list_item_1,
 																												cursor,
 																												new String[] { Client.ServerEntry.SERVER_NAME },
-																												new int[] { R.id.text1 });
+																												new int[] { android.R.id.text1 });
 		setListAdapter(adapter);
 		final ListView listView = getListView();
 		listView.setOnItemClickListener(new OnItemClickListener() {
@@ -79,14 +86,6 @@ public class ShareReceiveActivity extends ListActivity {
 				finish();
 			}
 		});
-	}
-
-	private String guessType(final Uri dataUri) {
-		final String guessedType = URLConnection.guessContentTypeFromName(dataUri.toString());
-		if (guessedType == null) {
-			return "image/jpeg";
-		}
-		return guessedType;
 	}
 
 	/**
