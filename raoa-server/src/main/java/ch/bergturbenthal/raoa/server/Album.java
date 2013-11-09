@@ -52,6 +52,7 @@ import org.codehaus.jackson.map.ObjectReader;
 import org.codehaus.jackson.map.type.MapType;
 import org.codehaus.jackson.map.type.SimpleType;
 import org.eclipse.jgit.api.AddCommand;
+import org.eclipse.jgit.api.CheckoutCommand;
 import org.eclipse.jgit.api.CommitCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.LogCommand;
@@ -100,7 +101,7 @@ public class Album implements ApplicationContextAware {
 
 	@RequiredArgsConstructor
 	private static enum AlbumState {
-		IMPORTING(true, false), INITIALIZING(false, true), READY(true, true), SYNCHRONIZING(false, false);
+		IMPORTING(true, false), INITIALIZING(false, false), READY(true, true), SYNCHRONIZING(false, false);
 		@Getter
 		private final boolean importAvailable;
 		@Getter
@@ -164,7 +165,7 @@ public class Album implements ApplicationContextAware {
 
 	@Autowired
 	private RepositoryService repositoryService;
-	private final AtomicReference<AlbumState> state = new AtomicReference<Album.AlbumState>(AlbumState.INITIALIZING);
+	private final AtomicReference<AlbumState> state = new AtomicReference<Album.AlbumState>(AlbumState.READY);
 
 	@Autowired
 	private StateManager stateManager;
@@ -231,15 +232,31 @@ public class Album implements ApplicationContextAware {
 		try {
 			final Status status = git.status().call();
 			if (!status.isClean() && status.getConflicting().isEmpty()) {
-				git.add().addFilepattern(".").call();
-				// if (!status.getMissing().isEmpty()) {
-				// final RmCommand rm = git.rm();
-				// for (final String missing : status.getMissing()) {
-				// rm.addFilepattern(missing);
-				// }
-				// rm.call();
-				// }
-				modified = true;
+				boolean addedSomething = false;
+				final AddCommand addCommand = git.add();
+				for (final String entry : status.getUntracked()) {
+					if (new File(baseDir, entry).exists()) {
+						addCommand.addFilepattern(entry);
+						addedSomething = true;
+					}
+				}
+				for (final String entry : status.getModified()) {
+					if (new File(baseDir, entry).exists()) {
+						addCommand.addFilepattern(entry);
+						addedSomething = true;
+					}
+				}
+				if (addedSomething) {
+					addCommand.call();
+					modified = true;
+				}
+				if (!status.getMissing().isEmpty()) {
+					final CheckoutCommand checkout = git.checkout();
+					for (final String entry : status.getMissing()) {
+						checkout.addPath(entry);
+					}
+					checkout.call();
+				}
 			}
 		} catch (final GitAPIException e) {
 			throw new RuntimeException("Cannot make initial commit", e);
