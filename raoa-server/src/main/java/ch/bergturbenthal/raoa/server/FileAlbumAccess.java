@@ -157,8 +157,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	@Autowired
 	private StateManager stateManager;
 	private LocalStore store;
-	private final ExecutorService syncExecutorService = Executors.newFixedThreadPool(	Runtime.getRuntime().availableProcessors(),
-																																										new CustomizableThreadFactory("sync-thread"));
+	private final ExecutorService syncExecutorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), createSynchThreadFactory());
 
 	private final Semaphore updateAlbumListSemaphore = new Semaphore(1);
 
@@ -313,6 +312,12 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	private FileWatcher createFileWatcher() {
 		return (FileWatcher) applicationContext.getBean("fileWatcher", importBaseDir);
+	}
+
+	private CustomizableThreadFactory createSynchThreadFactory() {
+		final CustomizableThreadFactory tf = new CustomizableThreadFactory("sync-thread");
+		tf.setThreadPriority(Thread.MIN_PRIORITY);
+		return tf;
 	}
 
 	private void doLoadAlbums(final boolean forceWait) {
