@@ -100,6 +100,12 @@ public class StateManagerImpl implements StateManager {
 			pushUpdates();
 		}
 
+		private String decodeRunningSteps(final Map<Integer, String> currentRunningSteps) {
+			synchronized (currentRunningSteps) {
+				return StringUtils.join(currentRunningSteps.values(), ',');
+			}
+		}
+
 		@Override
 		public void finishProgress() {
 			if (doneCounter.incrementAndGet() >= totalCount) {
@@ -123,15 +129,10 @@ public class StateManagerImpl implements StateManager {
 			};
 		}
 
-		private String decodeRunningSteps(final Map<Integer, String> currentRunningSteps) {
-			synchronized (currentRunningSteps) {
-				return StringUtils.join(currentRunningSteps.values(), ',');
-			}
-		}
-
 		private void updateState(final int startedCounter, final int doneCounter, final String description) {
-			if (closed)
+			if (closed) {
 				return;
+			}
 			final Progress progress = new Progress();
 			progress.setProgressId(progressId);
 			progress.setStepCount(totalCount * 2);
@@ -191,6 +192,30 @@ public class StateManagerImpl implements StateManager {
 		exceptionTroublesPerThumbnail.remove(name + "/" + image);
 	}
 
+	private void decodeException(final Throwable ex, final ArrayList<TroubleOrigin> troubles) {
+		if (ex instanceof BeanCreationException) {
+			final BeanCreationException factoryException = (BeanCreationException) ex;
+			final Throwable[] relatedCauses = factoryException.getRelatedCauses();
+			if (relatedCauses != null && relatedCauses.length > 0) {
+				for (final Throwable throwable : relatedCauses) {
+					decodeException(throwable, troubles);
+				}
+				return;
+			}
+		}
+		if (ex instanceof JGitInternalException) {
+			final JGitInternalException gitException = (JGitInternalException) ex;
+			final Throwable cause = gitException.getCause();
+			if (cause != null && cause != gitException) {
+				if (cause instanceof LockFailedException) {
+					troubles.add(new TroubleOrigin(IssueType.ALBUM_LOCKED));
+					return;
+				}
+			}
+		}
+		troubles.add(new TroubleOrigin(IssueType.UNKNOWN));
+	}
+
 	@Override
 	public ServerState getCurrentState() {
 		final ServerState serverState = new ServerState();
@@ -220,12 +245,21 @@ public class StateManagerImpl implements StateManager {
 		return new ProgressHandlerImplementation(progressId, type, totalCount, progressDescription);
 	}
 
+	private void pushUpdates() {
+		// System.out.println("------------------------------------------");
+		// for (final Progress progress : runningProgress.values()) {
+		// System.out.println(progress);
+		// }
+		// System.out.println("------------------------------------------");
+	}
+
 	@Override
 	public void recordException(final String relativePath, final Throwable ex) {
 		final ArrayList<TroubleOrigin> troubles = new ArrayList<>();
 		decodeException(ex, troubles);
 		final String stackTrace = takeStacktrace(ex);
-		final Collection<Issue> issues = new ArrayList<>();
+		exceptionTroublesPerAlbum.putIfAbsent(relativePath, new ArrayList<Issue>());
+		final Collection<Issue> issues = exceptionTroublesPerAlbum.get(relativePath);
 		for (final TroubleOrigin origin : troubles) {
 			final Issue issue = new Issue();
 			issue.setType(origin.getIssueType());
@@ -279,38 +313,6 @@ public class StateManagerImpl implements StateManager {
 		issue.setIssueId(UUID.randomUUID().toString());
 		issue.setType(IssueType.SYNC_CONFLICT);
 		conflictTroubles.put(albumName, issue);
-	}
-
-	private void decodeException(final Throwable ex, final ArrayList<TroubleOrigin> troubles) {
-		if (ex instanceof BeanCreationException) {
-			final BeanCreationException factoryException = (BeanCreationException) ex;
-			final Throwable[] relatedCauses = factoryException.getRelatedCauses();
-			if (relatedCauses != null && relatedCauses.length > 0) {
-				for (final Throwable throwable : relatedCauses) {
-					decodeException(throwable, troubles);
-				}
-				return;
-			}
-		}
-		if (ex instanceof JGitInternalException) {
-			final JGitInternalException gitException = (JGitInternalException) ex;
-			final Throwable cause = gitException.getCause();
-			if (cause != null && cause != gitException) {
-				if (cause instanceof LockFailedException) {
-					troubles.add(new TroubleOrigin(IssueType.ALBUM_LOCKED));
-					return;
-				}
-			}
-		}
-		troubles.add(new TroubleOrigin(IssueType.UNKNOWN));
-	}
-
-	private void pushUpdates() {
-		// System.out.println("------------------------------------------");
-		// for (final Progress progress : runningProgress.values()) {
-		// System.out.println(progress);
-		// }
-		// System.out.println("------------------------------------------");
 	}
 
 	private String takeStacktrace(final Throwable ex) {
