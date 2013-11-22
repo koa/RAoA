@@ -159,6 +159,9 @@ public class RepositoryServiceImpl implements RepositoryService {
 						revWalk.markStart(masterCommit);
 						final RevCommit commonCommit = revWalk.next();
 						if (commonCommit == null) {
+							final ConflictEntry conflictEntry = new ConflictEntry();
+							conflictEntry.setBranch(entry.getKey());
+							ret.add(conflictEntry);
 							logger.warn("no common commit");
 							continue;
 						}
