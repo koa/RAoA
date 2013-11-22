@@ -28,8 +28,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -138,7 +139,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private File dataDir;
 
 	private MDnsListener dnsListener;
-	private ScheduledThreadPoolExecutor executorService;
+	private ScheduledExecutorService executorService;
 	private ScheduledFuture<?> fastUpdatePollingFuture;
 	private final LruCache<String, Long> idCache = new LruCache<String, Long>(100) {
 
@@ -875,7 +876,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	public void onCreate() {
 		super.onCreate();
 
-		executorService = new ScheduledThreadPoolExecutor(4, new ThreadFactory() {
+		executorService = Executors.newScheduledThreadPool(4, new ThreadFactory() {
 			final AtomicInteger nextThreadIndex = new AtomicInteger(0);
 
 			@Override
