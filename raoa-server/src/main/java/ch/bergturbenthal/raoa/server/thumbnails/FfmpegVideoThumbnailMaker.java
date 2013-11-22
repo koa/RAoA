@@ -25,6 +25,39 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 
 	private String binary;
 
+	private boolean execute(final CommandLine cmdLine, final long timeout, final OutputStream output) {
+		try {
+			return executeInternal(cmdLine, timeout, output);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot execute " + cmdLine, e);
+		}
+	}
+
+	private boolean executeInternal(final CommandLine cmdLine, final long timeout, final OutputStream output) throws ExecuteException, IOException {
+		final Executor executor = new DefaultExecutor();
+		if (output != null) {
+			executor.setStreamHandler(new PumpStreamHandler(output));
+		}
+		executor.setWatchdog(new ExecuteWatchdog(timeout));
+		final int result = executor.execute(cmdLine);
+		return result == 0;
+	}
+
+	@PostConstruct
+	private void init() {
+		if (binary != null && testExecutable(binary)) {
+			// binary is already configured and valid
+			return;
+		}
+		for (final String candidate : binaryCandiates) {
+			if (testExecutable(candidate)) {
+				binary = candidate;
+				return;
+			}
+		}
+		throw new RuntimeException("No ffmpeg-compatible video converter found");
+	}
+
 	@Override
 	public boolean makeVideoThumbnail(final File originalFile, final File thumbnailFile, final File tempDir) {
 		// no valid binary found -> cannot convert
@@ -88,8 +121,8 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 		}
 		boolean converted = false;
 		try {
-			// give approximatly 1 hour per gigabyte input-length
-			final long maximumTime = originalFile.length() * 3600 / 1024 / 1024 + TimeUnit.MINUTES.toMillis(5);
+			// give approximatly 5 hour per gigabyte input-length
+			final long maximumTime = 5 * originalFile.length() * 3600 / 1024 / 1024 + TimeUnit.MINUTES.toMillis(5);
 			@Cleanup
 			final FileOutputStream logOutput = new FileOutputStream(logfile);
 			logOutput.write((cmdLine.toString() + "\n").getBytes());
@@ -113,39 +146,6 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 	 */
 	public void setBinary(final String binary) {
 		this.binary = binary;
-	}
-
-	private boolean execute(final CommandLine cmdLine, final long timeout, final OutputStream output) {
-		try {
-			return executeInternal(cmdLine, timeout, output);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot execute " + cmdLine, e);
-		}
-	}
-
-	private boolean executeInternal(final CommandLine cmdLine, final long timeout, final OutputStream output) throws ExecuteException, IOException {
-		final Executor executor = new DefaultExecutor();
-		if (output != null) {
-			executor.setStreamHandler(new PumpStreamHandler(output));
-		}
-		executor.setWatchdog(new ExecuteWatchdog(timeout));
-		final int result = executor.execute(cmdLine);
-		return result == 0;
-	}
-
-	@PostConstruct
-	private void init() {
-		if (binary != null && testExecutable(binary)) {
-			// binary is already configured and valid
-			return;
-		}
-		for (final String candidate : binaryCandiates) {
-			if (testExecutable(candidate)) {
-				binary = candidate;
-				return;
-			}
-		}
-		throw new RuntimeException("No ffmpeg-compatible video converter found");
 	}
 
 	private boolean testExecutable(final String executable) {
