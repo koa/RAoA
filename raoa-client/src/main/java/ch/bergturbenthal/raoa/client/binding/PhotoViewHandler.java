@@ -140,9 +140,8 @@ public class PhotoViewHandler implements ViewHandler<View> {
 					// get the real image
 					final ContentResolver contentResolver = imageView.getContext().getContentResolver();
 					final String contentType = contentResolver.getType(uri);
-					if (contentType == null) {
+					if (contentType == null)
 						return null;
-					}
 					if (contentType.startsWith("video")) {
 						final MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 						try {

@@ -151,6 +151,168 @@ public class MapperUtil {
 		primitiveToBoxed.put(Boolean.TYPE, Boolean.class);
 	}
 
+	private static <V> void appendFieldReader(final HashMap<String, FieldReader<V>> ret, final String fieldName, final Field field) {
+		final Class<?> returnType = toBoxedType(field.getType());
+		field.setAccessible(true);
+		appendReader(ret, fieldName, new RawFieldReader<V>() {
+
+			@Override
+			public Object read(final V value) throws Exception {
+				return field.get(value);
+			}
+		}, returnType);
+	}
+
+	private static <V> void appendMethodReader(final HashMap<String, FieldReader<V>> ret, final String fieldName, final Method method) {
+		final Class<?> returnType = toBoxedType(method.getReturnType());
+
+		appendReader(ret, fieldName, new RawFieldReader<V>() {
+
+			@Override
+			public Object read(final V value) throws Exception {
+				return method.invoke(value);
+			}
+		}, returnType);
+	}
+
+	private static <V> void appendReader(	final HashMap<String, FieldReader<V>> ret,
+																				final String fieldName,
+																				final RawFieldReader<V> rawFieldReader,
+																				final Class<?> returnType) {
+		if (CharSequence.class.isAssignableFrom(returnType)) {
+			ret.put(fieldName, new StringFieldReader<V>() {
+
+				@Override
+				public String getString(final V value) {
+					try {
+						final CharSequence rawValue = (CharSequence) rawFieldReader.read(value);
+						if (rawValue == null)
+							return null;
+						return rawValue.toString();
+					} catch (final Throwable e) {
+						throw new RuntimeException("cannot query field " + fieldName, e);
+					}
+				}
+			});
+		} else if (Number.class.isAssignableFrom(returnType)) {
+			final int fieldType = returnType == Double.class || returnType == Float.class || BigDecimal.class.isAssignableFrom(returnType) ? Cursor.FIELD_TYPE_FLOAT
+					: Cursor.FIELD_TYPE_INTEGER;
+			ret.put(fieldName, new NumericFieldReader<V>(fieldType) {
+				@Override
+				public Number getNumber(final V value) {
+					try {
+						return ((Number) rawFieldReader.read(value));
+					} catch (final Throwable e) {
+						throw new RuntimeException("cannot query field " + fieldName, e);
+					}
+				}
+			});
+		} else if (returnType == Boolean.class) {
+			ret.put(fieldName, new BooleanFieldReader<V>() {
+				@Override
+				public Boolean getBooleanValue(final V value) {
+					try {
+						return ((Boolean) rawFieldReader.read(value));
+					} catch (final Throwable e) {
+						throw new RuntimeException("cannot query field " + fieldName, e);
+					}
+				}
+			});
+		} else if (returnType == Date.class) {
+			ret.put(fieldName, new NumericFieldReader<V>(Cursor.FIELD_TYPE_INTEGER) {
+				@Override
+				public Number getNumber(final V value) {
+					final Date dateValue = readDateValue(value);
+					if (dateValue == null)
+						return null;
+					return Long.valueOf(dateValue.getTime());
+				}
+
+				@Override
+				public String getString(final V value) {
+					final Date dateValue = readDateValue(value);
+					if (dateValue == null)
+						return null;
+					return dateValue.toString();
+				}
+
+				private Date readDateValue(final V value) {
+					try {
+						return (Date) rawFieldReader.read(value);
+					} catch (final Throwable e) {
+						throw new RuntimeException("cannot query field " + fieldName, e);
+					}
+				}
+			});
+		} else if (returnType.isEnum()) {
+			ret.put(fieldName, new StringFieldReader<V>() {
+
+				@Override
+				public String getString(final V value) {
+					try {
+						final Enum<?> enumValue = (Enum<?>) rawFieldReader.read(value);
+						return enumValue.name();
+					} catch (final Throwable e) {
+						throw new RuntimeException("cannot query field " + fieldName, e);
+					}
+				}
+			});
+		} else
+			throw new RuntimeException("Unknown Datatype " + returnType + " for field " + fieldName);
+	}
+
+	private static boolean columnOk(final Criterium criterium, final Lookup<String, Object> columnLookup) {
+		if (criterium instanceof Compare) {
+			final Compare compare = (Compare) criterium;
+			final Object v1 = readValue(compare.getOp1(), columnLookup);
+			final Object v2 = readValue(compare.getOp2(), columnLookup);
+			switch (compare.getOperator()) {
+			case EQUALS:
+				return eq(v1, v2);
+			case GE:
+				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) >= 0;
+			case GT:
+				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) > 0;
+			case LE:
+				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) <= 0;
+			case LT:
+				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) < 0;
+			case MATCH:
+				return match(v1, v2);
+			case CONTAINS:
+				return contains(v1, v2);
+			case IN:
+				return in(v1, v2);
+			}
+		}
+		if (criterium instanceof ch.bergturbenthal.raoa.provider.criterium.Boolean) {
+			final ch.bergturbenthal.raoa.provider.criterium.Boolean boolCrit = (ch.bergturbenthal.raoa.provider.criterium.Boolean) criterium;
+			switch (boolCrit.getOperator()) {
+			case AND:
+				return columnOk(boolCrit.getOp1(), columnLookup) && columnOk(boolCrit.getOp2(), columnLookup);
+			case OR:
+				return columnOk(boolCrit.getOp1(), columnLookup) || columnOk(boolCrit.getOp2(), columnLookup);
+			case XOR:
+				return columnOk(boolCrit.getOp1(), columnLookup) ^ columnOk(boolCrit.getOp2(), columnLookup);
+			}
+		}
+		throw new RuntimeException("Cannot interprete criterium " + criterium);
+	}
+
+	private static int compareRaw(final Comparable<Object> leftValue, final Comparable<Object> rightValue, final boolean nullFirst) {
+		if (leftValue == null)
+			return rightValue == null ? 0 : nullFirst ? -1 : 1;
+		if (rightValue == null)
+			return nullFirst ? 1 : -1;
+		return leftValue.compareTo(rightValue);
+	}
+
+	private static boolean contains(final Object value, final Object pattern) {
+		final String valueStr = String.valueOf(value).toLowerCase();
+		final String patternStr = String.valueOf(pattern).toLowerCase();
+		return valueStr.indexOf(patternStr) >= 0;
+	}
+
 	public static <I, O> Map<String, FieldReader<O>> delegateFieldReaders(final Map<String, FieldReader<I>> delegatingReaders, final Lookup<O, I> lookup) {
 		final HashMap<String, FieldReader<O>> ret = new HashMap<String, FieldReader<O>>();
 		for (final Entry<String, FieldReader<I>> dtoFieldReader : delegatingReaders.entrySet()) {
@@ -185,6 +347,29 @@ public class MapperUtil {
 			});
 		}
 		return ret;
+	}
+
+	private static boolean eq(final Object v1, final Object v2) {
+		if (v1 == v2)
+			return true;
+		if (v1 == null || v2 == null)
+			return false;
+		return v1.equals(v2);
+	}
+
+	/**
+	 * @param v1
+	 * @param v2
+	 * @return
+	 */
+	private static boolean in(final Object v1, final Object v2) {
+		if (v2 == null)
+			return false;
+		if (v2 instanceof Collection)
+			return ((Collection) v2).contains(v1);
+		if (v2.getClass().isArray())
+			return Arrays.asList((Object[]) v2).contains(v1);
+		return eq(v1, v2);
 	}
 
 	public static <E> NotifyableMatrixCursor loadCollectionIntoCursor(final Iterable<E> collection,
@@ -298,9 +483,8 @@ public class MapperUtil {
 						final Comparable<Object> leftValue = (Comparable<Object>) lhs[sortColumn.index].getValue();
 						final Comparable<Object> rightValue = (Comparable<Object>) rhs[sortColumn.index].getValue();
 						final int cmp = compareRaw(leftValue, rightValue, sortColumn.nullFirst);
-						if (cmp != 0) {
+						if (cmp != 0)
 							return sortColumn.order == Order.ASC ? cmp : -cmp;
-						}
 					}
 					return 0;
 				}
@@ -398,202 +582,6 @@ public class MapperUtil {
 		return ret;
 	}
 
-	private static <V> void appendFieldReader(final HashMap<String, FieldReader<V>> ret, final String fieldName, final Field field) {
-		final Class<?> returnType = toBoxedType(field.getType());
-		field.setAccessible(true);
-		appendReader(ret, fieldName, new RawFieldReader<V>() {
-
-			@Override
-			public Object read(final V value) throws Exception {
-				return field.get(value);
-			}
-		}, returnType);
-	}
-
-	private static <V> void appendMethodReader(final HashMap<String, FieldReader<V>> ret, final String fieldName, final Method method) {
-		final Class<?> returnType = toBoxedType(method.getReturnType());
-
-		appendReader(ret, fieldName, new RawFieldReader<V>() {
-
-			@Override
-			public Object read(final V value) throws Exception {
-				return method.invoke(value);
-			}
-		}, returnType);
-	}
-
-	private static <V> void appendReader(	final HashMap<String, FieldReader<V>> ret,
-																				final String fieldName,
-																				final RawFieldReader<V> rawFieldReader,
-																				final Class<?> returnType) {
-		if (CharSequence.class.isAssignableFrom(returnType)) {
-			ret.put(fieldName, new StringFieldReader<V>() {
-
-				@Override
-				public String getString(final V value) {
-					try {
-						final CharSequence rawValue = (CharSequence) rawFieldReader.read(value);
-						if (rawValue == null) {
-							return null;
-						}
-						return rawValue.toString();
-					} catch (final Throwable e) {
-						throw new RuntimeException("cannot query field " + fieldName, e);
-					}
-				}
-			});
-		} else if (Number.class.isAssignableFrom(returnType)) {
-			final int fieldType = returnType == Double.class || returnType == Float.class || BigDecimal.class.isAssignableFrom(returnType) ? Cursor.FIELD_TYPE_FLOAT
-					: Cursor.FIELD_TYPE_INTEGER;
-			ret.put(fieldName, new NumericFieldReader<V>(fieldType) {
-				@Override
-				public Number getNumber(final V value) {
-					try {
-						return ((Number) rawFieldReader.read(value));
-					} catch (final Throwable e) {
-						throw new RuntimeException("cannot query field " + fieldName, e);
-					}
-				}
-			});
-		} else if (returnType == Boolean.class) {
-			ret.put(fieldName, new BooleanFieldReader<V>() {
-				@Override
-				public Boolean getBooleanValue(final V value) {
-					try {
-						return ((Boolean) rawFieldReader.read(value));
-					} catch (final Throwable e) {
-						throw new RuntimeException("cannot query field " + fieldName, e);
-					}
-				}
-			});
-		} else if (returnType == Date.class) {
-			ret.put(fieldName, new NumericFieldReader<V>(Cursor.FIELD_TYPE_INTEGER) {
-				@Override
-				public Number getNumber(final V value) {
-					final Date dateValue = readDateValue(value);
-					if (dateValue == null) {
-						return null;
-					}
-					return Long.valueOf(dateValue.getTime());
-				}
-
-				@Override
-				public String getString(final V value) {
-					final Date dateValue = readDateValue(value);
-					if (dateValue == null) {
-						return null;
-					}
-					return dateValue.toString();
-				}
-
-				private Date readDateValue(final V value) {
-					try {
-						return (Date) rawFieldReader.read(value);
-					} catch (final Throwable e) {
-						throw new RuntimeException("cannot query field " + fieldName, e);
-					}
-				}
-			});
-		} else if (returnType.isEnum()) {
-			ret.put(fieldName, new StringFieldReader<V>() {
-
-				@Override
-				public String getString(final V value) {
-					try {
-						final Enum<?> enumValue = (Enum<?>) rawFieldReader.read(value);
-						return enumValue.name();
-					} catch (final Throwable e) {
-						throw new RuntimeException("cannot query field " + fieldName, e);
-					}
-				}
-			});
-		} else {
-			throw new RuntimeException("Unknown Datatype " + returnType + " for field " + fieldName);
-		}
-	}
-
-	private static boolean columnOk(final Criterium criterium, final Lookup<String, Object> columnLookup) {
-		if (criterium instanceof Compare) {
-			final Compare compare = (Compare) criterium;
-			final Object v1 = readValue(compare.getOp1(), columnLookup);
-			final Object v2 = readValue(compare.getOp2(), columnLookup);
-			switch (compare.getOperator()) {
-			case EQUALS:
-				return eq(v1, v2);
-			case GE:
-				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) >= 0;
-			case GT:
-				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) > 0;
-			case LE:
-				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) <= 0;
-			case LT:
-				return compareRaw((Comparable<Object>) v1, (Comparable<Object>) v2, true) < 0;
-			case MATCH:
-				return match(v1, v2);
-			case CONTAINS:
-				return contains(v1, v2);
-			case IN:
-				return in(v1, v2);
-			}
-		}
-		if (criterium instanceof ch.bergturbenthal.raoa.provider.criterium.Boolean) {
-			final ch.bergturbenthal.raoa.provider.criterium.Boolean boolCrit = (ch.bergturbenthal.raoa.provider.criterium.Boolean) criterium;
-			switch (boolCrit.getOperator()) {
-			case AND:
-				return columnOk(boolCrit.getOp1(), columnLookup) && columnOk(boolCrit.getOp2(), columnLookup);
-			case OR:
-				return columnOk(boolCrit.getOp1(), columnLookup) || columnOk(boolCrit.getOp2(), columnLookup);
-			case XOR:
-				return columnOk(boolCrit.getOp1(), columnLookup) ^ columnOk(boolCrit.getOp2(), columnLookup);
-			}
-		}
-		throw new RuntimeException("Cannot interprete criterium " + criterium);
-	}
-
-	private static int compareRaw(final Comparable<Object> leftValue, final Comparable<Object> rightValue, final boolean nullFirst) {
-		if (leftValue == null) {
-			return rightValue == null ? 0 : nullFirst ? -1 : 1;
-		}
-		if (rightValue == null) {
-			return nullFirst ? 1 : -1;
-		}
-		return leftValue.compareTo(rightValue);
-	}
-
-	private static boolean contains(final Object value, final Object pattern) {
-		final String valueStr = String.valueOf(value).toLowerCase();
-		final String patternStr = String.valueOf(pattern).toLowerCase();
-		return valueStr.indexOf(patternStr) >= 0;
-	}
-
-	private static boolean eq(final Object v1, final Object v2) {
-		if (v1 == v2) {
-			return true;
-		}
-		if (v1 == null || v2 == null) {
-			return false;
-		}
-		return v1.equals(v2);
-	}
-
-	/**
-	 * @param v1
-	 * @param v2
-	 * @return
-	 */
-	private static boolean in(final Object v1, final Object v2) {
-		if (v2 == null) {
-			return false;
-		}
-		if (v2 instanceof Collection) {
-			return ((Collection) v2).contains(v1);
-		}
-		if (v2.getClass().isArray()) {
-			return Arrays.asList((Object[]) v2).contains(v1);
-		}
-		return eq(v1, v2);
-	}
-
 	private static boolean match(final Object value, final Object pattern) {
 		final String valueStr = String.valueOf(value);
 		final String patternStr = String.valueOf(pattern);
@@ -601,9 +589,8 @@ public class MapperUtil {
 	}
 
 	private static Object readValue(final Value v, final Lookup<String, Object> columnLookup) {
-		if (v instanceof Constant) {
+		if (v instanceof Constant)
 			return ((Constant) v).getValue();
-		}
 		if (v instanceof ch.bergturbenthal.raoa.provider.criterium.Field) {
 			final ch.bergturbenthal.raoa.provider.criterium.Field field = (ch.bergturbenthal.raoa.provider.criterium.Field) v;
 			return columnLookup.get(field.getFieldName());
@@ -617,9 +604,8 @@ public class MapperUtil {
 
 	private static Class<?> toBoxedType(final Class<?> type) {
 		final Class<?> boxed = primitiveToBoxed.get(type);
-		if (boxed != null) {
+		if (boxed != null)
 			return boxed;
-		}
 		return type;
 	}
 }

@@ -4,8 +4,8 @@
 package ch.bergturbenthal.raoa.provider.model.dto;
 
 public class AlbumEntryIndex {
-	private final AlbumIndex albumIndex;
 	private final String albumEntryId;
+	private final AlbumIndex albumIndex;
 
 	public AlbumEntryIndex(final AlbumIndex album, final String albumEntryId) {
 		this.albumIndex = album;
@@ -14,35 +14,24 @@ public class AlbumEntryIndex {
 
 	@Override
 	public boolean equals(final Object obj) {
-		if (this == obj) {
+		if (this == obj)
 			return true;
-		}
-		if (obj == null) {
+		if (obj == null)
 			return false;
-		}
-		if (getClass() != obj.getClass()) {
+		if (getClass() != obj.getClass())
 			return false;
-		}
 		final AlbumEntryIndex other = (AlbumEntryIndex) obj;
 		if (albumIndex == null) {
-			if (other.albumIndex != null) {
+			if (other.albumIndex != null)
 				return false;
-			}
-		} else if (!albumIndex.equals(other.albumIndex)) {
+		} else if (!albumIndex.equals(other.albumIndex))
 			return false;
-		}
 		if (albumEntryId == null) {
-			if (other.albumEntryId != null) {
+			if (other.albumEntryId != null)
 				return false;
-			}
-		} else if (!albumEntryId.equals(other.albumEntryId)) {
+		} else if (!albumEntryId.equals(other.albumEntryId))
 			return false;
-		}
 		return true;
-	}
-
-	public AlbumIndex getAlbumIndex() {
-		return albumIndex;
 	}
 
 	/**
@@ -52,6 +41,10 @@ public class AlbumEntryIndex {
 	 */
 	public String getAlbumEntryId() {
 		return albumEntryId;
+	}
+
+	public AlbumIndex getAlbumIndex() {
+		return albumIndex;
 	}
 
 	@Override

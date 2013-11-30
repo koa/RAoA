@@ -30,26 +30,6 @@ public class ParcelUtil {
 		return valuesOf(type)[ordinal];
 	}
 
-	public static void writeBoolean(final Parcel dest, final boolean value) {
-		dest.writeByte((byte) (value ? 1 : 0));
-	}
-
-	public static void writeDate(final Date value, final Parcel dest) {
-		if (value == null) {
-			dest.writeLong(Long.MIN_VALUE);
-		} else {
-			dest.writeLong(value.getTime());
-		}
-	}
-
-	public static void writeEnum(final Enum<?> e, final Parcel dest) {
-		if (e == null) {
-			dest.writeInt(-1);
-		} else {
-			dest.writeInt(e.ordinal());
-		}
-	}
-
 	private static <E extends Enum<E>> E[] valuesOf(final Class<E> type) {
 		{
 			final WeakReference<Enum<? extends Enum<?>>[]> savedValue = enumCache.get(type);
@@ -78,6 +58,26 @@ public class ParcelUtil {
 			} catch (final NoSuchMethodException e) {
 				throw new AssertionError();
 			}
+		}
+	}
+
+	public static void writeBoolean(final Parcel dest, final boolean value) {
+		dest.writeByte((byte) (value ? 1 : 0));
+	}
+
+	public static void writeDate(final Date value, final Parcel dest) {
+		if (value == null) {
+			dest.writeLong(Long.MIN_VALUE);
+		} else {
+			dest.writeLong(value.getTime());
+		}
+	}
+
+	public static void writeEnum(final Enum<?> e, final Parcel dest) {
+		if (e == null) {
+			dest.writeInt(-1);
+		} else {
+			dest.writeInt(e.ordinal());
 		}
 	}
 }

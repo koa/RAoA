@@ -45,6 +45,16 @@ public class DownloadService extends IntentService {
 		super("Image Download Service");
 	}
 
+	private void cancelProgress() {
+		notificationManager.cancel(PROGRESS_INDICATION);
+	}
+
+	private void notifyStartScan() {
+		final Builder builder = new Notification.Builder(this).setOngoing(true).setSmallIcon(R.drawable.icon);
+		builder.setContentTitle(getResources().getText(R.string.progress_indication_title));
+		notificationManager.notify(PROGRESS_INDICATION, builder.getNotification());
+	}
+
 	@Override
 	protected void onHandleIntent(final Intent intent) {
 		final Context context = this;
@@ -168,16 +178,6 @@ public class DownloadService extends IntentService {
 			}
 		});
 
-	}
-
-	private void cancelProgress() {
-		notificationManager.cancel(PROGRESS_INDICATION);
-	}
-
-	private void notifyStartScan() {
-		final Builder builder = new Notification.Builder(this).setOngoing(true).setSmallIcon(R.drawable.icon);
-		builder.setContentTitle(getResources().getText(R.string.progress_indication_title));
-		notificationManager.notify(PROGRESS_INDICATION, builder.getNotification());
 	}
 
 	private void prepareProgressBar() {

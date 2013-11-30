@@ -10,10 +10,10 @@ import android.widget.FrameLayout;
 
 public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPageChangeListener {
 
-	boolean mNeedsRedraw = false;
 	private final Point mCenter = new Point();
-
 	private final Point mInitialTouch = new Point();
+
+	boolean mNeedsRedraw = false;
 
 	private ViewPager mPager;
 	private OnPageChangeListener pageChangeListener;
@@ -35,6 +35,26 @@ public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPag
 
 	public ViewPager getViewPager() {
 		return mPager;
+	}
+
+	private void init() {
+		// Disable clipping of children so non-selected pages are visible
+		setClipChildren(false);
+
+		// Child clipping doesn't work with hardware acceleration in Android 3.x/4.x
+		// You need to set this value here if using hardware acceleration in an
+		// application targeted at these releases.
+		// setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+	}
+
+	@Override
+	protected void onFinishInflate() {
+		try {
+			mPager = (ViewPager) getChildAt(0);
+			mPager.setOnPageChangeListener(this);
+		} catch (final Exception e) {
+			throw new IllegalStateException("The root child of PagerContainer must be a ViewPager");
+		}
 	}
 
 	@Override
@@ -65,6 +85,12 @@ public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPag
 	}
 
 	@Override
+	protected void onSizeChanged(final int w, final int h, final int oldw, final int oldh) {
+		mCenter.x = w / 2;
+		mCenter.y = h / 2;
+	}
+
+	@Override
 	public boolean onTouchEvent(final MotionEvent ev) {
 		// We capture any touches not already handled by the ViewPager
 		// to implement scrolling from a touch outside the pager bounds.
@@ -82,31 +108,5 @@ public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPag
 
 	public void setOnPageChangeListener(final OnPageChangeListener pageChangeListener) {
 		this.pageChangeListener = pageChangeListener;
-	}
-
-	@Override
-	protected void onFinishInflate() {
-		try {
-			mPager = (ViewPager) getChildAt(0);
-			mPager.setOnPageChangeListener(this);
-		} catch (final Exception e) {
-			throw new IllegalStateException("The root child of PagerContainer must be a ViewPager");
-		}
-	}
-
-	@Override
-	protected void onSizeChanged(final int w, final int h, final int oldw, final int oldh) {
-		mCenter.x = w / 2;
-		mCenter.y = h / 2;
-	}
-
-	private void init() {
-		// Disable clipping of children so non-selected pages are visible
-		setClipChildren(false);
-
-		// Child clipping doesn't work with hardware acceleration in Android 3.x/4.x
-		// You need to set this value here if using hardware acceleration in an
-		// application targeted at these releases.
-		// setLayerType(View.LAYER_TYPE_SOFTWARE, null);
 	}
 }

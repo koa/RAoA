@@ -26,12 +26,10 @@ public class AlbumEntryData {
 	private Integer rating;
 
 	public Date estimateCreationDate() {
-		if (creationDate != null) {
+		if (creationDate != null)
 			return creationDate;
-		}
-		if (gpsDate != null) {
+		if (gpsDate != null)
 			return gpsDate;
-		}
 		return cameraDate;
 	}
 }

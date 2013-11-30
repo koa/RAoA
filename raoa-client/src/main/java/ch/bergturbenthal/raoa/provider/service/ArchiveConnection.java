@@ -80,9 +80,8 @@ public class ArchiveConnection {
 
 	public Map<String, AlbumConnection> getAlbums() {
 		final Map<String, AlbumConnection> cached = cachedAlbums.get();
-		if (cached != null) {
+		if (cached != null)
 			return cached;
-		}
 		return listAlbums();
 	}
 
@@ -192,9 +191,8 @@ public class ArchiveConnection {
 						if (serverConnection == null) {
 							continue;
 						}
-						if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile)) {
+						if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile))
 							return true;
-						}
 					}
 					return false;
 				}

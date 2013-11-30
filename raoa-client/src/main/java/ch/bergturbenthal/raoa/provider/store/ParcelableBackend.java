@@ -23,7 +23,6 @@ public class ParcelableBackend<T extends Parcelable> extends AbstractFileBackend
 	private static String PARCELABLE_VERSION = "parcelable.version";
 
 	private static final String SUFFIX = ".parc";
-	private final Class<T> type;
 
 	public static void checkVersion(final File basePath, final long version) {
 		boolean versionOk = false;
@@ -79,6 +78,8 @@ public class ParcelableBackend<T extends Parcelable> extends AbstractFileBackend
 			}
 		}
 	}
+
+	private final Class<T> type;
 
 	public ParcelableBackend(final File basePath, final Class<T> type, final int cacheWeight) {
 		super(basePath, SUFFIX, new FileSerializer<T>() {

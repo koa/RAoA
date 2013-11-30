@@ -23,6 +23,24 @@ public class ImageMagickImageThumbnailMaker implements ImageThumbnailMaker {
 
 	private int thumbnailSize = 1600;
 
+	private boolean checkCommand(final ImageCommand cmd) {
+		final IMOperation imOperation = new IMOperation();
+		imOperation.version();
+		try {
+			cmd.run(imOperation);
+			return true;
+		} catch (final IOException e) {
+			log.info("Cannot execute command while checking calling of ImageMagick", e);
+			return false;
+		} catch (final InterruptedException e) {
+			log.info("Cannot execute command while checking calling of ImageMagick", e);
+			return false;
+		} catch (final IM4JavaException e) {
+			log.info("Cannot execute command while checking calling of ImageMagick", e);
+			return false;
+		}
+	}
+
 	@PostConstruct
 	public void init() {
 		final Collection<ImageCommand> cmdCandidates = new ArrayList<>();
@@ -105,24 +123,6 @@ public class ImageMagickImageThumbnailMaker implements ImageThumbnailMaker {
 
 	public void setThumbnailSize(final int thumbnailSize) {
 		this.thumbnailSize = thumbnailSize;
-	}
-
-	private boolean checkCommand(final ImageCommand cmd) {
-		final IMOperation imOperation = new IMOperation();
-		imOperation.version();
-		try {
-			cmd.run(imOperation);
-			return true;
-		} catch (final IOException e) {
-			log.info("Cannot execute command while checking calling of ImageMagick", e);
-			return false;
-		} catch (final InterruptedException e) {
-			log.info("Cannot execute command while checking calling of ImageMagick", e);
-			return false;
-		} catch (final IM4JavaException e) {
-			log.info("Cannot execute command while checking calling of ImageMagick", e);
-			return false;
-		}
 	}
 
 }

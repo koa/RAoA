@@ -137,15 +137,13 @@ public class PhotoOverviewActivity extends Activity {
 
 			@Override
 			protected void doInBackground() {
-				if (albumUri == null) {
+				if (albumUri == null)
 					return;
-				}
 				final ContentResolver contentResolver = getContentResolver();
 				final Cursor cursor = contentResolver.query(albumUri, new String[] { Client.Album.STORAGES }, null, null, null);
 				try {
-					if (cursor == null || !cursor.moveToFirst()) {
+					if (cursor == null || !cursor.moveToFirst())
 						return;
-					}
 					final Collection<String> storages = new LinkedHashSet<String>();
 					final String storagesRaw = cursor.getString(cursor.getColumnIndexOrThrow(Client.Album.STORAGES));
 					if (storagesRaw != null) {
@@ -189,9 +187,8 @@ public class PhotoOverviewActivity extends Activity {
 				final Collection<String> oldSelectedEntries = new HashSet<String>(selectedEntries.keySet());
 				selectedEntries.clear();
 				try {
-					if (data == null || !data.moveToFirst()) {
+					if (data == null || !data.moveToFirst())
 						return;
-					}
 					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
 					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
 					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL_ALIAS);

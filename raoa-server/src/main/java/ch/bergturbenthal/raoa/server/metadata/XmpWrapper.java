@@ -25,6 +25,14 @@ public class XmpWrapper {
 		}
 	}
 
+	private void appendStringEntry(final String propertyNs, final String property, final String keyword) {
+		try {
+			meta.appendArrayItem(propertyNs, property, new PropertyOptions(PropertyOptions.ARRAY), keyword, null);
+		} catch (final XMPException e) {
+			throw new RuntimeException("Cannot append entry " + propertyNs + ":" + keyword, e);
+		}
+	}
+
 	public String readDescription() {
 		try {
 			final int entryCount = meta.countArrayItems(XMPConst.NS_DC, "description");
@@ -108,14 +116,6 @@ public class XmpWrapper {
 			}
 		} catch (final XMPException e) {
 			throw new RuntimeException("Cannot write Description", e);
-		}
-	}
-
-	private void appendStringEntry(final String propertyNs, final String property, final String keyword) {
-		try {
-			meta.appendArrayItem(propertyNs, property, new PropertyOptions(PropertyOptions.ARRAY), keyword, null);
-		} catch (final XMPException e) {
-			throw new RuntimeException("Cannot append entry " + propertyNs + ":" + keyword, e);
 		}
 	}
 }

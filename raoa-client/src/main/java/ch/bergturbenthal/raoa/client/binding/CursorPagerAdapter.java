@@ -30,21 +30,6 @@ public class CursorPagerAdapter extends PagerAdapter {
 		int getCurrentPos();
 	}
 
-	private final String[] additionalColumns;
-
-	private final Context context;
-
-	private int currentPosition;
-
-	private Cursor cursor = null;
-	private Runnable cursorLoadedHandler;
-	private View emptyView;
-	private final LayoutInflater inflater;
-	private final int layout;
-	private View listView;
-
-	private final CursorViewBinder viewBinder;
-
 	/**
 	 * Register a new {@link Cursor} on a given {@link LoaderManager}
 	 * 
@@ -98,6 +83,21 @@ public class CursorPagerAdapter extends PagerAdapter {
 		return adapter;
 	}
 
+	private final String[] additionalColumns;
+
+	private final Context context;
+
+	private int currentPosition;
+	private Cursor cursor = null;
+	private Runnable cursorLoadedHandler;
+	private View emptyView;
+	private final LayoutInflater inflater;
+	private final int layout;
+
+	private View listView;
+
+	private final CursorViewBinder viewBinder;
+
 	public CursorPagerAdapter(final Context context, final int layout, final Collection<ViewHandler<? extends View>> handlers, final String[] additionalColumns) {
 		this.context = context;
 		this.layout = layout;
@@ -112,15 +112,12 @@ public class CursorPagerAdapter extends PagerAdapter {
 	}
 
 	public Object[] getAdditionalValues(final int position) {
-		if (additionalColumns == null) {
+		if (additionalColumns == null)
 			return null;
-		}
-		if (cursor == null) {
+		if (cursor == null)
 			return null;
-		}
-		if (!cursor.moveToPosition(position)) {
+		if (!cursor.moveToPosition(position))
 			return null;
-		}
 		final Object[] ret = new Object[additionalColumns.length];
 		for (int i = 0; i < ret.length; i++) {
 			ret[i] = viewBinder.getValueOfColumn(cursor, additionalColumns[i]);
@@ -130,11 +127,10 @@ public class CursorPagerAdapter extends PagerAdapter {
 
 	@Override
 	public int getCount() {
-		if (cursor == null) {
+		if (cursor == null)
 			return 0;
-		} else {
+		else
 			return cursor.getCount();
-		}
 	}
 
 	public int getCurrentPosition() {
@@ -153,6 +149,18 @@ public class CursorPagerAdapter extends PagerAdapter {
 	@Override
 	public boolean isViewFromObject(final View view, final Object object) {
 		return (view == object);
+	}
+
+	/**
+	 * @return
+	 */
+	protected String[] requiredFields() {
+		if (additionalColumns != null && additionalColumns.length > 0) {
+			final HashSet<String> requiredFields = new HashSet<String>(Arrays.asList(viewBinder.requiredFields()));
+			requiredFields.addAll(Arrays.asList(additionalColumns));
+			return requiredFields.toArray(new String[requiredFields.size()]);
+		}
+		return viewBinder.requiredFields();
 	}
 
 	/**
@@ -178,33 +186,20 @@ public class CursorPagerAdapter extends PagerAdapter {
 		currentPosition = position;
 	}
 
-	public void swapCursor(final Cursor c) {
-		if (cursor == c) {
-			return;
-		}
-		viewBinder.setCursor(c);
-
-		this.cursor = c;
-		notifyDataSetChanged();
-	}
-
-	/**
-	 * @return
-	 */
-	protected String[] requiredFields() {
-		if (additionalColumns != null && additionalColumns.length > 0) {
-			final HashSet<String> requiredFields = new HashSet<String>(Arrays.asList(viewBinder.requiredFields()));
-			requiredFields.addAll(Arrays.asList(additionalColumns));
-			return requiredFields.toArray(new String[requiredFields.size()]);
-		}
-		return viewBinder.requiredFields();
-	}
-
 	protected void showList(final boolean show) {
 		if (emptyView != null && listView != null) {
 			emptyView.setVisibility(show ? View.GONE : View.VISIBLE);
 			listView.setVisibility(show ? View.VISIBLE : View.GONE);
 		}
+	}
+
+	public void swapCursor(final Cursor c) {
+		if (cursor == c)
+			return;
+		viewBinder.setCursor(c);
+
+		this.cursor = c;
+		notifyDataSetChanged();
 	}
 
 }

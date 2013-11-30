@@ -17,11 +17,6 @@ import android.view.View;
  * 
  */
 public class CursorViewBinder {
-	private final Map<String, Integer> columnIndizes = new HashMap<String, Integer>();
-
-	private Cursor cursor;
-	private final Collection<ViewHandler<View>> handlers;
-
 	private static Object getColumnValue(final Cursor cursor, final int index) {
 		final int type = cursor.getType(index);
 		switch (type) {
@@ -38,6 +33,11 @@ public class CursorViewBinder {
 		}
 		throw new RuntimeException("Unknown type " + type);
 	}
+
+	private final Map<String, Integer> columnIndizes = new HashMap<String, Integer>();
+	private Cursor cursor;
+
+	private final Collection<ViewHandler<View>> handlers;
 
 	public CursorViewBinder(final Collection<ViewHandler<View>> handlers) {
 		this.handlers = handlers;
@@ -60,6 +60,15 @@ public class CursorViewBinder {
 		final int index = columnIndizes.get(fieldName).intValue();
 		final Object columnValue = getColumnValue(cursor, index);
 		return columnValue;
+	}
+
+	private Map<String, Object> makeMapForFields(final Cursor cursor, final String[] usedFields) {
+		final HashMap<String, Object> ret = new HashMap<String, Object>();
+		for (final String fieldName : usedFields) {
+			final Object columnValue = getValueOfColumn(cursor, fieldName);
+			ret.put(fieldName, columnValue);
+		}
+		return ret;
 	}
 
 	/**
@@ -87,15 +96,6 @@ public class CursorViewBinder {
 				columnIndizes.put(columnNames[i], Integer.valueOf(i));
 			}
 		}
-	}
-
-	private Map<String, Object> makeMapForFields(final Cursor cursor, final String[] usedFields) {
-		final HashMap<String, Object> ret = new HashMap<String, Object>();
-		for (final String fieldName : usedFields) {
-			final Object columnValue = getValueOfColumn(cursor, fieldName);
-			ret.put(fieldName, columnValue);
-		}
-		return ret;
 	}
 
 }

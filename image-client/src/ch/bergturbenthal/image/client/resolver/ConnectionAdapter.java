@@ -28,6 +28,23 @@ public class ConnectionAdapter implements ConnectionUrlListener {
 	}
 
 	@Override
+	protected void finalize() throws Throwable {
+		hideProgress();
+	}
+
+	private void hideProgress() {
+		handler.post(new Runnable() {
+			@Override
+			public void run() {
+				if (progressDialog != null) {
+					progressDialog.hide();
+				}
+				progressDialog = null;
+			}
+		});
+	}
+
+	@Override
 	public void notifyConnectionEstabilshed(final String foundUrl, final String serverName) {
 		hideProgress();
 		connectedHandler.connected(new AlbumService(foundUrl, context), serverName);
@@ -55,23 +72,6 @@ public class ConnectionAdapter implements ConnectionUrlListener {
 			});
 		}
 		connectionStarted = true;
-	}
-
-	@Override
-	protected void finalize() throws Throwable {
-		hideProgress();
-	}
-
-	private void hideProgress() {
-		handler.post(new Runnable() {
-			@Override
-			public void run() {
-				if (progressDialog != null) {
-					progressDialog.hide();
-				}
-				progressDialog = null;
-			}
-		});
 	}
 
 }

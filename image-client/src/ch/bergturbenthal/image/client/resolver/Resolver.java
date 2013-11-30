@@ -57,12 +57,12 @@ public class Resolver implements Closeable {
 	private static final String SERVICE_NAME_URL = "_images._tcp.local.";
 
 	private static final String TAG = "Resolver";
-	WifiManager.MulticastLock lock = null;
 	private final Context context;
-
 	private final ConcurrentHashMap<InetAddress, JmDNS> interfaces = new ConcurrentHashMap<InetAddress, JmDNS>();
 
 	private JmmDNS jmmDNS;
+
+	WifiManager.MulticastLock lock = null;
 
 	public Resolver(final Context context) {
 		this.context = context;
@@ -71,90 +71,6 @@ public class Resolver implements Closeable {
 	@Override
 	public void close() throws IOException {
 		Log.i(TAG, "shutdown Resolver");
-		stopRunning();
-	}
-
-	public void establishLastConnection(final ConnectionUrlListener listener) {
-		listener.notifyStartConnection();
-		new AsyncTask<Void, Void, Void>() {
-
-			@Override
-			protected Void doInBackground(final Void... params) {
-				final SharedPreferences sharedPreferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
-				final String foundUrl = sharedPreferences.getString(LAST_URL, null);
-				if (foundUrl != null) {
-					final boolean pingOk = pingService(foundUrl);
-					if (pingOk) {
-						listener.notifyConnectionEstabilshed(foundUrl, sharedPreferences.getString(LAST_SERVICENAME, "undef"));
-						return null;
-					}
-				}
-				final String lastServiceName = sharedPreferences.getString(LAST_SERVICENAME, null);
-				if (lastServiceName != null) {
-					connectServiceName(lastServiceName, listener);
-				} else {
-					listener.notifyConnectionNotEstablished();
-				}
-				return null;
-			}
-		}.execute();
-	}
-
-	public synchronized void findServices(final ServiceNameListener listener) {
-		setup();
-		final ConcurrentMap<String, AtomicInteger> visibleServices = new ConcurrentHashMap<String, AtomicInteger>();
-		jmmDNS.addNetworkTopologyListener(new NetworkTopologyListener() {
-
-			@Override
-			public void inetAddressAdded(final NetworkTopologyEvent event) {
-				interfaces.put(event.getInetAddress(), event.getDNS());
-				event.getDNS().addServiceListener(SERVICE_NAME_URL, new ServiceListener() {
-
-					@Override
-					public void serviceAdded(final ServiceEvent event) {
-						event.getDNS().requestServiceInfo(event.getType(), event.getName());
-					}
-
-					@Override
-					public void serviceRemoved(final ServiceEvent event) {
-						final String name = event.getName();
-						visibleServices.putIfAbsent(name, new AtomicInteger(0));
-						final int newCountAfter = visibleServices.get(name).decrementAndGet();
-						if (newCountAfter == 0) {
-							listener.nameRemoved(event.getName());
-						} else if (newCountAfter < 0) {
-							visibleServices.get(name).compareAndSet(newCountAfter, 0);
-						}
-					}
-
-					@Override
-					public void serviceResolved(final ServiceEvent event) {
-						final String name = event.getName();
-						visibleServices.putIfAbsent(name, new AtomicInteger(0));
-						final int newCountAfter = visibleServices.get(name).incrementAndGet();
-						if (newCountAfter == 1) {
-							listener.nameAdded(name);
-						}
-					}
-				});
-			}
-
-			@Override
-			public void inetAddressRemoved(final NetworkTopologyEvent event) {
-				interfaces.remove(event.getInetAddress());
-			}
-		});
-	}
-
-	public void setSelectedServiceName(final String serviceName) {
-		final SharedPreferences sharedPreferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
-		final Editor edit = sharedPreferences.edit();
-		edit.remove(LAST_URL);
-		edit.putString(LAST_SERVICENAME, serviceName);
-		edit.commit();
-	}
-
-	public synchronized void stopFindingServices() {
 		stopRunning();
 	}
 
@@ -231,6 +147,78 @@ public class Resolver implements Closeable {
 		}
 	}
 
+	public void establishLastConnection(final ConnectionUrlListener listener) {
+		listener.notifyStartConnection();
+		new AsyncTask<Void, Void, Void>() {
+
+			@Override
+			protected Void doInBackground(final Void... params) {
+				final SharedPreferences sharedPreferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+				final String foundUrl = sharedPreferences.getString(LAST_URL, null);
+				if (foundUrl != null) {
+					final boolean pingOk = pingService(foundUrl);
+					if (pingOk) {
+						listener.notifyConnectionEstabilshed(foundUrl, sharedPreferences.getString(LAST_SERVICENAME, "undef"));
+						return null;
+					}
+				}
+				final String lastServiceName = sharedPreferences.getString(LAST_SERVICENAME, null);
+				if (lastServiceName != null) {
+					connectServiceName(lastServiceName, listener);
+				} else {
+					listener.notifyConnectionNotEstablished();
+				}
+				return null;
+			}
+		}.execute();
+	}
+
+	public synchronized void findServices(final ServiceNameListener listener) {
+		setup();
+		final ConcurrentMap<String, AtomicInteger> visibleServices = new ConcurrentHashMap<String, AtomicInteger>();
+		jmmDNS.addNetworkTopologyListener(new NetworkTopologyListener() {
+
+			@Override
+			public void inetAddressAdded(final NetworkTopologyEvent event) {
+				interfaces.put(event.getInetAddress(), event.getDNS());
+				event.getDNS().addServiceListener(SERVICE_NAME_URL, new ServiceListener() {
+
+					@Override
+					public void serviceAdded(final ServiceEvent event) {
+						event.getDNS().requestServiceInfo(event.getType(), event.getName());
+					}
+
+					@Override
+					public void serviceRemoved(final ServiceEvent event) {
+						final String name = event.getName();
+						visibleServices.putIfAbsent(name, new AtomicInteger(0));
+						final int newCountAfter = visibleServices.get(name).decrementAndGet();
+						if (newCountAfter == 0) {
+							listener.nameRemoved(event.getName());
+						} else if (newCountAfter < 0) {
+							visibleServices.get(name).compareAndSet(newCountAfter, 0);
+						}
+					}
+
+					@Override
+					public void serviceResolved(final ServiceEvent event) {
+						final String name = event.getName();
+						visibleServices.putIfAbsent(name, new AtomicInteger(0));
+						final int newCountAfter = visibleServices.get(name).incrementAndGet();
+						if (newCountAfter == 1) {
+							listener.nameAdded(name);
+						}
+					}
+				});
+			}
+
+			@Override
+			public void inetAddressRemoved(final NetworkTopologyEvent event) {
+				interfaces.remove(event.getInetAddress());
+			}
+		});
+	}
+
 	private synchronized void notifyAndShutdown(final ServiceInfo info, final ConnectionUrlListener listener, final Callable<Boolean> shutdownRunnable) {
 		if (!notifyListener(info, listener))
 			return;
@@ -286,6 +274,14 @@ public class Resolver implements Closeable {
 		}
 	}
 
+	public void setSelectedServiceName(final String serviceName) {
+		final SharedPreferences sharedPreferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+		final Editor edit = sharedPreferences.edit();
+		edit.remove(LAST_URL);
+		edit.putString(LAST_SERVICENAME, serviceName);
+		edit.commit();
+	}
+
 	private synchronized void setup() {
 		if (jmmDNS == null) {
 			if (lock == null) {
@@ -296,6 +292,10 @@ public class Resolver implements Closeable {
 			lock.acquire();
 			jmmDNS = new JmmDNSImpl();
 		}
+	}
+
+	public synchronized void stopFindingServices() {
+		stopRunning();
 	}
 
 	private synchronized void stopRunning() {

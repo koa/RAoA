@@ -16,6 +16,20 @@ import org.springframework.core.io.Resource;
 import ch.bergturbenthal.raoa.util.Pair;
 
 public class MkvMetadataTest {
+	private Pair<String, String> findNamStringPair(final Iterable<Element> elements) {
+		String name = null;
+		String string = null;
+		for (final Element element : elements) {
+			if (element.type == Type.TagName) {
+				name = ((StringElement) element).get();
+			}
+			if (element.type == Type.TagString) {
+				string = ((StringElement) element).get();
+			}
+		}
+		return new Pair<String, String>(name, string);
+	}
+
 	@Test
 	public void testReadMkvMetadata() throws IOException {
 		final Resource resource = new ClassPathResource("photos/testalbum/testvideo.mkv");
@@ -32,19 +46,5 @@ public class MkvMetadataTest {
 			}
 			// System.out.println(element);
 		}
-	}
-
-	private Pair<String, String> findNamStringPair(final Iterable<Element> elements) {
-		String name = null;
-		String string = null;
-		for (final Element element : elements) {
-			if (element.type == Type.TagName) {
-				name = ((StringElement) element).get();
-			}
-			if (element.type == Type.TagString) {
-				string = ((StringElement) element).get();
-			}
-		}
-		return new Pair<String, String>(name, string);
 	}
 }

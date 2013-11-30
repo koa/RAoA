@@ -61,9 +61,8 @@ public class TestFillImages {
 
 		@Override
 		public Rectangle findBestFitness(final Fitness fitness, final Rectangle ignoreCandidate, final int curentLevel, final int fromLevel, final int toLevel) {
-			if (fromLevel >= curentLevel && toLevel < curentLevel) {
+			if (fromLevel >= curentLevel && toLevel < curentLevel)
 				return this;
-			}
 			return null;
 		}
 
@@ -118,13 +117,11 @@ public class TestFillImages {
 
 		@Override
 		public boolean contains(final Rectangle rect) {
-			if (this == rect) {
+			if (this == rect)
 				return true;
-			}
 			for (final Rectangle subNode : subNodes) {
-				if (subNode.contains(rect)) {
+				if (subNode.contains(rect))
 					return true;
-				}
 			}
 			return false;
 		}
@@ -174,9 +171,8 @@ public class TestFillImages {
 
 		@Override
 		public Rectangle findBestFitness(final Fitness fitness, final Rectangle ignoreCandidate, final int currentLevel, final int fromLevel, final int toLevel) {
-			if (this == ignoreCandidate) {
+			if (this == ignoreCandidate)
 				return null;
-			}
 			Rectangle bestCandidate = (!contains(ignoreCandidate) && currentLevel >= fromLevel && currentLevel < toLevel) ? this : null;
 			double bestFitness = fitness.calcFitness(this);
 			for (final Rectangle rect : subNodes) {
@@ -194,9 +190,9 @@ public class TestFillImages {
 
 		@Override
 		public double getScaledHeight() {
-			if (orientation == Orientation.HORIZONTAL) {
+			if (orientation == Orientation.HORIZONTAL)
 				return subNodes.get(0).getScaledHeight();
-			} else {
+			else {
 				double height = 0;
 				for (final Rectangle rect : subNodes) {
 					height += rect.getScaledHeight();
@@ -213,21 +209,18 @@ public class TestFillImages {
 					width += rect.getScaledWidth();
 				}
 				return width;
-			} else {
+			} else
 				return subNodes.get(0).getScaledWidth();
-			}
 		}
 
 		@Override
 		public int levelOf(final Rectangle rectangle, final int startLevel) {
-			if (rectangle == this) {
+			if (rectangle == this)
 				return startLevel;
-			}
 			for (final Rectangle rect : subNodes) {
 				final int level = rect.levelOf(rectangle, startLevel + 1);
-				if (level >= 0) {
+				if (level >= 0)
 					return level;
-				}
 			}
 			return -1;
 		}
@@ -310,9 +303,8 @@ public class TestFillImages {
 
 			@Override
 			public boolean accept(final File pathname) {
-				if (!pathname.isFile()) {
+				if (!pathname.isFile())
 					return false;
-				}
 				return pathname.getName().endsWith(".JPG");
 			}
 		});

@@ -10,14 +10,6 @@ import ch.bergturbenthal.raoa.R;
 
 public class TabListener<T extends Fragment> implements ActionBar.TabListener {
 
-	private final Bundle arguments;
-
-	private final Class<T> clz;
-	private final Activity context;
-	private Fragment fragment;
-
-	private final String tag;
-
 	public static void initTabs(final Activity activity, final Bundle arguments) {
 		final ActionBar actionBar = activity.getActionBar();
 		final Tab oldSelectedTab = actionBar.getSelectedTab();
@@ -39,6 +31,14 @@ public class TabListener<T extends Fragment> implements ActionBar.TabListener {
 		}
 
 	}
+
+	private final Bundle arguments;
+	private final Class<T> clz;
+	private final Activity context;
+
+	private Fragment fragment;
+
+	private final String tag;
 
 	public TabListener(final Activity context, final String tag, final Class<T> clz, final Bundle arguments) {
 		this.context = context;

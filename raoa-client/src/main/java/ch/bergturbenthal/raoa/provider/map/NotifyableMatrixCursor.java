@@ -63,6 +63,10 @@ public class NotifyableMatrixCursor extends AbstractCursor {
 		return getReader(column).getNumber().longValue();
 	}
 
+	private SingleFieldReader getReader(final int column) {
+		return valueReaders.get(mPos * columnNames.length + column);
+	}
+
 	@Override
 	public short getShort(final int column) {
 		return getReader(column).getNumber().shortValue();
@@ -86,9 +90,5 @@ public class NotifyableMatrixCursor extends AbstractCursor {
 	@Override
 	public void onChange(final boolean selfChange) {
 		super.onChange(selfChange);
-	}
-
-	private SingleFieldReader getReader(final int column) {
-		return valueReaders.get(mPos * columnNames.length + column);
 	}
 }

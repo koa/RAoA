@@ -47,6 +47,29 @@ public class AlbumImage {
 
 	private static final Integer STAR_RATING = Integer.valueOf(5);
 
+	public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
+		synchronized (lockFor(file)) {
+			final SoftReference<AlbumImage> softReference = loadedImages.get(file);
+			if (softReference != null) {
+				final AlbumImage cachedImage = softReference.get();
+				if (cachedImage != null && cachedImage.lastModified.equals(lastModified))
+					return cachedImage;
+			}
+			final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified, cacheManager);
+			loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
+			return newImage;
+		}
+	}
+
+	private static synchronized Object lockFor(final File file) {
+		final Object existingLock = imageLocks.get(file);
+		if (existingLock != null)
+			return existingLock;
+		final Object newLock = new Object();
+		imageLocks.put(file, newLock);
+		return newLock;
+	}
+
 	private final AlbumManager albumManager;
 
 	private final File cacheDir;
@@ -62,31 +85,6 @@ public class AlbumImage {
 
 	@Autowired
 	private VideoThumbnailMaker videoThumbnailMaker;
-
-	public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
-		synchronized (lockFor(file)) {
-			final SoftReference<AlbumImage> softReference = loadedImages.get(file);
-			if (softReference != null) {
-				final AlbumImage cachedImage = softReference.get();
-				if (cachedImage != null && cachedImage.lastModified.equals(lastModified)) {
-					return cachedImage;
-				}
-			}
-			final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified, cacheManager);
-			loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
-			return newImage;
-		}
-	}
-
-	private static synchronized Object lockFor(final File file) {
-		final Object existingLock = imageLocks.get(file);
-		if (existingLock != null) {
-			return existingLock;
-		}
-		final Object newLock = new Object();
-		imageLocks.put(file, newLock);
-		return newLock;
-	}
 
 	private AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
 		this.file = file;
@@ -114,9 +112,8 @@ public class AlbumImage {
 
 			AlbumEntryData loadedMetaData = albumManager.getCachedData();
 			final Date lastModifiedMetadata = getMetadataLastModifiedTime();
-			if (loadedMetaData != null && ObjectUtils.equals(loadedMetaData.getLastModifiedMetadata(), lastModifiedMetadata)) {
+			if (loadedMetaData != null && ObjectUtils.equals(loadedMetaData.getLastModifiedMetadata(), lastModifiedMetadata))
 				return loadedMetaData;
-			}
 
 			loadedMetaData = new AlbumEntryData();
 			loadedMetaData.setLastModifiedMetadata(lastModifiedMetadata);
@@ -183,6 +180,32 @@ public class AlbumImage {
 		return totalSize;
 	}
 
+	private Metadata getExifMetadata() {
+		try {
+			Metadata exifMetadata;
+			final long startTime = System.currentTimeMillis();
+			exifMetadata = ImageMetadataReader.readMetadata(file);
+			final long endTime = System.currentTimeMillis();
+			logger.info("Metadata-Read: " + (endTime - startTime) + " ms");
+			return exifMetadata;
+		} catch (final IOException e) {
+			logger.warn("Cannot reade metadata from " + file, e);
+		} catch (final ImageProcessingException e) {
+			logger.warn("Cannot reade metadata from " + file, e);
+		}
+		return null;
+	}
+
+	/**
+	 * @return
+	 */
+	private Date getMetadataLastModifiedTime() {
+		final File xmpSideFile = getXmpSideFile();
+		if (!xmpSideFile.exists())
+			return null;
+		return new Date(xmpSideFile.lastModified());
+	}
+
 	public String getName() {
 		return file.getName();
 	}
@@ -203,9 +226,8 @@ public class AlbumImage {
 				albumManager.clearThumbnailException(getName());
 				return cachedFile;
 			}
-			if (onlyFromCache) {
+			if (onlyFromCache)
 				return null;
-			}
 			synchronized (this) {
 				if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified) {
 					albumManager.clearThumbnailException(getName());
@@ -241,13 +263,11 @@ public class AlbumImage {
 			baseName = name;
 		}
 		final File shortFilename = new File(file.getParentFile(), baseName + ".xmp");
-		if (shortFilename.exists()) {
+		if (shortFilename.exists())
 			return shortFilename;
-		}
 		final File longFilename = new File(file.getParentFile(), name + ".xmp");
-		if (longFilename.exists()) {
+		if (longFilename.exists())
 			return longFilename;
-		}
 		return longFilename;
 	}
 
@@ -261,10 +281,16 @@ public class AlbumImage {
 	}
 
 	public Date lastModified() {
-		if (getThumbnail(true) == null) {
+		if (getThumbnail(true) == null)
 			return new Date(lastModified.getTime() - 1);
-		}
 		return lastModified;
+	}
+
+	private File makeCachedFile() {
+		final String name = file.getName();
+		if (isVideo())
+			return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
+		return new File(cacheDir, name);
 	}
 
 	public void removeKeyword(final String keyword) {
@@ -299,41 +325,6 @@ public class AlbumImage {
 	@Override
 	public String toString() {
 		return "AlbumImage [file=" + file.getName() + "]";
-	}
-
-	private Metadata getExifMetadata() {
-		try {
-			Metadata exifMetadata;
-			final long startTime = System.currentTimeMillis();
-			exifMetadata = ImageMetadataReader.readMetadata(file);
-			final long endTime = System.currentTimeMillis();
-			logger.info("Metadata-Read: " + (endTime - startTime) + " ms");
-			return exifMetadata;
-		} catch (final IOException e) {
-			logger.warn("Cannot reade metadata from " + file, e);
-		} catch (final ImageProcessingException e) {
-			logger.warn("Cannot reade metadata from " + file, e);
-		}
-		return null;
-	}
-
-	/**
-	 * @return
-	 */
-	private Date getMetadataLastModifiedTime() {
-		final File xmpSideFile = getXmpSideFile();
-		if (!xmpSideFile.exists()) {
-			return null;
-		}
-		return new Date(xmpSideFile.lastModified());
-	}
-
-	private File makeCachedFile() {
-		final String name = file.getName();
-		if (isVideo()) {
-			return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
-		}
-		return new File(cacheDir, name);
 	}
 
 	private void updateXmp(final XmpRunnable runnable) {

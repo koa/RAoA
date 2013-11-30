@@ -19,6 +19,35 @@ import ch.bergturbenthal.raoa.provider.Client;
 
 public class CreateAlbumActivity extends Activity {
 
+	private void initServerSpinner(final AdapterView<Adapter> selectServerSpinner) {
+		final CursorAdapter adapter = new SimpleCursorAdapter(getApplicationContext(),
+																													android.R.layout.simple_spinner_item,
+																													null,
+																													new String[] { Client.ServerEntry.SERVER_NAME },
+																													new int[] { android.R.id.text1 },
+																													0);
+		selectServerSpinner.setAdapter(adapter);
+
+		getLoaderManager().initLoader(R.id.selectServerSpinner, null, new LoaderCallbacks<Cursor>() {
+
+			@Override
+			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
+				return new CursorLoader(getApplicationContext(), Client.SERVER_URI, null, null, null, null);
+			}
+
+			@Override
+			public void onLoaderReset(final Loader<Cursor> loader) {
+				adapter.swapCursor(null);
+
+			}
+
+			@Override
+			public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
+				adapter.swapCursor(data);
+			}
+		});
+	}
+
 	@Override
 	protected void onCreate(final Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -60,35 +89,6 @@ public class CreateAlbumActivity extends Activity {
 						return cursor;
 					}
 				};
-			}
-
-			@Override
-			public void onLoaderReset(final Loader<Cursor> loader) {
-				adapter.swapCursor(null);
-
-			}
-
-			@Override
-			public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
-				adapter.swapCursor(data);
-			}
-		});
-	}
-
-	private void initServerSpinner(final AdapterView<Adapter> selectServerSpinner) {
-		final CursorAdapter adapter = new SimpleCursorAdapter(getApplicationContext(),
-																													android.R.layout.simple_spinner_item,
-																													null,
-																													new String[] { Client.ServerEntry.SERVER_NAME },
-																													new int[] { android.R.id.text1 },
-																													0);
-		selectServerSpinner.setAdapter(adapter);
-
-		getLoaderManager().initLoader(R.id.selectServerSpinner, null, new LoaderCallbacks<Cursor>() {
-
-			@Override
-			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
-				return new CursorLoader(getApplicationContext(), Client.SERVER_URI, null, null, null, null);
 			}
 
 			@Override

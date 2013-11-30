@@ -23,8 +23,14 @@ public class PicasaIniData {
 	private static final Logger logger = LoggerFactory.getLogger(PicasaIniData.class);
 	private static final Pattern sectionPattern = Pattern.compile("\\[([a-zA-Z0-9\\.-_]+)\\]");
 
-	private final Map<String, PicasaIniEntryData> entries = new HashMap<>();
-	private String name;
+	private static final PicasaIniEntryData getCurrentData(final Map<String, PicasaIniEntryData> ret, final String currentGroup) {
+		final PicasaIniEntryData currentValue = ret.get(currentGroup);
+		if (currentValue != null)
+			return currentValue;
+		final PicasaIniEntryData newValue = new PicasaIniEntryData();
+		ret.put(currentGroup, newValue);
+		return newValue;
+	}
 
 	public static PicasaIniData parseIniFile(final File baseDir) {
 		final PicasaIniData ret = new PicasaIniData();
@@ -90,13 +96,8 @@ public class PicasaIniData {
 		return ret;
 	}
 
-	private static final PicasaIniEntryData getCurrentData(final Map<String, PicasaIniEntryData> ret, final String currentGroup) {
-		final PicasaIniEntryData currentValue = ret.get(currentGroup);
-		if (currentValue != null)
-			return currentValue;
-		final PicasaIniEntryData newValue = new PicasaIniEntryData();
-		ret.put(currentGroup, newValue);
-		return newValue;
-	}
+	private final Map<String, PicasaIniEntryData> entries = new HashMap<>();
+
+	private String name;
 
 }

@@ -71,9 +71,8 @@ public class ServerListFragment extends ListFragment {
 		super.onAttach(activity);
 
 		// Activities containing this fragment must implement its callbacks.
-		if (!(activity instanceof Callbacks)) {
+		if (!(activity instanceof Callbacks))
 			throw new IllegalStateException("Activity must implement fragment's callbacks.");
-		}
 
 		mCallbacks = (Callbacks) activity;
 	}

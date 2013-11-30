@@ -32,9 +32,8 @@ import ch.bergturbenthal.raoa.provider.util.IOUtil;
 public class ShareReceiveActivity extends ListActivity {
 	private String guessType(final Uri dataUri) {
 		final String guessedType = URLConnection.guessContentTypeFromName(dataUri.toString());
-		if (guessedType == null) {
+		if (guessedType == null)
 			return "image/jpeg";
-		}
 		return guessedType;
 	}
 

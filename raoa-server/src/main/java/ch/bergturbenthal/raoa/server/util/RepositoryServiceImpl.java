@@ -202,9 +202,8 @@ public class RepositoryServiceImpl implements RepositoryService {
 		}
 		while (iterator.hasNext()) {
 			final String nextCandidate = serverName.replace(' ', '_') + "/" + iterator.next();
-			if (!existingConfictBranches.contains(nextCandidate)) {
+			if (!existingConfictBranches.contains(nextCandidate))
 				return nextCandidate;
-			}
 		}
 		return null;
 	}

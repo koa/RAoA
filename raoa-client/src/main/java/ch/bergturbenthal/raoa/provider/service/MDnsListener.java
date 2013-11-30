@@ -92,6 +92,18 @@ public class MDnsListener {
 		}, 2, TimeUnit.SECONDS);
 	}
 
+	private synchronized void setup() {
+		if (jmmDNS == null) {
+			if (lock == null) {
+				final WifiManager wifi = (WifiManager) context.getSystemService(android.content.Context.WIFI_SERVICE);
+				lock = wifi.createMulticastLock("ResolverDnsSdLock");
+			}
+			lock.setReferenceCounted(true);
+			lock.acquire();
+			jmmDNS = new JmmDNSImpl();
+		}
+	}
+
 	public synchronized void startListening() {
 		setup();
 		final ServiceListener listener = new ServiceListener() {
@@ -144,18 +156,6 @@ public class MDnsListener {
 				throw new RuntimeException(e);
 			}
 			jmmDNS = null;
-		}
-	}
-
-	private synchronized void setup() {
-		if (jmmDNS == null) {
-			if (lock == null) {
-				final WifiManager wifi = (WifiManager) context.getSystemService(android.content.Context.WIFI_SERVICE);
-				lock = wifi.createMulticastLock("ResolverDnsSdLock");
-			}
-			lock.setReferenceCounted(true);
-			lock.acquire();
-			jmmDNS = new JmmDNSImpl();
 		}
 	}
 }

@@ -48,24 +48,9 @@ public class AlbumEntryDto implements Parcelable, Comparable<AlbumEntryDto> {
 		}
 	};
 
-	private String cameraMake;
-	private String cameraModel;
-	private String caption;
-	private Date captureDate;
-	private String commId;
-	private String editableMetadataHash;
-	private AlbumEntryType entryType;
-	private Double exposureTime;
-	private String fileName;
-	private Double fNumber;
-	private Double focalLength;
-	private Integer iso;
-	private final Collection<String> keywords = new LinkedHashSet<String>();
-	private Date lastModified;
-	private long originalFileSize;
-	private Integer rating;
-
-	private Long thumbnailSize;
+	private static int dateCompare(final Date date1, final Date date2) {
+		return (date1 == null ? new Date(0) : date1).compareTo(date2 == null ? new Date(0) : date2);
+	}
 
 	public static AlbumEntryDto fromServer(final AlbumImageEntry entry) {
 		final AlbumEntryDto dtoEntry = new AlbumEntryDto();
@@ -92,9 +77,26 @@ public class AlbumEntryDto implements Parcelable, Comparable<AlbumEntryDto> {
 		return dtoEntry;
 	}
 
-	private static int dateCompare(final Date date1, final Date date2) {
-		return (date1 == null ? new Date(0) : date1).compareTo(date2 == null ? new Date(0) : date2);
-	}
+	private String cameraMake;
+	private String cameraModel;
+	private String caption;
+	private Date captureDate;
+	private String commId;
+	private String editableMetadataHash;
+	private AlbumEntryType entryType;
+	private Double exposureTime;
+	private String fileName;
+	private Double fNumber;
+	private Double focalLength;
+	private Integer iso;
+	private final Collection<String> keywords = new LinkedHashSet<String>();
+	private Date lastModified;
+
+	private long originalFileSize;
+
+	private Integer rating;
+
+	private Long thumbnailSize;
 
 	@Override
 	public int compareTo(final AlbumEntryDto another) {

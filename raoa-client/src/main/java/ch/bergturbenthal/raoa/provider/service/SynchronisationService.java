@@ -42,5 +42,5 @@ public interface SynchronisationService {
 
 	Cursor readStorages(final String[] projection, final Criterium criterium, final SortOrder order);
 
-	void importFile(String serverName, final String filename, final byte[] data);
+	void importFile(final String serverName, final String filename, final byte[] data);
 }

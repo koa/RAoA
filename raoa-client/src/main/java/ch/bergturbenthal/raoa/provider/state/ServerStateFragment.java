@@ -27,11 +27,11 @@ public class ServerStateFragment extends ListFragment {
 
 	private static final Map<String, Integer> iconMap = new HashMap<String, Integer>();
 
-	private CursorAdapter adapter;
 	static {
 		iconMap.put(ProgressType.REFRESH_THUMBNAIL.name(), android.R.drawable.ic_popup_sync);
 		iconMap.put(ProgressType.SYNC_LOCAL_DISC.name(), R.drawable.storage_icon);
 	}
+	private CursorAdapter adapter;
 
 	@Override
 	public void onCreate(final Bundle savedInstanceState) {

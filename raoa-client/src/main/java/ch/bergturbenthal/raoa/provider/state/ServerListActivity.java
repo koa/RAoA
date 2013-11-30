@@ -23,6 +23,26 @@ public class ServerListActivity extends Activity implements ServerListFragment.C
 	 */
 	private boolean mTwoPane;
 
+	@Override
+	protected void onCreate(final Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_server_list);
+
+		if (findViewById(R.id.server_detail_fragment) != null) {
+			// The detail container view will be present only in the
+			// large-screen layouts (res/values-large and
+			// res/values-sw600dp). If this view is present, then the
+			// activity should be in two-pane mode.
+			mTwoPane = true;
+
+			// In two-pane mode, list items should be given the
+			// 'activated' state when touched.
+			((ServerListFragment) getFragmentManager().findFragmentById(R.id.server_list)).setActivateOnItemClick(true);
+		}
+
+		// TODO: If exposing deep links into your app, handle intents here.
+	}
+
 	/**
 	 * Callback method from {@link ServerListFragment.Callbacks} indicating that the item with the given ID was selected.
 	 */
@@ -44,25 +64,5 @@ public class ServerListActivity extends Activity implements ServerListFragment.C
 			detailIntent.putExtra(Client.ServerEntry.SERVER_ID, id);
 			startActivity(detailIntent);
 		}
-	}
-
-	@Override
-	protected void onCreate(final Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity_server_list);
-
-		if (findViewById(R.id.server_detail_fragment) != null) {
-			// The detail container view will be present only in the
-			// large-screen layouts (res/values-large and
-			// res/values-sw600dp). If this view is present, then the
-			// activity should be in two-pane mode.
-			mTwoPane = true;
-
-			// In two-pane mode, list items should be given the
-			// 'activated' state when touched.
-			((ServerListFragment) getFragmentManager().findFragmentById(R.id.server_list)).setActivateOnItemClick(true);
-		}
-
-		// TODO: If exposing deep links into your app, handle intents here.
 	}
 }

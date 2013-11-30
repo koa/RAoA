@@ -21,10 +21,6 @@ public class LazyLoader {
 		V call();
 	}
 
-	public static interface Lookup<K, V> {
-		V get(final K key);
-	}
-
 	private static class HashMapLookup<K, V> implements Lookup<K, V>, Closeable {
 		private final Map<K, V> loadedValues = new HashMap<K, V>();
 		private final Lookup<K, V> loader;
@@ -44,14 +40,17 @@ public class LazyLoader {
 		@Override
 		public synchronized V get(final K key) {
 			readCount.incrementAndGet();
-			if (loadedValues.containsKey(key)) {
+			if (loadedValues.containsKey(key))
 				return loadedValues.get(key);
-			}
 			missCount.incrementAndGet();
 			final V loadedValue = loader.get(key);
 			loadedValues.put(key, loadedValue);
 			return loadedValue;
 		}
+	}
+
+	public static interface Lookup<K, V> {
+		V get(final K key);
 	}
 
 	private static class LruLookup<K, V> implements Lookup<K, V>, Closeable {
@@ -77,14 +76,14 @@ public class LazyLoader {
 		}
 
 		@Override
-		public V get(final K key) {
-			readCount.incrementAndGet();
-			return cache.get(key);
+		protected void finalize() throws Throwable {
+			super.finalize();
 		}
 
 		@Override
-		protected void finalize() throws Throwable {
-			super.finalize();
+		public V get(final K key) {
+			readCount.incrementAndGet();
+			return cache.get(key);
 		}
 	}
 

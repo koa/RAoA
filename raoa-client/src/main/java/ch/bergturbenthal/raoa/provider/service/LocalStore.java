@@ -85,12 +85,12 @@ public class LocalStore {
 		return ret;
 	}
 
-	public void removeMutationData(final AlbumIndex index) {
-		store.removeObject(makeAlbumMutationDataPath(index.getArchiveName(), index.getAlbumId()), AlbumMutationData.class);
-	}
-
 	private String makeAlbumMutationDataPath(final String archiveName, final String albumId) {
 		return archiveName + "/" + albumId + "-detail";
+	}
+
+	public void removeMutationData(final AlbumIndex index) {
+		store.removeObject(makeAlbumMutationDataPath(index.getArchiveName(), index.getAlbumId()), AlbumMutationData.class);
 	}
 
 }

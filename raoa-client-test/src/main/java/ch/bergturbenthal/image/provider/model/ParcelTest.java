@@ -20,6 +20,31 @@ import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryDto;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMeta;
 
 public class ParcelTest extends AndroidTestCase {
+	private <P extends Parcelable> void checkCycle(final P original) {
+		final Parcel parcel = Parcel.obtain();
+		parcel.writeParcelable(original, 0);
+		parcel.setDataPosition(0);
+		final P copy = parcel.readParcelable(getClass().getClassLoader());
+		parcel.recycle();
+		try {
+			assertEquals(original, copy);
+		} catch (final AssertionFailedError ex) {
+			System.out.println(original);
+			System.out.println(copy);
+			throw ex;
+		}
+	}
+
+	private Date daysInThePast(final int days) {
+		return new Date(System.currentTimeMillis() - days * 24 * 60 * 6 * 1000);
+	}
+
+	private AlbumDetail readNiederwilJson() throws IOException, JsonProcessingException {
+		final ObjectMapper objectMapper = new ObjectMapper();
+		final AlbumDetail detail = objectMapper.reader(AlbumDetail.class).readValue(new GZIPInputStream(new ClassPathResource("niederwil.json.gz").getInputStream()));
+		return detail;
+	}
+
 	public void testAllNiederwilEntries() throws JsonProcessingException, IOException {
 		final AlbumDetail detail = readNiederwilJson();
 		final AlbumEntries albumEntries = new AlbumEntries();
@@ -59,31 +84,6 @@ public class ParcelTest extends AndroidTestCase {
 		albumMeta.setThumbnailId("thumb-1");
 		albumMeta.setThumbnailSize(512 * 1024);
 		checkCycle(albumMeta);
-	}
-
-	private <P extends Parcelable> void checkCycle(final P original) {
-		final Parcel parcel = Parcel.obtain();
-		parcel.writeParcelable(original, 0);
-		parcel.setDataPosition(0);
-		final P copy = parcel.readParcelable(getClass().getClassLoader());
-		parcel.recycle();
-		try {
-			assertEquals(original, copy);
-		} catch (final AssertionFailedError ex) {
-			System.out.println(original);
-			System.out.println(copy);
-			throw ex;
-		}
-	}
-
-	private Date daysInThePast(final int days) {
-		return new Date(System.currentTimeMillis() - days * 24 * 60 * 6 * 1000);
-	}
-
-	private AlbumDetail readNiederwilJson() throws IOException, JsonProcessingException {
-		final ObjectMapper objectMapper = new ObjectMapper();
-		final AlbumDetail detail = objectMapper.reader(AlbumDetail.class).readValue(new GZIPInputStream(new ClassPathResource("niederwil.json.gz").getInputStream()));
-		return detail;
 	}
 
 }
