@@ -57,9 +57,23 @@
       <artifactId>junit</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- <dependency> <groupId>org.apache.lucene</groupId> <artifactId>lucene-core</artifactId> 
+      <version>4.6.0</version> </dependency> <dependency> <groupId>org.apache.lucene</groupId> 
+      <artifactId>lucene-analyzers-common</artifactId> <version>4.6.0</version> 
+      </dependency> -->
+
+
+    <!-- <dependency> <groupId>nl.renarj</groupId> <artifactId>jasdb_android</artifactId> 
+      <version>0.8</version> <exclusions> <exclusion> <groupId>ch.qos.logback</groupId> 
+      <artifactId>logback-classic</artifactId> </exclusion> </exclusions> </dependency> -->
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>${project.build.directory}/dependency/services</directory>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>com.jayway.maven.plugins.android.generation2</groupId>
@@ -69,8 +83,13 @@
           <assetsDirectory>${project.basedir}/assets</assetsDirectory>
           <resourceDirectory>${project.basedir}/res</resourceDirectory>
           <nativeLibrariesDirectory>${project.basedir}/src/main/native</nativeLibrariesDirectory>
+          <apk>
+            <metaIncludes>
+              <metaInclude>services/**</metaInclude>
+            </metaIncludes>
+          </apk>
           <sdk>
-            <platform>15</platform>
+            <platform>16</platform>
           </sdk>
           <undeployBeforeDeploy>true</undeployBeforeDeploy>
         </configuration>

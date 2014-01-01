@@ -64,7 +64,8 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	R.id.album_item_image,
 																																		Client.Album.THUMBNAIL,
 																																		new PhotoViewHandler.DimensionCalculator(R.dimen.image_width),
-																																		threadPoolExecutor);
+																																		threadPoolExecutor,
+																																		"album-overview");
 		photoViewHandler.setIdleView(R.id.album_item_empty_layout);
 		ret.add(photoViewHandler);
 		ret.add(new TextViewHandler(R.id.album_item_name, Client.Album.TITLE));

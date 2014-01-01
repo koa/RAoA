@@ -124,7 +124,7 @@ public class PhotoDetailViewActivity extends Activity {
 		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	R.id.photos_item_image,
 																																		Client.AlbumEntry.THUMBNAIL_ALIAS,
 																																		PhotoViewHandler.FULLSCREEN_CALCULATOR,
-																																		threadPoolExecutor);
+																																		threadPoolExecutor, null);
 		photoViewHandler.setIdleView(R.id.photo_view_empty_layout);
 		ret.add(photoViewHandler);
 		ret.add(makeTagButtonsViewHandler());

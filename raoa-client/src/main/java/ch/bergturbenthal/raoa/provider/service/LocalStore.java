@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 
 import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntries;
+import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryDto;
+import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryIndex;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumIndex;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMeta;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMutationData;
@@ -43,6 +45,14 @@ public class LocalStore {
 
 	public AlbumEntries getAlbumEntries(final AlbumIndex entry, final ReadPolicy policy) {
 		return store.getObject(entry.getArchiveName() + "/" + entry.getAlbumId() + "-entries", AlbumEntries.class, policy);
+	}
+
+	public AlbumEntryDto getAlbumEntry(final AlbumEntryIndex entry, final ReadPolicy policy) {
+		final AlbumEntries albumEntries = getAlbumEntries(entry.getAlbumIndex(), policy);
+		if (albumEntries != null) {
+			return albumEntries.findEntryById(entry.getAlbumEntryId());
+		}
+		return null;
 	}
 
 	public AlbumMeta getAlbumMeta(final AlbumIndex entry, final ReadPolicy policy) {

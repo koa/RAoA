@@ -137,13 +137,15 @@ public class PhotoOverviewActivity extends Activity {
 
 			@Override
 			protected void doInBackground() {
-				if (albumUri == null)
+				if (albumUri == null) {
 					return;
+				}
 				final ContentResolver contentResolver = getContentResolver();
 				final Cursor cursor = contentResolver.query(albumUri, new String[] { Client.Album.STORAGES }, null, null, null);
 				try {
-					if (cursor == null || !cursor.moveToFirst())
+					if (cursor == null || !cursor.moveToFirst()) {
 						return;
+					}
 					final Collection<String> storages = new LinkedHashSet<String>();
 					final String storagesRaw = cursor.getString(cursor.getColumnIndexOrThrow(Client.Album.STORAGES));
 					if (storagesRaw != null) {
@@ -187,8 +189,9 @@ public class PhotoOverviewActivity extends Activity {
 				final Collection<String> oldSelectedEntries = new HashSet<String>(selectedEntries.keySet());
 				selectedEntries.clear();
 				try {
-					if (data == null || !data.moveToFirst())
+					if (data == null || !data.moveToFirst()) {
 						return;
+					}
 					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
 					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
 					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL_ALIAS);
@@ -374,7 +377,8 @@ public class PhotoOverviewActivity extends Activity {
 		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	R.id.photos_item_image,
 																																		Client.AlbumEntry.THUMBNAIL_ALIAS,
 																																		new PhotoViewHandler.DimensionCalculator(R.dimen.image_width),
-																																		threadPoolExecutor);
+																																		threadPoolExecutor,
+																																		"photo-overview");
 		photoViewHandler.setIdleView(R.id.photo_item_empty_layout);
 		ret.add(photoViewHandler);
 		ret.add(new TextViewHandler(R.id.photo_name, Client.AlbumEntry.NAME));
@@ -395,6 +399,8 @@ public class PhotoOverviewActivity extends Activity {
 				return new String[] { Client.AlbumEntry.ENTRY_URI };
 			}
 		});
+
+		// preloadPhotos(photoViewHandler);
 		return ret;
 	}
 
@@ -637,6 +643,39 @@ public class PhotoOverviewActivity extends Activity {
 		intent.putExtra(PhotoDetailViewActivity.ACTUAL_POS, position);
 		intent.putExtra(PhotoDetailViewActivity.CURRENT_FILTER, currentFilter);
 		startActivityForResult(intent, 1);
+	}
+
+	private void preloadPhotos(final PhotoViewHandler photoViewHandler) {
+		getLoaderManager().restartLoader(1, null, new LoaderCallbacks<Cursor>() {
+
+			@Override
+			public Loader<Cursor> onCreateLoader(final int id, final Bundle args) {
+				return new CursorLoader(PhotoOverviewActivity.this, albumEntriesUri, new String[] { Client.AlbumEntry.THUMBNAIL_ALIAS }, currentFilter, null, null);
+			}
+
+			@Override
+			public void onLoaderReset(final Loader<Cursor> loader) {
+			}
+
+			@Override
+			public void onLoadFinished(final Loader<Cursor> loader, final Cursor data) {
+				threadPoolExecutor.execute(new Runnable() {
+
+					@Override
+					public void run() {
+						if (!data.moveToFirst()) {
+							return;
+						}
+						final List<String> allEntries = new ArrayList<String>();
+						final int columnIndex = data.getColumnIndexOrThrow(Client.AlbumEntry.THUMBNAIL_ALIAS);
+						do {
+							allEntries.add(data.getString(columnIndex));
+						} while (data.moveToNext());
+						photoViewHandler.preloadCache(PhotoOverviewActivity.this, allEntries);
+					}
+				});
+			}
+		});
 	}
 
 	private Pair<String, EntryValues> readCurrentEntry(final int position) {

@@ -10,10 +10,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 import android.database.Cursor;
@@ -186,8 +186,9 @@ public class MapperUtil {
 				public String getString(final V value) {
 					try {
 						final CharSequence rawValue = (CharSequence) rawFieldReader.read(value);
-						if (rawValue == null)
+						if (rawValue == null) {
 							return null;
+						}
 						return rawValue.toString();
 					} catch (final Throwable e) {
 						throw new RuntimeException("cannot query field " + fieldName, e);
@@ -223,16 +224,18 @@ public class MapperUtil {
 				@Override
 				public Number getNumber(final V value) {
 					final Date dateValue = readDateValue(value);
-					if (dateValue == null)
+					if (dateValue == null) {
 						return null;
+					}
 					return Long.valueOf(dateValue.getTime());
 				}
 
 				@Override
 				public String getString(final V value) {
 					final Date dateValue = readDateValue(value);
-					if (dateValue == null)
+					if (dateValue == null) {
 						return null;
+					}
 					return dateValue.toString();
 				}
 
@@ -257,8 +260,9 @@ public class MapperUtil {
 					}
 				}
 			});
-		} else
+		} else {
 			throw new RuntimeException("Unknown Datatype " + returnType + " for field " + fieldName);
+		}
 	}
 
 	private static boolean columnOk(final Criterium criterium, final Lookup<String, Object> columnLookup) {
@@ -300,10 +304,12 @@ public class MapperUtil {
 	}
 
 	private static int compareRaw(final Comparable<Object> leftValue, final Comparable<Object> rightValue, final boolean nullFirst) {
-		if (leftValue == null)
+		if (leftValue == null) {
 			return rightValue == null ? 0 : nullFirst ? -1 : 1;
-		if (rightValue == null)
+		}
+		if (rightValue == null) {
 			return nullFirst ? 1 : -1;
+		}
 		return leftValue.compareTo(rightValue);
 	}
 
@@ -350,10 +356,12 @@ public class MapperUtil {
 	}
 
 	private static boolean eq(final Object v1, final Object v2) {
-		if (v1 == v2)
+		if (v1 == v2) {
 			return true;
-		if (v1 == null || v2 == null)
+		}
+		if (v1 == null || v2 == null) {
 			return false;
+		}
 		return v1.equals(v2);
 	}
 
@@ -363,12 +371,15 @@ public class MapperUtil {
 	 * @return
 	 */
 	private static boolean in(final Object v1, final Object v2) {
-		if (v2 == null)
+		if (v2 == null) {
 			return false;
-		if (v2 instanceof Collection)
+		}
+		if (v2 instanceof Collection) {
 			return ((Collection) v2).contains(v1);
-		if (v2.getClass().isArray())
+		}
+		if (v2.getClass().isArray()) {
 			return Arrays.asList((Object[]) v2).contains(v1);
+		}
 		return eq(v1, v2);
 	}
 
@@ -411,11 +422,20 @@ public class MapperUtil {
 		long takeRestTime = 0;
 		final long[] columnTimes = new long[columnNames.size()];
 		Arrays.fill(columnTimes, 0);
-		final Set<Entry<String, FieldReader<E>>> fieldReaderEntries = fieldReaders.entrySet();
+
+		final List<FieldReader<E>> orderedFieldReaders = new ArrayList<FieldReader<E>>();
+		final Map<String, Integer> columnIndices = new HashMap<String, Integer>();
+
+		final Iterator<Entry<String, FieldReader<E>>> fieldReadersIterator = fieldReaders.entrySet().iterator();
+		for (int i = 0; fieldReadersIterator.hasNext(); i++) {
+			final Entry<String, FieldReader<E>> fieldReaderEntry = fieldReadersIterator.next();
+			columnIndices.put(fieldReaderEntry.getKey(), Integer.valueOf(i));
+			orderedFieldReaders.add(fieldReaderEntry.getValue());
+		}
+
 		for (final E entry : collection) {
-			final Map<String, SingleFieldReader> columnFieldReaders = new HashMap<String, NotifyableMatrixCursor.SingleFieldReader>();
-			for (final Entry<String, FieldReader<E>> readerEntry : fieldReaderEntries) {
-				final FieldReader<E> fieldReader = readerEntry.getValue();
+			final List<SingleFieldReader> columnFieldReaders = new ArrayList<NotifyableMatrixCursor.SingleFieldReader>(orderedFieldReaders.size());
+			for (final FieldReader<E> fieldReader : orderedFieldReaders) {
 				final SingleFieldReader singleFieldReader;
 				final int currentFieldType = fieldReader.getType();
 				switch (currentFieldType) {
@@ -443,13 +463,14 @@ public class MapperUtil {
 				default:
 					throw new RuntimeException("Unsupportet type " + currentFieldType);
 				}
-				columnFieldReaders.put(readerEntry.getKey(), singleFieldReader);
+				columnFieldReaders.add(singleFieldReader);
 			}
 
 			final Lookup<String, Object> columnLookup = new Lookup<String, Object>() {
 				@Override
 				public Object get(final String key) {
-					return columnFieldReaders.get(key).getValue();
+					final int columnIndex = columnIndices.get(key).intValue();
+					return columnFieldReaders.get(columnIndex).getValue();
 				}
 			};
 			if (criterium != null) {
@@ -464,8 +485,9 @@ public class MapperUtil {
 			final SingleFieldReader[] row = new SingleFieldReader[columnNames.size()];
 			takeRestTime -= System.currentTimeMillis();
 			for (int j = 0; j < row.length; j++) {
+				final int columnIndex = columnIndices.get(columnNames.get(j)).intValue();
 				columnTimes[j] -= System.currentTimeMillis();
-				row[j] = columnFieldReaders.get(columnNames.get(j));
+				row[j] = columnFieldReaders.get(columnIndex);
 				columnTimes[j] += System.currentTimeMillis();
 			}
 			takeRestTime += System.currentTimeMillis();
@@ -483,8 +505,9 @@ public class MapperUtil {
 						final Comparable<Object> leftValue = (Comparable<Object>) lhs[sortColumn.index].getValue();
 						final Comparable<Object> rightValue = (Comparable<Object>) rhs[sortColumn.index].getValue();
 						final int cmp = compareRaw(leftValue, rightValue, sortColumn.nullFirst);
-						if (cmp != 0)
+						if (cmp != 0) {
 							return sortColumn.order == Order.ASC ? cmp : -cmp;
+						}
 					}
 					return 0;
 				}
@@ -589,8 +612,9 @@ public class MapperUtil {
 	}
 
 	private static Object readValue(final Value v, final Lookup<String, Object> columnLookup) {
-		if (v instanceof Constant)
+		if (v instanceof Constant) {
 			return ((Constant) v).getValue();
+		}
 		if (v instanceof ch.bergturbenthal.raoa.provider.criterium.Field) {
 			final ch.bergturbenthal.raoa.provider.criterium.Field field = (ch.bergturbenthal.raoa.provider.criterium.Field) v;
 			return columnLookup.get(field.getFieldName());
@@ -604,8 +628,9 @@ public class MapperUtil {
 
 	private static Class<?> toBoxedType(final Class<?> type) {
 		final Class<?> boxed = primitiveToBoxed.get(type);
-		if (boxed != null)
+		if (boxed != null) {
 			return boxed;
+		}
 		return type;
 	}
 }
