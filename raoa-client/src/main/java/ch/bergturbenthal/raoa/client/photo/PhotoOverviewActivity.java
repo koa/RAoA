@@ -374,7 +374,8 @@ public class PhotoOverviewActivity extends Activity {
 	 */
 	private Collection<ViewHandler<? extends View>> makeHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	R.id.photos_item_image,
+		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	this,
+																																		R.id.photos_item_image,
 																																		Client.AlbumEntry.THUMBNAIL_ALIAS,
 																																		new PhotoViewHandler.DimensionCalculator(R.dimen.image_width),
 																																		threadPoolExecutor,
@@ -400,7 +401,7 @@ public class PhotoOverviewActivity extends Activity {
 			}
 		});
 
-		// preloadPhotos(photoViewHandler);
+		preloadPhotos(photoViewHandler);
 		return ret;
 	}
 

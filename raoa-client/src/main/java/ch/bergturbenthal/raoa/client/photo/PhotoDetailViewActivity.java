@@ -121,10 +121,12 @@ public class PhotoDetailViewActivity extends Activity {
 
 	private ArrayList<ViewHandler<? extends View>> makeHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	R.id.photos_item_image,
+		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	this,
+																																		R.id.photos_item_image,
 																																		Client.AlbumEntry.THUMBNAIL_ALIAS,
 																																		PhotoViewHandler.FULLSCREEN_CALCULATOR,
-																																		threadPoolExecutor, null);
+																																		threadPoolExecutor,
+																																		null);
 		photoViewHandler.setIdleView(R.id.photo_view_empty_layout);
 		ret.add(photoViewHandler);
 		ret.add(makeTagButtonsViewHandler());
@@ -177,8 +179,9 @@ public class PhotoDetailViewActivity extends Activity {
 						public void onClick(final View v) {
 							final boolean isChecked = ((ToggleButton) v).isChecked();
 							final String keyWord = (String) v.getTag();
-							if (keyWord == null)
+							if (keyWord == null) {
 								return;
+							}
 							registerTagTouched(keyWord);
 							updateKeyword(entryUri, keyWord, isChecked);
 						}
@@ -353,8 +356,9 @@ public class PhotoDetailViewActivity extends Activity {
 					@Override
 					protected Void doInBackground(final Void... params) {
 						knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
-						if (!firstLoad)
+						if (!firstLoad) {
 							return null;
+						}
 						final Map<String, Integer> keywordCountInAlbum = new HashMap<String, Integer>();
 						for (int i = 0; i < adapter.getCount(); i++) {
 							final String keywordValue = (String) adapter.getAdditionalValues(i)[1];
@@ -442,8 +446,9 @@ public class PhotoDetailViewActivity extends Activity {
 	@Override
 	public boolean onCreateOptionsMenu(final Menu menu) {
 		final Object[] additionalValues = adapter.getAdditionalValues(actPos);
-		if (additionalValues == null)
+		if (additionalValues == null) {
 			return false;
+		}
 		getMenuInflater().inflate(R.menu.photo_detail_menu, menu);
 
 		final ShareActionProvider shareActionProvider = (ShareActionProvider) menu.findItem(R.id.photo_overview_menu_share).getActionProvider();
@@ -514,9 +519,10 @@ public class PhotoDetailViewActivity extends Activity {
 		int replaceCandidate = -1;
 		int leastClickCount = Integer.MAX_VALUE;
 		for (int i = 0; i < visibleKeywords.length; i++) {
-			if (text.equals(visibleKeywords[i]))
+			if (text.equals(visibleKeywords[i])) {
 				// not place any already visible keyword
 				return;
+			}
 			final Integer savedClickCount = tagHeatMap.get(visibleKeywords[i]);
 			final int clicked = savedClickCount == null ? 0 : savedClickCount.intValue();
 			if (clicked <= leastClickCount) {
@@ -628,8 +634,9 @@ public class PhotoDetailViewActivity extends Activity {
 				final ContentResolver contentResolver = getContentResolver();
 				final Uri uri = Uri.parse(entryUri);
 				final Cursor query = contentResolver.query(uri, new String[] { Client.AlbumEntry.META_KEYWORDS }, null, null, null);
-				if (query == null || !query.moveToFirst())
+				if (query == null || !query.moveToFirst()) {
 					return null;
+				}
 				final Collection<String> keywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(query.getString(0)));
 				if (enabled) {
 					keywords.add(keyWord);

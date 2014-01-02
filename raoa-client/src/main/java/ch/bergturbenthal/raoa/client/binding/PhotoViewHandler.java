@@ -27,6 +27,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.LruCache;
 import android.util.Pair;
 import android.view.View;
 import android.view.WindowManager;
@@ -84,31 +85,63 @@ public class PhotoViewHandler implements ViewHandler<View> {
 			return new Pair<Integer, Integer>(Integer.valueOf(displaymetrics.widthPixels), Integer.valueOf(displaymetrics.heightPixels));
 		}
 	};
-
 	private static final String TAG = "PhotoViewHandler";
+
 	private int[] affectedViews;
 	private final Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
+	private final File cacheRootDir;
 	private final Executor executor;
+
 	private final int imageViewId;
 
-	private final String persistentCachePrefix;
+	private final LruCache<String, File> persistentBitmapCacheFiles = new LruCache<String, File>(1024 * 1024) {
+
+		@Override
+		protected File create(final String key) {
+			return new File(cacheRootDir, key);
+		}
+
+		@Override
+		protected void entryRemoved(final boolean evicted, final String key, final File oldValue, final File newValue) {
+			oldValue.delete();
+		}
+
+		@Override
+		protected int sizeOf(final String key, final File value) {
+			if (value.exists()) {
+				return (int) value.length() / 1024;
+			}
+			return 0;
+		}
+
+	};
 
 	private final Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
 
 	private final AtomicInteger storeCounter = new AtomicInteger();
-
 	Pair<Integer, Integer> targetSize = null;
 	private final TargetSizeCalculator targetSizeCalculator;
 	private final String uriColumn;
+	private final boolean usePersistentCache;
 
-	public PhotoViewHandler(final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator, final Executor executor,
+	public PhotoViewHandler(final Context context, final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator, final Executor executor,
 													final String persistentCachePrefix) {
 		this.imageViewId = viewId;
 		this.uriColumn = uriColumn;
 		this.targetSizeCalculator = targetSizeCalculator;
 		this.executor = executor;
-		this.persistentCachePrefix = persistentCachePrefix;
+		usePersistentCache = persistentCachePrefix != null;
 		affectedViews = new int[] { imageViewId };
+		calculateTargetSize(context);
+		cacheRootDir = new File(context.getCacheDir(), "thumbnail-cache");
+		if (usePersistentCache) {
+			if (!cacheRootDir.exists()) {
+				cacheRootDir.mkdirs();
+			}
+			for (final File f : cacheRootDir.listFiles()) {
+				persistentBitmapCacheFiles.get(f.getName());
+			}
+		}
 	}
 
 	@Override
@@ -118,7 +151,7 @@ public class PhotoViewHandler implements ViewHandler<View> {
 
 	@Override
 	public void bindView(final View[] views, final Context context, final Map<String, Object> values) {
-		calculateTargetSize(context);
+
 		final ImageView imageView = (ImageView) views[0];
 		final View idleView = views.length > 1 ? views[1] : null;
 		final String thumbnailUriString = (String) values.get(uriColumn);
@@ -158,7 +191,7 @@ public class PhotoViewHandler implements ViewHandler<View> {
 			protected Void doInBackground(final Void... params) {
 				final Uri uri = Uri.parse(thumbnailUriString);
 				try {
-					final Bitmap persistentBitmap = loadFromPersistentCache(thumbnailUriString, context);
+					final Bitmap persistentBitmap = loadFromPersistentCache(thumbnailUriString);
 					if (persistentBitmap == null) {
 						bitmap = loadImage(context, uri);
 						storeToCache(thumbnailUriString, bitmap, context);
@@ -189,17 +222,7 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		}
 	}
 
-	private File createCacheFile(final String thumbnailUriString, final Context context) {
-		final File cacheDir = new File(context.getCacheDir(), persistentCachePrefix);
-		final StringBuilder filenameSb = createFilename(thumbnailUriString);
-		final File targetFile = new File(cacheDir, filenameSb.toString());
-		if (!targetFile.getParentFile().exists()) {
-			targetFile.getParentFile().mkdirs();
-		}
-		return targetFile;
-	}
-
-	private StringBuilder createFilename(final String thumbnailUriString) {
+	private String createFilename(final String thumbnailUriString) {
 		final StringBuilder filenameSb = new StringBuilder(thumbnailUriString.replace('/', '_'));
 		if (targetSize != null) {
 			filenameSb.append("-");
@@ -207,7 +230,7 @@ public class PhotoViewHandler implements ViewHandler<View> {
 			filenameSb.append("-");
 			filenameSb.append(targetSize.second);
 		}
-		return filenameSb;
+		return filenameSb.toString();
 	}
 
 	private Bitmap loadFromCache(final String thumbnailUriString, final Context context) {
@@ -221,10 +244,9 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		return null;
 	}
 
-	private Bitmap loadFromPersistentCache(final String thumbnailUriString, final Context context) {
-		if (persistentCachePrefix != null) {
-			final File cacheDir = new File(context.getCacheDir(), persistentCachePrefix);
-			final File persistentCachedBitmap = new File(cacheDir, createFilename(thumbnailUriString).toString());
+	private Bitmap loadFromPersistentCache(final String thumbnailUriString) {
+		if (usePersistentCache) {
+			final File persistentCachedBitmap = persistentBitmapCacheFiles.get(createFilename(thumbnailUriString));
 			if (persistentCachedBitmap.exists()) {
 				try {
 					return BitmapFactory.decodeFile(persistentCachedBitmap.getAbsolutePath());
@@ -296,7 +318,7 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		calculateTargetSize(context);
 		for (final String imageUri : images) {
 			final Uri uri = Uri.parse(imageUri);
-			final File targetFile = createCacheFile(imageUri, context);
+			final File targetFile = persistentBitmapCacheFiles.get(createFilename(imageUri));
 			if (targetFile.exists()) {
 				continue;
 			}
@@ -361,11 +383,11 @@ public class PhotoViewHandler implements ViewHandler<View> {
 			return;
 		}
 		bitmapCache.put(thumbnailUriString, new SoftReference<Bitmap>(bitmap));
-		if (persistentCachePrefix != null) {
+		if (usePersistentCache) {
 			executor.execute(new Runnable() {
 				@Override
 				public void run() {
-					final File targetFile = createCacheFile(thumbnailUriString, context);
+					final File targetFile = persistentBitmapCacheFiles.get(createFilename(thumbnailUriString));
 					saveCacheEntry(bitmap, targetFile);
 				}
 			});

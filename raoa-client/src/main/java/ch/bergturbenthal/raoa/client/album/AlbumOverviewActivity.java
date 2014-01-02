@@ -61,7 +61,8 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 
 	private List<ViewHandler<? extends View>> makeViewHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	R.id.album_item_image,
+		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	this,
+																																		R.id.album_item_image,
 																																		Client.Album.THUMBNAIL,
 																																		new PhotoViewHandler.DimensionCalculator(R.dimen.image_width),
 																																		threadPoolExecutor,
