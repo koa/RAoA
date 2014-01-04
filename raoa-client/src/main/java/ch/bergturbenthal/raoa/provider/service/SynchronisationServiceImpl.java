@@ -924,7 +924,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 		wrappedExecutorService = ExecutorServiceUtil.wrap(executorService);
 
-		dnsListener = new MDnsListener(getApplicationContext(), this, executorService);
+		dnsListener = MDnsListener.builder().context(getApplicationContext()).resultListener(this).executorService(executorService).build();
 
 		dataDir = new File(getFilesDir(), "data");
 		store = new LocalStore(dataDir);

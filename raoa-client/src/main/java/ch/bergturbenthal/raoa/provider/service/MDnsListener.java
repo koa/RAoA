@@ -23,6 +23,7 @@ import javax.jmdns.ServiceInfo;
 import javax.jmdns.ServiceListener;
 import javax.jmdns.impl.JmmDNSImpl;
 
+import lombok.experimental.Builder;
 import android.content.Context;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.MulticastLock;
@@ -43,6 +44,7 @@ public class MDnsListener {
 	private final ResultListener resultListener;
 	private final Map<InetAddress, JmDNS> runningMdns = new ConcurrentHashMap<InetAddress, JmDNS>();
 
+	@Builder
 	public MDnsListener(final Context context, final ResultListener resultListener, final ScheduledExecutorService executorService) {
 		this.context = context;
 		this.resultListener = resultListener;
@@ -50,8 +52,9 @@ public class MDnsListener {
 	}
 
 	public synchronized void pollForServices(final boolean withProgressUpdate) {
-		if (jmmDNS == null)
+		if (jmmDNS == null) {
 			return;
+		}
 		if (pendingFuture != null) {
 			pendingFuture.cancel(false);
 		}
