@@ -1,11 +1,10 @@
-package ch.bergturbenthal.raoa.provider.service;
+package ch.bergturbenthal.raoa.provider.service.discovery;
 
 import java.io.IOException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -29,13 +28,9 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.MulticastLock;
 import android.util.Log;
 
-public class MDnsListener {
-	public static interface ResultListener {
-		void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints, final boolean withProgressUpdate);
-	}
-
-	private static final String MDNS_TAG = "mdns-listener";
-	private static final String SERVICE_NAME_URL = "_images._tcp.local.";
+public class JMDnsListener implements ServerDiscoveryListener {
+	private static final String MDNS_TAG = "jmdns-listener";
+	protected static final String SERVICE_NAME_URL = SERVICE_TYPE + "local.";
 	private final Context context;
 	private final ScheduledExecutorService executorService;
 	private JmmDNS jmmDNS = null;
@@ -45,12 +40,13 @@ public class MDnsListener {
 	private final Map<InetAddress, JmDNS> runningMdns = new ConcurrentHashMap<InetAddress, JmDNS>();
 
 	@Builder
-	public MDnsListener(final Context context, final ResultListener resultListener, final ScheduledExecutorService executorService) {
+	public JMDnsListener(final Context context, final ResultListener resultListener, final ScheduledExecutorService executorService) {
 		this.context = context;
 		this.resultListener = resultListener;
 		this.executorService = executorService;
 	}
 
+	@Override
 	public synchronized void pollForServices(final boolean withProgressUpdate) {
 		if (jmmDNS == null) {
 			return;
@@ -63,7 +59,7 @@ public class MDnsListener {
 			@Override
 			public void run() {
 				final HashSet<InetSocketAddress> foundEndpoints = new HashSet<InetSocketAddress>();
-				synchronized (MDnsListener.this) {
+				synchronized (JMDnsListener.this) {
 					for (final Entry<InetAddress, JmDNS> interfaceEntry : runningMdns.entrySet()) {
 						final InetAddress localAddress = interfaceEntry.getKey();
 						final JmDNS mdns = interfaceEntry.getValue();
@@ -107,6 +103,7 @@ public class MDnsListener {
 		}
 	}
 
+	@Override
 	public synchronized void startListening() {
 		setup();
 		final ServiceListener listener = new ServiceListener() {
@@ -148,6 +145,7 @@ public class MDnsListener {
 		});
 	}
 
+	@Override
 	public synchronized void stopListening() {
 		if (jmmDNS != null) {
 			if (lock != null) {

@@ -99,7 +99,9 @@ import ch.bergturbenthal.raoa.provider.model.dto.AlbumIndex;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMeta;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMutationData;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumState;
-import ch.bergturbenthal.raoa.provider.service.MDnsListener.ResultListener;
+import ch.bergturbenthal.raoa.provider.service.discovery.JMDnsListener;
+import ch.bergturbenthal.raoa.provider.service.discovery.ServerDiscoveryListener;
+import ch.bergturbenthal.raoa.provider.service.discovery.ServerDiscoveryListener.ResultListener;
 import ch.bergturbenthal.raoa.provider.state.ServerListActivity;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
@@ -138,7 +140,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private final CursorNotification cursorNotifications = new CursorNotification();
 	private File dataDir;
 
-	private MDnsListener dnsListener;
+	private ServerDiscoveryListener dnsListener;
 	private ScheduledExecutorService executorService;
 	private ScheduledFuture<?> fastUpdatePollingFuture;
 	private final LruCache<String, Long> idCache = new LruCache<String, Long>(100) {
@@ -349,6 +351,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		final ServerConnection serverConnection = getConnectionForServer(serverName);
 		serverConnection.importFile(filename, data);
 
+	}
+
+	private void initServiceDiscovery() {
+		dnsListener = JMDnsListener.builder().context(getApplicationContext()).resultListener(this).executorService(executorService).build();
+		// dnsListener = NsdListener.builder().context(getApplicationContext()).resultListener(this).build();
 	}
 
 	/**
@@ -924,7 +931,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 		wrappedExecutorService = ExecutorServiceUtil.wrap(executorService);
 
-		dnsListener = MDnsListener.builder().context(getApplicationContext()).resultListener(this).executorService(executorService).build();
+		initServiceDiscovery();
 
 		dataDir = new File(getFilesDir(), "data");
 		store = new LocalStore(dataDir);
@@ -1042,7 +1049,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private void pollServers() {
 		if (pollServerSemaphore.tryAcquire()) {
 			try {
-				final MDnsListener listener = dnsListener;
+				final ServerDiscoveryListener listener = dnsListener;
 				if (listener != null) {
 					listener.pollForServices(true);
 				}
