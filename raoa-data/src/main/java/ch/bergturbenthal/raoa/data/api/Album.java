@@ -29,4 +29,5 @@ public interface Album {
 	void updateMetadata(final String albumId, final UpdateMetadataRequest request);
 
 	void importFile(final ImportFileRequest request);
+
 }

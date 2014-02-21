@@ -80,11 +80,20 @@ public class Client {
 	public static class IssueEntry {
 		public static final String ALBUM_ENTRY_NAME = "fileName";
 		public static final String ALBUM_NAME = "albumName";
-		public static final String CAN_ACK = "canAck";
+		public static final String AVAILABLE_ACTIONS = "availableActions";
 		public static final String ID = "_id";
 		public static final String ISSUE_TIME = "issueTime";
 		public static final String ISSUE_TYPE = "issueType";
 		public static final String STACK_TRACE = "stackTrace";
+
+		public static Collection<String> decodeActions(final String keywordValue) {
+			return decodeArray(keywordValue);
+		}
+
+		public static String encodeActions(final Collection<String> keywords) {
+			return encodeArray(keywords);
+		}
+
 	}
 
 	public static class KeywordEntry {
@@ -118,8 +127,10 @@ public class Client {
 	}
 
 	public static final Uri ALBUM_URI;
+	private static final String ALBUM_URI_STRING;
 	public static final String AUTHORITY = "ch.bergturbenthal.raoa.provider";
 	public static final Uri KEYWORDS_URI;
+	private static final ObjectMapper mapper = new ObjectMapper();
 	public static final String METHOD_CREATE_ALBUM_ON_SERVER = "createAlbumOnServer";
 	public static final String METHOD_IMPORT_FILE = "importFile";
 	public static final String PARAMETER_AUTOADD_DATE = "autoaddDate";
@@ -128,8 +139,6 @@ public class Client {
 	public static final String PARAMETER_SERVERNAME = "servername";
 	public static final Uri SERVER_URI;
 	public static final Uri STORAGE_URI;
-	private static final String ALBUM_URI_STRING;
-	private static final ObjectMapper mapper = new ObjectMapper();
 	private static final CollectionType stringListType = CollectionType.construct(List.class, SimpleType.construct(String.class));
 	static {
 		ALBUM_URI = Uri.parse("content://" + AUTHORITY + "/albums");
@@ -138,6 +147,25 @@ public class Client {
 		STORAGE_URI = Uri.parse("content://" + AUTHORITY + "/storages");
 
 		ALBUM_URI_STRING = ALBUM_URI.toString();
+	}
+
+	private static Collection<String> decodeArray(final String keywordValue) {
+		try {
+			if (keywordValue == null) {
+				return Collections.emptyList();
+			}
+			return mapper.readValue(keywordValue, stringListType);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot decode value " + keywordValue, e);
+		}
+	}
+
+	private static String encodeArray(final Collection<String> keywords) {
+		try {
+			return mapper.writeValueAsString(keywords);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot encode value " + keywords, e);
+		}
 	}
 
 	public static Uri makeAlbumEntriesUri(final String archiveName, final String albumId) {
@@ -203,25 +231,6 @@ public class Client {
 		builder.appendPath(albumEntryId);
 		builder.appendPath("thumbnail");
 		return builder.build();
-	}
-
-	private static Collection<String> decodeArray(final String keywordValue) {
-		try {
-			if (keywordValue == null) {
-				return Collections.emptyList();
-			}
-			return mapper.readValue(keywordValue, stringListType);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot decode value " + keywordValue, e);
-		}
-	}
-
-	private static String encodeArray(final Collection<String> keywords) {
-		try {
-			return mapper.writeValueAsString(keywords);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot encode value " + keywords, e);
-		}
 	}
 
 	private final ContentResolver provider;

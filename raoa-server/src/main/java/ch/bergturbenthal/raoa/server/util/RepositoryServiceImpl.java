@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -19,6 +20,7 @@ import lombok.Cleanup;
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.MergeCommand;
 import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.MergeResult.MergeStatus;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
@@ -35,6 +37,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryBuilder;
 import org.eclipse.jgit.lib.RepositoryCache;
 import org.eclipse.jgit.lib.StoredConfig;
+import org.eclipse.jgit.merge.MergeStrategy;
 import org.eclipse.jgit.notes.Note;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
@@ -50,6 +53,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.data.model.state.IssueType;
 import ch.bergturbenthal.raoa.server.state.CloseableProgressMonitor;
 import ch.bergturbenthal.raoa.server.state.StateManager;
@@ -158,9 +162,31 @@ public class RepositoryServiceImpl implements RepositoryService {
 						revWalk.markStart(branchCommit);
 						revWalk.markStart(masterCommit);
 						final RevCommit commonCommit = revWalk.next();
+
 						if (commonCommit == null) {
+							// no common commit
 							final ConflictEntry conflictEntry = new ConflictEntry();
 							conflictEntry.setBranch(entry.getKey());
+							final Runnable ignoreRunnable = new Runnable() {
+								@Override
+								public void run() {
+									try {
+										final MergeCommand mergeCommand = git.merge();
+										mergeCommand.setStrategy(MergeStrategy.OURS);
+										mergeCommand.include(branchCommit);
+										final MergeResult mergeResult = mergeCommand.call();
+										final MergeStatus mergeStatus = mergeResult.getMergeStatus();
+										logger.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
+									} catch (final GitAPIException e) {
+										logger.error("Canot merge on " + git.getRepository().getDirectory(), e);
+									}
+								}
+							};
+							final ConflictMeta meta = new ConflictMeta();
+							meta.setConflictDate(new Date(branchCommit.getCommitTime() * 1000l));
+							meta.setServer("none");
+							conflictEntry.setMeta(meta);
+							conflictEntry.setResolveActions(Collections.singletonMap(IssueResolveAction.IGNORE_OTHER, ignoreRunnable));
 							ret.add(conflictEntry);
 							logger.warn("no common commit");
 							continue;
@@ -202,8 +228,9 @@ public class RepositoryServiceImpl implements RepositoryService {
 		}
 		while (iterator.hasNext()) {
 			final String nextCandidate = serverName.replace(' ', '_') + "/" + iterator.next();
-			if (!existingConfictBranches.contains(nextCandidate))
+			if (!existingConfictBranches.contains(nextCandidate)) {
 				return nextCandidate;
+			}
 		}
 		return null;
 	}

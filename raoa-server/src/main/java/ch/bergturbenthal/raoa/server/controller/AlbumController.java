@@ -113,8 +113,9 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@Override
 	public AlbumDetail listAlbumContent(final String albumid) {
 		final Album album = albumAccess.listAlbums().get(albumid);
-		if (album == null)
+		if (album == null) {
 			return null;
+		}
 		final AlbumMetadata albumMetadata = album.getAlbumMetadata();
 		final AlbumDetail ret = new AlbumDetail();
 		ret.setId(albumid);
@@ -170,7 +171,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 
 	private ImageResult makeImageResult(final File sourceFile, final AlbumImage image, final Date ifModifiedSince) {
 		final Date lastModified = new Date(sourceFile.lastModified());
-		if (ifModifiedSince == null || ifModifiedSince.before(lastModified))
+		if (ifModifiedSince == null || ifModifiedSince.before(lastModified)) {
 			return ImageResult.makeModifiedResult(lastModified, image.captureDate(), new ImageResult.StreamSource() {
 
 				@Override
@@ -178,21 +179,25 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 					return new FileInputStream(sourceFile);
 				}
 			}, image.isVideo() ? "video/mp4" : "image/jpeg");
-		else
+		} else {
 			return ImageResult.makeNotModifiedResult();
+		}
 	}
 
 	@Override
 	public ImageResult readImage(final String albumId, final String imageId, final Date ifModifiedSince) throws IOException {
 		final Album album = albumAccess.getAlbum(albumId);
-		if (album == null)
+		if (album == null) {
 			return null;
+		}
 		final AlbumImage image = album.getImage(imageId);
-		if (image == null)
+		if (image == null) {
 			return null;
+		}
 		final File thumbnailImage = image.getThumbnail(true);
-		if (thumbnailImage != null)
+		if (thumbnailImage != null) {
 			return makeImageResult(thumbnailImage, image, ifModifiedSince);
+		}
 		return null;
 	}
 
@@ -256,8 +261,9 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@Override
 	public void setAutoAddDate(final String albumId, final Date autoAddDate) {
 		final Album album = albumAccess.getAlbum(albumId);
-		if (album == null)
+		if (album == null) {
 			return;
+		}
 		album.setAutoAddBeginDate(autoAddDate);
 	}
 

@@ -8,27 +8,36 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import lombok.Data;
 
 import org.apache.commons.lang.StringUtils;
 import org.eclipse.jgit.api.errors.JGitInternalException;
+import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.errors.LockFailedException;
 import org.eclipse.jgit.lib.BatchingProgressMonitor;
 import org.springframework.beans.factory.BeanCreationException;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import ch.bergturbenthal.raoa.data.model.state.Issue;
+import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.data.model.state.IssueType;
 import ch.bergturbenthal.raoa.data.model.state.Progress;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.model.state.ServerState;
 import ch.bergturbenthal.raoa.server.util.ConflictEntry;
+import ch.bergturbenthal.raoa.server.util.ConflictMeta;
 
 public class StateManagerImpl implements StateManager {
 	private class JGitProgressMonitor extends BatchingProgressMonitor implements CloseableProgressMonitor {
@@ -130,8 +139,9 @@ public class StateManagerImpl implements StateManager {
 		}
 
 		private void updateState(final int startedCounter, final int doneCounter, final String description) {
-			if (closed)
+			if (closed) {
 				return;
+			}
 			final Progress progress = new Progress();
 			progress.setProgressId(progressId);
 			progress.setStepCount(totalCount * 2);
@@ -150,21 +160,20 @@ public class StateManagerImpl implements StateManager {
 	}
 
 	private final ConcurrentMap<String, Issue> acknowledgableIssues = new ConcurrentHashMap<>();
+
+	private final ConcurrentMap<String, Map<IssueResolveAction, Runnable>> conflictTroubleResolver = new ConcurrentHashMap<>();
 	private final ConcurrentMap<String, Issue> conflictTroubles = new ConcurrentHashMap<>();
 	private final ConcurrentMap<String, Collection<Issue>> exceptionTroublesPerAlbum = new ConcurrentHashMap<>();
 	private final ConcurrentMap<String, Collection<Issue>> exceptionTroublesPerThumbnail = new ConcurrentHashMap<>();
+	@Autowired
+	private ExecutorService executor;
 	private final ConcurrentMap<String, Progress> runningProgress = new ConcurrentHashMap<String, Progress>();
-
-	@Override
-	public void acknowledgeIssue(final String issueId) {
-		acknowledgableIssues.remove(issueId);
-	}
 
 	@Override
 	public void appendIssue(final IssueType type, final String album, final String image, final String message, final Throwable exception) {
 		final String id = UUID.randomUUID().toString();
 		final Issue issue = new Issue();
-		issue.setAcknowledgable(true);
+		issue.setAvailableActions(Collections.singleton(IssueResolveAction.ACKNOWLEDGE));
 		issue.setIssueId(id);
 		issue.setAlbumName(album);
 		issue.setImageName(image);
@@ -213,6 +222,67 @@ public class StateManagerImpl implements StateManager {
 			}
 		}
 		troubles.add(new TroubleOrigin(IssueType.UNKNOWN));
+	}
+
+	private String describeConflicts(final ConflictEntry conflictEntry) {
+		final StringBuilder added = new StringBuilder();
+		final StringBuilder copied = new StringBuilder();
+		final StringBuilder deleted = new StringBuilder();
+		final StringBuilder renamed = new StringBuilder();
+		final StringBuilder modified = new StringBuilder();
+		if (conflictEntry.getDiffs() != null) {
+			for (final DiffEntry diff : conflictEntry.getDiffs()) {
+				switch (diff.getChangeType()) {
+				case ADD:
+					added.append(diff.getNewPath());
+					added.append("\n");
+					break;
+				case COPY:
+					copied.append(diff.getOldPath());
+					copied.append(" -> ");
+					copied.append(diff.getNewPath());
+					copied.append("\n");
+					break;
+				case DELETE:
+					deleted.append(diff.getOldPath());
+					deleted.append("\n");
+					break;
+				case MODIFY:
+					modified.append(diff.getNewPath());
+					modified.append("\n");
+					break;
+				case RENAME:
+					renamed.append(diff.getOldPath());
+					renamed.append(" -> ");
+					renamed.append(diff.getNewPath());
+					renamed.append("\n");
+					break;
+				}
+			}
+		}
+		final StringBuilder description = new StringBuilder();
+		if (added.length() > 0) {
+			description.append("Added:\n\n");
+			description.append(added);
+		}
+		if (deleted.length() > 0) {
+			description.append("Deleted:\n\n");
+			description.append(deleted);
+		}
+		if (modified.length() > 0) {
+			description.append("Modified:\n\n");
+			description.append(modified);
+		}
+		if (copied.length() > 0) {
+			description.append("Copied:\n\n");
+			description.append(copied);
+		}
+		if (renamed.length() > 0) {
+			description.append("Renamed:\n\n");
+			description.append(renamed);
+		}
+		return description.toString();
+
 	}
 
 	@Override
@@ -265,7 +335,7 @@ public class StateManagerImpl implements StateManager {
 			issue.setAlbumName(relativePath);
 			issue.setIssueTime(new Date());
 			issue.setStackTrace(stackTrace);
-			issue.setAcknowledgable(false);
+			issue.setAvailableActions(Collections.<IssueResolveAction> emptySet());
 			issue.setIssueId(UUID.randomUUID().toString());
 			issues.add(issue);
 		}
@@ -285,7 +355,7 @@ public class StateManagerImpl implements StateManager {
 			issue.setImageName(image);
 			issue.setIssueTime(new Date());
 			issue.setStackTrace(stackTrace);
-			issue.setAcknowledgable(false);
+			issue.setAvailableActions(Collections.<IssueResolveAction> emptySet());
 			issue.setIssueId(UUID.randomUUID().toString());
 			issues.add(issue);
 		}
@@ -294,24 +364,73 @@ public class StateManagerImpl implements StateManager {
 
 	@Override
 	public void reportConflict(final String albumName, final Collection<ConflictEntry> conflicts) {
-		if (conflicts == null || conflicts.isEmpty()) {
-			conflictTroubles.remove(albumName);
-			return;
-		}
-		final StringBuffer description = new StringBuffer();
-		for (final ConflictEntry conflictEntry : conflicts) {
-			if (description.length() > 0) {
-				description.append(", ");
+		final String albumPrefix = albumName + "-";
+		final Map<String, Issue> newConflictTroubles = new HashMap<String, Issue>();
+		final Map<String, Map<IssueResolveAction, Runnable>> newConflictResolver = new HashMap<>();
+		if (conflicts != null && !conflicts.isEmpty()) {
+			for (final ConflictEntry conflictEntry : conflicts) {
+				final ConflictMeta meta = conflictEntry.getMeta();
+				final String conflictEntryKey = albumPrefix + conflictEntry.getBranch();
+				final Issue issue = new Issue();
+				final Map<IssueResolveAction, Runnable> resolveActions = conflictEntry.getResolveActions();
+				issue.setAvailableActions(new HashSet<>(resolveActions.keySet()));
+				issue.setAlbumName(albumName);
+				issue.setImageName(conflictEntry.getBranch());
+				issue.setIssueId(conflictEntryKey);
+				issue.setType(IssueType.SYNC_CONFLICT);
+				issue.setStackTrace(describeConflicts(conflictEntry));
+				issue.setIssueTime(meta.getConflictDate());
+
+				newConflictResolver.put(conflictEntryKey, resolveActions);
+				newConflictTroubles.put(conflictEntryKey, issue);
 			}
-			description.append(conflictEntry.getBranch());
 		}
-		final Issue issue = new Issue();
-		issue.setAcknowledgable(false);
-		issue.setAlbumName(albumName);
-		issue.setImageName(description.toString());
-		issue.setIssueId(UUID.randomUUID().toString());
-		issue.setType(IssueType.SYNC_CONFLICT);
-		conflictTroubles.put(albumName, issue);
+		for (final Iterator<Entry<String, Map<IssueResolveAction, Runnable>>> iterator = conflictTroubleResolver.entrySet().iterator(); iterator.hasNext();) {
+			final Entry<String, Map<IssueResolveAction, Runnable>> troubleResolverEntry = iterator.next();
+			if (troubleResolverEntry.getKey().startsWith(albumPrefix)) {
+				final Map<IssueResolveAction, Runnable> updatedIssue = newConflictResolver.remove(troubleResolverEntry.getKey());
+				if (updatedIssue == null) {
+					iterator.remove();
+				} else {
+					troubleResolverEntry.setValue(updatedIssue);
+				}
+			}
+		}
+		conflictTroubleResolver.putAll(newConflictResolver);
+		for (final Iterator<Entry<String, Issue>> iterator = conflictTroubles.entrySet().iterator(); iterator.hasNext();) {
+			final Entry<String, Issue> troubleEntry = iterator.next();
+			if (troubleEntry.getKey().startsWith(albumPrefix)) {
+				final Issue updatedIssue = newConflictTroubles.remove(troubleEntry.getKey());
+				if (updatedIssue == null) {
+					iterator.remove();
+				} else {
+					troubleEntry.setValue(updatedIssue);
+				}
+			}
+		}
+		conflictTroubles.putAll(newConflictTroubles);
+	}
+
+	@Override
+	public void resolveIssue(final String issueId, final IssueResolveAction action) {
+		switch (action) {
+		case ACKNOWLEDGE:
+			acknowledgableIssues.remove(issueId);
+			break;
+		case IGNORE_OTHER:
+			final Map<IssueResolveAction, Runnable> availableActions = conflictTroubleResolver.get(issueId);
+			if (availableActions == null) {
+				break;
+			}
+			final Runnable actionRunnable = availableActions.get(action);
+			if (actionRunnable == null) {
+				break;
+			}
+			executor.submit(actionRunnable);
+			break;
+		}
+		// TODO Auto-generated method stub
+
 	}
 
 	private String takeStacktrace(final Throwable ex) {

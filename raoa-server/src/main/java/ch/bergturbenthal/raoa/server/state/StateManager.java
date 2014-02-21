@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.server.state;
 
 import java.util.Collection;
 
+import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.data.model.state.IssueType;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.model.state.ServerState;
@@ -26,5 +27,5 @@ public interface StateManager {
 
 	void appendIssue(final IssueType type, final String album, final String image, final String message, final Throwable exception);
 
-	void acknowledgeIssue(final String issueId);
+	void resolveIssue(final String issueId, final IssueResolveAction action);
 }
