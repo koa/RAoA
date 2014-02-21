@@ -18,6 +18,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestFillImages {
@@ -61,8 +62,9 @@ public class TestFillImages {
 
 		@Override
 		public Rectangle findBestFitness(final Fitness fitness, final Rectangle ignoreCandidate, final int curentLevel, final int fromLevel, final int toLevel) {
-			if (fromLevel >= curentLevel && toLevel < curentLevel)
+			if (fromLevel >= curentLevel && toLevel < curentLevel) {
 				return this;
+			}
 			return null;
 		}
 
@@ -117,11 +119,13 @@ public class TestFillImages {
 
 		@Override
 		public boolean contains(final Rectangle rect) {
-			if (this == rect)
+			if (this == rect) {
 				return true;
+			}
 			for (final Rectangle subNode : subNodes) {
-				if (subNode.contains(rect))
+				if (subNode.contains(rect)) {
 					return true;
+				}
 			}
 			return false;
 		}
@@ -171,8 +175,9 @@ public class TestFillImages {
 
 		@Override
 		public Rectangle findBestFitness(final Fitness fitness, final Rectangle ignoreCandidate, final int currentLevel, final int fromLevel, final int toLevel) {
-			if (this == ignoreCandidate)
+			if (this == ignoreCandidate) {
 				return null;
+			}
 			Rectangle bestCandidate = (!contains(ignoreCandidate) && currentLevel >= fromLevel && currentLevel < toLevel) ? this : null;
 			double bestFitness = fitness.calcFitness(this);
 			for (final Rectangle rect : subNodes) {
@@ -190,9 +195,9 @@ public class TestFillImages {
 
 		@Override
 		public double getScaledHeight() {
-			if (orientation == Orientation.HORIZONTAL)
+			if (orientation == Orientation.HORIZONTAL) {
 				return subNodes.get(0).getScaledHeight();
-			else {
+			} else {
 				double height = 0;
 				for (final Rectangle rect : subNodes) {
 					height += rect.getScaledHeight();
@@ -209,18 +214,21 @@ public class TestFillImages {
 					width += rect.getScaledWidth();
 				}
 				return width;
-			} else
+			} else {
 				return subNodes.get(0).getScaledWidth();
+			}
 		}
 
 		@Override
 		public int levelOf(final Rectangle rectangle, final int startLevel) {
-			if (rectangle == this)
+			if (rectangle == this) {
 				return startLevel;
+			}
 			for (final Rectangle rect : subNodes) {
 				final int level = rect.levelOf(rectangle, startLevel + 1);
-				if (level >= 0)
+				if (level >= 0) {
 					return level;
+				}
 			}
 			return -1;
 		}
@@ -263,61 +271,8 @@ public class TestFillImages {
 
 	Random random = new Random();
 
-	private Orientation inverse(final Orientation orientation) {
-		Orientation nextOrientation;
-		if (orientation == Orientation.HORIZONTAL) {
-			nextOrientation = Orientation.VERTICAL;
-		} else {
-			nextOrientation = Orientation.HORIZONTAL;
-		}
-		return nextOrientation;
-	}
-
-	private Rectangle makeRect(final List<Image> images, final Orientation orientation, final Orientation strechOrientation, final double strechFactor) {
-		if (images.size() == 1) {
-			System.out.println("one found");
-			return images.get(0);
-		}
-		final int splitCount;
-		if (orientation == strechOrientation) {
-			splitCount = (int) Math.round((2 + random.nextDouble() * strechFactor));
-		} else {
-			splitCount = 2;
-		}
-		final List<Rectangle> subNodes = new ArrayList<>();
-		int currentPos = 0;
-		final Orientation nextOrientation = inverse(orientation);
-		for (int i = 0; i < splitCount && currentPos < images.size(); i++) {
-			final int nextSplit = (int) (currentPos + Math.round(1.0 * (images.size() - currentPos) / (splitCount - i)));
-			System.out.println("currentPos: " + currentPos + " splitCount: " + splitCount + " total: " + images.size() + " i: " + i + " nextSplit: " + nextSplit);
-			subNodes.add(makeRect(images.subList(currentPos, nextSplit), nextOrientation, strechOrientation, strechFactor));
-			currentPos = nextSplit;
-		}
-		return new Node(orientation, subNodes);
-	}
-
-	private List<Image> readImages() throws IOException {
-		final List<Image> images = new ArrayList<>();
-
-		final File[] files = new File("/data/heap/data/photos/old/Landschaft/Vorführung Seilbahn 2012-02-18/.servercache").listFiles(new FileFilter() {
-
-			@Override
-			public boolean accept(final File pathname) {
-				if (!pathname.isFile())
-					return false;
-				return pathname.getName().endsWith(".JPG");
-			}
-		});
-		for (final File file : files) {
-			final BufferedImage bufferedImage = ImageIO.read(file);
-			final Image image = new Image(bufferedImage.getHeight(), bufferedImage.getWidth());
-			image.setFile(file);
-			images.add(image);
-		}
-		return images;
-	}
-
 	@Test
+	@Ignore
 	public void test() throws IOException {
 
 		final List<Image> images = readImages();
@@ -399,6 +354,61 @@ public class TestFillImages {
 			writeImage(treeRoot, new File("target/out-mutation" + i + ".jpg"));
 		}
 
+	}
+
+	private Orientation inverse(final Orientation orientation) {
+		Orientation nextOrientation;
+		if (orientation == Orientation.HORIZONTAL) {
+			nextOrientation = Orientation.VERTICAL;
+		} else {
+			nextOrientation = Orientation.HORIZONTAL;
+		}
+		return nextOrientation;
+	}
+
+	private Rectangle makeRect(final List<Image> images, final Orientation orientation, final Orientation strechOrientation, final double strechFactor) {
+		if (images.size() == 1) {
+			System.out.println("one found");
+			return images.get(0);
+		}
+		final int splitCount;
+		if (orientation == strechOrientation) {
+			splitCount = (int) Math.round((2 + random.nextDouble() * strechFactor));
+		} else {
+			splitCount = 2;
+		}
+		final List<Rectangle> subNodes = new ArrayList<>();
+		int currentPos = 0;
+		final Orientation nextOrientation = inverse(orientation);
+		for (int i = 0; i < splitCount && currentPos < images.size(); i++) {
+			final int nextSplit = (int) (currentPos + Math.round(1.0 * (images.size() - currentPos) / (splitCount - i)));
+			System.out.println("currentPos: " + currentPos + " splitCount: " + splitCount + " total: " + images.size() + " i: " + i + " nextSplit: " + nextSplit);
+			subNodes.add(makeRect(images.subList(currentPos, nextSplit), nextOrientation, strechOrientation, strechFactor));
+			currentPos = nextSplit;
+		}
+		return new Node(orientation, subNodes);
+	}
+
+	private List<Image> readImages() throws IOException {
+		final List<Image> images = new ArrayList<>();
+
+		final File[] files = new File("/data/heap/data/photos/old/Landschaft/Vorführung Seilbahn 2012-02-18/.servercache").listFiles(new FileFilter() {
+
+			@Override
+			public boolean accept(final File pathname) {
+				if (!pathname.isFile()) {
+					return false;
+				}
+				return pathname.getName().endsWith(".JPG");
+			}
+		});
+		for (final File file : files) {
+			final BufferedImage bufferedImage = ImageIO.read(file);
+			final Image image = new Image(bufferedImage.getHeight(), bufferedImage.getWidth());
+			image.setFile(file);
+			images.add(image);
+		}
+		return images;
 	}
 
 	private void writeImage(final Rectangle treeRoot, final File output) throws IOException {
