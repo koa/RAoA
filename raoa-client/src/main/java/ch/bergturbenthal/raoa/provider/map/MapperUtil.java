@@ -111,6 +111,8 @@ public class MapperUtil {
 		}
 	}
 
+	private static final Map<Class<?>, Map<String, FieldReader<?>>> fieldReaders = new HashMap<Class<?>, Map<String, FieldReader<?>>>();
+
 	private static final SingleFieldReader NULL_READER = new SingleFieldReader() {
 
 		@Override
@@ -140,8 +142,8 @@ public class MapperUtil {
 	};
 
 	private static Map<Class<?>, Class<?>> primitiveToBoxed = new HashMap<Class<?>, Class<?>>();
-
 	private static String TAG = "MapperUtil";
+
 	static {
 		primitiveToBoxed.put(Integer.TYPE, Integer.class);
 		primitiveToBoxed.put(Double.TYPE, Double.class);
@@ -554,29 +556,36 @@ public class MapperUtil {
 		return cursor;
 	}
 
-	public static <V> Map<String, FieldReader<V>> makeAnnotaedFieldReaders(final Class<V> type) {
-		final HashMap<String, FieldReader<V>> ret = new HashMap<String, FieldReader<V>>();
-		for (final Method method : type.getMethods()) {
-			final CursorField annotation = method.getAnnotation(CursorField.class);
-			if (annotation == null) {
-				continue;
+	public static <V> Map<String, FieldReader<V>> makeAnnotatedFieldReaders(final Class<V> type) {
+		synchronized (fieldReaders) {
+			final Map<String, FieldReader<V>> storedReader = (Map<String, FieldReader<V>>) (Map<String, ?>) fieldReaders.get(type);
+			if (storedReader != null) {
+				return new HashMap<String, FieldReader<V>>(storedReader);
 			}
-			if (method.getParameterTypes().length > 0) {
-				Log.e("MapperUtil", "cannot query method " + method);
-				continue;
+			final HashMap<String, FieldReader<V>> ret = new HashMap<String, FieldReader<V>>();
+			for (final Method method : type.getMethods()) {
+				final CursorField annotation = method.getAnnotation(CursorField.class);
+				if (annotation == null) {
+					continue;
+				}
+				if (method.getParameterTypes().length > 0) {
+					Log.e("MapperUtil", "cannot query method " + method);
+					continue;
+				}
+				final String fieldName = annotation.value();
+				appendMethodReader(ret, fieldName, method);
 			}
-			final String fieldName = annotation.value();
-			appendMethodReader(ret, fieldName, method);
+			for (final Field field : type.getFields()) {
+				final CursorField annotation = field.getAnnotation(CursorField.class);
+				if (annotation == null) {
+					continue;
+				}
+				final String fieldName = annotation.value();
+				appendFieldReader(ret, fieldName, field);
+			}
+			fieldReaders.put(type, (Map<String, FieldReader<?>>) (Map<String, ?>) ret);
+			return ret;
 		}
-		for (final Field field : type.getFields()) {
-			final CursorField annotation = field.getAnnotation(CursorField.class);
-			if (annotation == null) {
-				continue;
-			}
-			final String fieldName = annotation.value();
-			appendFieldReader(ret, fieldName, field);
-		}
-		return ret;
 	}
 
 	public static <V> Map<String, FieldReader<V>> makeNamedFieldReaders(final Class<V> type, final Map<String, String> mappedFields) {

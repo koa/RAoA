@@ -183,36 +183,32 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		}
 		showBitmap(imageView, idleView, null);
 
-		final AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
+		if (usePersistentCache) {
+			final File persistentCachedBitmap = persistentBitmapCacheFiles.get(createFilename(thumbnailUriString));
+			if (persistentCachedBitmap.exists()) {
+				final AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
 
-			private Bitmap bitmap;
+					private Bitmap bitmap;
 
-			@Override
-			protected Void doInBackground(final Void... params) {
-				final Uri uri = Uri.parse(thumbnailUriString);
-				try {
-					final Bitmap persistentBitmap = loadFromPersistentCache(thumbnailUriString);
-					if (persistentBitmap == null) {
-						bitmap = loadImage(context, uri);
-						storeToCache(thumbnailUriString, bitmap, context);
-					} else {
-						bitmap = persistentBitmap;
+					@Override
+					protected Void doInBackground(final Void... params) {
+						bitmap = BitmapFactory.decodeFile(persistentCachedBitmap.getAbsolutePath());
+						return null;
 					}
-				} catch (final Throwable t) {
-					Log.i(TAG, "Cannot load image from " + uri, t);
-					bitmap = null;
-				}
-				return null;
-			}
 
-			@Override
-			protected void onPostExecute(final Void result) {
-				showBitmap(imageView, idleView, bitmap);
-				runningBgTasks.remove(imageView);
+					@Override
+					protected void onPostExecute(final Void result) {
+						displayLoadedImage(bitmap, imageView, idleView);
+					}
+				};
+				runningBgTasks.put(imageView, asyncTask);
+				asyncTask.execute();
+			} else {
+				loadFullyFromProvider(context, imageView, idleView, thumbnailUriString);
 			}
-		};
-		runningBgTasks.put(imageView, asyncTask);
-		asyncTask.executeOnExecutor(executor);
+		} else {
+			loadFullyFromProvider(context, imageView, idleView, thumbnailUriString);
+		}
 
 	}
 
@@ -231,6 +227,11 @@ public class PhotoViewHandler implements ViewHandler<View> {
 			filenameSb.append(targetSize.second);
 		}
 		return filenameSb.toString();
+	}
+
+	private void displayLoadedImage(final Bitmap bitmap, final ImageView imageView, final View idleView) {
+		showBitmap(imageView, idleView, bitmap);
+		runningBgTasks.remove(imageView);
 	}
 
 	private Bitmap loadFromCache(final String thumbnailUriString, final Context context) {
@@ -256,6 +257,38 @@ public class PhotoViewHandler implements ViewHandler<View> {
 			}
 		}
 		return null;
+	}
+
+	private void loadFullyFromProvider(final Context context, final ImageView imageView, final View idleView, final String thumbnailUriString) {
+		final AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
+
+			private Bitmap bitmap;
+
+			@Override
+			protected Void doInBackground(final Void... params) {
+				final Uri uri = Uri.parse(thumbnailUriString);
+				try {
+					final Bitmap persistentBitmap = loadFromPersistentCache(thumbnailUriString);
+					if (persistentBitmap == null) {
+						bitmap = loadImage(context, uri);
+						storeToCache(thumbnailUriString, bitmap, context);
+					} else {
+						bitmap = persistentBitmap;
+					}
+				} catch (final Throwable t) {
+					Log.i(TAG, "Cannot load image from " + uri, t);
+					bitmap = null;
+				}
+				return null;
+			}
+
+			@Override
+			protected void onPostExecute(final Void result) {
+				displayLoadedImage(bitmap, imageView, idleView);
+			}
+		};
+		runningBgTasks.put(imageView, asyncTask);
+		asyncTask.executeOnExecutor(executor);
 	}
 
 	private Bitmap loadImage(final Context context, final Uri uri) throws FileNotFoundException, IOException {

@@ -5,8 +5,20 @@ package ch.bergturbenthal.raoa.util.store;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.Writer;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
+import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.io.IOContext;
+import org.codehaus.jackson.io.InputDecorator;
+import org.codehaus.jackson.io.OutputDecorator;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.map.ObjectReader;
+import org.codehaus.jackson.map.ObjectWriter;
 
 /**
  * TODO: add type comment.
@@ -16,30 +28,78 @@ import org.codehaus.jackson.map.ObjectMapper;
  */
 public class JacksonBackend<T> extends AbstractFileBackend<T> {
 
-	private final static ObjectMapper mapper = new ObjectMapper();
+	private final static ObjectMapper gzMapper = new ObjectMapper();
+	private final static ObjectMapper plainMapper = new ObjectMapper();
 	private static final String SUFFIX = ".json";
 	private final Class<T> type;
+	{
+		final JsonFactory jsonFactory = gzMapper.getJsonFactory();
+		jsonFactory.setOutputDecorator(new OutputDecorator() {
+
+			@Override
+			public OutputStream decorate(final IOContext ctxt, final OutputStream out) throws IOException {
+				return new GZIPOutputStream(out);
+			}
+
+			@Override
+			public Writer decorate(final IOContext ctxt, final Writer w) throws IOException {
+				return w;
+			}
+		});
+		jsonFactory.setInputDecorator(new InputDecorator() {
+
+			@Override
+			public InputStream decorate(final IOContext ctxt, final byte[] src, final int offset, final int length) throws IOException {
+				return null;
+			}
+
+			@Override
+			public InputStream decorate(final IOContext ctxt, final InputStream in) throws IOException {
+				return new GZIPInputStream(in);
+			}
+
+			@Override
+			public Reader decorate(final IOContext ctxt, final Reader src) throws IOException {
+				return src;
+			}
+		});
+	}
 
 	/**
 	 * @param basePath
 	 * @param cacheWeight
 	 *          TODO
+	 * @param compression
+	 *          TODO
 	 * @param suffix
 	 * @param serializer
 	 */
-	public JacksonBackend(final File basePath, final Class<T> type, final int cacheWeight) {
+	public JacksonBackend(final File basePath, final Class<T> type, final int cacheWeight, final boolean compression) {
 		super(basePath, SUFFIX, new AbstractFileBackend.FileSerializer<T>() {
+
+			private final ObjectReader reader;
+			private final ObjectWriter writer;
+			{
+				if (compression) {
+					writer = gzMapper.writer().withDefaultPrettyPrinter();
+					reader = gzMapper.reader(type);
+				} else {
+					writer = plainMapper.writer().withDefaultPrettyPrinter();
+					reader = plainMapper.reader(type);
+				}
+			}
 
 			@Override
 			public T readFromFile(final File f) throws IOException {
-				return mapper.reader(type).readValue(f);
+				return reader.readValue(f);
 			}
 
 			@Override
 			public void writeToFile(final File f, final T value) throws IOException {
-				mapper.writer().withDefaultPrettyPrinter().writeValue(f, value);
+				writer.writeValue(f, value);
 			}
 		}, cacheWeight);
+
 		this.type = type;
 	}
 

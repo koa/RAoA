@@ -575,7 +575,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			}
 		}, 1);
 
-		final Map<String, FieldReader<AlbumEntryIndex>> indexFieldReaders = MapperUtil.delegateFieldReaders(MapperUtil.makeAnnotaedFieldReaders(AlbumEntryDto.class),
+		final Map<String, FieldReader<AlbumEntryIndex>> indexFieldReaders = MapperUtil.delegateFieldReaders(MapperUtil.makeAnnotatedFieldReaders(AlbumEntryDto.class),
 																																																				albumEntryLookup);
 
 		indexFieldReaders.put(Client.AlbumEntry.META_KEYWORDS, new StringFieldReader<AlbumEntryIndex>() {
@@ -678,7 +678,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				return collectVisibleAlbums();
 			}
 		});
-		final Map<String, FieldReader<AlbumMeta>> fieldReaders = MapperUtil.makeAnnotaedFieldReaders(AlbumMeta.class);
+		final Map<String, FieldReader<AlbumMeta>> fieldReaders = MapperUtil.makeAnnotatedFieldReaders(AlbumMeta.class);
 		fieldReaders.put(Client.Album.VISIBLE_SERVER_COUNT, new NumericFieldReader<AlbumMeta>(Cursor.FIELD_TYPE_INTEGER) {
 
 			@Override
@@ -934,7 +934,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		initServiceDiscovery();
 
 		dataDir = new File(getFilesDir(), "data");
-		store = new LocalStore(dataDir);
+		store = new LocalStore(dataDir, new File(getCacheDir(), "data-cache"));
 
 		// setup and clean temp-dir
 		tempDir = new File(getCacheDir(), "temp");

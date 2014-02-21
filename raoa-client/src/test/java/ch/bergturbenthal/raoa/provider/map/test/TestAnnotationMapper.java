@@ -36,7 +36,7 @@ public class TestAnnotationMapper {
 
 	@Test
 	public void testAnnotationMapperReader() {
-		final Map<String, FieldReader<TestBean>> testBeanReaders = MapperUtil.makeAnnotaedFieldReaders(TestBean.class);
+		final Map<String, FieldReader<TestBean>> testBeanReaders = MapperUtil.makeAnnotatedFieldReaders(TestBean.class);
 		final TestBean testBean = new TestBean();
 		testBean.setStringValue("string dummy");
 		testBean.setIntValue(42);
