@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
@@ -77,6 +78,7 @@ import ch.bergturbenthal.raoa.data.model.mutation.StorageMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.TitleImageMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.TitleMutation;
 import ch.bergturbenthal.raoa.data.model.state.Issue;
+import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.data.model.state.Progress;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
 import ch.bergturbenthal.raoa.provider.Client;
@@ -1185,11 +1187,11 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		final Collection<Issue> progressValues = new ArrayList<Issue>(serverConnection.getServerState().getIssues());
 
 		final Map<String, String> mappedFields = new HashMap<String, String>();
-		mappedFields.put(Client.IssueEntry.CAN_ACK, "acknowledgable");
-		mappedFields.put(Client.IssueEntry.ALBUM_NAME, "albumName");
-		mappedFields.put(Client.IssueEntry.ALBUM_ENTRY_NAME, "imageName");
+		// mappedFields.put(Client.IssueEntry.CAN_ACK, "acknowledgable");
+		mappedFields.put(Client.IssueEntry.ALBUM_NAME, "detailName");
+		mappedFields.put(Client.IssueEntry.ALBUM_DETAIL_NAME, "detailName");
 		mappedFields.put(Client.IssueEntry.ISSUE_TIME, "issueTime");
-		mappedFields.put(Client.IssueEntry.STACK_TRACE, "stackTrace");
+		mappedFields.put(Client.IssueEntry.DETAILS, "details");
 		mappedFields.put(Client.IssueEntry.ISSUE_TYPE, "type");
 
 		final Map<String, FieldReader<Issue>> fieldReaders = MapperUtil.makeNamedFieldReaders(Issue.class, mappedFields);
@@ -1197,6 +1199,21 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public Number getNumber(final Issue value) {
 				return Long.valueOf(makeLongId(value.getIssueId()));
+			}
+		});
+		fieldReaders.put(Client.IssueEntry.AVAILABLE_ACTIONS, new StringFieldReader<Issue>() {
+
+			@Override
+			public String getString(final Issue value) {
+				final Set<IssueResolveAction> availableActions = value.getAvailableActions();
+				if (availableActions == null) {
+					return Client.IssueEntry.encodeActions(Collections.<String> emptyList());
+				}
+				final ArrayList<String> actionlist = new ArrayList<String>(availableActions.size());
+				for (final IssueResolveAction issueResolveAction : availableActions) {
+					actionlist.add(issueResolveAction.name());
+				}
+				return Client.IssueEntry.encodeActions(actionlist);
 			}
 		});
 		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders, criterium, order));

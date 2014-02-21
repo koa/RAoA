@@ -176,7 +176,7 @@ public class StateManagerImpl implements StateManager {
 		issue.setAvailableActions(Collections.singleton(IssueResolveAction.ACKNOWLEDGE));
 		issue.setIssueId(id);
 		issue.setAlbumName(album);
-		issue.setImageName(image);
+		issue.setDetailName(image);
 		issue.setIssueTime(new Date());
 		issue.setType(type);
 		final StringBuffer messageBuffer = new StringBuffer();
@@ -186,7 +186,7 @@ public class StateManagerImpl implements StateManager {
 		if (exception != null) {
 			messageBuffer.append(takeStacktrace(exception));
 		}
-		issue.setStackTrace(messageBuffer.toString());
+		issue.setDetails(messageBuffer.toString());
 		acknowledgableIssues.put(id, issue);
 	}
 
@@ -334,7 +334,7 @@ public class StateManagerImpl implements StateManager {
 			issue.setType(origin.getIssueType());
 			issue.setAlbumName(relativePath);
 			issue.setIssueTime(new Date());
-			issue.setStackTrace(stackTrace);
+			issue.setDetails(stackTrace);
 			issue.setAvailableActions(Collections.<IssueResolveAction> emptySet());
 			issue.setIssueId(UUID.randomUUID().toString());
 			issues.add(issue);
@@ -352,9 +352,9 @@ public class StateManagerImpl implements StateManager {
 			final Issue issue = new Issue();
 			issue.setType(origin.getIssueType());
 			issue.setAlbumName(name);
-			issue.setImageName(image);
+			issue.setDetailName(image);
 			issue.setIssueTime(new Date());
-			issue.setStackTrace(stackTrace);
+			issue.setDetails(stackTrace);
 			issue.setAvailableActions(Collections.<IssueResolveAction> emptySet());
 			issue.setIssueId(UUID.randomUUID().toString());
 			issues.add(issue);
@@ -375,10 +375,10 @@ public class StateManagerImpl implements StateManager {
 				final Map<IssueResolveAction, Runnable> resolveActions = conflictEntry.getResolveActions();
 				issue.setAvailableActions(new HashSet<>(resolveActions.keySet()));
 				issue.setAlbumName(albumName);
-				issue.setImageName(conflictEntry.getBranch());
+				issue.setDetailName(conflictEntry.getBranch());
 				issue.setIssueId(conflictEntryKey);
 				issue.setType(IssueType.SYNC_CONFLICT);
-				issue.setStackTrace(describeConflicts(conflictEntry));
+				issue.setDetails(describeConflicts(conflictEntry));
 				issue.setIssueTime(meta.getConflictDate());
 
 				newConflictResolver.put(conflictEntryKey, resolveActions);

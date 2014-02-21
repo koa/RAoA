@@ -78,13 +78,13 @@ public class Client {
 	}
 
 	public static class IssueEntry {
-		public static final String ALBUM_ENTRY_NAME = "fileName";
+		public static final String ALBUM_DETAIL_NAME = "detailName";
 		public static final String ALBUM_NAME = "albumName";
 		public static final String AVAILABLE_ACTIONS = "availableActions";
+		public static final String DETAILS = "details";
 		public static final String ID = "_id";
 		public static final String ISSUE_TIME = "issueTime";
 		public static final String ISSUE_TYPE = "issueType";
-		public static final String STACK_TRACE = "stackTrace";
 
 		public static Collection<String> decodeActions(final String keywordValue) {
 			return decodeArray(keywordValue);
