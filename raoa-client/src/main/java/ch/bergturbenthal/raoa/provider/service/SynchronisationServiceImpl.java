@@ -1188,7 +1188,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 		final Map<String, String> mappedFields = new HashMap<String, String>();
 		// mappedFields.put(Client.IssueEntry.CAN_ACK, "acknowledgable");
-		mappedFields.put(Client.IssueEntry.ALBUM_NAME, "detailName");
+		mappedFields.put(Client.IssueEntry.ALBUM_NAME, "albumName");
 		mappedFields.put(Client.IssueEntry.ALBUM_DETAIL_NAME, "detailName");
 		mappedFields.put(Client.IssueEntry.ISSUE_TIME, "issueTime");
 		mappedFields.put(Client.IssueEntry.DETAILS, "details");
