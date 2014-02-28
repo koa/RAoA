@@ -680,6 +680,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			}
 		});
 		final Map<String, FieldReader<AlbumMeta>> fieldReaders = MapperUtil.makeAnnotatedFieldReaders(AlbumMeta.class);
+		fieldReaders.put(Client.Album.AUTOADD_DATE, new StringFieldReader<AlbumMeta>() {
+
+			@Override
+			public String getString(final AlbumMeta value) {
+				return Client.Album.encodeAutoaddDates(value.getAutoAddDate());
+			}
+		});
 		fieldReaders.put(Client.Album.VISIBLE_SERVER_COUNT, new NumericFieldReader<AlbumMeta>(Cursor.FIELD_TYPE_INTEGER) {
 
 			@Override

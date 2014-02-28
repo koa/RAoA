@@ -38,8 +38,16 @@ public class Client {
 		public static final String TITLE = "title";
 		public static final String VISIBLE_SERVER_COUNT = "visibleServerCount";
 
+		public static Collection<Date> decodeAutoaddDates(final String autoAddDates) {
+			return decodeDateArray(autoAddDates);
+		}
+
 		public static Collection<String> decodeStorages(final String storagesValue) {
 			return decodeArray(storagesValue);
+		}
+
+		public static String encodeAutoaddDates(final Collection<Date> autoaddDates) {
+			return encodeDateArray(autoaddDates);
 		}
 
 		public static String encodeStorages(final Collection<String> storages) {
@@ -184,12 +192,29 @@ public class Client {
 		}
 	}
 
+	private static Collection<Date> decodeDateArray(final String dates) {
+		final Collection<String> values = decodeArray(dates);
+		final ArrayList<Date> ret = new ArrayList<Date>();
+		for (final String string : values) {
+			ret.add(new Date(Long.parseLong(string)));
+		}
+		return ret;
+	}
+
 	private static String encodeArray(final Collection<String> keywords) {
 		try {
 			return mapper.writeValueAsString(keywords);
 		} catch (final IOException e) {
 			throw new RuntimeException("Cannot encode value " + keywords, e);
 		}
+	}
+
+	private static String encodeDateArray(final Collection<Date> dates) {
+		final ArrayList<String> stringList = new ArrayList<String>();
+		for (final Date date : dates) {
+			stringList.add(Long.toString(date.getTime()));
+		}
+		return encodeArray(stringList);
 	}
 
 	public static Uri makeAlbumEntriesUri(final String archiveName, final String albumId) {

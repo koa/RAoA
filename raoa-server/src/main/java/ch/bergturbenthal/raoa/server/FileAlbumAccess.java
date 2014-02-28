@@ -201,9 +201,10 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private SortedMap<Date, Album> collectImportAlbums() {
 		final SortedMap<Date, Album> importAlbums = new TreeMap<Date, Album>();
 		for (final Album album : loadAlbums(true).values()) {
-			final Date beginDate = album.getAutoAddBeginDate();
-			if (beginDate != null) {
-				importAlbums.put(beginDate, album);
+			for (final Date beginDate : album.getAutoAddBeginDate()) {
+				if (beginDate != null) {
+					importAlbums.put(beginDate, album);
+				}
 			}
 		}
 		return importAlbums;

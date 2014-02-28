@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.provider.model.dto;
 
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -7,7 +8,7 @@ import java.util.Map;
 public class AlbumDto {
 	private String albumTitle;
 	private String albumTitleEntry;
-	private Date autoAddDate;
+	private Collection<Date> autoAddDate;
 	private final Map<String, AlbumEntryDto> entries = new HashMap<String, AlbumEntryDto>();
 	private Date lastModified;
 
@@ -19,7 +20,7 @@ public class AlbumDto {
 		return albumTitleEntry;
 	}
 
-	public Date getAutoAddDate() {
+	public Collection<Date> getAutoAddDate() {
 		return autoAddDate;
 	}
 
@@ -39,7 +40,7 @@ public class AlbumDto {
 		this.albumTitleEntry = albumTitleEntry;
 	}
 
-	public void setAutoAddDate(final Date autoAddDate) {
+	public void setAutoAddDate(final Collection<Date> autoAddDate) {
 		this.autoAddDate = autoAddDate;
 	}
 

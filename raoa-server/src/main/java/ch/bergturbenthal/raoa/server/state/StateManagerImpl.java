@@ -437,6 +437,8 @@ public class StateManagerImpl implements StateManager {
 			if (actionRunnable == null) {
 				break;
 			}
+			// remove trouble -> it will coming back if there is not solved with this change
+			conflictTroubles.remove(issueId);
 			executor.submit(actionRunnable);
 			break;
 		}

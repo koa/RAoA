@@ -3,6 +3,8 @@
  */
 package ch.bergturbenthal.raoa.provider.model.dto;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,7 +27,9 @@ public class AlbumMeta implements Parcelable {
 			final AlbumMeta ret = new AlbumMeta();
 			ret.setLastModified(ParcelUtil.readDate(source));
 			ret.setName(source.readString());
-			ret.setAutoAddDate(ParcelUtil.readDate(source));
+			final ArrayList<Date> dateList = new ArrayList<Date>();
+			source.readList(dateList, Date.class.getClassLoader());
+			ret.setAutoAddDate(dateList);
 			ret.setThumbnailId(source.readString());
 			ret.setAlbumDate(ParcelUtil.readDate(source));
 			ret.setArchiveName(source.readString());
@@ -51,7 +55,7 @@ public class AlbumMeta implements Parcelable {
 	private String albumId;
 	private String albumTitle;
 	private String archiveName;
-	private Date autoAddDate;
+	private Collection<Date> autoAddDate;
 	private int entryCount;
 	private final Map<String, Integer> keywordCounts = new HashMap<String, Integer>();
 	private Date lastModified;
@@ -69,66 +73,91 @@ public class AlbumMeta implements Parcelable {
 
 	@Override
 	public boolean equals(final Object obj) {
-		if (this == obj)
+		if (this == obj) {
 			return true;
-		if (obj == null)
+		}
+		if (obj == null) {
 			return false;
-		if (getClass() != obj.getClass())
+		}
+		if (getClass() != obj.getClass()) {
 			return false;
+		}
 		final AlbumMeta other = (AlbumMeta) obj;
 		if (albumDate == null) {
-			if (other.albumDate != null)
+			if (other.albumDate != null) {
 				return false;
-		} else if (!albumDate.equals(other.albumDate))
+			}
+		} else if (!albumDate.equals(other.albumDate)) {
 			return false;
+		}
 		if (albumId == null) {
-			if (other.albumId != null)
+			if (other.albumId != null) {
 				return false;
-		} else if (!albumId.equals(other.albumId))
+			}
+		} else if (!albumId.equals(other.albumId)) {
 			return false;
+		}
 		if (albumTitle == null) {
-			if (other.albumTitle != null)
+			if (other.albumTitle != null) {
 				return false;
-		} else if (!albumTitle.equals(other.albumTitle))
+			}
+		} else if (!albumTitle.equals(other.albumTitle)) {
 			return false;
+		}
 		if (archiveName == null) {
-			if (other.archiveName != null)
+			if (other.archiveName != null) {
 				return false;
-		} else if (!archiveName.equals(other.archiveName))
+			}
+		} else if (!archiveName.equals(other.archiveName)) {
 			return false;
+		}
 		if (autoAddDate == null) {
-			if (other.autoAddDate != null)
+			if (other.autoAddDate != null) {
 				return false;
-		} else if (!autoAddDate.equals(other.autoAddDate))
+			}
+		} else if (!autoAddDate.equals(other.autoAddDate)) {
 			return false;
-		if (entryCount != other.entryCount)
+		}
+		if (entryCount != other.entryCount) {
 			return false;
+		}
 		if (keywordCounts == null) {
-			if (other.keywordCounts != null)
+			if (other.keywordCounts != null) {
 				return false;
-		} else if (!keywordCounts.equals(other.keywordCounts))
+			}
+		} else if (!keywordCounts.equals(other.keywordCounts)) {
 			return false;
+		}
 		if (lastModified == null) {
-			if (other.lastModified != null)
+			if (other.lastModified != null) {
 				return false;
-		} else if (!lastModified.equals(other.lastModified))
+			}
+		} else if (!lastModified.equals(other.lastModified)) {
 			return false;
+		}
 		if (name == null) {
-			if (other.name != null)
+			if (other.name != null) {
 				return false;
-		} else if (!name.equals(other.name))
+			}
+		} else if (!name.equals(other.name)) {
 			return false;
-		if (originalsSize != other.originalsSize)
+		}
+		if (originalsSize != other.originalsSize) {
 			return false;
-		if (repositorySize != other.repositorySize)
+		}
+		if (repositorySize != other.repositorySize) {
 			return false;
+		}
 		if (thumbnailId == null) {
-			if (other.thumbnailId != null)
+			if (other.thumbnailId != null) {
 				return false;
-		} else if (!thumbnailId.equals(other.thumbnailId))
+			}
+		} else if (!thumbnailId.equals(other.thumbnailId)) {
 			return false;
-		if (thumbnailSize != other.thumbnailSize)
+		}
+		if (thumbnailSize != other.thumbnailSize) {
 			return false;
+		}
 		return true;
 	}
 
@@ -171,8 +200,7 @@ public class AlbumMeta implements Parcelable {
 	 * 
 	 * @return the autoAddDate
 	 */
-	@CursorField(Client.Album.AUTOADD_DATE)
-	public Date getAutoAddDate() {
+	public Collection<Date> getAutoAddDate() {
 		return autoAddDate;
 	}
 
@@ -313,7 +341,7 @@ public class AlbumMeta implements Parcelable {
 	 * @param autoAddDate
 	 *          the autoAddDate to set
 	 */
-	public void setAutoAddDate(final Date autoAddDate) {
+	public void setAutoAddDate(final Collection<Date> autoAddDate) {
 		this.autoAddDate = autoAddDate;
 	}
 
@@ -421,7 +449,7 @@ public class AlbumMeta implements Parcelable {
 	public void writeToParcel(final Parcel dest, final int flags) {
 		ParcelUtil.writeDate(lastModified, dest);
 		dest.writeString(name);
-		ParcelUtil.writeDate(autoAddDate, dest);
+		dest.writeList(new ArrayList<Date>(autoAddDate));
 		dest.writeString(thumbnailId);
 		ParcelUtil.writeDate(albumDate, dest);
 		dest.writeString(archiveName);

@@ -381,19 +381,23 @@ public class Album implements ApplicationContextAware {
 		return loadCache().getMetadata();
 	}
 
-	public synchronized Date getAutoAddBeginDate() {
+	public synchronized Collection<Date> getAutoAddBeginDate() {
 		final File file = autoaddFile();
 		if (!file.exists()) {
-			return null;
+			return Collections.emptyList();
 		}
 		try {
 			final BufferedReader reader = bufferedReader(file);
 			try {
-				final String line = reader.readLine();
-				if (line == null) {
-					return null;
+				final Collection<Date> foundDates = new ArrayList<>();
+				while (true) {
+					final String line = reader.readLine();
+					if (line == null) {
+						break;
+					}
+					foundDates.add(ISODateTimeFormat.dateTimeParser().parseDateTime(line).toDate());
 				}
-				return ISODateTimeFormat.dateTimeParser().parseDateTime(line).toDate();
+				return foundDates;
 			} finally {
 				reader.close();
 			}
