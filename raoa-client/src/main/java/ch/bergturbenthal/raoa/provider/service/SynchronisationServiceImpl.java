@@ -22,7 +22,6 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
@@ -1188,6 +1187,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 		final Map<String, String> mappedFields = new HashMap<String, String>();
 		// mappedFields.put(Client.IssueEntry.CAN_ACK, "acknowledgable");
+		mappedFields.put(Client.IssueEntry.ISSUE_ACTION_ID, "issueId");
 		mappedFields.put(Client.IssueEntry.ALBUM_NAME, "albumName");
 		mappedFields.put(Client.IssueEntry.ALBUM_DETAIL_NAME, "detailName");
 		mappedFields.put(Client.IssueEntry.ISSUE_TIME, "issueTime");
@@ -1205,15 +1205,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 			@Override
 			public String getString(final Issue value) {
-				final Set<IssueResolveAction> availableActions = value.getAvailableActions();
-				if (availableActions == null) {
-					return Client.IssueEntry.encodeActions(Collections.<String> emptyList());
-				}
-				final ArrayList<String> actionlist = new ArrayList<String>(availableActions.size());
-				for (final IssueResolveAction issueResolveAction : availableActions) {
-					actionlist.add(issueResolveAction.name());
-				}
-				return Client.IssueEntry.encodeActions(actionlist);
+				return Client.IssueEntry.encodeActions(value.getAvailableActions());
 			}
 		});
 		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders, criterium, order));
@@ -1487,6 +1479,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				PowerStateReceiver.notifyPowerState(getApplicationContext());
 			}
 		}, 5, TimeUnit.SECONDS);
+	}
+
+	@Override
+	public void resolveIssue(final String serverName, final String issueId, final IssueResolveAction action) {
+		final ServerConnection serverConnection = getConnectionForServer(serverName);
+		if (serverConnection == null) {
+			// TODO show a message to user
+			return;
+		}
+		// TODO show message if execution fails
+		serverConnection.resolveIssue(issueId, action);
 	}
 
 	private synchronized void startFastPolling() {

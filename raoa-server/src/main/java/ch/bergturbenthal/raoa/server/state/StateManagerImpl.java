@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import lombok.Data;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.errors.LockFailedException;
@@ -264,22 +264,27 @@ public class StateManagerImpl implements StateManager {
 		if (added.length() > 0) {
 			description.append("Added:\n\n");
 			description.append(added);
+			description.append("\n");
 		}
 		if (deleted.length() > 0) {
 			description.append("Deleted:\n\n");
 			description.append(deleted);
+			description.append("\n");
 		}
 		if (modified.length() > 0) {
 			description.append("Modified:\n\n");
 			description.append(modified);
+			description.append("\n");
 		}
 		if (copied.length() > 0) {
 			description.append("Copied:\n\n");
 			description.append(copied);
+			description.append("\n");
 		}
 		if (renamed.length() > 0) {
 			description.append("Renamed:\n\n");
 			description.append(renamed);
+			description.append("\n");
 		}
 		return description.toString();
 
@@ -373,15 +378,20 @@ public class StateManagerImpl implements StateManager {
 				final String conflictEntryKey = albumPrefix + conflictEntry.getBranch();
 				final Issue issue = new Issue();
 				final Map<IssueResolveAction, Runnable> resolveActions = conflictEntry.getResolveActions();
-				issue.setAvailableActions(new HashSet<>(resolveActions.keySet()));
+				if (resolveActions == null) {
+					issue.setAvailableActions(Collections.<IssueResolveAction> emptySet());
+				} else {
+					issue.setAvailableActions(new HashSet<>(resolveActions.keySet()));
+				}
 				issue.setAlbumName(albumName);
 				issue.setDetailName(conflictEntry.getBranch());
 				issue.setIssueId(conflictEntryKey);
 				issue.setType(IssueType.SYNC_CONFLICT);
 				issue.setDetails(describeConflicts(conflictEntry));
 				issue.setIssueTime(meta.getConflictDate());
-
-				newConflictResolver.put(conflictEntryKey, resolveActions);
+				if (resolveActions != null) {
+					newConflictResolver.put(conflictEntryKey, resolveActions);
+				}
 				newConflictTroubles.put(conflictEntryKey, issue);
 			}
 		}
@@ -418,6 +428,7 @@ public class StateManagerImpl implements StateManager {
 			acknowledgableIssues.remove(issueId);
 			break;
 		case IGNORE_OTHER:
+		case IGNORE_THIS:
 			final Map<IssueResolveAction, Runnable> availableActions = conflictTroubleResolver.get(issueId);
 			if (availableActions == null) {
 				break;

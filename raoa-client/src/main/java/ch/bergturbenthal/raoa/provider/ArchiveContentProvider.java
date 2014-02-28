@@ -24,6 +24,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
+import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.provider.criterium.Criterium;
 import ch.bergturbenthal.raoa.provider.map.NotifyableMatrixCursor;
 import ch.bergturbenthal.raoa.provider.service.SynchronisationService;
@@ -88,6 +89,12 @@ public class ArchiveContentProvider extends ContentProvider {
 			final String serverName = extras.getString(Client.PARAMETER_SERVERNAME);
 			getService().importFile(serverName, filename, data);
 		}
+		if (Client.METHOD_RESOLVE_ISSUE.equals(method)) {
+			final IssueResolveAction action = IssueResolveAction.valueOf(arg);
+			final String serverName = extras.getString(Client.PARAMETER_SERVERNAME);
+			final String issueId = extras.getString(Client.PARAMETER_ISSUEID);
+			getService().resolveIssue(serverName, issueId, action);
+		}
 		return null;
 	}
 
@@ -99,8 +106,9 @@ public class ArchiveContentProvider extends ContentProvider {
 	protected Cursor getEmptyCursor(final Class<?> klass) {
 		synchronized (emptyCursors) {
 			final NotifyableMatrixCursor existingEntry = emptyCursors.get(klass);
-			if (existingEntry != null)
+			if (existingEntry != null) {
 				return existingEntry;
+			}
 			final ArrayList<String> columns = new ArrayList<String>();
 			for (final Field field : klass.getDeclaredFields()) {
 				final int modifiers = field.getModifiers();
@@ -123,7 +131,7 @@ public class ArchiveContentProvider extends ContentProvider {
 	}
 
 	private SynchronisationService getService() {
-		if (service == null)
+		if (service == null) {
 			return new SynchronisationService() {
 
 				@Override
@@ -199,6 +207,11 @@ public class ArchiveContentProvider extends ContentProvider {
 				}
 
 				@Override
+				public void resolveIssue(final String serverName, final String issueId, final IssueResolveAction action) {
+					// TODO Auto-generated method stub
+				}
+
+				@Override
 				public int updateAlbum(final String archiveName, final String albumName, final ContentValues values) {
 					// TODO Auto-generated method stub
 					return 0;
@@ -210,6 +223,7 @@ public class ArchiveContentProvider extends ContentProvider {
 					return 0;
 				}
 			};
+		}
 		return service;
 	}
 
@@ -268,8 +282,9 @@ public class ArchiveContentProvider extends ContentProvider {
 	public ParcelFileDescriptor openFile(final Uri uri, final String mode) throws FileNotFoundException {
 		// Log.i(TAG, "Open called for " + uri);
 		final UriType match = matcher.match(uri);
-		if (match == null)
+		if (match == null) {
 			return super.openFile(uri, mode);
+		}
 		switch (match) {
 		case ALBUM_ENTRY_THUMBNAIL:
 		case ALBUM_ENTRY_THUMBNAIL_ALIAS:
@@ -280,8 +295,9 @@ public class ArchiveContentProvider extends ContentProvider {
 					return getService().getLoadedThumbnail(archiveName, albumId, thumbnailId);
 				}
 			});
-			if (thumbnail == null)
+			if (thumbnail == null) {
 				throw new FileNotFoundException("Thumbnail-Image " + uri + " not found");
+			}
 			return ParcelFileDescriptor.open(thumbnail, ParcelFileDescriptor.MODE_READ_ONLY);
 		default:
 			break;
@@ -291,8 +307,9 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	@Override
 	public Cursor query(final Uri uri, final String[] projection, final String selection, final String[] selectionArgs, final String sortOrder) {
-		if (Looper.getMainLooper().getThread() == Thread.currentThread())
+		if (Looper.getMainLooper().getThread() == Thread.currentThread()) {
 			throw new RuntimeException("Don't call a query on UI-Thread");
+		}
 		final long startTime = System.currentTimeMillis();
 		try {
 			// Log.i(TAG, "Query called: " + uri);

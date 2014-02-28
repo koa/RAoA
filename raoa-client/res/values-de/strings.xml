@@ -27,5 +27,7 @@
     <string name="searching_server">Suche Server &#8230;</string>
     <string name="photo_detailview_loading_data">Lade Daten &#8230;</string>
     <string name="wait_for_image">Lade Photo</string>
-    
+    <string name="resolve_action_ignore_other">Ignoriere andere Version</string>
+    <string name="resolve_action_ignore_this">Ignoriere diese Version</string>
+    <string name="resolve_action_acknowledge">Bestätigen</string>
 </resources>

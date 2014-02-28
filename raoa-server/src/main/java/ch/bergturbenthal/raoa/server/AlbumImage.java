@@ -6,7 +6,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
@@ -14,7 +16,6 @@ import java.util.concurrent.Semaphore;
 import lombok.Cleanup;
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.lang.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,8 +53,9 @@ public class AlbumImage {
 			final SoftReference<AlbumImage> softReference = loadedImages.get(file);
 			if (softReference != null) {
 				final AlbumImage cachedImage = softReference.get();
-				if (cachedImage != null && cachedImage.lastModified.equals(lastModified))
+				if (cachedImage != null && cachedImage.lastModified.equals(lastModified)) {
 					return cachedImage;
+				}
 			}
 			final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified, cacheManager);
 			loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
@@ -63,8 +65,9 @@ public class AlbumImage {
 
 	private static synchronized Object lockFor(final File file) {
 		final Object existingLock = imageLocks.get(file);
-		if (existingLock != null)
+		if (existingLock != null) {
 			return existingLock;
+		}
 		final Object newLock = new Object();
 		imageLocks.put(file, newLock);
 		return newLock;
@@ -112,8 +115,9 @@ public class AlbumImage {
 
 			AlbumEntryData loadedMetaData = albumManager.getCachedData();
 			final Date lastModifiedMetadata = getMetadataLastModifiedTime();
-			if (loadedMetaData != null && ObjectUtils.equals(loadedMetaData.getLastModifiedMetadata(), lastModifiedMetadata))
+			if (loadedMetaData != null && Objects.equals(loadedMetaData.getLastModifiedMetadata(), lastModifiedMetadata)) {
 				return loadedMetaData;
+			}
 
 			loadedMetaData = new AlbumEntryData();
 			loadedMetaData.setLastModifiedMetadata(lastModifiedMetadata);
@@ -141,6 +145,9 @@ public class AlbumImage {
 						final Integer rating = xmp.readRating();
 						if (rating != null) {
 							loadedMetaData.setRating(rating);
+						}
+						if (loadedMetaData.getKeywords() == null) {
+							loadedMetaData.setKeywords(new LinkedHashSet<String>());
 						}
 						loadedMetaData.getKeywords().addAll(xmp.readKeywords());
 						final String description = xmp.readDescription();
@@ -201,8 +208,9 @@ public class AlbumImage {
 	 */
 	private Date getMetadataLastModifiedTime() {
 		final File xmpSideFile = getXmpSideFile();
-		if (!xmpSideFile.exists())
+		if (!xmpSideFile.exists()) {
 			return null;
+		}
 		return new Date(xmpSideFile.lastModified());
 	}
 
@@ -226,8 +234,9 @@ public class AlbumImage {
 				albumManager.clearThumbnailException(getName());
 				return cachedFile;
 			}
-			if (onlyFromCache)
+			if (onlyFromCache) {
 				return null;
+			}
 			synchronized (this) {
 				if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified) {
 					albumManager.clearThumbnailException(getName());
@@ -263,11 +272,13 @@ public class AlbumImage {
 			baseName = name;
 		}
 		final File shortFilename = new File(file.getParentFile(), baseName + ".xmp");
-		if (shortFilename.exists())
+		if (shortFilename.exists()) {
 			return shortFilename;
+		}
 		final File longFilename = new File(file.getParentFile(), name + ".xmp");
-		if (longFilename.exists())
+		if (longFilename.exists()) {
 			return longFilename;
+		}
 		return longFilename;
 	}
 
@@ -281,15 +292,17 @@ public class AlbumImage {
 	}
 
 	public Date lastModified() {
-		if (getThumbnail(true) == null)
+		if (getThumbnail(true) == null) {
 			return new Date(lastModified.getTime() - 1);
+		}
 		return lastModified;
 	}
 
 	private File makeCachedFile() {
 		final String name = file.getName();
-		if (isVideo())
+		if (isVideo()) {
 			return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
+		}
 		return new File(cacheDir, name);
 	}
 

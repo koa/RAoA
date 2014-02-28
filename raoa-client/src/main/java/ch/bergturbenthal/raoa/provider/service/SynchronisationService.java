@@ -5,6 +5,7 @@ import java.util.Date;
 
 import android.content.ContentValues;
 import android.database.Cursor;
+import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.provider.SortOrder;
 import ch.bergturbenthal.raoa.provider.criterium.Criterium;
 
@@ -43,4 +44,6 @@ public interface SynchronisationService {
 	Cursor readStorages(final String[] projection, final Criterium criterium, final SortOrder order);
 
 	void importFile(final String serverName, final String filename, final byte[] data);
+
+	void resolveIssue(final String serverName, final String issueId, final IssueResolveAction action);
 }

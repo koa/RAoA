@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.provider;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -14,6 +15,7 @@ import android.content.ContentResolver;
 import android.net.Uri;
 import android.net.Uri.Builder;
 import android.os.Bundle;
+import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 
 public class Client {
 	public static class Album {
@@ -83,15 +85,31 @@ public class Client {
 		public static final String AVAILABLE_ACTIONS = "availableActions";
 		public static final String DETAILS = "details";
 		public static final String ID = "_id";
+		public static final String ISSUE_ACTION_ID = "actionId";
 		public static final String ISSUE_TIME = "issueTime";
 		public static final String ISSUE_TYPE = "issueType";
 
-		public static Collection<String> decodeActions(final String keywordValue) {
-			return decodeArray(keywordValue);
+		public static Collection<IssueResolveAction> decodeActions(final String keywordValue) {
+			if (keywordValue == null || keywordValue.isEmpty()) {
+				return Collections.emptyList();
+			}
+			final Collection<String> issueNames = decodeArray(keywordValue);
+			final List<IssueResolveAction> issues = new ArrayList<IssueResolveAction>(issueNames.size());
+			for (final String name : issueNames) {
+				issues.add(IssueResolveAction.valueOf(name));
+			}
+			return issues;
 		}
 
-		public static String encodeActions(final Collection<String> keywords) {
-			return encodeArray(keywords);
+		public static String encodeActions(final Collection<IssueResolveAction> keywords) {
+			if (keywords == null) {
+				return encodeArray(Collections.<String> emptyList());
+			}
+			final List<String> nameList = new ArrayList<String>();
+			for (final IssueResolveAction issueResolveAction : keywords) {
+				nameList.add(issueResolveAction.name());
+			}
+			return encodeArray(nameList);
 		}
 
 	}
@@ -131,11 +149,17 @@ public class Client {
 	public static final String AUTHORITY = "ch.bergturbenthal.raoa.provider";
 	public static final Uri KEYWORDS_URI;
 	private static final ObjectMapper mapper = new ObjectMapper();
+
+	// Operations
 	public static final String METHOD_CREATE_ALBUM_ON_SERVER = "createAlbumOnServer";
 	public static final String METHOD_IMPORT_FILE = "importFile";
+	public static final String METHOD_RESOLVE_ISSUE = "resolveIssue";
+
+	// Operation parameters
 	public static final String PARAMETER_AUTOADD_DATE = "autoaddDate";
 	public static final String PARAMETER_FILEDATA = "fileData";
 	public static final String PARAMETER_FULL_ALBUM_NAME = "fullAlbumName";
+	public static final String PARAMETER_ISSUEID = "issueId";
 	public static final String PARAMETER_SERVERNAME = "servername";
 	public static final Uri SERVER_URI;
 	public static final Uri STORAGE_URI;
@@ -256,5 +280,15 @@ public class Client {
 		extras.putString(PARAMETER_SERVERNAME, servername);
 		extras.putByteArray(PARAMETER_FILEDATA, data);
 		provider.call(SERVER_URI, METHOD_IMPORT_FILE, filename, extras);
+	}
+
+	public void resolveIssue(final String serverName, final String issueId, final IssueResolveAction action) {
+		assert serverName != null;
+		assert issueId != null;
+		assert action != null;
+		final Bundle extras = new Bundle();
+		extras.putString(PARAMETER_SERVERNAME, serverName);
+		extras.putString(PARAMETER_ISSUEID, issueId);
+		provider.call(SERVER_URI, METHOD_RESOLVE_ISSUE, action.name(), extras);
 	}
 }

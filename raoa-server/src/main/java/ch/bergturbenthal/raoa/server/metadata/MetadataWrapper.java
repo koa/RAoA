@@ -9,7 +9,6 @@ import java.util.GregorianCalendar;
 import java.util.LinkedHashSet;
 import java.util.TimeZone;
 
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +36,17 @@ public class MetadataWrapper {
 	}
 
 	private static Logger logger = LoggerFactory.getLogger(MetadataWrapper.class);
+
+	private static String trimToNull(final String value) {
+		if (value == null) {
+			return null;
+		}
+		final String trimmedValue = value.trim();
+		if (trimmedValue.isEmpty()) {
+			return null;
+		}
+		return trimmedValue;
+	}
 
 	private final Metadata metadata;
 
@@ -69,26 +79,28 @@ public class MetadataWrapper {
 
 	public Date readCameraDate() {
 		final Date date = readDate(ExifIFD0Directory.class, ExifIFD0Directory.TAG_DATETIME);
-		if (date != null)
+		if (date != null) {
 			return date;
+		}
 		return readDate(ExifSubIFDDirectory.class, ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
 	}
 
 	private String readCameraMake() {
-		return StringUtils.trimToNull(readString(ExifIFD0Directory.class, ExifIFD0Directory.TAG_MAKE));
+		return trimToNull(readString(ExifIFD0Directory.class, ExifIFD0Directory.TAG_MAKE));
 	}
 
 	private String readCameraModel() {
-		return StringUtils.trimToNull(readString(ExifIFD0Directory.class, ExifIFD0Directory.TAG_MODEL));
+		return trimToNull(readString(ExifIFD0Directory.class, ExifIFD0Directory.TAG_MODEL));
 	}
 
 	private String readCameraSerial() {
 		for (final TagId tag : new TagId[] { new TagId(NikonType2MakernoteDirectory.class, NikonType2MakernoteDirectory.TAG_NIKON_TYPE2_CAMERA_SERIAL_NUMBER_2),
 																				new TagId(NikonType2MakernoteDirectory.class, NikonType2MakernoteDirectory.TAG_NIKON_TYPE2_CAMERA_SERIAL_NUMBER),
 																				new TagId(CanonMakernoteDirectory.class, CanonMakernoteDirectory.TAG_CANON_SERIAL_NUMBER) }) {
-			final String serial = StringUtils.trimToNull(readString(tag.directory, tag.tagId));
-			if (serial != null)
+			final String serial = trimToNull(readString(tag.directory, tag.tagId));
+			if (serial != null) {
 				return serial;
+			}
 		}
 
 		return null;
@@ -97,32 +109,36 @@ public class MetadataWrapper {
 	private String readCaption() {
 		if (xmp != null) {
 			final String description = xmp.readDescription();
-			if (description != null)
+			if (description != null) {
 				return description;
+			}
 		}
 		return readString(IptcDirectory.class, IptcDirectory.TAG_CAPTION);
 	}
 
 	public Date readCreateDate() {
 		final Date gpsDate = readGpsDate();
-		if (gpsDate != null)
+		if (gpsDate != null) {
 			return gpsDate;
+		}
 		return readCameraDate();
 	}
 
 	private Date readDate(final Class<? extends Directory> directory, final int tag) {
 		if (metadata.containsDirectory(directory)) {
 			final Directory directory2 = metadata.getDirectory(directory);
-			if (directory2.containsTag(tag))
+			if (directory2.containsTag(tag)) {
 				return directory2.getDate(tag);
+			}
 		}
 		return null;
 	}
 
 	private Double readDouble(final Class<? extends Directory> directory, final int tag) {
 		final Directory directory2 = metadata.getDirectory(directory);
-		if (directory2 == null)
+		if (directory2 == null) {
 			return null;
+		}
 		return directory2.getDoubleObject(tag);
 
 	}
@@ -133,8 +149,9 @@ public class MetadataWrapper {
 
 	private Double readFNumber() {
 		final Double doubleObject = readDouble(ExifSubIFDDirectory.class, ExifSubIFDDirectory.TAG_FNUMBER);
-		if (doubleObject == null)
+		if (doubleObject == null) {
 			return null;
+		}
 		return doubleObject;
 		// return Double.valueOf(Math.exp(doubleObject.byteValue() * Math.log(2) *
 		// 0.5));
@@ -148,11 +165,13 @@ public class MetadataWrapper {
 
 	public Date readGpsDate() {
 		try {
-			if (!metadata.containsDirectory(GpsDirectory.class))
+			if (!metadata.containsDirectory(GpsDirectory.class)) {
 				return null;
+			}
 			final Directory directory = metadata.getDirectory(GpsDirectory.class);
-			if (!directory.containsTag(GpsDirectory.TAG_GPS_TIME_STAMP))
+			if (!directory.containsTag(GpsDirectory.TAG_GPS_TIME_STAMP)) {
 				return null;
+			}
 			final int[] time = directory.getIntArray(7);
 			final String date = directory.getString(29);
 			final Object[] values = new MessageFormat("{0,number}:{1,number}:{2,number}").parse(date);
@@ -167,8 +186,9 @@ public class MetadataWrapper {
 
 	private Integer readInteger(final Class<? extends Directory> directory, final int tag) {
 		final Directory directory2 = metadata.getDirectory(directory);
-		if (directory2 == null)
+		if (directory2 == null) {
 			return null;
+		}
 		return directory2.getInteger(tag);
 
 	}
@@ -193,17 +213,19 @@ public class MetadataWrapper {
 	}
 
 	private Integer readRating() {
-		if (xmp != null)
+		if (xmp != null) {
 			return xmp.readRating();
-		else
+		} else {
 			return null;
+		}
 	}
 
 	private String readString(final Class<? extends Directory> directory, final int tag) {
 		if (metadata.containsDirectory(directory)) {
 			final Directory directory2 = metadata.getDirectory(directory);
-			if (directory2.containsTag(tag))
+			if (directory2.containsTag(tag)) {
 				return directory2.getString(tag);
+			}
 		}
 		return null;
 	}

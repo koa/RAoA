@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.SoftReference;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -50,6 +51,7 @@ import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
 import ch.bergturbenthal.raoa.data.model.ImportFileRequest;
 import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
+import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.data.model.state.ServerState;
 
 public class ServerConnection {
@@ -178,7 +180,6 @@ public class ServerConnection {
 				return executePut(baseUrl.toExternalForm() + "/albums/import", request);
 			}
 		});
-
 	}
 
 	/**
@@ -286,6 +287,30 @@ public class ServerConnection {
 			}
 		}).booleanValue();
 
+	}
+
+	/**
+	 * Try to resolve a Issue
+	 * 
+	 * @param issueId
+	 *          Issue to resolve
+	 * @param action
+	 *          action to execute on issue
+	 * @return false: exection failed
+	 */
+	public boolean resolveIssue(final String issueId, final IssueResolveAction action) {
+		try {
+			callOne(new ConnectionCallable<Void>() {
+				@Override
+				public ResponseEntity<Void> call(final URL baseUrl) throws Exception {
+					return executePut(baseUrl.toExternalForm() + "/state/issue/{issueId}/resolve", action.name(), URLEncoder.encode(issueId, "utf-8"));
+				}
+			});
+		} catch (final RuntimeException ex) {
+			Log.e("ServerConnection", "Cannot resolve issue " + issueId, ex);
+			return false;
+		}
+		return true;
 	}
 
 	public void setServerName(final String serverName) {

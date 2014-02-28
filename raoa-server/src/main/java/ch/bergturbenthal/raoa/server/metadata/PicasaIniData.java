@@ -14,7 +14,6 @@ import java.util.regex.Pattern;
 import lombok.Cleanup;
 import lombok.Data;
 
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,8 +24,9 @@ public class PicasaIniData {
 
 	private static final PicasaIniEntryData getCurrentData(final Map<String, PicasaIniEntryData> ret, final String currentGroup) {
 		final PicasaIniEntryData currentValue = ret.get(currentGroup);
-		if (currentValue != null)
+		if (currentValue != null) {
 			return currentValue;
+		}
 		final PicasaIniEntryData newValue = new PicasaIniEntryData();
 		ret.put(currentGroup, newValue);
 		return newValue;
@@ -50,11 +50,11 @@ public class PicasaIniData {
 				final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "utf-8"));
 				String currentGroup = null;
 				while (true) {
-					final String line = StringUtils.trim(reader.readLine());
+					final String line = reader.readLine();
 					if (line == null) {
 						break;
 					}
-					final String nonCommentData = line.split("#", 2)[0].trim();
+					final String nonCommentData = line.trim().split("#", 2)[0].trim();
 					if (nonCommentData.length() == 0) {
 						continue;
 					}

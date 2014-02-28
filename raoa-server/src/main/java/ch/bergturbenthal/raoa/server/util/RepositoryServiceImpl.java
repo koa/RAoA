@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -150,10 +149,11 @@ public class RepositoryServiceImpl implements RepositoryService {
 			try {
 				final ObjectReader objectReader = git.getRepository().newObjectReader();
 				final CanonicalTreeParser branchTree;
+				final RevCommit branchCommit;
 				try {
 					final RevWalk revWalk = new RevWalk(objectReader);
 					try {
-						final RevCommit branchCommit = revWalk.parseCommit(entry.getValue().getObjectId());
+						branchCommit = revWalk.parseCommit(entry.getValue().getObjectId());
 						branchTree = new CanonicalTreeParser(null, objectReader, branchCommit.getTree().getId());
 						revWalk.reset();
 						final RevCommit masterCommit = revWalk.parseCommit(git.getRepository().getRef("master").getObjectId());
@@ -164,32 +164,18 @@ public class RepositoryServiceImpl implements RepositoryService {
 						final RevCommit commonCommit = revWalk.next();
 
 						if (commonCommit == null) {
-							// no common commit
-							final ConflictEntry conflictEntry = new ConflictEntry();
-							conflictEntry.setBranch(entry.getKey());
-							final Runnable ignoreRunnable = new Runnable() {
-								@Override
-								public void run() {
-									try {
-										final MergeCommand mergeCommand = git.merge();
-										mergeCommand.setStrategy(MergeStrategy.OURS);
-										mergeCommand.include(branchCommit);
-										final MergeResult mergeResult = mergeCommand.call();
-										final MergeStatus mergeStatus = mergeResult.getMergeStatus();
-										logger.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
-									} catch (final GitAPIException e) {
-										logger.error("Canot merge on " + git.getRepository().getDirectory(), e);
-									}
-								}
-							};
-							final ConflictMeta meta = new ConflictMeta();
-							meta.setConflictDate(new Date(branchCommit.getCommitTime() * 1000l));
-							meta.setServer("none");
-							conflictEntry.setMeta(meta);
-							conflictEntry.setResolveActions(Collections.singletonMap(IssueResolveAction.IGNORE_OTHER, ignoreRunnable));
-							ret.add(conflictEntry);
+							// // no common commit
+							// final ConflictEntry conflictEntry = new ConflictEntry();
+							// conflictEntry.setBranch(entry.getKey());
+							// final ConflictMeta meta = new ConflictMeta();
+							// meta.setConflictDate(new Date(branchCommit.getCommitTime() * 1000l));
+							// meta.setServer("none");
+							// conflictEntry.setMeta(meta);
+							// conflictEntry.setResolveActions(Collections.singletonMap(IssueResolveAction.IGNORE_OTHER, makeIgnoreOtherRunnable(git,
+							// branchCommit)));
+							// ret.add(conflictEntry);
 							logger.warn("no common commit");
-							continue;
+							// continue;
 						}
 					} finally {
 						revWalk.dispose();
@@ -212,6 +198,10 @@ public class RepositoryServiceImpl implements RepositoryService {
 				conflictEntry.setBranch(entry.getKey());
 				conflictEntry.setDiffs(diffs);
 				conflictEntry.setMeta(conflictMeta);
+				final Map<IssueResolveAction, Runnable> actions = new HashMap<>();
+				actions.put(IssueResolveAction.IGNORE_OTHER, makeIgnoreOtherRunnable(git, branchCommit));
+				actions.put(IssueResolveAction.IGNORE_THIS, makeIgnoreThisRunnable(git, branchCommit));
+				conflictEntry.setResolveActions(actions);
 				ret.add(conflictEntry);
 			} catch (final Throwable e) {
 				logger.error("Cannot parse branch " + entry.getKey(), e);
@@ -250,6 +240,42 @@ public class RepositoryServiceImpl implements RepositoryService {
 			logger.debug("Cannot find repository at " + directory, e);
 			return false;
 		}
+	}
+
+	private Runnable makeIgnoreOtherRunnable(final Git git, final RevCommit branchCommit) {
+		return new Runnable() {
+			@Override
+			public void run() {
+				try {
+					final MergeCommand mergeCommand = git.merge();
+					mergeCommand.setStrategy(MergeStrategy.OURS);
+					mergeCommand.include(branchCommit);
+					final MergeResult mergeResult = mergeCommand.call();
+					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
+					logger.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
+				} catch (final GitAPIException e) {
+					logger.error("Canot merge on " + git.getRepository().getDirectory(), e);
+				}
+			}
+		};
+	}
+
+	private Runnable makeIgnoreThisRunnable(final Git git, final RevCommit branchCommit) {
+		return new Runnable() {
+			@Override
+			public void run() {
+				try {
+					final MergeCommand mergeCommand = git.merge();
+					mergeCommand.setStrategy(MergeStrategy.THEIRS);
+					mergeCommand.include(branchCommit);
+					final MergeResult mergeResult = mergeCommand.call();
+					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
+					logger.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
+				} catch (final GitAPIException e) {
+					logger.error("Canot merge on " + git.getRepository().getDirectory(), e);
+				}
+			}
+		};
 	}
 
 	@Override

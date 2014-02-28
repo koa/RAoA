@@ -19,6 +19,7 @@ import ch.bergturbenthal.raoa.provider.Client;
 
 public class ServerIssueFragment extends ListFragment {
 	private CursorAdapter adapter;
+	private String serverId;
 
 	@Override
 	public void onCreate(final Bundle savedInstanceState) {
@@ -38,7 +39,7 @@ public class ServerIssueFragment extends ListFragment {
 
 		};
 		setListAdapter(adapter);
-		final String serverId = getArguments() == null ? null : getArguments().getString(Client.ServerEntry.SERVER_ID);
+		serverId = getArguments() == null ? null : getArguments().getString(Client.ServerEntry.SERVER_ID);
 		if (serverId != null) {
 			getLoaderManager().initLoader(0, null, new LoaderCallbacks<Cursor>() {
 
@@ -69,11 +70,17 @@ public class ServerIssueFragment extends ListFragment {
 	public void onListItemClick(final ListView l, final View v, final int position, final long id) {
 		final Cursor cursor = (Cursor) adapter.getItem(position);
 		final Intent intent = new Intent(getActivity(), ShowIssueActivity.class);
-		for (final String column : new String[] { Client.IssueEntry.ALBUM_NAME, Client.IssueEntry.ALBUM_DETAIL_NAME, Client.IssueEntry.ISSUE_TYPE, Client.IssueEntry.DETAILS }) {
+		for (final String column : new String[] { Client.IssueEntry.ALBUM_NAME,
+																							Client.IssueEntry.ALBUM_DETAIL_NAME,
+																							Client.IssueEntry.ISSUE_TYPE,
+																							Client.IssueEntry.DETAILS,
+																							Client.IssueEntry.AVAILABLE_ACTIONS,
+																							Client.IssueEntry.ISSUE_ACTION_ID }) {
 			final int index = cursor.getColumnIndexOrThrow(column);
 			final String value = cursor.getString(index);
 			intent.putExtra(column, value);
 		}
+		intent.putExtra(Client.ServerEntry.SERVER_ID, serverId);
 		final int timeColumnIndex = cursor.getColumnIndexOrThrow(Client.IssueEntry.ISSUE_TIME);
 		intent.putExtra(Client.IssueEntry.ISSUE_TIME, cursor.getLong(timeColumnIndex));
 		startActivity(intent);

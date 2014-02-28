@@ -28,7 +28,7 @@
     <dependency>
       <groupId>cglib</groupId>
       <artifactId>cglib</artifactId>
-      <version>3.0</version>
+      <version>3.1</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -122,18 +122,23 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-exec</artifactId>
-      <version>1.0.1</version>
+      <version>1.2</version>
     </dependency>
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-web</artifactId>
-      <version>3.2.4.RELEASE</version>
+      <version>4.0.2.RELEASE</version>
     </dependency>
     <dependency>
       <groupId>org.jcodec</groupId>
       <artifactId>jcodec</artifactId>
       <version>0.1.6-3</version>
-    </dependency>  
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+      <version>3.2.1</version>
+    </dependency>
   </dependencies>
 
   <repositories>

@@ -34,5 +34,7 @@
     <string name="searching_server">Searching server &#8230;</string>
     <string name="photo_detailview_loading_data">Loading data &#8230;</string>
     <string name="wait_for_image">Wait for image</string>
-
+    <string name="resolve_action_ignore_other">Ignore other version</string>
+    <string name="resolve_action_ignore_this">Ignore this version</string>
+    <string name="resolve_action_acknowledge">Acknowledge Problem</string>
 </resources>

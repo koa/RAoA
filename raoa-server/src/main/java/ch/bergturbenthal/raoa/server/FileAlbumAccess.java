@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -62,8 +63,8 @@ import lombok.Cleanup;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.ObjectUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.map.DeserializationConfig;
 import org.codehaus.jackson.map.JsonMappingException;
@@ -177,8 +178,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	private String cleanAlbumName(final boolean bare, final String relativeDirectoryName) {
 		if (bare) {
-			if (!relativeDirectoryName.endsWith(".git"))
+			if (!relativeDirectoryName.endsWith(".git")) {
 				throw new RuntimeException(relativeDirectoryName + " not ends with .git");
+			}
 			return relativeDirectoryName.substring(0, relativeDirectoryName.length() - 4);
 		}
 		return relativeDirectoryName;
@@ -208,16 +210,19 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	private Collection<File> collectImportFiles(final File importDir) {
-		if (!importDir.isDirectory())
+		if (!importDir.isDirectory()) {
 			return Collections.emptyList();
+		}
 		final ArrayList<File> ret = new ArrayList<File>();
 		ret.addAll(Arrays.asList(importDir.listFiles(new FileFilter() {
 			@Override
 			public boolean accept(final File pathname) {
-				if (!pathname.canRead())
+				if (!pathname.canRead()) {
 					return false;
-				if (!pathname.isFile())
+				}
+				if (!pathname.isFile()) {
 					return false;
+				}
 				final String lowerFilename = pathname.getName().toLowerCase();
 				return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".nef") || lowerFilename.endsWith(".jpeg");
 			}
@@ -283,21 +288,24 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		for (final String pathComp : pathNames) {
 			newAlbumPath = new File(newAlbumPath, pathComp);
 		}
-		if (!newAlbumPath.getAbsolutePath().startsWith(basePath.getAbsolutePath()))
+		if (!newAlbumPath.getAbsolutePath().startsWith(basePath.getAbsolutePath())) {
 			throw new RuntimeException("Cannot create Album " + pathNames);
+		}
 		if (newAlbumPath.exists()) {
 			for (final Entry<String, Album> albumEntry : albums.entrySet()) {
 				final Album existingAlbum = albumEntry.getValue();
-				if (Arrays.asList(pathNames).equals(existingAlbum.getNameComps()))
+				if (Arrays.asList(pathNames).equals(existingAlbum.getNameComps())) {
 					// album already exists
 					return albumEntry.getValue();
+				}
 			}
 			throw new RuntimeException("Directory " + newAlbumPath + " already exsists");
 		}
 		if (!newAlbumPath.exists()) {
 			final boolean createParent = newAlbumPath.mkdirs();
-			if (!createParent)
+			if (!createParent) {
 				throw new RuntimeException("Cannot create Directory " + newAlbumPath);
+			}
 		}
 
 		return appendAlbum(loadedAlbums, newAlbumPath, null, null);
@@ -323,8 +331,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			}
 		} else {
 			final boolean hasLock = updateAlbumListSemaphore.tryAcquire();
-			if (!hasLock)
+			if (!hasLock) {
 				return;
+			}
 		}
 		try {
 			if (needToLoadAlbumList()) {
@@ -344,8 +353,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 							public String call() throws Exception {
 								logger.debug("Load Repository " + albumDir);
 								final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
-								if (relativePath.equals(META_REPOSITORY))
+								if (relativePath.equals(META_REPOSITORY)) {
 									return null;
+								}
 								try {
 									final Album newAlbum = appendAlbum(loadedAlbums, albumDir, null, null);
 									stateManager.clearException(relativePath);
@@ -399,9 +409,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 						}
 					});
 				} catch (final Throwable e) {
-					if (forceWait)
+					if (forceWait) {
 						throw new RuntimeException("Troubles while accessing resource " + getBaseDir(), e);
-					else {
+					} else {
 						logger.error("Troubles while accessing resource " + getBaseDir(), e);
 					}
 				}
@@ -429,17 +439,20 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	private Album findAlbumForDate(final SortedMap<Date, Album> importAlbums, final Date createDate) {
-		if (createDate == null)
+		if (createDate == null) {
 			return null;
+		}
 		final SortedMap<Date, Album> entriesBeforeDate = importAlbums.headMap(createDate);
-		if (entriesBeforeDate.isEmpty())
+		if (entriesBeforeDate.isEmpty()) {
 			return null;
+		}
 		return entriesBeforeDate.get(entriesBeforeDate.lastKey());
 	}
 
 	private Collection<File> findAlbums(final File dir, final boolean pure) {
-		if (repositoryService.isRepository(dir, pure))
+		if (repositoryService.isRepository(dir, pure)) {
 			return Collections.singleton(dir);
+		}
 		final File[] foundFiles = dir.listFiles(new FileFilter() {
 			@Override
 			public boolean accept(final File pathname) {
@@ -459,8 +472,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private RevCommit findLatestMetaCommit() {
 		try {
 			final Iterator<RevCommit> log = metaGit.log().setMaxCount(1).call().iterator();
-			if (log.hasNext())
+			if (log.hasNext()) {
 				return log.next();
+			}
 			return null;
 		} catch (final GitAPIException e) {
 			throw new RuntimeException("Cannot read commit-log", e);
@@ -483,8 +497,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	private Object getAlbumLock(final File albumFile) {
 		final String key = albumFile.getAbsolutePath();
-		if (createAlbumLocks.containsKey(key))
+		if (createAlbumLocks.containsKey(key)) {
 			return createAlbumLocks.get(key);
+		}
 		createAlbumLocks.putIfAbsent(key, new Object());
 		return createAlbumLocks.get(key);
 
@@ -528,8 +543,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		if (instanceName == null) {
 			synchronized (instanceNameLoadLock) {
 				final File inFile = makeClientIdFile();
-				if (!inFile.exists())
+				if (!inFile.exists()) {
 					return null;
+				}
 				try {
 					@Cleanup
 					final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(inFile), "utf-8"));
@@ -568,8 +584,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	public StorageStatistics getStatistics() {
 		try {
 			final File statFile = new File(getServercacheDir(), "statistics.json");
-			if (!statFile.exists())
+			if (!statFile.exists()) {
 				return null;
+			}
 			return mapper.readValue(statFile, StorageStatistics.class);
 		} catch (final IOException e) {
 			throw new RuntimeException("Cannot read Statistics data", e);
@@ -674,8 +691,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	@PostConstruct
 	private void listenPeers() {
-		if (jmmDNS != null)
+		if (jmmDNS != null) {
 			return;
+		}
 		jmmDNS = JmmDNS.Factory.getInstance();
 		final ServiceListener serviceListener = new ServiceListener() {
 
@@ -830,8 +848,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	private String makeRepositoryDirectoryName(final boolean pure, final String baseName) {
-		if (pure)
+		if (pure) {
 			return baseName + ".git";
+		}
 		return baseName;
 	}
 
@@ -1037,8 +1056,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	@Override
 	public synchronized void setBaseDir(final File baseDir) {
-		if (ObjectUtils.equals(this.baseDir, baseDir))
+		if (Objects.equals(this.baseDir, baseDir)) {
 			return;
+		}
 		this.baseDir = baseDir;
 		store = new LocalStore(new File(baseDir, META_REPOSITORY));
 		loadedAlbums = new HashMap<>();
@@ -1065,8 +1085,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	@Override
 	public void setImportBaseDir(final File importBaseDir) {
-		if (ObjectUtils.equals(this.importBaseDir, importBaseDir))
+		if (ObjectUtils.equals(this.importBaseDir, importBaseDir)) {
 			return;
+		}
 		this.importBaseDir = importBaseDir;
 		if (importBaseDir != null && executorService != null) {
 			if (fileWatcher != null) {
@@ -1082,8 +1103,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	@Override
 	public void setInstanceName(final String instanceName) {
-		if (ObjectUtils.equals(this.instanceName, instanceName))
+		if (ObjectUtils.equals(this.instanceName, instanceName)) {
 			return;
+		}
 		this.instanceName = instanceName;
 		final File outFile = makeClientIdFile();
 		try {
@@ -1175,8 +1197,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 							if (localAlbumForRemote == null) {
 								if (remoteDir != null) {
 									final File albumDir = new File(getBaseDir(), albumName);
-									if (albumDir.exists())
+									if (albumDir.exists()) {
 										return null;
+									}
 									try {
 										final Album album = appendAlbum(loadedAlbums, albumDir, remoteDir.toURI().toString(), remoteName);
 										if (albumsToSync.contains(album.getName())) {
@@ -1252,8 +1275,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			public Void call() throws Exception {
 				final Map<String, StorageData> albumPerStorage = store.getArchiveData(ReadPolicy.READ_OR_CREATE).getStorages();
 
-				if (!albumPerStorage.containsKey(clientId))
+				if (!albumPerStorage.containsKey(clientId)) {
 					return null;
+				}
 				final Collection<String> albumCollection = albumPerStorage.get(clientId).getAlbumList();
 				if (albumCollection.contains(albumPath)) {
 					albumCollection.remove(albumPath);
@@ -1310,8 +1334,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 						try {
 							// ping to check if the server is staying online
 							final ResponseEntity<PingResponse> responseEntity = ping(peerServerUri);
-							if (!responseEntity.hasBody())
+							if (!responseEntity.hasBody()) {
 								return;
+							}
 							final String remoteHost = peerServerUri.getHost();
 							final int remotePort = pingResponse.getGitPort();
 							final AlbumEntry album = remoteAlbums.get(albumName);
@@ -1347,8 +1372,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	public void updateMetadata(final String albumId, final Collection<Mutation> updateEntries) {
 		final Map<String, Album> albums = loadAlbums(false);
 		final Album foundAlbum = albums.get(albumId);
-		if (foundAlbum == null)
+		if (foundAlbum == null) {
 			return;
+		}
 		updateMeta("Metadata updated", new Callable<Void>() {
 			@Override
 			public Void call() throws Exception {
