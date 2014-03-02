@@ -56,7 +56,7 @@ public class AlbumMeta implements Parcelable {
 	private String albumId;
 	private String albumTitle;
 	private String archiveName;
-	private Collection<Date> autoAddDate;
+	private Collection<Date> autoAddDate = Collections.emptyList();
 	private int entryCount;
 	private final Map<String, Integer> keywordCounts = new HashMap<String, Integer>();
 	private Date lastModified;
