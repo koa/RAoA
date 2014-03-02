@@ -1,6 +1,7 @@
 package ch.bergturbenthal.image.provider.model;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Date;
 import java.util.UUID;
 import java.util.zip.GZIPInputStream;
@@ -75,7 +76,7 @@ public class ParcelTest extends AndroidTestCase {
 		albumMeta.setAlbumDate(daysInThePast(2));
 		albumMeta.setAlbumId(UUID.randomUUID().toString());
 		albumMeta.setArchiveName("Test-Archive");
-		albumMeta.setAutoAddDate(daysInThePast(4));
+		albumMeta.setAutoAddDate(Collections.singletonList(daysInThePast(4)));
 		albumMeta.setEntryCount(42);
 		albumMeta.setLastModified(daysInThePast(1));
 		albumMeta.setName("Test-Album");
