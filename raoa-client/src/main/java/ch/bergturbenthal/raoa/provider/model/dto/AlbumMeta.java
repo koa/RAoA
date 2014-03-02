@@ -5,6 +5,7 @@ package ch.bergturbenthal.raoa.provider.model.dto;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -449,7 +450,11 @@ public class AlbumMeta implements Parcelable {
 	public void writeToParcel(final Parcel dest, final int flags) {
 		ParcelUtil.writeDate(lastModified, dest);
 		dest.writeString(name);
-		dest.writeList(new ArrayList<Date>(autoAddDate));
+		if (autoAddDate == null) {
+			dest.writeList(Collections.EMPTY_LIST);
+		} else {
+			dest.writeList(new ArrayList<Date>(autoAddDate));
+		}
 		dest.writeString(thumbnailId);
 		ParcelUtil.writeDate(albumDate, dest);
 		dest.writeString(archiveName);
