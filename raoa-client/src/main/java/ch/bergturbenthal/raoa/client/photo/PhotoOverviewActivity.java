@@ -30,6 +30,7 @@ import android.content.Loader;
 import android.database.ContentObserver;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Pair;
@@ -702,7 +703,7 @@ public class PhotoOverviewActivity extends Activity {
 	}
 
 	/**
-	 * 
+	 *
 	 */
 	private void setNewTag() {
 		final EditText newTagValue = new EditText(this);
@@ -752,23 +753,34 @@ public class PhotoOverviewActivity extends Activity {
 	}
 
 	private void updateSelectedEntries(final KeywordsHandler handler) {
-		for (final String entryUri : selectedEntries.keySet()) {
-			final ContentResolver resolver = getContentResolver();
-			final Uri uri = Uri.parse(entryUri);
-			final Cursor queryCursor = resolver.query(uri, new String[] { Client.AlbumEntry.META_KEYWORDS }, null, null, null);
-			try {
-				if (!queryCursor.moveToFirst()) {
-					continue;
+		new AsyncTask<Void, Void, Void>() {
+
+			@Override
+			protected Void doInBackground(final Void... params) {
+				for (final String entryUri : selectedEntries.keySet()) {
+					final ContentResolver resolver = getContentResolver();
+					final Uri uri = Uri.parse(entryUri);
+					final Cursor queryCursor = resolver.query(uri, new String[] { Client.AlbumEntry.META_KEYWORDS }, null, null, null);
+					try {
+						if (!queryCursor.moveToFirst()) {
+							continue;
+						}
+						final Collection<String> keywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(queryCursor.getString(0)));
+						handler.handleKeywords(keywords);
+						final ContentValues values = new ContentValues();
+						values.put(Client.AlbumEntry.META_KEYWORDS, Client.AlbumEntry.encodeKeywords(keywords));
+						resolver.update(uri, values, null, null);
+					} finally {
+						queryCursor.close();
+					}
 				}
-				final Collection<String> keywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(queryCursor.getString(0)));
-				handler.handleKeywords(keywords);
-				final ContentValues values = new ContentValues();
-				values.put(Client.AlbumEntry.META_KEYWORDS, Client.AlbumEntry.encodeKeywords(keywords));
-				resolver.update(uri, values, null, null);
-			} finally {
-				queryCursor.close();
+				return null;
 			}
-		}
-		invalidateOptionsMenu();
+
+			@Override
+			protected void onPostExecute(final Void result) {
+				invalidateOptionsMenu();
+			}
+		}.execute();
 	}
 }
