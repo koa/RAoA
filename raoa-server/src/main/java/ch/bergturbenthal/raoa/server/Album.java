@@ -883,8 +883,12 @@ public class Album implements ApplicationContextAware {
 	}
 
 	private void updateConflictStatus() {
-		final Collection<ConflictEntry> conflicts = repositoryService.describeConflicts(git);
-		stateManager.reportConflict(getName(), conflicts);
+		try {
+			final Collection<ConflictEntry> conflicts = repositoryService.describeConflicts(git);
+			stateManager.reportConflict(getName(), conflicts);
+		} catch (final Throwable t) {
+			stateManager.recordException(getName(), t);
+		}
 	}
 
 	public synchronized void updateMetadata(final Collection<Mutation> updateEntries) {

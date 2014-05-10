@@ -11,9 +11,11 @@ import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -98,6 +100,7 @@ public class ServerConnection {
 					return response.getBody();
 				}
 			} catch (final Throwable ex) {
+				moveConnectionToEnd(connection);
 				if (t != null) {
 					Log.w("Server-connection", "Exception while calling server " + serverName, t);
 				}
@@ -120,6 +123,13 @@ public class ServerConnection {
 				return restTemplate.postForEntity(baseUrl.toExternalForm() + "/albums", request, AlbumEntry.class);
 			}
 		});
+	}
+
+	private List<URL> createList(final Collection<URL> collection) {
+		if (collection instanceof List) {
+			return (List<URL>) collection;
+		}
+		return new ArrayList<URL>(collection);
 	}
 
 	private ResponseEntity<Void> executePut(final String url, final Object data, final Object... urlVariables) {
@@ -199,6 +209,17 @@ public class ServerConnection {
 				return restTemplate.getForEntity(baseUrl.toExternalForm() + "/storages.json", ArchiveMeta.class);
 			}
 		});
+	}
+
+	private void moveConnectionToEnd(final URL connection) {
+		final Collection<URL> collection = connections.get();
+		final ArrayList<URL> newList = new ArrayList<URL>(collection);
+		// move to end
+		if (newList.remove(connection)) {
+			newList.add(connection);
+		}
+		// update
+		connections.compareAndSet(collection, newList);
 	}
 
 	private AlbumList readAlbumList() {
@@ -328,6 +349,31 @@ public class ServerConnection {
 	}
 
 	public void updateServerConnections(final Collection<URL> value) {
-		connections.set(value);
+		final Collection<URL> oldList = connections.get();
+		if (oldList != null) {
+			final ArrayList<URL> newList = new ArrayList<URL>(value);
+			final Map<URL, Integer> oldOrder = new HashMap<URL, Integer>();
+			int index = 0;
+			// initialize all entries with default-value
+			for (final URL url : newList) {
+				oldOrder.put(url, Integer.valueOf(-1));
+			}
+			// override all entries from old list
+			for (final URL url : oldList) {
+				oldOrder.put(url, Integer.valueOf(index++));
+			}
+			// change order of new list
+			Collections.sort(newList, new Comparator<URL>() {
+
+				@Override
+				public int compare(final URL lhs, final URL rhs) {
+					return oldOrder.get(lhs).compareTo(oldOrder.get(rhs));
+				}
+
+			});
+			connections.set(newList);
+		} else {
+			connections.set(value);
+		}
 	}
 }

@@ -24,7 +24,7 @@ import com.drew.metadata.exif.NikonType2MakernoteDirectory;
 import com.drew.metadata.iptc.IptcDirectory;
 import com.drew.metadata.xmp.XmpDirectory;
 
-public class MetadataWrapper {
+public class MetadataWrapper implements MetadataHolder {
 	private static class TagId {
 		private final Class<? extends Directory> directory;
 		private final int tagId;
@@ -62,6 +62,12 @@ public class MetadataWrapper {
 		}
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see ch.bergturbenthal.raoa.server.metadata.MetadataHolder#fill(ch.bergturbenthal.raoa.server.model.AlbumEntryData)
+	 */
+	@Override
 	public void fill(final AlbumEntryData loadedMetaData) {
 		loadedMetaData.setExposureTime(readExposureTime());
 		loadedMetaData.setFNumber(readFNumber());
@@ -77,6 +83,12 @@ public class MetadataWrapper {
 		loadedMetaData.setCameraSerial(readCameraSerial());
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see ch.bergturbenthal.raoa.server.metadata.MetadataHolder#readCameraDate()
+	 */
+	@Override
 	public Date readCameraDate() {
 		final Date date = readDate(ExifIFD0Directory.class, ExifIFD0Directory.TAG_DATETIME);
 		if (date != null) {
@@ -116,6 +128,12 @@ public class MetadataWrapper {
 		return readString(IptcDirectory.class, IptcDirectory.TAG_CAPTION);
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see ch.bergturbenthal.raoa.server.metadata.MetadataHolder#readCreateDate()
+	 */
+	@Override
 	public Date readCreateDate() {
 		final Date gpsDate = readGpsDate();
 		if (gpsDate != null) {
@@ -163,6 +181,12 @@ public class MetadataWrapper {
 		return readDouble(ExifSubIFDDirectory.class, ExifSubIFDDirectory.TAG_35MM_FILM_EQUIV_FOCAL_LENGTH);
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see ch.bergturbenthal.raoa.server.metadata.MetadataHolder#readGpsDate()
+	 */
+	@Override
 	public Date readGpsDate() {
 		try {
 			if (!metadata.containsDirectory(GpsDirectory.class)) {

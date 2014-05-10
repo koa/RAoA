@@ -29,6 +29,7 @@
   <bean name="fileWatcher" class="ch.bergturbenthal.raoa.server.watcher.FileWatcher"
     scope="prototype" factory-method="createWatcher">
   </bean>
+  <bean class="ch.bergturbenthal.raoa.server.metadata.MetadataFactoryImpl"/>
 
   <bean
     class="ch.bergturbenthal.raoa.server.thumbnails.FfmpegVideoThumbnailMaker">

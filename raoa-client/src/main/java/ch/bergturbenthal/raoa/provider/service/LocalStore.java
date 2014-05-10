@@ -28,7 +28,7 @@ public class LocalStore {
 
 	@SuppressWarnings("unchecked")
 	public LocalStore(final File dataDir, final File cacheDir) {
-		ParcelableBackend.checkVersion(cacheDir, 7);
+		ParcelableBackend.checkVersion(cacheDir, 8);
 		store = new FileStorage(Arrays.asList((FileBackend<?>) new ParcelableBackend<AlbumEntries>(cacheDir, AlbumEntries.class, 1),
 																					(FileBackend<?>) new ParcelableBackend<AlbumMeta>(cacheDir, AlbumMeta.class, 1),
 																					(FileBackend<?>) new JacksonBackend<AlbumMutationData>(dataDir, AlbumMutationData.class, 0, true),

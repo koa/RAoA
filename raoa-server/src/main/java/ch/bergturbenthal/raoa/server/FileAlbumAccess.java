@@ -101,6 +101,7 @@ import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.data.model.mutation.StorageMutation;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.util.ExecutorServiceUtil;
+import ch.bergturbenthal.raoa.server.metadata.MetadataHolder;
 import ch.bergturbenthal.raoa.server.metadata.MetadataWrapper;
 import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.model.ArchiveData;
@@ -146,11 +147,12 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private final Object instanceNameLoadLock = new Object();
 	private JmmDNS jmmDNS;
 	private final AtomicLong lastLoadedDate = new AtomicLong(0);
-	private Map<String, Album> loadedAlbums = new ConcurrentHashMap<String, Album>();
+	private final Map<String, Album> loadedAlbums = new ConcurrentHashMap<String, Album>();
 	private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
 	private Git metaGit;
 	private Preferences preferences = null;
-	private final Semaphore refreshThumbnailsSemaphore = new Semaphore(1);;
+	private final Object processPeersLock = new Object();;
+	private final Semaphore refreshThumbnailsSemaphore = new Semaphore(1);
 	@Autowired
 	private RepositoryService repositoryService;
 	private final RestTemplate restTemplate = new RestTemplate();
@@ -158,6 +160,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	@Autowired
 	private StateManager stateManager;
 	private LocalStore store;
+
 	private final ExecutorService syncExecutorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), createSynchThreadFactory());
 
 	private final Semaphore updateAlbumListSemaphore = new Semaphore(1);
@@ -165,13 +168,17 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private Album appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri, final String serverName) {
 		final String[] nameComps = evaluateNameComps(albumDir);
 		final String albumId = makeAlbumId(nameComps);
+		final Album album;
 		synchronized (getAlbumLock(albumDir)) {
-			if (!albumMap.containsKey(albumId)) {
+			final Album existingAlbum = albumMap.get(albumId);
+			if (existingAlbum == null) {
 				final Album newAlbum = (Album) applicationContext.getBean("album", albumDir, nameComps, remoteUri, serverName);
 				albumMap.put(albumId, newAlbum);
+				album = newAlbum;
+			} else {
+				album = existingAlbum;
 			}
 		}
-		final Album album = albumMap.get(albumId);
 		album.reCheck();
 		return album;
 	}
@@ -596,7 +603,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.raoa.server.AlbumAccess#importFile(java.lang.String, byte[])
 	 */
 	@Override
@@ -639,13 +646,15 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					if (metadata == null) {
 						continue;
 					}
-					final Album album = findAlbumForDate(importAlbums, new MetadataWrapper(metadata).readCreateDate());
+					final MetadataHolder metadataWrapper = new MetadataWrapper(metadata);
+					final Date createDate = metadataWrapper.readCreateDate();
+					final Album album = findAlbumForDate(importAlbums, createDate);
 					if (album == null) {
 						// no album found
 						continue;
 					}
 					// logger.info(" ->" + album.getName());
-					if (album.importImage(file, new MetadataWrapper(metadata).readCreateDate())) {
+					if (album.importImage(file, createDate)) {
 						modifiedAlbums.add(album);
 						logger.debug("image " + file + " imported successfully to " + album.getName());
 						deleteFiles.add(file);
@@ -884,40 +893,43 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	private synchronized void processFoundServices(final ServiceInfo[] services) {
-		final Map<String, URI> foundPeers = new HashMap<String, URI>();
-		for (final ServiceInfo serviceInfo : services) {
-			final int peerPort = serviceInfo.getPort();
-			final InetAddress[] addresses = serviceInfo.getInetAddresses();
-			for (final InetAddress inetAddress : addresses) {
-				if (inetAddress.isLinkLocalAddress()) {
-					continue;
-				}
-				try {
-					final URI candidateUri = new URI("http", null, inetAddress.getHostAddress(), peerPort, "/rest/", null, null);
-					final ResponseEntity<PingResponse> responseEntity = ping(candidateUri);
-					if (!responseEntity.hasBody() || responseEntity.getStatusCode().series() != Series.SUCCESSFUL) {
+		synchronized (processPeersLock) {
+
+			final Map<String, URI> foundPeers = new HashMap<String, URI>();
+			for (final ServiceInfo serviceInfo : services) {
+				final int peerPort = serviceInfo.getPort();
+				final InetAddress[] addresses = serviceInfo.getInetAddresses();
+				for (final InetAddress inetAddress : addresses) {
+					if (inetAddress.isLinkLocalAddress()) {
 						continue;
 					}
-					final PingResponse pingResponse = responseEntity.getBody();
-					if (!pingResponse.getArchiveId().equals(getArchiveName())) {
-						continue;
+					try {
+						final URI candidateUri = new URI("http", null, inetAddress.getHostAddress(), peerPort, "/rest/", null, null);
+						final ResponseEntity<PingResponse> responseEntity = ping(candidateUri);
+						if (!responseEntity.hasBody() || responseEntity.getStatusCode().series() != Series.SUCCESSFUL) {
+							continue;
+						}
+						final PingResponse pingResponse = responseEntity.getBody();
+						if (!pingResponse.getArchiveId().equals(getArchiveName())) {
+							continue;
+						}
+						if (pingResponse.getServerId().equals(getInstanceId())) {
+							continue;
+						}
+						foundPeers.put(pingResponse.getServerId(), candidateUri);
+					} catch (final URISyntaxException e) {
+						logger.warn("Cannot build URL for " + serviceInfo, e);
+					} catch (final RestClientException e) {
+						logger.warn("ping " + serviceInfo, e);
 					}
-					if (pingResponse.getServerId().equals(getInstanceId())) {
-						continue;
-					}
-					foundPeers.put(pingResponse.getServerId(), candidateUri);
-				} catch (final URISyntaxException e) {
-					logger.warn("Cannot build URL for " + serviceInfo, e);
-				} catch (final RestClientException e) {
-					logger.warn("ping " + serviceInfo, e);
 				}
 			}
+			logger.info("Found peers: ");
+			for (final Entry<String, URI> peerEntry : foundPeers.entrySet()) {
+				logger.info(" - " + peerEntry.getKey() + ": " + peerEntry.getValue());
+			}
+			updateAllRepositories(foundPeers.values());
 		}
-		logger.info("Found peers: ");
-		for (final Entry<String, URI> peerEntry : foundPeers.entrySet()) {
-			logger.info(" - " + peerEntry.getKey() + ": " + peerEntry.getValue());
-		}
-		updateAllRepositories(foundPeers.values());
 	}
 
 	public String readClientId(final File path, final boolean bare) throws IOException, FileNotFoundException {
@@ -1007,7 +1019,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	@Override
-	public synchronized void registerClient(final String albumId, final String clientId) {
+	public void registerClient(final String albumId, final String clientId) {
 		final String albumPath = Util.decodeStringOfUrl(albumId);
 		updateMeta("added " + albumPath + " to client " + clientId, new Callable<Void>() {
 
@@ -1062,7 +1074,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		}
 		this.baseDir = baseDir;
 		store = new LocalStore(new File(baseDir, META_REPOSITORY));
-		loadedAlbums = new HashMap<>();
+		loadedAlbums.clear();
 		lastLoadedDate.set(0);
 		if (preferences != null) {
 			preferences.put(ALBUM_PATH_PREFERENCE, baseDir.getAbsolutePath());

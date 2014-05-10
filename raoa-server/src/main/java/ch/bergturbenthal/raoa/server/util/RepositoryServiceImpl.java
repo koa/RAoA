@@ -41,7 +41,6 @@ import org.eclipse.jgit.notes.Note;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.revwalk.filter.RevFilter;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
@@ -155,28 +154,6 @@ public class RepositoryServiceImpl implements RepositoryService {
 					try {
 						branchCommit = revWalk.parseCommit(entry.getValue().getObjectId());
 						branchTree = new CanonicalTreeParser(null, objectReader, branchCommit.getTree().getId());
-						revWalk.reset();
-						final RevCommit masterCommit = revWalk.parseCommit(git.getRepository().getRef("master").getObjectId());
-						revWalk.reset();
-						revWalk.setRevFilter(RevFilter.MERGE_BASE);
-						revWalk.markStart(branchCommit);
-						revWalk.markStart(masterCommit);
-						final RevCommit commonCommit = revWalk.next();
-
-						if (commonCommit == null) {
-							// // no common commit
-							// final ConflictEntry conflictEntry = new ConflictEntry();
-							// conflictEntry.setBranch(entry.getKey());
-							// final ConflictMeta meta = new ConflictMeta();
-							// meta.setConflictDate(new Date(branchCommit.getCommitTime() * 1000l));
-							// meta.setServer("none");
-							// conflictEntry.setMeta(meta);
-							// conflictEntry.setResolveActions(Collections.singletonMap(IssueResolveAction.IGNORE_OTHER, makeIgnoreOtherRunnable(git,
-							// branchCommit)));
-							// ret.add(conflictEntry);
-							logger.warn("no common commit");
-							// continue;
-						}
 					} finally {
 						revWalk.dispose();
 					}
@@ -204,7 +181,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 				conflictEntry.setResolveActions(actions);
 				ret.add(conflictEntry);
 			} catch (final Throwable e) {
-				logger.error("Cannot parse branch " + entry.getKey(), e);
+				throw new RuntimeException("Cannot parse branch " + entry.getKey(), e);
 			}
 
 		}
