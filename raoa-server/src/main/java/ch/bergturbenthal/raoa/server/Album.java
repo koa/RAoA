@@ -180,91 +180,6 @@ public class Album implements ApplicationContextAware {
 		this.initRemoteServerName = serverName;
 	}
 
-	private void appendImportEntry(final ImportEntry newEntry) {
-		if (importEntries == null) {
-			loadImportEntries();
-		}
-		try {
-			final PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(indexFile(), true), "utf-8"));
-			try {
-				writer.println(newEntry.makeString());
-			} finally {
-				writer.close();
-			}
-			importEntries.add(newEntry);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot save import index", e);
-		}
-	}
-
-	private File autoaddFile() {
-		return new File(baseDir, AUTOADD_FILE);
-	}
-
-	private BufferedReader bufferedReader(final File file) throws UnsupportedEncodingException, FileNotFoundException {
-		final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "utf-8"));
-		return reader;
-	}
-
-	/**
-	 * Checks the configuration of this repository and disables deltacompression if not elsewhere set
-	 * 
-	 * @throws IOException
-	 */
-	private boolean checkup() {
-		boolean modified = false;
-		modified |= prepareGitignore();
-		// disables delta-compression by config for speedup synchronisation
-		final StoredConfig config = git.getRepository().getConfig();
-		final Set<String> packConfigs = config.getNames("pack");
-		if (!packConfigs.contains("deltacompression")) {
-			config.setBoolean("pack", null, "deltacompression", false);
-			try {
-				config.save();
-			} catch (final IOException e) {
-				throw new RuntimeException("Cannot update config", e);
-			}
-		}
-
-		repositoryService.cleanOldConflicts(git);
-
-		// commit changes from outside the server
-		try {
-			final Status status = git.status().call();
-			if (!status.isClean() && status.getConflicting().isEmpty()) {
-				boolean addedSomething = false;
-				final AddCommand addCommand = git.add();
-				for (final String entry : status.getUntracked()) {
-					if (new File(baseDir, entry).exists()) {
-						addCommand.addFilepattern(entry);
-						addedSomething = true;
-					}
-				}
-				for (final String entry : status.getModified()) {
-					if (new File(baseDir, entry).exists()) {
-						addCommand.addFilepattern(entry);
-						addedSomething = true;
-					}
-				}
-				if (addedSomething) {
-					addCommand.call();
-					modified = true;
-				}
-				if (!status.getMissing().isEmpty()) {
-					final CheckoutCommand checkout = git.checkout();
-					for (final String entry : status.getMissing()) {
-						checkout.addPath(entry);
-					}
-					checkout.call();
-				}
-			}
-		} catch (final GitAPIException e) {
-			throw new RuntimeException("Cannot make initial commit", e);
-		}
-		updateConflictStatus();
-		return modified;
-	}
-
 	public synchronized void commit(final String message) {
 		try {
 			final Status status = git.status().call();
@@ -278,103 +193,6 @@ public class Album implements ApplicationContextAware {
 		} finally {
 			state.set(AlbumState.READY);
 		}
-	}
-
-	private void estimateCreationDates() {
-		final Map<String, NavigableMap<Date, Long>> foundOffsets = new HashMap<>();
-		final Collection<AlbumEntryData> entriesToEstimate = new ArrayList<>();
-		for (final Entry<String, AlbumEntryData> entry : albumEntriesMetadataCache.entrySet()) {
-			final AlbumEntryData value = entry.getValue();
-			if (value.getCameraSerial() == null) {
-				continue;
-			}
-			final Date cameraDate = value.getCameraDate();
-			if (cameraDate == null) {
-				continue;
-			}
-			final String cameraKey = makeCameraKey(value);
-			if (!foundOffsets.containsKey(cameraKey)) {
-				foundOffsets.put(cameraKey, new TreeMap<Date, Long>());
-			}
-			final Map<Date, Long> offsetMap = foundOffsets.get(cameraKey);
-			final Date gpsDate = value.getGpsDate();
-			if (gpsDate == null) {
-				entriesToEstimate.add(value);
-			} else {
-				offsetMap.put(cameraDate, Long.valueOf((gpsDate.getTime() - cameraDate.getTime())));
-			}
-		}
-		for (final AlbumEntryData entryToEstimate : entriesToEstimate) {
-			final String cameraKey = makeCameraKey(entryToEstimate);
-			final NavigableMap<Date, Long> offsetMap = foundOffsets.get(cameraKey);
-			if (offsetMap == null || offsetMap.isEmpty()) {
-				// no gps time found on this camera
-				continue;
-			}
-			final Date cameraDate = entryToEstimate.getCameraDate();
-			final Entry<Date, Long> nextEntry = offsetMap.ceilingEntry(cameraDate);
-			final Entry<Date, Long> prevEntry = offsetMap.floorEntry(cameraDate);
-			final long calculatedOffset;
-			if (prevEntry == null) {
-				calculatedOffset = nextEntry.getValue().longValue();
-			} else if (nextEntry == null) {
-				calculatedOffset = prevEntry.getValue().longValue();
-			} else if (prevEntry.getKey().equals(cameraDate)) {
-				calculatedOffset = prevEntry.getValue().longValue();
-			} else {
-				final long distanceToPrev = cameraDate.getTime() - prevEntry.getKey().getTime();
-				final long distanceToNext = nextEntry.getKey().getTime() - cameraDate.getTime();
-				final double relativePostition = (1.0 * distanceToPrev) / (distanceToNext + distanceToPrev);
-				calculatedOffset = (long) ((1 - relativePostition) * prevEntry.getValue().longValue() + relativePostition * nextEntry.getValue().longValue());
-			}
-			entryToEstimate.setCreationDate(new Date(cameraDate.getTime() + calculatedOffset));
-		}
-	}
-
-	private long evaluateLastModifiedTime() {
-		try {
-			if (!isMaster()) {
-				return 1;
-			}
-			final LogCommand log = git.log().setMaxCount(1);
-			final Iterable<RevCommit> commitIterable = log.call();
-			final Iterator<RevCommit> iterator = commitIterable.iterator();
-			if (iterator.hasNext()) {
-				final RevCommit lastCommit = iterator.next();
-				return lastCommit.getCommitTime() * 1000l;
-			}
-		} catch (final NoHeadException e) {
-			// no head -> return zero date
-		} catch (final GitAPIException e) {
-			logger.warn("Cannot query log from " + git.getRepository(), e);
-		}
-		return 0;
-	}
-
-	private synchronized ImportEntry findExistingImportEntry(final String sha1OfFile) {
-		if (importEntries == null) {
-			loadImportEntries();
-		}
-		for (final ImportEntry entry : importEntries) {
-			if (entry.getHash().equals(sha1OfFile)) {
-				return entry;
-			}
-		}
-		return null;
-	}
-
-	private synchronized ImportEntry findOrMakeImportEntryForExisting(final File existingFile) {
-		if (importEntries == null) {
-			loadImportEntries();
-		}
-		for (final ImportEntry entry : importEntries) {
-			if (entry.getFilename().equals(existingFile.getName())) {
-				return entry;
-			}
-		}
-		final ImportEntry newEntry = new ImportEntry(existingFile.getName(), makeSha1(existingFile));
-		appendImportEntry(newEntry);
-		return newEntry;
 	}
 
 	public AlbumMetadata getAlbumMetadata() {
@@ -511,10 +329,6 @@ public class Album implements ApplicationContextAware {
 		}
 	}
 
-	private File indexFile() {
-		return new File(cacheDir, INDEX_FILE);
-	}
-
 	@PostConstruct
 	public void init() {
 		if (new File(baseDir, ".git").exists()) {
@@ -536,14 +350,6 @@ public class Album implements ApplicationContextAware {
 		cacheDir = new File(baseDir, CACHE_DIR);
 	}
 
-	private boolean isMaster() throws GitAPIException {
-		try {
-			return git.getRepository().getBranch().equals("master");
-		} catch (final IOException e) {
-			return false;
-		}
-	}
-
 	public long lastModified() {
 		long lastModified = 0;
 		for (final File imageFile : listImageFiles()) {
@@ -555,6 +361,376 @@ public class Album implements ApplicationContextAware {
 		return lastModified;
 	}
 
+	public Map<String, AlbumImage> listImages() {
+		return loadCache().getImages();
+	}
+
+	@SneakyThrows
+	public void pull(final String remoteUri, final String serverName) {
+		while (!state.compareAndSet(AlbumState.READY, AlbumState.SYNCHRONIZING)) {
+			Thread.sleep(300);
+		}
+		try {
+			repositoryService.pull(git, remoteUri, serverName);
+			updateConflictStatus();
+		} finally {
+			state.set(AlbumState.READY);
+		}
+	}
+
+	/**
+	 * Check the current album against the file system
+	 */
+	public void reCheck() {
+		final AlbumState oldState = state.getAndSet(AlbumState.INITIALIZING);
+		try {
+			if (oldState.isReCheckAvailable()) {
+				final boolean modified = checkup();
+				if (!cacheDir.exists()) {
+					cacheDir.mkdirs();
+				}
+				if (autoaddFile().exists()) {
+					loadImportEntries();
+				}
+				if (metadataCacheFile().exists()) {
+					loadMetadataCache();
+				}
+
+				if (modified) {
+					commit("detected changes on filesystem");
+				}
+			}
+		} finally {
+			state.set(oldState);
+		}
+	}
+
+	@Override
+	public void setApplicationContext(final ApplicationContext applicationContext) throws BeansException {
+		this.applicationContext = applicationContext;
+	}
+
+	public synchronized void setAutoAddBeginDate(final Date date) {
+		final File file = autoaddFile();
+		try {
+			final PrintWriter writer = new PrintWriter(file, "utf-8");
+			try {
+				writer.println(ISODateTimeFormat.dateTime().print(date.getTime()));
+			} finally {
+				writer.close();
+			}
+		} catch (final IOException ex) {
+			throw new RuntimeException("Cannot write new date to " + file, ex);
+		}
+	}
+
+	public synchronized void sync(final File remoteDir, final String localName, final String remoteName, final boolean bare) {
+		repositoryService.sync(git, remoteDir, localName, remoteName, bare);
+		updateConflictStatus();
+	}
+
+	@Override
+	public String toString() {
+		return "Album [" + getName() + "]";
+	}
+
+	public synchronized void updateMetadata(final Collection<Mutation> updateEntries) {
+		final Map<String, AlbumImage> loadedImages = loadCache().getImages();
+		final Set<String> modifiedImages = new HashSet<>();
+		boolean metadataModified = false;
+		final AlbumMetadata metadata = getAlbumMetadata();
+		for (final Mutation entry : updateEntries) {
+			if (entry instanceof EntryMutation) {
+				final EntryMutation mutationEntry = (EntryMutation) entry;
+
+				final AlbumImage albumImage = loadedImages.get(mutationEntry.getAlbumEntryId());
+				if (albumImage == null) {
+					continue;
+				}
+				final AlbumEntryData oldMetadata = albumImage.getAlbumEntryData();
+				if (!StringUtils.equals(oldMetadata.getEditableMetadataHash(), mutationEntry.getBaseVersion())) {
+					continue;
+				}
+				modifiedImages.add(mutationEntry.getAlbumEntryId());
+				try {
+					if (entry instanceof RatingMutationEntry) {
+						final RatingMutationEntry ratingMutationEntry = (RatingMutationEntry) entry;
+						albumImage.setRating(ratingMutationEntry.getRating());
+					}
+					if (entry instanceof CaptionMutationEntry) {
+						final CaptionMutationEntry captionMutationEntry = (CaptionMutationEntry) entry;
+						albumImage.setCaption(captionMutationEntry.getCaption());
+					}
+					if (entry instanceof KeywordMutationEntry) {
+						final KeywordMutationEntry keywordMutationEntry = (KeywordMutationEntry) entry;
+						switch (keywordMutationEntry.getMutation()) {
+						case ADD:
+							albumImage.addKeyword(keywordMutationEntry.getKeyword());
+							break;
+						case REMOVE:
+							albumImage.removeKeyword(keywordMutationEntry.getKeyword());
+							break;
+						}
+					}
+				} catch (final Exception e) {
+					logger.error("Cannot execute update " + entry + " at album " + getName(), e);
+				}
+			}
+			if (entry instanceof AlbumMutation) {
+				if (!getLastModified().equals(((AlbumMutation) entry).getAlbumLastModified())) {
+					continue;
+				}
+				if (entry instanceof TitleImageMutation) {
+					final String titleImage = ((TitleImageMutation) entry).getTitleImage();
+					final AlbumImage foundImage = loadedImages.get(titleImage);
+					if (foundImage != null) {
+						metadata.setTitleEntry(foundImage.getName());
+						metadataModified = true;
+					}
+				}
+				if (entry instanceof TitleMutation) {
+					metadata.setAlbumTitle(((TitleMutation) entry).getTitle());
+					metadataModified = true;
+				}
+			}
+		}
+		if (!modifiedImages.isEmpty() || metadataModified) {
+			try {
+				final AddCommand addCommand = git.add();
+				if (metadataModified) {
+					saveMetadataWithoutCommit(metadata);
+					addCommand.addFilepattern(metadataFile().getName());
+				}
+				for (final String imageId : modifiedImages) {
+					addCommand.addFilepattern(loadedImages.get(imageId).getXmpSideFile().getName());
+				}
+				addCommand.call();
+				final CommitCommand commitCommand = git.commit();
+				commitCommand.setMessage("Metadata updated");
+				commitCommand.call();
+			} catch (final GitAPIException e) {
+				logger.error("Cannot update git", e);
+			} catch (final IOException e) {
+				logger.error("Cannot update metadata", e);
+			}
+		}
+	}
+
+	/**
+	 * evaluates current version of album
+	 *
+	 * @return version, null if there is no commit
+	 */
+	public String version() {
+		try {
+			for (final RevCommit revCommit : git.log().call()) {
+				return revCommit.getName();
+			}
+			return null;
+		} catch (final NoHeadException e) {
+			return null;
+		} catch (final JGitInternalException e) {
+			throw new RuntimeException("Cannot read log", e);
+		} catch (final GitAPIException e) {
+			throw new RuntimeException("Cannot read log", e);
+		}
+
+	}
+
+	private void appendImportEntry(final ImportEntry newEntry) {
+		if (importEntries == null) {
+			loadImportEntries();
+		}
+		try {
+			final PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(indexFile(), true), "utf-8"));
+			try {
+				writer.println(newEntry.makeString());
+			} finally {
+				writer.close();
+			}
+			importEntries.add(newEntry);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot save import index", e);
+		}
+	}
+
+	private File autoaddFile() {
+		return new File(baseDir, AUTOADD_FILE);
+	}
+
+	private BufferedReader bufferedReader(final File file) throws UnsupportedEncodingException, FileNotFoundException {
+		final BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "utf-8"));
+		return reader;
+	}
+
+	/**
+	 * Checks the configuration of this repository and disables deltacompression if not elsewhere set
+	 *
+	 * @throws IOException
+	 */
+	private boolean checkup() {
+		boolean modified = false;
+		modified |= prepareGitignore();
+		// disables delta-compression by config for speedup synchronisation
+		final StoredConfig config = git.getRepository().getConfig();
+		final Set<String> packConfigs = config.getNames("pack");
+		if (!packConfigs.contains("deltacompression")) {
+			config.setBoolean("pack", null, "deltacompression", false);
+			try {
+				config.save();
+			} catch (final IOException e) {
+				throw new RuntimeException("Cannot update config", e);
+			}
+		}
+
+		repositoryService.cleanOldConflicts(git);
+
+		// commit changes from outside the server
+		try {
+			final Status status = git.status().call();
+			if (!status.isClean() && status.getConflicting().isEmpty()) {
+				boolean addedSomething = false;
+				final AddCommand addCommand = git.add();
+				for (final String entry : status.getUntracked()) {
+					if (new File(baseDir, entry).exists()) {
+						addCommand.addFilepattern(entry);
+						addedSomething = true;
+					}
+				}
+				for (final String entry : status.getModified()) {
+					if (new File(baseDir, entry).exists()) {
+						addCommand.addFilepattern(entry);
+						addedSomething = true;
+					}
+				}
+				if (addedSomething) {
+					addCommand.call();
+					modified = true;
+				}
+				if (!status.getMissing().isEmpty()) {
+					final CheckoutCommand checkout = git.checkout();
+					for (final String entry : status.getMissing()) {
+						checkout.addPath(entry);
+					}
+					checkout.call();
+				}
+			}
+		} catch (final GitAPIException e) {
+			throw new RuntimeException("Cannot make initial commit", e);
+		}
+		updateConflictStatus();
+		return modified;
+	}
+
+	private void estimateCreationDates() {
+		final Map<String, NavigableMap<Date, Long>> foundOffsets = new HashMap<>();
+		final Collection<AlbumEntryData> entriesToEstimate = new ArrayList<>();
+		for (final Entry<String, AlbumEntryData> entry : albumEntriesMetadataCache.entrySet()) {
+			final AlbumEntryData value = entry.getValue();
+			if (value.getCameraSerial() == null) {
+				continue;
+			}
+			final Date cameraDate = value.getCameraDate();
+			if (cameraDate == null) {
+				continue;
+			}
+			final String cameraKey = makeCameraKey(value);
+			if (!foundOffsets.containsKey(cameraKey)) {
+				foundOffsets.put(cameraKey, new TreeMap<Date, Long>());
+			}
+			final Map<Date, Long> offsetMap = foundOffsets.get(cameraKey);
+			final Date gpsDate = value.getGpsDate();
+			if (gpsDate == null) {
+				entriesToEstimate.add(value);
+			} else {
+				offsetMap.put(cameraDate, Long.valueOf((gpsDate.getTime() - cameraDate.getTime())));
+			}
+		}
+		for (final AlbumEntryData entryToEstimate : entriesToEstimate) {
+			final String cameraKey = makeCameraKey(entryToEstimate);
+			final NavigableMap<Date, Long> offsetMap = foundOffsets.get(cameraKey);
+			if (offsetMap == null || offsetMap.isEmpty()) {
+				// no gps time found on this camera
+				continue;
+			}
+			final Date cameraDate = entryToEstimate.getCameraDate();
+			final Entry<Date, Long> nextEntry = offsetMap.ceilingEntry(cameraDate);
+			final Entry<Date, Long> prevEntry = offsetMap.floorEntry(cameraDate);
+			final long calculatedOffset;
+			if (prevEntry == null) {
+				calculatedOffset = nextEntry.getValue().longValue();
+			} else if (nextEntry == null) {
+				calculatedOffset = prevEntry.getValue().longValue();
+			} else if (prevEntry.getKey().equals(cameraDate)) {
+				calculatedOffset = prevEntry.getValue().longValue();
+			} else {
+				final long distanceToPrev = cameraDate.getTime() - prevEntry.getKey().getTime();
+				final long distanceToNext = nextEntry.getKey().getTime() - cameraDate.getTime();
+				final double relativePostition = (1.0 * distanceToPrev) / (distanceToNext + distanceToPrev);
+				calculatedOffset = (long) ((1 - relativePostition) * prevEntry.getValue().longValue() + relativePostition * nextEntry.getValue().longValue());
+			}
+			entryToEstimate.setCreationDate(new Date(cameraDate.getTime() + calculatedOffset));
+		}
+	}
+
+	private long evaluateLastModifiedTime() {
+		try {
+			if (!isMaster()) {
+				return 1;
+			}
+			final LogCommand log = git.log().setMaxCount(1);
+			final Iterable<RevCommit> commitIterable = log.call();
+			final Iterator<RevCommit> iterator = commitIterable.iterator();
+			if (iterator.hasNext()) {
+				final RevCommit lastCommit = iterator.next();
+				return lastCommit.getCommitTime() * 1000l;
+			}
+		} catch (final NoHeadException e) {
+			// no head -> return zero date
+		} catch (final GitAPIException e) {
+			logger.warn("Cannot query log from " + git.getRepository(), e);
+		}
+		return 0;
+	}
+
+	private synchronized ImportEntry findExistingImportEntry(final String sha1OfFile) {
+		if (importEntries == null) {
+			loadImportEntries();
+		}
+		for (final ImportEntry entry : importEntries) {
+			if (entry.getHash().equals(sha1OfFile)) {
+				return entry;
+			}
+		}
+		return null;
+	}
+
+	private synchronized ImportEntry findOrMakeImportEntryForExisting(final File existingFile) {
+		if (importEntries == null) {
+			loadImportEntries();
+		}
+		for (final ImportEntry entry : importEntries) {
+			if (entry.getFilename().equals(existingFile.getName())) {
+				return entry;
+			}
+		}
+		final ImportEntry newEntry = new ImportEntry(existingFile.getName(), makeSha1(existingFile));
+		appendImportEntry(newEntry);
+		return newEntry;
+	}
+
+	private File indexFile() {
+		return new File(cacheDir, INDEX_FILE);
+	}
+
+	private boolean isMaster() throws GitAPIException {
+		try {
+			return git.getRepository().getBranch().equals("master");
+		} catch (final IOException e) {
+			return false;
+		}
+	}
+
 	private File[] listImageFiles() {
 		final File[] foundFiles = baseDir.listFiles(new FileFilter() {
 			@Override
@@ -563,14 +739,13 @@ public class Album implements ApplicationContextAware {
 					return false;
 				}
 				final String lowerFilename = file.getName().toLowerCase();
-				return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".jpeg") || lowerFilename.endsWith(".nef") || lowerFilename.endsWith(".mkv");
+				return lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".jpeg")
+								|| lowerFilename.endsWith(".nef")
+								|| lowerFilename.endsWith(".mkv")
+								|| lowerFilename.endsWith(".mp4");
 			}
 		});
 		return foundFiles;
-	}
-
-	public Map<String, AlbumImage> listImages() {
-		return loadCache().getImages();
 	}
 
 	private synchronized AlbumCache loadCache() {
@@ -779,81 +954,12 @@ public class Album implements ApplicationContextAware {
 		return true;
 	}
 
-	@SneakyThrows
-	public void pull(final String remoteUri, final String serverName) {
-		while (!state.compareAndSet(AlbumState.READY, AlbumState.SYNCHRONIZING)) {
-			Thread.sleep(300);
-		}
-		try {
-			repositoryService.pull(git, remoteUri, serverName);
-			updateConflictStatus();
-		} finally {
-			state.set(AlbumState.READY);
-		}
-	}
-
 	private AlbumEntryData readAlbumEntryDataFromCache(final String filename) {
 		return albumEntriesMetadataCache.get(filename);
 	}
 
-	/**
-	 * Check the current album against the file system
-	 */
-	public void reCheck() {
-		final AlbumState oldState = state.getAndSet(AlbumState.INITIALIZING);
-		try {
-			if (oldState.isReCheckAvailable()) {
-				final boolean modified = checkup();
-				if (!cacheDir.exists()) {
-					cacheDir.mkdirs();
-				}
-				if (autoaddFile().exists()) {
-					loadImportEntries();
-				}
-				if (metadataCacheFile().exists()) {
-					loadMetadataCache();
-				}
-
-				if (modified) {
-					commit("detected changes on filesystem");
-				}
-			}
-		} finally {
-			state.set(oldState);
-		}
-	}
-
 	private void saveMetadataWithoutCommit(final AlbumMetadata metadata) throws IOException, JsonGenerationException, JsonMappingException {
 		mapper.writer().writeValue(metadataFile(), metadata);
-	}
-
-	@Override
-	public void setApplicationContext(final ApplicationContext applicationContext) throws BeansException {
-		this.applicationContext = applicationContext;
-	}
-
-	public synchronized void setAutoAddBeginDate(final Date date) {
-		final File file = autoaddFile();
-		try {
-			final PrintWriter writer = new PrintWriter(file, "utf-8");
-			try {
-				writer.println(ISODateTimeFormat.dateTime().print(date.getTime()));
-			} finally {
-				writer.close();
-			}
-		} catch (final IOException ex) {
-			throw new RuntimeException("Cannot write new date to " + file, ex);
-		}
-	}
-
-	public synchronized void sync(final File remoteDir, final String localName, final String remoteName, final boolean bare) {
-		repositoryService.sync(git, remoteDir, localName, remoteName, bare);
-		updateConflictStatus();
-	}
-
-	@Override
-	public String toString() {
-		return "Album [" + getName() + "]";
 	}
 
 	private void updateAlbumEntryInCache(final String filename, final AlbumEntryData entryData) {
@@ -889,109 +995,6 @@ public class Album implements ApplicationContextAware {
 		} catch (final Throwable t) {
 			stateManager.recordException(getName(), t);
 		}
-	}
-
-	public synchronized void updateMetadata(final Collection<Mutation> updateEntries) {
-		final Map<String, AlbumImage> loadedImages = loadCache().getImages();
-		final Set<String> modifiedImages = new HashSet<>();
-		boolean metadataModified = false;
-		final AlbumMetadata metadata = getAlbumMetadata();
-		for (final Mutation entry : updateEntries) {
-			if (entry instanceof EntryMutation) {
-				final EntryMutation mutationEntry = (EntryMutation) entry;
-
-				final AlbumImage albumImage = loadedImages.get(mutationEntry.getAlbumEntryId());
-				if (albumImage == null) {
-					continue;
-				}
-				final AlbumEntryData oldMetadata = albumImage.getAlbumEntryData();
-				if (!StringUtils.equals(oldMetadata.getEditableMetadataHash(), mutationEntry.getBaseVersion())) {
-					continue;
-				}
-				modifiedImages.add(mutationEntry.getAlbumEntryId());
-				try {
-					if (entry instanceof RatingMutationEntry) {
-						final RatingMutationEntry ratingMutationEntry = (RatingMutationEntry) entry;
-						albumImage.setRating(ratingMutationEntry.getRating());
-					}
-					if (entry instanceof CaptionMutationEntry) {
-						final CaptionMutationEntry captionMutationEntry = (CaptionMutationEntry) entry;
-						albumImage.setCaption(captionMutationEntry.getCaption());
-					}
-					if (entry instanceof KeywordMutationEntry) {
-						final KeywordMutationEntry keywordMutationEntry = (KeywordMutationEntry) entry;
-						switch (keywordMutationEntry.getMutation()) {
-						case ADD:
-							albumImage.addKeyword(keywordMutationEntry.getKeyword());
-							break;
-						case REMOVE:
-							albumImage.removeKeyword(keywordMutationEntry.getKeyword());
-							break;
-						}
-					}
-				} catch (final Exception e) {
-					logger.error("Cannot execute update " + entry + " at album " + getName(), e);
-				}
-			}
-			if (entry instanceof AlbumMutation) {
-				if (!getLastModified().equals(((AlbumMutation) entry).getAlbumLastModified())) {
-					continue;
-				}
-				if (entry instanceof TitleImageMutation) {
-					final String titleImage = ((TitleImageMutation) entry).getTitleImage();
-					final AlbumImage foundImage = loadedImages.get(titleImage);
-					if (foundImage != null) {
-						metadata.setTitleEntry(foundImage.getName());
-						metadataModified = true;
-					}
-				}
-				if (entry instanceof TitleMutation) {
-					metadata.setAlbumTitle(((TitleMutation) entry).getTitle());
-					metadataModified = true;
-				}
-			}
-		}
-		if (!modifiedImages.isEmpty() || metadataModified) {
-			try {
-				final AddCommand addCommand = git.add();
-				if (metadataModified) {
-					saveMetadataWithoutCommit(metadata);
-					addCommand.addFilepattern(metadataFile().getName());
-				}
-				for (final String imageId : modifiedImages) {
-					addCommand.addFilepattern(loadedImages.get(imageId).getXmpSideFile().getName());
-				}
-				addCommand.call();
-				final CommitCommand commitCommand = git.commit();
-				commitCommand.setMessage("Metadata updated");
-				commitCommand.call();
-			} catch (final GitAPIException e) {
-				logger.error("Cannot update git", e);
-			} catch (final IOException e) {
-				logger.error("Cannot update metadata", e);
-			}
-		}
-	}
-
-	/**
-	 * evaluates current version of album
-	 * 
-	 * @return version, null if there is no commit
-	 */
-	public String version() {
-		try {
-			for (final RevCommit revCommit : git.log().call()) {
-				return revCommit.getName();
-			}
-			return null;
-		} catch (final NoHeadException e) {
-			return null;
-		} catch (final JGitInternalException e) {
-			throw new RuntimeException("Cannot read log", e);
-		} catch (final GitAPIException e) {
-			throw new RuntimeException("Cannot read log", e);
-		}
-
 	}
 
 	private void writeMetadata(final AlbumMetadata metadata) {

@@ -187,33 +187,6 @@ public class AlbumImage {
 		return totalSize;
 	}
 
-	private Metadata getExifMetadata() {
-		try {
-			Metadata exifMetadata;
-			final long startTime = System.currentTimeMillis();
-			exifMetadata = ImageMetadataReader.readMetadata(file);
-			final long endTime = System.currentTimeMillis();
-			logger.info("Metadata-Read: " + (endTime - startTime) + " ms");
-			return exifMetadata;
-		} catch (final IOException e) {
-			logger.warn("Cannot reade metadata from " + file, e);
-		} catch (final ImageProcessingException e) {
-			logger.warn("Cannot reade metadata from " + file, e);
-		}
-		return null;
-	}
-
-	/**
-	 * @return
-	 */
-	private Date getMetadataLastModifiedTime() {
-		final File xmpSideFile = getXmpSideFile();
-		if (!xmpSideFile.exists()) {
-			return null;
-		}
-		return new Date(xmpSideFile.lastModified());
-	}
-
 	public String getName() {
 		return file.getName();
 	}
@@ -284,11 +257,12 @@ public class AlbumImage {
 
 	/**
 	 * returns true if the image is a video
-	 * 
+	 *
 	 * @return
 	 */
 	public boolean isVideo() {
-		return file.getName().toLowerCase().endsWith(".mkv");
+		final String lowerFilename = file.getName().toLowerCase();
+		return lowerFilename.endsWith(".mkv") || lowerFilename.endsWith(".mp4");
 	}
 
 	public Date lastModified() {
@@ -296,14 +270,6 @@ public class AlbumImage {
 			return new Date(lastModified.getTime() - 1);
 		}
 		return lastModified;
-	}
-
-	private File makeCachedFile() {
-		final String name = file.getName();
-		if (isVideo()) {
-			return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
-		}
-		return new File(cacheDir, name);
 	}
 
 	public void removeKeyword(final String keyword) {
@@ -338,6 +304,41 @@ public class AlbumImage {
 	@Override
 	public String toString() {
 		return "AlbumImage [file=" + file.getName() + "]";
+	}
+
+	private Metadata getExifMetadata() {
+		try {
+			Metadata exifMetadata;
+			final long startTime = System.currentTimeMillis();
+			exifMetadata = ImageMetadataReader.readMetadata(file);
+			final long endTime = System.currentTimeMillis();
+			logger.info("Metadata-Read: " + (endTime - startTime) + " ms");
+			return exifMetadata;
+		} catch (final IOException e) {
+			logger.warn("Cannot reade metadata from " + file, e);
+		} catch (final ImageProcessingException e) {
+			logger.warn("Cannot reade metadata from " + file, e);
+		}
+		return null;
+	}
+
+	/**
+	 * @return
+	 */
+	private Date getMetadataLastModifiedTime() {
+		final File xmpSideFile = getXmpSideFile();
+		if (!xmpSideFile.exists()) {
+			return null;
+		}
+		return new Date(xmpSideFile.lastModified());
+	}
+
+	private File makeCachedFile() {
+		final String name = file.getName();
+		if (isVideo()) {
+			return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
+		}
+		return new File(cacheDir, name);
 	}
 
 	private void updateXmp(final XmpRunnable runnable) {
