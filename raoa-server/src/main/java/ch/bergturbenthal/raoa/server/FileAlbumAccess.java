@@ -603,7 +603,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	/*
 	 * (non-Javadoc)
-	 *
+	 * 
 	 * @see ch.bergturbenthal.raoa.server.AlbumAccess#importFile(java.lang.String, byte[])
 	 */
 	@Override
@@ -1396,26 +1396,26 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					if (mutation instanceof MetadataMutation) {
 						final MetadataMutation metadataMutation = (MetadataMutation) mutation;
 						final RevCommit latestMetaCommit = findLatestMetaCommit();
-						if (metadataMutation.getMetadataVersion().equals(latestMetaCommit.getId().name())) {
-							if (metadataMutation instanceof StorageMutation) {
-								final StorageMutation mutationEntry = (StorageMutation) metadataMutation;
-								final String storageName = Util.decodeStringOfUrl(mutationEntry.getStorage());
-								final String albumPath = Util.decodeStringOfUrl(albumId);
-								final Collection<String> albumCollection = albumPerStorage.get(storageName).getAlbumList();
+						// if (metadataMutation.getMetadataVersion().equals(latestMetaCommit.getId().name())) {
+						if (metadataMutation instanceof StorageMutation) {
+							final StorageMutation mutationEntry = (StorageMutation) metadataMutation;
+							final String storageName = Util.decodeStringOfUrl(mutationEntry.getStorage());
+							final String albumPath = Util.decodeStringOfUrl(albumId);
+							final Collection<String> albumCollection = albumPerStorage.get(storageName).getAlbumList();
 
-								if (!albumPerStorage.containsKey(storageName)) {
-									continue;
-								}
-								switch (mutationEntry.getMutation()) {
-								case ADD:
-									albumCollection.add(albumPath);
-									break;
-								case REMOVE:
-									albumCollection.remove(albumPath);
-									break;
-								}
+							if (!albumPerStorage.containsKey(storageName)) {
+								continue;
+							}
+							switch (mutationEntry.getMutation()) {
+							case ADD:
+								albumCollection.add(albumPath);
+								break;
+							case REMOVE:
+								albumCollection.remove(albumPath);
+								break;
 							}
 						}
+						// }
 					}
 				}
 				return null;
