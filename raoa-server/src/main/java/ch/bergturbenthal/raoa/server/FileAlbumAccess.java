@@ -289,7 +289,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	@Override
-	public synchronized Album createAlbum(final String[] pathNames) {
+	public Album createAlbum(final String[] pathNames) {
 		final Map<String, Album> albums = loadAlbums(true);
 		final File basePath = getBasePath();
 		File newAlbumPath = basePath;
@@ -603,7 +603,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.raoa.server.AlbumAccess#importFile(java.lang.String, byte[])
 	 */
 	@Override
