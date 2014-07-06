@@ -13,7 +13,7 @@
     <module>raoa-provider-api</module>
     <module>raoa-server-standalone</module>
     <module>raoa-server-war</module>
-    <module>raoa-client-test</module>
+    <!-- <module>raoa-client-test</module> -->
   </modules>
   <parent>
     <groupId>ch.berg-turbenthal.parent</groupId>
