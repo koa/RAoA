@@ -25,43 +25,12 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 
 	private String binary;
 
-	private boolean execute(final CommandLine cmdLine, final long timeout, final OutputStream output) {
-		try {
-			return executeInternal(cmdLine, timeout, output);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot execute " + cmdLine, e);
-		}
-	}
-
-	private boolean executeInternal(final CommandLine cmdLine, final long timeout, final OutputStream output) throws ExecuteException, IOException {
-		final Executor executor = new DefaultExecutor();
-		if (output != null) {
-			executor.setStreamHandler(new PumpStreamHandler(output));
-		}
-		executor.setWatchdog(new ExecuteWatchdog(timeout));
-		final int result = executor.execute(cmdLine);
-		return result == 0;
-	}
-
-	@PostConstruct
-	private void init() {
-		if (binary != null && testExecutable(binary))
-			// binary is already configured and valid
-			return;
-		for (final String candidate : binaryCandiates) {
-			if (testExecutable(candidate)) {
-				binary = candidate;
-				return;
-			}
-		}
-		throw new RuntimeException("No ffmpeg-compatible video converter found");
-	}
-
 	@Override
 	public boolean makeVideoThumbnail(final File originalFile, final File thumbnailFile, final File tempDir) {
 		// no valid binary found -> cannot convert
-		if (binary == null)
+		if (binary == null) {
 			return false;
+		}
 		final File tempFile = new File(tempDir, originalFile.getName() + "-tmp.mp4");
 		if (tempFile.exists()) {
 			tempFile.delete();
@@ -85,6 +54,8 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 																"scale=1280:720",
 																"-acodec",
 																"libvo_aacenc",
+																"-aspect",
+																"16:9",
 																"-sn",
 																"-r",
 																"30",
@@ -139,16 +110,50 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 
 	/**
 	 * Override Binary
-	 * 
+	 *
 	 * @param binary
 	 */
 	public void setBinary(final String binary) {
 		this.binary = binary;
 	}
 
+	private boolean execute(final CommandLine cmdLine, final long timeout, final OutputStream output) {
+		try {
+			return executeInternal(cmdLine, timeout, output);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot execute " + cmdLine, e);
+		}
+	}
+
+	private boolean executeInternal(final CommandLine cmdLine, final long timeout, final OutputStream output) throws ExecuteException, IOException {
+		final Executor executor = new DefaultExecutor();
+		if (output != null) {
+			executor.setStreamHandler(new PumpStreamHandler(output));
+		}
+		executor.setWatchdog(new ExecuteWatchdog(timeout));
+		final int result = executor.execute(cmdLine);
+		return result == 0;
+	}
+
+	@PostConstruct
+	private void init() {
+		if (binary != null && testExecutable(binary)) {
+			// binary is already configured and valid
+			return;
+		}
+		for (final String candidate : binaryCandiates) {
+			if (testExecutable(candidate)) {
+				binary = candidate;
+				return;
+			}
+		}
+		throw new RuntimeException("No ffmpeg-compatible video converter found");
+	}
+
 	private boolean testExecutable(final String executable) {
-		if (executable.trim().length() == 0)
+		if (executable.trim().length() == 0) {
 			return false;
+		}
 		final CommandLine cmdLine = new CommandLine(executable);
 		cmdLine.addArgument("-version");
 		try {
