@@ -234,7 +234,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	/*
 	 * (non-Javadoc)
-	 *
+	 * 
 	 * @see ch.bergturbenthal.raoa.provider.service.SynchronisationService#importFile(java.lang.String, byte[])
 	 */
 	@Override
@@ -1850,7 +1850,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 									for (final AlbumIndex album : store.listAlbumMeta()) {
 										final AlbumMutationData mutationData = store.getAlbumMutationData(album, ReadPolicy.READ_IF_EXISTS);
 										if (mutationData != null) {
-											for (final Iterator<Mutation> mutationIterator = mutationData.getMutations().iterator();;) {
+											for (final Iterator<Mutation> mutationIterator = mutationData.getMutations().iterator(); mutationIterator.hasNext();) {
 												final Mutation mutation = mutationIterator.next();
 												if (mutation instanceof MetadataMutation) {
 													final MetadataMutation metaMutation = (MetadataMutation) mutation;
