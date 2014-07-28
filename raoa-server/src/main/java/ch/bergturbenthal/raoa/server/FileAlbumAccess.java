@@ -603,7 +603,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	/*
 	 * (non-Javadoc)
-	 *
+	 * 
 	 * @see ch.bergturbenthal.raoa.server.AlbumAccess#importFile(java.lang.String, byte[])
 	 */
 	@Override
@@ -892,7 +892,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		refreshCache(true);
 	}
 
-	private synchronized void processFoundServices(final ServiceInfo[] services) {
+	private void processFoundServices(final ServiceInfo[] services) {
 		synchronized (processPeersLock) {
 
 			final Map<String, URI> foundPeers = new HashMap<String, URI>();
