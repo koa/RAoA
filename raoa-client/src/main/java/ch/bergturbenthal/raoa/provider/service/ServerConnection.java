@@ -40,6 +40,7 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJacksonHttpMessageConverter;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
@@ -99,6 +100,8 @@ public class ServerConnection {
 				if (response != null && okStates.contains(response.getStatusCode())) {
 					return response.getBody();
 				}
+			} catch (final HttpServerErrorException ex) {
+				throw new RuntimeException("Cannot connect to server " + serverName, ex);
 			} catch (final Throwable ex) {
 				moveConnectionToEnd(connection);
 				if (t != null) {
@@ -194,7 +197,7 @@ public class ServerConnection {
 
 	/**
 	 * Album-Keys by album-names
-	 * 
+	 *
 	 * @return
 	 */
 	public AlbumList listAlbums() {
@@ -312,7 +315,7 @@ public class ServerConnection {
 
 	/**
 	 * Try to resolve a Issue
-	 * 
+	 *
 	 * @param issueId
 	 *          Issue to resolve
 	 * @param action
