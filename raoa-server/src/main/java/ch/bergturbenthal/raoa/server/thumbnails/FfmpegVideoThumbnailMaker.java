@@ -25,6 +25,39 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 
 	private String binary;
 
+	private boolean execute(final CommandLine cmdLine, final long timeout, final OutputStream output) {
+		try {
+			return executeInternal(cmdLine, timeout, output);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot execute " + cmdLine, e);
+		}
+	}
+
+	private boolean executeInternal(final CommandLine cmdLine, final long timeout, final OutputStream output) throws ExecuteException, IOException {
+		final Executor executor = new DefaultExecutor();
+		if (output != null) {
+			executor.setStreamHandler(new PumpStreamHandler(output));
+		}
+		executor.setWatchdog(new ExecuteWatchdog(timeout));
+		final int result = executor.execute(cmdLine);
+		return result == 0;
+	}
+
+	@PostConstruct
+	private void init() {
+		if (binary != null && testExecutable(binary)) {
+			// binary is already configured and valid
+			return;
+		}
+		for (final String candidate : binaryCandiates) {
+			if (testExecutable(candidate)) {
+				binary = candidate;
+				return;
+			}
+		}
+		throw new RuntimeException("No ffmpeg-compatible video converter found");
+	}
+
 	@Override
 	public boolean makeVideoThumbnail(final File originalFile, final File thumbnailFile, final File tempDir) {
 		// no valid binary found -> cannot convert
@@ -37,7 +70,7 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 		}
 		final CommandLine cmdLine = new CommandLine(binary);
 		final String[] arguments;
-		if (originalFile.length() < 100 * 1024 * 1024) {
+		if (originalFile.length() < 1024 * 1024 * 1024) {
 			arguments = new String[] { "-i",
 																originalFile.getAbsolutePath(),
 																"-vcodec",
@@ -68,7 +101,7 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 																"-vcodec",
 																"libx264",
 																"-b:v",
-																"128k",
+																"256k",
 																"-profile:v",
 																"baseline",
 																"-b:a",
@@ -115,39 +148,6 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 	 */
 	public void setBinary(final String binary) {
 		this.binary = binary;
-	}
-
-	private boolean execute(final CommandLine cmdLine, final long timeout, final OutputStream output) {
-		try {
-			return executeInternal(cmdLine, timeout, output);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot execute " + cmdLine, e);
-		}
-	}
-
-	private boolean executeInternal(final CommandLine cmdLine, final long timeout, final OutputStream output) throws ExecuteException, IOException {
-		final Executor executor = new DefaultExecutor();
-		if (output != null) {
-			executor.setStreamHandler(new PumpStreamHandler(output));
-		}
-		executor.setWatchdog(new ExecuteWatchdog(timeout));
-		final int result = executor.execute(cmdLine);
-		return result == 0;
-	}
-
-	@PostConstruct
-	private void init() {
-		if (binary != null && testExecutable(binary)) {
-			// binary is already configured and valid
-			return;
-		}
-		for (final String candidate : binaryCandiates) {
-			if (testExecutable(candidate)) {
-				binary = candidate;
-				return;
-			}
-		}
-		throw new RuntimeException("No ffmpeg-compatible video converter found");
 	}
 
 	private boolean testExecutable(final String executable) {
