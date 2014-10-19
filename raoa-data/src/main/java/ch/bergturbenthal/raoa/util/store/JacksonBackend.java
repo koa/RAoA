@@ -12,19 +12,19 @@ import java.io.Writer;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.io.IOContext;
-import org.codehaus.jackson.io.InputDecorator;
-import org.codehaus.jackson.io.OutputDecorator;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.ObjectReader;
-import org.codehaus.jackson.map.ObjectWriter;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.io.IOContext;
+import com.fasterxml.jackson.core.io.InputDecorator;
+import com.fasterxml.jackson.core.io.OutputDecorator;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
 
 /**
  * TODO: add type comment.
- * 
+ *
  * @param <T>
- * 
+ *
  */
 public class JacksonBackend<T> extends AbstractFileBackend<T> {
 

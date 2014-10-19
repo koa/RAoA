@@ -17,7 +17,6 @@ import java.util.Set;
 import lombok.Cleanup;
 
 import org.apache.commons.io.IOUtils;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeCommand;
 import org.eclipse.jgit.api.MergeResult;
@@ -56,6 +55,8 @@ import ch.bergturbenthal.raoa.data.model.state.IssueType;
 import ch.bergturbenthal.raoa.server.state.CloseableProgressMonitor;
 import ch.bergturbenthal.raoa.server.state.StateManager;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 public class RepositoryServiceImpl implements RepositoryService {
 	private static final class InfiniteCountIterator implements Iterator<String> {
 		private int i = 0;
@@ -90,7 +91,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.image.server.util.RepositoryService#cleanOldConflicts (org.eclipse.jgit.api.Git)
 	 */
 	@Override
@@ -128,7 +129,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.image.server.util.RepositoryService#describeConflicts (org.eclipse.jgit.api.Git)
 	 */
 	@Override

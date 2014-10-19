@@ -29,8 +29,8 @@
     <!-- Available Android versions: 1.5_r3, 1.5_r4, 1.6_r2, 2.1.2, 2.1_r1, 
       2.2.1, 2.3.1, 2.3.3, 4.0.1.2 -->
     <spring-android-version>1.1.0.BUILD-KOA</spring-android-version>
-    <org.springframework-version>4.0.2.RELEASE</org.springframework-version>
-    <org.slf4j-version>1.7.6</org.slf4j-version>
+    <org.springframework-version>4.1.1.RELEASE</org.springframework-version>
+    <org.slf4j-version>1.7.7</org.slf4j-version>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -42,12 +42,12 @@
       <dependency>
         <groupId>org.eclipse.jgit</groupId>
         <artifactId>org.eclipse.jgit</artifactId>
-        <version>3.3.2.201404171909-r</version>
+        <version>3.5.0.201409260305-r</version>
       </dependency>
       <dependency>
         <groupId>joda-time</groupId>
         <artifactId>joda-time</artifactId>
-        <version>2.3</version>
+        <version>2.5</version>
       </dependency>
       <dependency>
         <groupId>com.google.android</groupId>
@@ -77,7 +77,12 @@
       <dependency>
         <groupId>org.eclipse.jetty</groupId>
         <artifactId>jetty-webapp</artifactId>
-        <version>9.2.0.v20140526</version>
+        <version>9.2.3.v20140905</version>
+      </dependency>
+      <dependency>
+        <groupId>org.eclipse.jetty</groupId>
+        <artifactId>jetty-jsp</artifactId>
+        <version>9.2.3.v20140905</version>
       </dependency>
       <dependency>
         <groupId>org.springframework</groupId>
@@ -132,7 +137,7 @@
       <dependency>
         <groupId>junit</groupId>
         <artifactId>junit</artifactId>
-        <version>4.11</version>
+        <version>4.12-beta-2</version>
       </dependency>
       <dependency>
         <groupId>org.springframework</groupId>
@@ -162,7 +167,7 @@
       <dependency>
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
-        <version>1.14.0</version>
+        <version>1.14.8</version>
         <scope>provided</scope>
       </dependency>
       <dependency>

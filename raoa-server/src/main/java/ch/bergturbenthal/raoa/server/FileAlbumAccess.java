@@ -65,11 +65,6 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.codehaus.jackson.JsonGenerationException;
-import org.codehaus.jackson.map.DeserializationConfig;
-import org.codehaus.jackson.map.JsonMappingException;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.util.DefaultPrettyPrinter;
 import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
@@ -119,12 +114,17 @@ import ch.bergturbenthal.raoa.util.store.FileStorage.ReadPolicy;
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
+import com.fasterxml.jackson.core.JsonGenerationException;
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfiguration, ArchiveConfiguration, FileNotification, ApplicationContextAware {
 	private static final String ALBUM_PATH_PREFERENCE = "album_path";
 	private static final String CLIENTID_FILENAME = ".clientid";
 	private static final String IMPORT_BASE_PATH_REFERENCE = "import_base_path";
-	private static final ObjectMapper mapper = new ObjectMapper().disable(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES);
+	private static final ObjectMapper mapper = new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 	private static final String META_CACHE = "cache";
 	private static final String META_REPOSITORY = ".meta";
 	private static final String QUOTED_FILE_SEPARATOR = Pattern.quote(File.separator);
@@ -603,7 +603,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.raoa.server.AlbumAccess#importFile(java.lang.String, byte[])
 	 */
 	@Override
@@ -1363,7 +1363,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 								localAlbumForRemote.pull(remoteUri, pingResponse.getServerName());
 							}
 						} catch (final Throwable e) {
-							logger.error("Cannot sync with " + remoteHost, e);
+							logger.warn("Cannot sync with " + remoteHost, e);
 						}
 					}
 				});
@@ -1429,7 +1429,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		for (final Entry<String, AtomicInteger> keywordEntry : countByTag.entrySet()) {
 			statistics.getKeywordCount().put(keywordEntry.getKey(), Integer.valueOf(keywordEntry.getValue().intValue()));
 		}
-		mapper.writer().withPrettyPrinter(new DefaultPrettyPrinter()).writeValue(new File(getServercacheDir(), "statistics.json"), statistics);
+		mapper.writer().with(new DefaultPrettyPrinter()).writeValue(new File(getServercacheDir(), "statistics.json"), statistics);
 	}
 
 	@Override
