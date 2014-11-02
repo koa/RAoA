@@ -3,50 +3,24 @@
  */
 package ch.bergturbenthal.raoa.provider.model.dto;
 
+import java.io.Serializable;
+
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Value;
+import lombok.experimental.Builder;
+import lombok.experimental.Wither;
+
 /**
  * TODO: add type comment.
- * 
+ *
  */
-public class AlbumState {
+@Value
+@AllArgsConstructor(suppressConstructorProperties = true, access = AccessLevel.PRIVATE)
+@Builder
+public class AlbumState implements Serializable {
+	@Wither
 	private boolean isSynced;
+	@Wither
 	private boolean shouldSync;
-
-	/**
-	 * Returns the shouldSync.
-	 * 
-	 * @return the shouldSync
-	 */
-	public boolean isShouldSync() {
-		return shouldSync;
-	}
-
-	/**
-	 * Returns the isSynced.
-	 * 
-	 * @return the isSynced
-	 */
-	public boolean isSynced() {
-		return isSynced;
-	}
-
-	/**
-	 * Sets the shouldSync.
-	 * 
-	 * @param shouldSync
-	 *          the shouldSync to set
-	 */
-	public void setShouldSync(final boolean shouldSync) {
-		this.shouldSync = shouldSync;
-	}
-
-	/**
-	 * Sets the isSynced.
-	 * 
-	 * @param isSynced
-	 *          the isSynced to set
-	 */
-	public void setSynced(final boolean isSynced) {
-		this.isSynced = isSynced;
-	}
-
 }

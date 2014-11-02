@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -26,9 +25,6 @@ import ch.bergturbenthal.raoa.provider.criterium.Constant;
 import ch.bergturbenthal.raoa.provider.criterium.Criterium;
 import ch.bergturbenthal.raoa.provider.criterium.PairValue;
 import ch.bergturbenthal.raoa.provider.criterium.Value;
-import ch.bergturbenthal.raoa.provider.map.NotifyableMatrixCursor.SingleFieldReader;
-import ch.bergturbenthal.raoa.provider.util.LazyLoader;
-import ch.bergturbenthal.raoa.provider.util.LazyLoader.Callable;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 import ch.bergturbenthal.raoa.util.Pair;
 
@@ -43,103 +39,7 @@ public class MapperUtil {
 		Object read(final V value) throws Exception;
 	}
 
-	private static class SingleNumberFieldReader implements SingleFieldReader {
-		private final int currentFieldType;
-		private final Callable<Number> numberCallable;
-
-		private SingleNumberFieldReader(final int currentFieldType, final Callable<Number> numberCallable) {
-			this.currentFieldType = currentFieldType;
-			this.numberCallable = numberCallable;
-		}
-
-		@Override
-		public Number getNumber() {
-			return numberCallable.call();
-		}
-
-		@Override
-		public String getString() {
-			return numberCallable.call().toString();
-		}
-
-		@Override
-		public int getType() {
-			return currentFieldType;
-		}
-
-		@Override
-		public Object getValue() {
-			return numberCallable.call();
-		}
-
-		@Override
-		public boolean isNull() {
-			return numberCallable.call() == null;
-		}
-	}
-
-	private static class SingleStringFieldReader implements SingleFieldReader {
-		private final Callable<String> stringCallable;
-
-		private SingleStringFieldReader(final Callable<String> stringCallable) {
-			this.stringCallable = stringCallable;
-		}
-
-		@Override
-		public Number getNumber() {
-			return null;
-		}
-
-		@Override
-		public String getString() {
-			return stringCallable.call();
-		}
-
-		@Override
-		public int getType() {
-			return Cursor.FIELD_TYPE_STRING;
-		}
-
-		@Override
-		public Object getValue() {
-			return stringCallable.call();
-		}
-
-		@Override
-		public boolean isNull() {
-			return stringCallable.call() == null;
-		}
-	}
-
 	private static final Map<Class<?>, Map<String, FieldReader<?>>> fieldReaders = new HashMap<Class<?>, Map<String, FieldReader<?>>>();
-
-	private static final SingleFieldReader NULL_READER = new SingleFieldReader() {
-
-		@Override
-		public Number getNumber() {
-			return null;
-		}
-
-		@Override
-		public String getString() {
-			return null;
-		}
-
-		@Override
-		public int getType() {
-			return Cursor.FIELD_TYPE_NULL;
-		}
-
-		@Override
-		public Object getValue() {
-			return null;
-		}
-
-		@Override
-		public boolean isNull() {
-			return true;
-		}
-	};
 
 	private static Map<Class<?>, Class<?>> primitiveToBoxed = new HashMap<Class<?>, Class<?>>();
 	private static String TAG = "MapperUtil";
@@ -160,6 +60,9 @@ public class MapperUtil {
 
 			@Override
 			public Object read(final V value) throws Exception {
+				if (value == null) {
+					return null;
+				}
 				return field.get(value);
 			}
 		}, returnType);
@@ -172,6 +75,9 @@ public class MapperUtil {
 
 			@Override
 			public Object read(final V value) throws Exception {
+				if (value == null) {
+					return null;
+				}
 				return method.invoke(value);
 			}
 		}, returnType);
@@ -418,61 +324,41 @@ public class MapperUtil {
 				sortEntries.add(entry);
 			}
 		}
-		final List<SingleFieldReader[]> entries = new ArrayList<NotifyableMatrixCursor.SingleFieldReader[]>();
+		final List<Object[]> entries = new ArrayList<Object[]>();
 		Log.i(TAG, "Start collection rows");
 		long selectionTime = 0;
-		long takeRestTime = 0;
+		final long takeRestTime = 0;
 		final long[] columnTimes = new long[columnNames.size()];
 		Arrays.fill(columnTimes, 0);
 
 		final List<FieldReader<E>> orderedFieldReaders = new ArrayList<FieldReader<E>>();
 		final Map<String, Integer> columnIndices = new HashMap<String, Integer>();
 
-		final Iterator<Entry<String, FieldReader<E>>> fieldReadersIterator = fieldReaders.entrySet().iterator();
-		for (int i = 0; fieldReadersIterator.hasNext(); i++) {
-			final Entry<String, FieldReader<E>> fieldReaderEntry = fieldReadersIterator.next();
-			columnIndices.put(fieldReaderEntry.getKey(), Integer.valueOf(i));
-			orderedFieldReaders.add(fieldReaderEntry.getValue());
+		for (int i = 0; i < columnNames.size(); i++) {
+			final String columnName = columnNames.get(i);
+			columnIndices.put(columnName, Integer.valueOf(i));
+			final FieldReader<E> fieldReader = fieldReaders.get(columnName);
+			orderedFieldReaders.add(fieldReader);
 		}
 
 		for (final E entry : collection) {
-			final List<SingleFieldReader> columnFieldReaders = new ArrayList<NotifyableMatrixCursor.SingleFieldReader>(orderedFieldReaders.size());
-			for (final FieldReader<E> fieldReader : orderedFieldReaders) {
-				final SingleFieldReader singleFieldReader;
-				final int currentFieldType = fieldReader.getType();
-				switch (currentFieldType) {
-				case Cursor.FIELD_TYPE_NULL:
-					singleFieldReader = NULL_READER;
-					break;
-				case Cursor.FIELD_TYPE_STRING:
-					singleFieldReader = new SingleStringFieldReader(LazyLoader.loadLazy(new Callable<String>() {
-						@Override
-						public String call() {
-							return fieldReader.getString(entry);
-						}
-					}));
-					break;
-				case Cursor.FIELD_TYPE_FLOAT:
-				case Cursor.FIELD_TYPE_INTEGER:
-					singleFieldReader = new SingleNumberFieldReader(currentFieldType, LazyLoader.loadLazy(new Callable<Number>() {
-
-						@Override
-						public Number call() {
-							return fieldReader.getNumber(entry);
-						}
-					}));
-					break;
-				default:
-					throw new RuntimeException("Unsupportet type " + currentFieldType);
-				}
-				columnFieldReaders.add(singleFieldReader);
-			}
 
 			final Lookup<String, Object> columnLookup = new Lookup<String, Object>() {
 				@Override
 				public Object get(final String key) {
-					final int columnIndex = columnIndices.get(key).intValue();
-					return columnFieldReaders.get(columnIndex).getValue();
+					final FieldReader<E> fieldReader = fieldReaders.get(key);
+					final int currentFieldType = fieldReader.getType();
+					switch (currentFieldType) {
+					case Cursor.FIELD_TYPE_NULL:
+						return null;
+					case Cursor.FIELD_TYPE_STRING:
+						return fieldReader.getString(entry);
+					case Cursor.FIELD_TYPE_FLOAT:
+					case Cursor.FIELD_TYPE_INTEGER:
+						return fieldReader.getNumber(entry);
+					default:
+						throw new RuntimeException("Unsupportet type " + currentFieldType);
+					}
 				}
 			};
 			if (criterium != null) {
@@ -484,28 +370,23 @@ public class MapperUtil {
 				}
 			}
 
-			final SingleFieldReader[] row = new SingleFieldReader[columnNames.size()];
-			takeRestTime -= System.currentTimeMillis();
-			for (int j = 0; j < row.length; j++) {
-				final int columnIndex = columnIndices.get(columnNames.get(j)).intValue();
-				columnTimes[j] -= System.currentTimeMillis();
-				row[j] = columnFieldReaders.get(columnIndex);
-				columnTimes[j] += System.currentTimeMillis();
+			final Object[] columnValues = new Object[columnNames.size()];
+			for (int i = 0; i < columnNames.size(); i++) {
+				columnValues[i] = columnLookup.get(columnNames.get(i));
 			}
-			takeRestTime += System.currentTimeMillis();
 
-			entries.add(row);
+			entries.add(columnValues);
 		}
 		long orderTime = 0;
 		Log.i(TAG, "End collection " + entries.size() + " rows");
 		if (sortEntries.size() > 0) {
 			orderTime -= System.currentTimeMillis();
-			Collections.sort(entries, new Comparator<SingleFieldReader[]>() {
+			Collections.sort(entries, new Comparator<Object[]>() {
 				@Override
-				public int compare(final SingleFieldReader[] lhs, final SingleFieldReader[] rhs) {
+				public int compare(final Object[] lhs, final Object[] rhs) {
 					for (final IndexedOderEntry sortColumn : sortEntries) {
-						final Comparable<Object> leftValue = (Comparable<Object>) lhs[sortColumn.index].getValue();
-						final Comparable<Object> rightValue = (Comparable<Object>) rhs[sortColumn.index].getValue();
+						final Comparable<Object> leftValue = (Comparable<Object>) lhs[sortColumn.index];
+						final Comparable<Object> rightValue = (Comparable<Object>) rhs[sortColumn.index];
 						final int cmp = compareRaw(leftValue, rightValue, sortColumn.nullFirst);
 						if (cmp != 0) {
 							return sortColumn.order == Order.ASC ? cmp : -cmp;
@@ -518,13 +399,11 @@ public class MapperUtil {
 			orderTime += System.currentTimeMillis();
 		}
 		final NotifyableMatrixCursor cursor = new NotifyableMatrixCursor(columnNames.subList(0, outputColumns).toArray(new String[outputColumns]));
-		if (outputColumns == columnNames.size()) {
-			for (final SingleFieldReader[] entryValues : entries) {
+		for (final Object[] entryValues : entries) {
+			if (entryValues.length == outputColumns) {
 				cursor.addRow(entryValues);
-			}
-		} else {
-			for (final SingleFieldReader[] entryValues : entries) {
-				final SingleFieldReader[] dataValues = new SingleFieldReader[outputColumns];
+			} else {
+				final Object[] dataValues = new Object[outputColumns];
 				System.arraycopy(entryValues, 0, dataValues, 0, outputColumns);
 				cursor.addRow(dataValues);
 			}
@@ -575,7 +454,7 @@ public class MapperUtil {
 				final String fieldName = annotation.value();
 				appendMethodReader(ret, fieldName, method);
 			}
-			for (final Field field : type.getFields()) {
+			for (final Field field : type.getDeclaredFields()) {
 				final CursorField annotation = field.getAnnotation(CursorField.class);
 				if (annotation == null) {
 					continue;
@@ -584,6 +463,9 @@ public class MapperUtil {
 				appendFieldReader(ret, fieldName, field);
 			}
 			fieldReaders.put(type, (Map<String, FieldReader<?>>) (Map<String, ?>) ret);
+			if (ret.isEmpty()) {
+				throw new IllegalArgumentException("Class " + type.getName() + " has no annotations");
+			}
 			return ret;
 		}
 	}

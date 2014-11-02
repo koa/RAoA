@@ -5,9 +5,8 @@ package ch.bergturbenthal.raoa.provider.model.dto;
 
 /**
  * TODO: add type comment.
- * 
+ *
  */
 public enum AlbumEntryType {
 	IMAGE, VIDEO
-
 }

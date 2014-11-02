@@ -14,7 +14,7 @@ import android.util.LruCache;
 
 /**
  * TODO: add type comment.
- * 
+ *
  */
 public class LazyLoader {
 	public static interface Callable<V> {
@@ -40,8 +40,9 @@ public class LazyLoader {
 		@Override
 		public synchronized V get(final K key) {
 			readCount.incrementAndGet();
-			if (loadedValues.containsKey(key))
+			if (loadedValues.containsKey(key)) {
 				return loadedValues.get(key);
+			}
 			missCount.incrementAndGet();
 			final V loadedValue = loader.get(key);
 			loadedValues.put(key, loadedValue);
@@ -127,5 +128,15 @@ public class LazyLoader {
 
 	public static <K, V> Lookup<K, V> loadLazy(final Lookup<K, V> loader) {
 		return new HashMapLookup<K, V>(loader);
+	}
+
+	public static <K, V> Lookup<K, V> lookupMap(final Map<K, V> map) {
+		return new Lookup<K, V>() {
+
+			@Override
+			public V get(final K key) {
+				return map.get(key);
+			}
+		};
 	}
 }

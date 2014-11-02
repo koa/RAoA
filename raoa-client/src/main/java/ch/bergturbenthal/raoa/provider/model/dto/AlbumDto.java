@@ -1,51 +1,22 @@
 package ch.bergturbenthal.raoa.provider.model.dto;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
-public class AlbumDto {
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Value;
+import lombok.experimental.Builder;
+
+@Value
+@AllArgsConstructor(access = AccessLevel.PRIVATE, suppressConstructorProperties = true)
+@Builder
+public class AlbumDto implements Serializable {
 	private String albumTitle;
 	private String albumTitleEntry;
 	private Collection<Date> autoAddDate;
-	private final Map<String, AlbumEntryDto> entries = new HashMap<String, AlbumEntryDto>();
+	private final Map<String, AlbumEntryDto> entries;
 	private Date lastModified;
-
-	public String getAlbumTitle() {
-		return albumTitle;
-	}
-
-	public String getAlbumTitleEntry() {
-		return albumTitleEntry;
-	}
-
-	public Collection<Date> getAutoAddDate() {
-		return autoAddDate;
-	}
-
-	public Map<String, AlbumEntryDto> getEntries() {
-		return entries;
-	}
-
-	public Date getLastModified() {
-		return lastModified;
-	}
-
-	public void setAlbumTitle(final String albumTitle) {
-		this.albumTitle = albumTitle;
-	}
-
-	public void setAlbumTitleEntry(final String albumTitleEntry) {
-		this.albumTitleEntry = albumTitleEntry;
-	}
-
-	public void setAutoAddDate(final Collection<Date> autoAddDate) {
-		this.autoAddDate = autoAddDate;
-	}
-
-	public void setLastModified(final Date lastModified) {
-		this.lastModified = lastModified;
-	}
-
 }

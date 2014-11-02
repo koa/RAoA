@@ -25,6 +25,7 @@ public class ClientApplication extends Application {
 		Thread.setDefaultUncaughtExceptionHandler(new UncaughtExceptionHandler() {
 			@Override
 			public void uncaughtException(final Thread thread, final Throwable ex) {
+				Log.w("Uncaugth Exception", ex);
 				final String filename = "crash-" + dateFormat.format(new Date()) + "-" + thread.getName() + ".txt";
 				try {
 					final PrintWriter writer = new PrintWriter(new File(crashesDir, filename));

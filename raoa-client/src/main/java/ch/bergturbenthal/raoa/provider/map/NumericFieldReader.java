@@ -9,6 +9,9 @@ public abstract class NumericFieldReader<V> implements FieldReader<V> {
 
 	@Override
 	public String getString(final V value) {
+		if (value == null) {
+			return null;
+		}
 		return getNumber(value).toString();
 	}
 
@@ -19,11 +22,14 @@ public abstract class NumericFieldReader<V> implements FieldReader<V> {
 
 	@Override
 	public Object getValue(final V value) {
+		if (value == null) {
+			return null;
+		}
 		return getNumber(value);
 	}
 
 	@Override
 	public boolean isNull(final V value) {
-		return getNumber(value) == null;
+		return value == null || getNumber(value) == null;
 	}
 }

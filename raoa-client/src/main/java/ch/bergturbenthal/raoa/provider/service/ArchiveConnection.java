@@ -28,6 +28,7 @@ import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto;
+import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto.AlbumDtoBuilder;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryDto;
 import ch.bergturbenthal.raoa.provider.model.dto.ServerStateDto;
 
@@ -70,7 +71,7 @@ public class ArchiveConnection {
 				continue;
 			}
 			try {
-				ret.add(new ServerStateDto(connection.getServerName(), connection.getServerState()));
+				ret.add(ServerStateDto.builder().serverName(connection.getServerName()).serverState(connection.getServerState()).build());
 			} catch (final Throwable t) {
 				Log.w("ARCHIVE_CONNECTION", "Cannot query state from " + connection.getServerName(), t);
 			}
@@ -80,8 +81,9 @@ public class ArchiveConnection {
 
 	public Map<String, AlbumConnection> getAlbums() {
 		final Map<String, AlbumConnection> cached = cachedAlbums.get();
-		if (cached != null)
+		if (cached != null) {
 			return cached;
+		}
 		return listAlbums();
 	}
 
@@ -149,8 +151,8 @@ public class ArchiveConnection {
 
 				@Override
 				public AlbumDto getAlbumDetail() {
-					final AlbumDto ret = new AlbumDto();
-					final Map<String, AlbumEntryDto> entries = ret.getEntries();
+					final AlbumDtoBuilder albumDtoBuilder = AlbumDto.builder();
+					final Map<String, AlbumEntryDto> entries = new HashMap<String, AlbumEntryDto>();
 					for (final String serverId : servers) {
 						final ServerConnection serverConnection = serverConnections.get().get(serverId);
 						if (serverConnection == null) {
@@ -158,11 +160,11 @@ public class ArchiveConnection {
 						}
 						final AlbumDetail albumDetail = serverConnection.getAlbumDetail(albumId);
 						if (albumDetail.getAutoAddDate() != null) {
-							ret.setAutoAddDate(albumDetail.getAutoAddDate());
+							albumDtoBuilder.autoAddDate(albumDetail.getAutoAddDate());
 						}
-						ret.setAlbumTitle(albumDetail.getTitle());
-						ret.setAlbumTitleEntry(albumDetail.getTitleEntry());
-						ret.setLastModified(albumDetail.getLastModified());
+						albumDtoBuilder.albumTitle(albumDetail.getTitle());
+						albumDtoBuilder.albumTitleEntry(albumDetail.getTitleEntry());
+						albumDtoBuilder.lastModified(albumDetail.getLastModified());
 						for (final AlbumImageEntry entry : albumDetail.getImages()) {
 							final String key = entry.getId();
 							if (entries.containsKey(key) && entries.get(key).getLastModified().getTime() > entry.getLastModified().getTime()) {
@@ -170,8 +172,9 @@ public class ArchiveConnection {
 							}
 							entries.put(key, AlbumEntryDto.fromServer(entry));
 						}
+						albumDtoBuilder.entries(entries);
 					}
-					return ret;
+					return albumDtoBuilder.build();
 				}
 
 				@Override
@@ -191,8 +194,9 @@ public class ArchiveConnection {
 						if (serverConnection == null) {
 							continue;
 						}
-						if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile))
+						if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile)) {
 							return true;
+						}
 					}
 					return false;
 				}

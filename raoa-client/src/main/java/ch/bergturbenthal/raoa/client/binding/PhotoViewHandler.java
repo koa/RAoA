@@ -36,7 +36,7 @@ import ch.bergturbenthal.raoa.client.util.BitmapUtil;
 
 /**
  * Display a Photo on a ImageView
- * 
+ *
  */
 public class PhotoViewHandler implements ViewHandler<View> {
 	public static class DimensionCalculator implements TargetSizeCalculator {
@@ -57,12 +57,12 @@ public class PhotoViewHandler implements ViewHandler<View> {
 
 	/**
 	 * Interface for Handler to calculate image size while reading from ContentProvider.
-	 * 
+	 *
 	 */
 	public static interface TargetSizeCalculator {
 		/**
 		 * Calculating the width and height
-		 * 
+		 *
 		 * @param context
 		 *          Context
 		 * @return a {@link Pair} with has width as first and height as second value.
@@ -275,6 +275,9 @@ public class PhotoViewHandler implements ViewHandler<View> {
 					} else {
 						bitmap = persistentBitmap;
 					}
+				} catch (final FileNotFoundException e) {
+					// file not already loaded
+					bitmap = null;
 				} catch (final Throwable t) {
 					Log.i(TAG, "Cannot load image from " + uri, t);
 					bitmap = null;
@@ -350,6 +353,9 @@ public class PhotoViewHandler implements ViewHandler<View> {
 	public void preloadCache(final Context context, final Collection<String> images) {
 		calculateTargetSize(context);
 		for (final String imageUri : images) {
+			if (imageUri == null) {
+				continue;
+			}
 			final Uri uri = Uri.parse(imageUri);
 			final File targetFile = persistentBitmapCacheFiles.get(createFilename(imageUri));
 			if (targetFile.exists()) {

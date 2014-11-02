@@ -71,6 +71,11 @@
     <!-- <dependency> <groupId>nl.renarj</groupId> <artifactId>jasdb_android</artifactId> 
       <version>0.8</version> <exclusions> <exclusion> <groupId>ch.qos.logback</groupId> 
       <artifactId>logback-classic</artifactId> </exclusion> </exclusions> </dependency> -->
+    <dependency>
+      <groupId>org.mapdb</groupId>
+      <artifactId>mapdb-renamed</artifactId>
+      <version>1.0.7-SNAPSHOT</version>
+    </dependency>
   </dependencies>
 
   <build>
