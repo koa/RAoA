@@ -369,6 +369,8 @@ public class PhotoViewHandler implements ViewHandler<View> {
 						final Bitmap bitmap = loadImage(context, uri);
 						bitmapCache.put(imageUri, new SoftReference<Bitmap>(bitmap));
 						saveCacheEntry(bitmap, targetFile);
+					} catch (final FileNotFoundException e) {
+						// file not ready now
 					} catch (final Throwable t) {
 						Log.i(TAG, "Cannot load image from " + uri, t);
 					}

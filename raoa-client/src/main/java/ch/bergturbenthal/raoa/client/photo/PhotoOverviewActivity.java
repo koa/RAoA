@@ -673,7 +673,7 @@ public class PhotoOverviewActivity extends Activity {
 						do {
 							allEntries.add(data.getString(columnIndex));
 						} while (data.moveToNext());
-						photoViewHandler.preloadCache(PhotoOverviewActivity.this, allEntries);
+						// photoViewHandler.preloadCache(PhotoOverviewActivity.this, allEntries);
 					}
 				});
 			}

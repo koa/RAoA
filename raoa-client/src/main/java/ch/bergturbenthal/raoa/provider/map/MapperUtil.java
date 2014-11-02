@@ -13,9 +13,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.Executor;
 import java.util.regex.Pattern;
 
+import android.database.AbstractWindowedCursor;
 import android.database.Cursor;
+import android.database.CursorWindow;
 import android.util.Log;
 import ch.bergturbenthal.raoa.provider.SortOrder;
 import ch.bergturbenthal.raoa.provider.SortOrderEntry;
@@ -37,6 +40,145 @@ public class MapperUtil {
 
 	private interface RawFieldReader<V> {
 		Object read(final V value) throws Exception;
+	}
+
+	private static final class WindowedLazyLoadingCursor<E> extends AbstractWindowedCursor implements NotifyableCursor {
+		private final String[] columnNamesArray;
+		private final Map<String, FieldReader<E>> fieldReaders;
+		private int lastWindowSize;
+		private final List<E> orderedIndizes;
+		private final Executor transactionExecutor;
+
+		public WindowedLazyLoadingCursor(final List<E> orderedIndizes, final String[] columnNamesArray, final Map<String, FieldReader<E>> fieldReaders,
+																			final Executor transactionExecutor) {
+			this.orderedIndizes = orderedIndizes;
+			this.columnNamesArray = columnNamesArray;
+			this.fieldReaders = fieldReaders;
+			this.transactionExecutor = transactionExecutor;
+			lastWindowSize = 200 / columnNamesArray.length + 1;
+		}
+
+		/**
+		 * If there is a window, clear it. Otherwise, creates a new window.
+		 *
+		 * @param name
+		 *          The window name.
+		 * @hide
+		 */
+		protected void clearOrCreateWindow(final String name) {
+			if (mWindow == null) {
+				mWindow = new CursorWindow(name);
+			} else {
+				mWindow.clear();
+			}
+		}
+
+		private void fillWindow(final int requiredPos, final boolean forward) {
+			clearOrCreateWindow(MapperUtil.class.getName());
+			final int windowStart;
+			final int windowEnd;
+			if (forward) {
+				windowStart = requiredPos;
+				windowEnd = Math.min(windowStart + lastWindowSize * 5 / 4, orderedIndizes.size());
+			} else {
+				windowStart = Math.max((requiredPos - lastWindowSize * 4 / 5), 0);
+				windowEnd = Math.min(requiredPos + 1, orderedIndizes.size());
+			}
+			mWindow.acquireReference();
+			try {
+				transactionExecutor.execute(new Runnable() {
+
+					@Override
+					public void run() {
+						int currentWindowStart = windowStart;
+						while (true) {
+							mWindow.clear();
+							mWindow.setStartPosition(currentWindowStart);
+							mWindow.setNumColumns(columnNamesArray.length);
+							int i = currentWindowStart;
+							for (; i < windowEnd; i++) {
+								if (!mWindow.allocRow()) {
+									// storage full
+									lastWindowSize = Math.min(i - currentWindowStart - 1, 500);
+									break;
+								}
+								for (int j = 0; j < columnNamesArray.length; j++) {
+									final String columnName = columnNamesArray[j];
+									final E index = orderedIndizes.get(i);
+									if (index == null) {
+										mWindow.putNull(i, j);
+									} else {
+										final FieldReader<E> fieldReader = fieldReaders.get(columnName);
+										switch (fieldReader.getType()) {
+										case Cursor.FIELD_TYPE_NULL:
+											mWindow.putNull(i, j);
+											break;
+										case Cursor.FIELD_TYPE_STRING:
+											mWindow.putString(fieldReader.getString(index), i, j);
+											break;
+										case Cursor.FIELD_TYPE_FLOAT: {
+											final Number number = fieldReader.getNumber(index);
+											if (number == null) {
+												mWindow.putNull(i, j);
+											} else {
+												mWindow.putDouble(number.doubleValue(), i, j);
+											}
+										}
+											break;
+										case Cursor.FIELD_TYPE_INTEGER: {
+											final Number number = fieldReader.getNumber(index);
+											if (number == null) {
+												mWindow.putNull(i, j);
+											} else {
+												mWindow.putLong(number.longValue(), i, j);
+											}
+										}
+											break;
+										default:
+											throw new RuntimeException("Unsupportet type " + fieldReader.getType());
+										}
+									}
+								}
+							}
+							if (requiredPos < i) {
+								// window ok
+								return;
+							}
+							// window to short -> recalculate window start and try again
+							currentWindowStart = Math.max((requiredPos - lastWindowSize * 4 / 5), 0);
+
+						}
+					}
+				});
+			} finally {
+				mWindow.releaseReference();
+			}
+		}
+
+		@Override
+		public String[] getColumnNames() {
+			return columnNamesArray;
+		}
+
+		@Override
+		public int getCount() {
+			return orderedIndizes.size();
+		}
+
+		@Override
+		public void onChange(final boolean selfChange) {
+			super.onChange(selfChange);
+		}
+
+		@Override
+		public boolean onMove(final int oldPosition, final int newPosition) {
+			// Make sure the row at newPosition is present in the window
+			if (mWindow == null || newPosition < mWindow.getStartPosition() || newPosition >= (mWindow.getStartPosition() + mWindow.getNumRows())) {
+				fillWindow(newPosition, oldPosition < newPosition);
+			}
+
+			return true;
+		}
 	}
 
 	private static final Map<Class<?>, Map<String, FieldReader<?>>> fieldReaders = new HashMap<Class<?>, Map<String, FieldReader<?>>>();
@@ -227,6 +369,17 @@ public class MapperUtil {
 		return valueStr.indexOf(patternStr) >= 0;
 	}
 
+	private static <E> Lookup<String, Object> createColumnLookup(final E entry, final Map<String, FieldReader<E>> fieldReaders) {
+		final Lookup<String, Object> columnLookup = new Lookup<String, Object>() {
+			@Override
+			public Object get(final String key) {
+				return lookupValue(entry, key, fieldReaders);
+			}
+
+		};
+		return columnLookup;
+	}
+
 	public static <I, O> Map<String, FieldReader<O>> delegateFieldReaders(final Map<String, FieldReader<I>> delegatingReaders, final Lookup<O, I> lookup) {
 		final HashMap<String, FieldReader<O>> ret = new HashMap<String, FieldReader<O>>();
 		for (final Entry<String, FieldReader<I>> dtoFieldReader : delegatingReaders.entrySet()) {
@@ -273,6 +426,10 @@ public class MapperUtil {
 		return v1.equals(v2);
 	}
 
+	private static <E> ArrayList<String> evalProjection(final String[] projection, final Map<String, FieldReader<E>> fieldReaders) {
+		return projection != null ? new ArrayList<String>(Arrays.asList(projection)) : new ArrayList<String>(fieldReaders.keySet());
+	}
+
 	/**
 	 * @param v1
 	 * @param v2
@@ -291,13 +448,13 @@ public class MapperUtil {
 		return eq(v1, v2);
 	}
 
-	public static <E> NotifyableMatrixCursor loadCollectionIntoCursor(final Iterable<E> collection,
-																																		final String[] projection,
-																																		final Map<String, FieldReader<E>> fieldReaders,
-																																		final Criterium criterium,
-																																		final SortOrder order) {
+	public static <E> NotifyableCursor loadCollectionIntoCursor(final Iterable<E> collection,
+																															final String[] projection,
+																															final Map<String, FieldReader<E>> fieldReaders,
+																															final Criterium criterium,
+																															final SortOrder order) {
 
-		final List<String> columnNames = projection != null ? new ArrayList<String>(Arrays.asList(projection)) : new ArrayList<String>(fieldReaders.keySet());
+		final List<String> columnNames = evalProjection(projection, fieldReaders);
 		final int outputColumns = columnNames.size();
 
 		final List<IndexedOderEntry> sortEntries = new ArrayList<MapperUtil.IndexedOderEntry>();
@@ -343,24 +500,7 @@ public class MapperUtil {
 
 		for (final E entry : collection) {
 
-			final Lookup<String, Object> columnLookup = new Lookup<String, Object>() {
-				@Override
-				public Object get(final String key) {
-					final FieldReader<E> fieldReader = fieldReaders.get(key);
-					final int currentFieldType = fieldReader.getType();
-					switch (currentFieldType) {
-					case Cursor.FIELD_TYPE_NULL:
-						return null;
-					case Cursor.FIELD_TYPE_STRING:
-						return fieldReader.getString(entry);
-					case Cursor.FIELD_TYPE_FLOAT:
-					case Cursor.FIELD_TYPE_INTEGER:
-						return fieldReader.getNumber(entry);
-					default:
-						throw new RuntimeException("Unsupportet type " + currentFieldType);
-					}
-				}
-			};
+			final Lookup<String, Object> columnLookup = createColumnLookup(entry, fieldReaders);
 			if (criterium != null) {
 				selectionTime -= System.currentTimeMillis();
 				final boolean columnOk = columnOk(criterium, columnLookup);
@@ -433,6 +573,98 @@ public class MapperUtil {
 								+ ", Precise: "
 								+ (takeRestTime - timeSum));
 		return cursor;
+	}
+
+	public static <E> NotifyableCursor loadConnectionIntoWindowedCursor(final Iterable<E> collection,
+																																			final String[] projection,
+																																			final Map<String, FieldReader<E>> fieldReaders,
+																																			final Criterium criterium,
+																																			final SortOrder order,
+																																			final Executor transactionExecutor) {
+		final long startTime = System.currentTimeMillis();
+		final List<String> columnNames = evalProjection(projection, fieldReaders);
+		final int outputColumns = columnNames.size();
+
+		final Iterable<E> filteredIndizes;
+		final boolean filteredIsPrivate;
+		if (criterium == null) {
+			filteredIndizes = collection;
+			filteredIsPrivate = false;
+		} else {
+			filteredIsPrivate = true;
+			filteredIndizes = new ArrayList<E>();
+			for (final E e : collection) {
+				final Lookup<String, Object> columnLookup = createColumnLookup(e, fieldReaders);
+				if (columnOk(criterium, columnLookup)) {
+					((Collection) filteredIndizes).add(e);
+				}
+			}
+		}
+		final List<E> orderedIndizes;
+		if (order == null) {
+			if (filteredIndizes instanceof List) {
+				orderedIndizes = (List<E>) filteredIndizes;
+			} else if (filteredIndizes instanceof Collection) {
+				orderedIndizes = new ArrayList<E>((Collection<E>) filteredIndizes);
+			} else {
+				orderedIndizes = new ArrayList<E>();
+				for (final E e : filteredIndizes) {
+					orderedIndizes.add(e);
+				}
+			}
+		} else {
+			final List<E> orderedIndexList;
+			if (filteredIndizes instanceof Collection) {
+				if (filteredIsPrivate) {
+					orderedIndexList = (List<E>) filteredIndizes;
+				} else {
+					orderedIndexList = new ArrayList<E>((Collection<E>) filteredIndizes);
+				}
+			} else {
+				orderedIndexList = new ArrayList<E>();
+				for (final E e : filteredIndizes) {
+					orderedIndexList.add(e);
+				}
+			}
+			final List<SortOrderEntry> entries = order.getEntries();
+			Collections.sort(orderedIndexList, new Comparator<E>() {
+
+				@Override
+				public int compare(final E lhs, final E rhs) {
+					for (final SortOrderEntry orderRule : entries) {
+						final String columnName = orderRule.getColumnName();
+						final boolean ascending = orderRule.getOrder() == Order.ASC;
+						final Comparable<Object> lValue = (Comparable) lookupValue(lhs, columnName, fieldReaders);
+						final Comparable<Object> rValue = (Comparable) lookupValue(rhs, columnName, fieldReaders);
+						final int cmp = compareRaw(lValue, rValue, orderRule.isNullFirst());
+						if (cmp != 0) {
+							return ascending ? cmp : -cmp;
+						}
+					}
+					return 0;
+				}
+			});
+			orderedIndizes = orderedIndexList;
+		}
+		final String[] columnNamesArray = columnNames.toArray(new String[columnNames.size()]);
+		Log.i(TAG, "prepared lazy cursor of " + orderedIndizes.size() + " in " + (System.currentTimeMillis() - startTime));
+		return new WindowedLazyLoadingCursor(orderedIndizes, columnNamesArray, fieldReaders, transactionExecutor);
+	}
+
+	private static <E> Object lookupValue(final E row, final String column, final Map<String, FieldReader<E>> fieldReaders) {
+		final FieldReader<E> fieldReader = fieldReaders.get(column);
+		final int currentFieldType = fieldReader.getType();
+		switch (currentFieldType) {
+		case Cursor.FIELD_TYPE_NULL:
+			return null;
+		case Cursor.FIELD_TYPE_STRING:
+			return fieldReader.getString(row);
+		case Cursor.FIELD_TYPE_FLOAT:
+		case Cursor.FIELD_TYPE_INTEGER:
+			return fieldReader.getNumber(row);
+		default:
+			throw new RuntimeException("Unsupportet type " + currentFieldType);
+		}
 	}
 
 	public static <V> Map<String, FieldReader<V>> makeAnnotatedFieldReaders(final Class<V> type) {

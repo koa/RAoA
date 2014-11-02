@@ -11,13 +11,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
 import android.database.Cursor;
-import ch.bergturbenthal.raoa.provider.map.NotifyableMatrixCursor;
+import ch.bergturbenthal.raoa.provider.map.NotifyableCursor;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumIndex;
 
 public class CursorNotification {
 	/**
 	 * TODO: add type comment.
-	 * 
+	 *
 	 */
 	private static class ModifiedFlagThreadLocal extends ThreadLocal<Boolean> {
 		@Override
@@ -27,7 +27,7 @@ public class CursorNotification {
 	}
 
 	private final ThreadLocal<Boolean> allAlbumCursorModified = new ModifiedFlagThreadLocal();
-	private final Collection<WeakReference<NotifyableMatrixCursor>> allAlbumCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableMatrixCursor>>();
+	private final Collection<WeakReference<NotifyableCursor>> allAlbumCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableCursor>>();
 	private final ThreadLocal<Boolean> collectingNotifications = new ModifiedFlagThreadLocal();;
 	private final ThreadLocal<Collection<AlbumIndex>> singleAlbumCursorModified = new ThreadLocal<Collection<AlbumIndex>>() {
 		@Override
@@ -35,28 +35,28 @@ public class CursorNotification {
 			return new HashSet<AlbumIndex>();
 		}
 	};
-	private final ConcurrentMap<AlbumIndex, Collection<WeakReference<NotifyableMatrixCursor>>> singleAlbumCursors = new ConcurrentHashMap<AlbumIndex, Collection<WeakReference<NotifyableMatrixCursor>>>();
-	private final Collection<WeakReference<NotifyableMatrixCursor>> stateCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableMatrixCursor>>();
-	private final Collection<WeakReference<NotifyableMatrixCursor>> storageCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableMatrixCursor>>();
+	private final ConcurrentMap<AlbumIndex, Collection<WeakReference<NotifyableCursor>>> singleAlbumCursors = new ConcurrentHashMap<AlbumIndex, Collection<WeakReference<NotifyableCursor>>>();
+	private final Collection<WeakReference<NotifyableCursor>> stateCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableCursor>>();
+	private final Collection<WeakReference<NotifyableCursor>> storageCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableCursor>>();
 
 	private final ThreadLocal<Boolean> storagesCursorModified = new ModifiedFlagThreadLocal();
 
-	public NotifyableMatrixCursor addAllAlbumCursor(final NotifyableMatrixCursor cursor) {
-		allAlbumCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
+	public NotifyableCursor addAllAlbumCursor(final NotifyableCursor cursor) {
+		allAlbumCursors.add(new WeakReference<NotifyableCursor>(cursor));
 		return cursor;
 	}
 
-	public NotifyableMatrixCursor addSingleAlbumCursor(final AlbumIndex albumIndex, final NotifyableMatrixCursor cursor) {
+	public NotifyableCursor addSingleAlbumCursor(final AlbumIndex albumIndex, final NotifyableCursor cursor) {
 		final AlbumIndex albumKey = albumIndex;
 		if (!singleAlbumCursors.containsKey(albumKey)) {
-			singleAlbumCursors.putIfAbsent(albumKey, new ConcurrentLinkedQueue<WeakReference<NotifyableMatrixCursor>>());
+			singleAlbumCursors.putIfAbsent(albumKey, new ConcurrentLinkedQueue<WeakReference<NotifyableCursor>>());
 		}
-		singleAlbumCursors.get(albumKey).add(new WeakReference<NotifyableMatrixCursor>(cursor));
+		singleAlbumCursors.get(albumKey).add(new WeakReference<NotifyableCursor>(cursor));
 		return cursor;
 	}
 
-	public NotifyableMatrixCursor addStateCursor(final NotifyableMatrixCursor cursor) {
-		stateCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
+	public NotifyableCursor addStateCursor(final NotifyableCursor cursor) {
+		stateCursors.add(new WeakReference<NotifyableCursor>(cursor));
 		return cursor;
 	}
 
@@ -64,8 +64,8 @@ public class CursorNotification {
 	 * @param cursor
 	 * @return
 	 */
-	public Cursor addStorageCursor(final NotifyableMatrixCursor cursor) {
-		storageCursors.add(new WeakReference<NotifyableMatrixCursor>(cursor));
+	public Cursor addStorageCursor(final NotifyableCursor cursor) {
+		storageCursors.add(new WeakReference<NotifyableCursor>(cursor));
 		return cursor;
 	}
 
@@ -97,16 +97,16 @@ public class CursorNotification {
 			allAlbumCursorModified.set(Boolean.TRUE);
 		} else {
 			notifyCursors(allAlbumCursors);
-			for (final Collection<WeakReference<NotifyableMatrixCursor>> cursors : singleAlbumCursors.values()) {
+			for (final Collection<WeakReference<NotifyableCursor>> cursors : singleAlbumCursors.values()) {
 				notifyCursors(cursors);
 			}
 		}
 	}
 
-	private void notifyCursors(final Collection<WeakReference<NotifyableMatrixCursor>> cursors) {
-		for (final Iterator<WeakReference<NotifyableMatrixCursor>> i = cursors.iterator(); i.hasNext();) {
-			final WeakReference<NotifyableMatrixCursor> reference = i.next();
-			final NotifyableMatrixCursor cursor = reference.get();
+	private void notifyCursors(final Collection<WeakReference<NotifyableCursor>> cursors) {
+		for (final Iterator<WeakReference<NotifyableCursor>> i = cursors.iterator(); i.hasNext();) {
+			final WeakReference<NotifyableCursor> reference = i.next();
+			final NotifyableCursor cursor = reference.get();
 			if (cursor != null) {
 				cursor.onChange(false);
 			} else {
@@ -119,7 +119,7 @@ public class CursorNotification {
 		if (modifiedCursors.size() > 0) {
 			notifyCursors(allAlbumCursors);
 			for (final AlbumIndex albumId : modifiedCursors) {
-				final Collection<WeakReference<NotifyableMatrixCursor>> registeresCursors = singleAlbumCursors.get(albumId);
+				final Collection<WeakReference<NotifyableCursor>> registeresCursors = singleAlbumCursors.get(albumId);
 				if (registeresCursors != null) {
 					notifyCursors(registeresCursors);
 				}

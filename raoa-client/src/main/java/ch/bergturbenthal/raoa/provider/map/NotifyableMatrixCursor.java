@@ -2,7 +2,7 @@ package ch.bergturbenthal.raoa.provider.map;
 
 import android.database.MatrixCursor;
 
-public class NotifyableMatrixCursor extends MatrixCursor {
+public class NotifyableMatrixCursor extends MatrixCursor implements NotifyableCursor {
 
 	public NotifyableMatrixCursor(final String[] columnNames) {
 		super(columnNames);

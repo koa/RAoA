@@ -23,12 +23,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.NavigableSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -43,15 +43,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.Cleanup;
-import lombok.Getter;
 
 import org.mapdb10.BTreeMap;
-import org.mapdb10.Bind;
 import org.mapdb10.DB;
 import org.mapdb10.DBMaker;
-import org.mapdb10.Fun;
-import org.mapdb10.Fun.Function2;
-import org.mapdb10.Fun.Tuple2;
 import org.mapdb10.TxMaker;
 import org.mapdb10.TxRollbackException;
 import org.springframework.http.HttpStatus.Series;
@@ -103,7 +98,7 @@ import ch.bergturbenthal.raoa.provider.criterium.Value;
 import ch.bergturbenthal.raoa.provider.map.BooleanFieldReader;
 import ch.bergturbenthal.raoa.provider.map.FieldReader;
 import ch.bergturbenthal.raoa.provider.map.MapperUtil;
-import ch.bergturbenthal.raoa.provider.map.NotifyableMatrixCursor;
+import ch.bergturbenthal.raoa.provider.map.NotifyableCursor;
 import ch.bergturbenthal.raoa.provider.map.NumericFieldReader;
 import ch.bergturbenthal.raoa.provider.map.StringFieldReader;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumDto;
@@ -126,35 +121,6 @@ import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser;
 import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser.ThumbnailUriReceiver;
 
 public class SynchronisationServiceImpl extends Service implements ResultListener, SynchronisationService {
-	@Getter
-	private static class DataProvider {
-		private final BTreeMap<AlbumEntryIndex, AlbumEntryDto> albumEntryMap;
-		private final BTreeMap<AlbumIndex, AlbumMeta> albumMetadataMap;
-		private final BTreeMap<AlbumIndex, AlbumMutationData> albumMutationDataMap;
-		private final BTreeMap<AlbumIndex, AlbumState> albumStateMap;
-		private final BTreeMap<String, ArchiveMeta> archiveMetaMap;
-		private final NavigableSet<Tuple2<AlbumIndex, AlbumEntryIndex>> entriesByAlbumSet;
-
-		public DataProvider(final DB db) {
-			albumMetadataMap = db.<AlbumIndex, AlbumMeta> getTreeMap("album_meta_map");
-			albumMutationDataMap = db.<AlbumIndex, AlbumMutationData> getTreeMap("album_mutation_data");
-			albumEntryMap = db.<AlbumEntryIndex, AlbumEntryDto> getTreeMap("album_entry_data");
-			entriesByAlbumSet = db.<Fun.Tuple2<AlbumIndex, AlbumEntryIndex>> getTreeSet("album_entry_by_album");
-			archiveMetaMap = db.<String, ArchiveMeta> getTreeMap("archive_meta");
-			albumStateMap = db.getTreeMap("album_state");
-			Bind.secondaryKey(albumEntryMap, entriesByAlbumSet, new Function2<AlbumIndex, AlbumEntryIndex, AlbumEntryDto>() {
-				@Override
-				public AlbumIndex run(final AlbumEntryIndex a, final AlbumEntryDto b) {
-					return a.getAlbumIndex();
-				}
-			});
-		}
-
-		public Iterable<AlbumEntryIndex> listEntriesByAlbum(final AlbumIndex album) {
-			return Fun.filter(entriesByAlbumSet, album);
-		}
-	}
-
 	/**
 	 * Class used for the client Binder. Because we know this service always runs in the same process as its clients, we don't need to deal with IPC.
 	 */
@@ -602,23 +568,50 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 																						final SortOrder order) {
 		Log.i(SERVICE_TAG, "Start prepare album entries");
 
-		final DataProvider currentDataProvider = getCurrentDataProvider();
-		final BTreeMap<AlbumEntryIndex, AlbumEntryDto> albumEntryMap = currentDataProvider.getAlbumEntryMap();
-		final Map<AlbumIndex, AlbumMutationData> albumMutationData = currentDataProvider.getAlbumMutationDataMap();
+		final Lookup<AlbumEntryIndex, AlbumEntryDto> loader = new Lookup<AlbumEntryIndex, AlbumEntryDto>() {
 
-		final Map<String, FieldReader<AlbumEntryIndex>> indexFieldReaders = MapperUtil.delegateFieldReaders(MapperUtil.makeAnnotatedFieldReaders(AlbumEntryDto.class),
-																																																				LazyLoader.lookupMap(albumEntryMap));
+			@Override
+			public AlbumEntryDto get(final AlbumEntryIndex key) {
+				return getCurrentDataProvider().getAlbumEntryMap().get(key);
+			}
+		};
+		final Map<String, FieldReader<AlbumEntryIndex>> indexFieldReaders = MapperUtil.delegateFieldReaders(MapperUtil.makeAnnotatedFieldReaders(AlbumEntryDto.class), loader);
+
+		indexFieldReaders.put(Client.AlbumEntry.CAPTURE_DATE, new NumericFieldReader<AlbumEntryIndex>(Cursor.FIELD_TYPE_INTEGER) {
+
+			@Override
+			public Number getNumber(final AlbumEntryIndex value) {
+				final Date dateValue = readDateValue(value);
+				if (dateValue == null) {
+					return null;
+				}
+				return Long.valueOf(dateValue.getTime());
+			}
+
+			@Override
+			public String getString(final AlbumEntryIndex value) {
+				final Date dateValue = readDateValue(value);
+				if (dateValue == null) {
+					return null;
+				}
+				return dateValue.toString();
+			}
+
+			private Date readDateValue(final AlbumEntryIndex value) {
+				return getCurrentDataProvider().getAlbumEntryCreationDate().get(value);
+			}
+		});
 
 		indexFieldReaders.put(Client.AlbumEntry.META_KEYWORDS, new StringFieldReader<AlbumEntryIndex>() {
 
 			@Override
 			public String getString(final AlbumEntryIndex value) {
-				final AlbumEntryDto albumEntryDto = albumEntryMap.get(value);
+				final AlbumEntryDto albumEntryDto = loader.get(value);
 				if (albumEntryDto == null) {
 					return Client.AlbumEntry.encodeKeywords(Collections.<String> emptyList());
 				}
 				final Collection<String> keywords = new TreeSet<String>(albumEntryDto.getKeywords());
-				final AlbumMutationData mutationData = albumMutationData.get(value.getAlbumIndex());
+				final AlbumMutationData mutationData = getCurrentDataProvider().getAlbumMutationDataMap().get(value.getAlbumIndex());
 				if (mutationData != null && mutationData.getMutations() != null) {
 					for (final Mutation mutation : mutationData.getMutations()) {
 						if (mutation instanceof KeywordMutationEntry) {
@@ -651,7 +644,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 			@Override
 			public String getString(final AlbumEntryIndex value) {
-				final AlbumEntryDto entryDto = albumEntryMap.get(value);
+				final AlbumEntryDto entryDto = loader.get(value);
 				if (entryDto == null) {
 					return null;
 				}
@@ -675,11 +668,27 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		});
 		Log.i(SERVICE_TAG, "End Prepare, Start iteration");
 		try {
-			final NotifyableMatrixCursor cursor = MapperUtil.loadCollectionIntoCursor(indices,
-																																								projection,
-																																								indexFieldReaders,
-																																								criterium,
-																																								order == null ? makeDefaultAlbumEntiesOrder() : order);
+
+			final Executor e = new Executor() {
+
+				@Override
+				public void execute(final Runnable command) {
+					callInTransaction(new Callable<Void>() {
+
+						@Override
+						public Void call() throws Exception {
+							command.run();
+							return null;
+						}
+					}, true);
+				}
+			};
+			final NotifyableCursor cursor = MapperUtil.loadConnectionIntoWindowedCursor(indices,
+																																									projection,
+																																									indexFieldReaders,
+																																									criterium,
+																																									order == null ? makeDefaultAlbumEntiesOrder() : order,
+																																									e);
 			Log.i(SERVICE_TAG, "End iteration");
 			final HashSet<AlbumIndex> affectedAlbums = new HashSet<AlbumIndex>(albumsToNotify);
 			for (final AlbumEntryIndex indexEntry : indices) {
