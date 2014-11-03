@@ -1,10 +1,8 @@
 package ch.bergturbenthal.raoa.provider.service.discovery;
 
 import java.io.IOException;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -61,29 +59,29 @@ public class JMDnsListener implements ServerDiscoveryListener {
 				final HashSet<InetSocketAddress> foundEndpoints = new HashSet<InetSocketAddress>();
 				synchronized (JMDnsListener.this) {
 					for (final Entry<InetAddress, JmDNS> interfaceEntry : runningMdns.entrySet()) {
-						final InetAddress localAddress = interfaceEntry.getKey();
+						// final InetAddress localAddress = interfaceEntry.getKey();
 						final JmDNS mdns = interfaceEntry.getValue();
 						final ServiceInfo[] serviceInfos = mdns.list(SERVICE_NAME_URL);
-						if (localAddress instanceof Inet6Address && ((Inet6Address) localAddress).getScopeId() != 0) {
-							final int scopedInterface = ((Inet6Address) localAddress).getScopeId();
-							Log.i(MDNS_TAG, "Scoped Interface: " + scopedInterface);
-							for (final ServiceInfo serviceInfo : serviceInfos) {
-								for (final InetAddress hostAddress : serviceInfo.getInetAddresses()) {
-									try {
-										final Inet6Address scopedAddress = Inet6Address.getByAddress(hostAddress.getHostName(), hostAddress.getAddress(), scopedInterface);
-										foundEndpoints.add(new InetSocketAddress(scopedAddress, serviceInfo.getPort()));
-									} catch (final UnknownHostException e) {
-										foundEndpoints.add(new InetSocketAddress(hostAddress, serviceInfo.getPort()));
-									}
-								}
-							}
-						} else {
-							for (final ServiceInfo serviceInfo : serviceInfos) {
-								for (final InetAddress hostAddress : serviceInfo.getInetAddresses()) {
-									foundEndpoints.add(new InetSocketAddress(hostAddress, serviceInfo.getPort()));
-								}
+						// if (localAddress instanceof Inet6Address && ((Inet6Address) localAddress).getScopeId() != 0) {
+						// final int scopedInterface = ((Inet6Address) localAddress).getScopeId();
+						// Log.i(MDNS_TAG, "Scoped Interface: " + scopedInterface);
+						// for (final ServiceInfo serviceInfo : serviceInfos) {
+						// for (final InetAddress hostAddress : serviceInfo.getInetAddresses()) {
+						// try {
+						// final Inet6Address scopedAddress = Inet6Address.getByAddress(hostAddress.getHostName(), hostAddress.getAddress(), scopedInterface);
+						// foundEndpoints.add(new InetSocketAddress(scopedAddress, serviceInfo.getPort()));
+						// } catch (final UnknownHostException e) {
+						// foundEndpoints.add(new InetSocketAddress(hostAddress, serviceInfo.getPort()));
+						// }
+						// }
+						// }
+						// } else {
+						for (final ServiceInfo serviceInfo : serviceInfos) {
+							for (final InetAddress hostAddress : serviceInfo.getInetAddresses()) {
+								foundEndpoints.add(new InetSocketAddress(hostAddress, serviceInfo.getPort()));
 							}
 						}
+						// }
 					}
 				}
 				resultListener.notifyServices(foundEndpoints, withProgressUpdate);
