@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.provider.service;
 
+import java.io.Closeable;
 import java.util.Date;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -22,7 +23,7 @@ import ch.bergturbenthal.raoa.provider.model.dto.AlbumMutationData;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumState;
 
 @Getter
-class DataProvider {
+class DataProvider implements Closeable {
 	private final Map<AlbumEntryIndex, Date> albumEntryCreationDate;
 	private final Map<AlbumEntryIndex, String> albumEntryFileName;
 	private final BTreeMap<AlbumEntryIndex, AlbumEntryDto> albumEntryMap;
@@ -30,9 +31,11 @@ class DataProvider {
 	private final BTreeMap<AlbumIndex, AlbumMutationData> albumMutationDataMap;
 	private final BTreeMap<AlbumIndex, AlbumState> albumStateMap;
 	private final BTreeMap<String, ArchiveMeta> archiveMetaMap;
+	private final DB db;
 	private final NavigableSet<Tuple2<AlbumIndex, AlbumEntryIndex>> entriesByAlbumSet;
 
 	public DataProvider(final DB db) {
+		this.db = db;
 		albumMetadataMap = db.<AlbumIndex, AlbumMeta> getTreeMap("album_meta_map");
 		albumMutationDataMap = db.<AlbumIndex, AlbumMutationData> getTreeMap("album_mutation_data");
 		albumEntryMap = db.<AlbumEntryIndex, AlbumEntryDto> getTreeMap("album_entry_data");
@@ -63,6 +66,11 @@ class DataProvider {
 				return b.getFileName();
 			}
 		});
+	}
+
+	@Override
+	public void close() {
+		db.close();
 	}
 
 	public Iterable<AlbumEntryIndex> listEntriesByAlbum(final AlbumIndex album) {

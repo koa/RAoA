@@ -28,7 +28,6 @@ import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -136,6 +135,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		private File referencedFile;
 	}
 
+	private static interface TransactionCallable<V> {
+		V call(final DataProvider provider);
+	}
+
 	private final static String SERVICE_TAG = "Synchronisation Service";
 	private static final String THUMBNAIL_SUFFIX = ".thumbnail";
 
@@ -211,6 +214,20 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				}
 			}
 		});
+	}
+
+	private <V> V callWithLongTransaction(final TransactionCallable<V> callable) {
+		final DataProvider dataProvider = new DataProvider(mapDB.makeTx());
+		boolean exceptionCatched = true;
+		try {
+			final V ret = callable.call(dataProvider);
+			exceptionCatched = false;
+			return ret;
+		} finally {
+			if (exceptionCatched) {
+				dataProvider.close();
+			}
+		}
 	}
 
 	private void closeIfCloseable(final Object object) {
@@ -364,7 +381,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	/*
 	 * (non-Javadoc)
-	 *
+	 * 
 	 * @see ch.bergturbenthal.raoa.provider.service.SynchronisationService#importFile(java.lang.String, byte[])
 	 */
 	@Override
@@ -565,17 +582,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 																						final String[] projection,
 																						final Collection<AlbumIndex> albumsToNotify,
 																						final Criterium criterium,
-																						final SortOrder order) {
+																						final SortOrder order,
+																						final DataProvider dataProvider) {
 		Log.i(SERVICE_TAG, "Start prepare album entries");
 
-		final Lookup<AlbumEntryIndex, AlbumEntryDto> loader = new Lookup<AlbumEntryIndex, AlbumEntryDto>() {
-
-			@Override
-			public AlbumEntryDto get(final AlbumEntryIndex key) {
-				return getCurrentDataProvider().getAlbumEntryMap().get(key);
-			}
-		};
-		final Map<String, FieldReader<AlbumEntryIndex>> indexFieldReaders = MapperUtil.delegateFieldReaders(MapperUtil.makeAnnotatedFieldReaders(AlbumEntryDto.class), loader);
+		final BTreeMap<AlbumEntryIndex, AlbumEntryDto> albumEntryMap = dataProvider.getAlbumEntryMap();
+		final Map<AlbumEntryIndex, Date> albumEntryCreationDate = dataProvider.getAlbumEntryCreationDate();
+		final BTreeMap<AlbumIndex, AlbumMutationData> albumMutationDataMap = dataProvider.getAlbumMutationDataMap();
+		final Map<String, FieldReader<AlbumEntryIndex>> indexFieldReaders = MapperUtil.delegateFieldReaders(MapperUtil.makeAnnotatedFieldReaders(AlbumEntryDto.class),
+																																																				LazyLoader.lookupMap(albumEntryMap));
 
 		indexFieldReaders.put(Client.AlbumEntry.CAPTURE_DATE, new NumericFieldReader<AlbumEntryIndex>(Cursor.FIELD_TYPE_INTEGER) {
 
@@ -598,7 +613,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			}
 
 			private Date readDateValue(final AlbumEntryIndex value) {
-				return getCurrentDataProvider().getAlbumEntryCreationDate().get(value);
+				return albumEntryCreationDate.get(value);
 			}
 		});
 
@@ -606,12 +621,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 			@Override
 			public String getString(final AlbumEntryIndex value) {
-				final AlbumEntryDto albumEntryDto = loader.get(value);
+				final AlbumEntryDto albumEntryDto = albumEntryMap.get(value);
 				if (albumEntryDto == null) {
 					return Client.AlbumEntry.encodeKeywords(Collections.<String> emptyList());
 				}
 				final Collection<String> keywords = new TreeSet<String>(albumEntryDto.getKeywords());
-				final AlbumMutationData mutationData = getCurrentDataProvider().getAlbumMutationDataMap().get(value.getAlbumIndex());
+				final AlbumMutationData mutationData = albumMutationDataMap.get(value.getAlbumIndex());
 				if (mutationData != null && mutationData.getMutations() != null) {
 					for (final Mutation mutation : mutationData.getMutations()) {
 						if (mutation instanceof KeywordMutationEntry) {
@@ -644,7 +659,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 			@Override
 			public String getString(final AlbumEntryIndex value) {
-				final AlbumEntryDto entryDto = loader.get(value);
+				final AlbumEntryDto entryDto = albumEntryMap.get(value);
 				if (entryDto == null) {
 					return null;
 				}
@@ -668,27 +683,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		});
 		Log.i(SERVICE_TAG, "End Prepare, Start iteration");
 		try {
-
-			final Executor e = new Executor() {
+			final NotifyableCursor cursor = MapperUtil.loadConnectionIntoWindowedCursor(indices, projection, indexFieldReaders, criterium, order, new Runnable() {
 
 				@Override
-				public void execute(final Runnable command) {
-					callInTransaction(new Callable<Void>() {
-
-						@Override
-						public Void call() throws Exception {
-							command.run();
-							return null;
-						}
-					}, true);
+				public void run() {
+					dataProvider.close();
 				}
-			};
-			final NotifyableCursor cursor = MapperUtil.loadConnectionIntoWindowedCursor(indices,
-																																									projection,
-																																									indexFieldReaders,
-																																									criterium,
-																																									order == null ? makeDefaultAlbumEntiesOrder() : order,
-																																									e);
+			});
 			Log.i(SERVICE_TAG, "End iteration");
 			final HashSet<AlbumIndex> affectedAlbums = new HashSet<AlbumIndex>(albumsToNotify);
 			for (final AlbumEntryIndex indexEntry : indices) {
@@ -1123,19 +1124,21 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 	@Override
 	public Cursor readAlbumEntryList(final String archiveName, final String albumId, final String[] projection, final Criterium criterium, final SortOrder order) {
-		return callInTransaction(new Callable<Cursor>() {
+		final AlbumIndex album = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
+
+		return callWithLongTransaction(new TransactionCallable<Cursor>() {
 
 			@Override
-			public Cursor call() throws Exception {
-				final AlbumIndex album = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
-
+			public Cursor call(final DataProvider provider) {
 				final Collection<AlbumEntryIndex> albumEntryIndices = new ArrayList<AlbumEntryIndex>();
-				for (final AlbumEntryIndex albumEntry : getCurrentDataProvider().listEntriesByAlbum(album)) {
+				final long startTime = System.currentTimeMillis();
+				for (final AlbumEntryIndex albumEntry : provider.listEntriesByAlbum(album)) {
 					albumEntryIndices.add(albumEntry);
 				}
-				return makeCursorForAlbumEntries(albumEntryIndices, projection, Collections.singleton(album), criterium, order);
+				Log.i(SERVICE_TAG, "Iteration-Time: " + (System.currentTimeMillis() - startTime) + " " + albumEntryIndices.size());
+				return makeCursorForAlbumEntries(albumEntryIndices, projection, Collections.singleton(album), criterium, order, provider);
 			}
-		}, true);
+		});
 	}
 
 	@Override
@@ -1343,19 +1346,19 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 																			final String[] projection,
 																			final Criterium criterium,
 																			final SortOrder order) {
-		return callInTransaction(new Callable<Cursor>() {
+		return callWithLongTransaction(new TransactionCallable<Cursor>() {
 
 			@Override
-			public Cursor call() throws Exception {
+			public Cursor call(final DataProvider provider) {
 				final AlbumIndex affectedAlbum = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
 				final AlbumEntryIndex albumEntryIndex = new AlbumEntryIndex(affectedAlbum, archiveEntryId);
-				final AlbumEntryDto entryDto = getCurrentDataProvider().getAlbumEntryMap().get(albumEntryIndex);
+				final AlbumEntryDto entryDto = provider.getAlbumEntryMap().get(albumEntryIndex);
 				if (entryDto == null) {
-					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum), null, null);
+					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum), null, null, provider);
 				}
-				return makeCursorForAlbumEntries(Collections.singletonList(albumEntryIndex), projection, Collections.singleton(affectedAlbum), criterium, null);
+				return makeCursorForAlbumEntries(Collections.singletonList(albumEntryIndex), projection, Collections.singleton(affectedAlbum), criterium, null, provider);
 			}
-		}, true);
+		});
 	}
 
 	@Override

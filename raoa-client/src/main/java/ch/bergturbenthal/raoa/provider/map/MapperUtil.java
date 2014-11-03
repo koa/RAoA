@@ -13,9 +13,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.Executor;
 import java.util.regex.Pattern;
 
+import lombok.AllArgsConstructor;
 import android.database.AbstractWindowedCursor;
 import android.database.Cursor;
 import android.database.CursorWindow;
@@ -32,6 +32,14 @@ import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 import ch.bergturbenthal.raoa.util.Pair;
 
 public class MapperUtil {
+	@lombok.Value
+	@AllArgsConstructor(suppressConstructorProperties = true)
+	private static class FieldReaderOderEntry {
+		private FieldReader<?> fieldReader;
+		private boolean nullFirst;
+		private SortOrderEntry.Order order;
+	}
+
 	private static class IndexedOderEntry {
 		private int index;
 		private boolean nullFirst;
@@ -43,18 +51,18 @@ public class MapperUtil {
 	}
 
 	private static final class WindowedLazyLoadingCursor<E> extends AbstractWindowedCursor implements NotifyableCursor {
+		private final Runnable closeRunnable;
 		private final String[] columnNamesArray;
 		private final Map<String, FieldReader<E>> fieldReaders;
 		private int lastWindowSize;
 		private final List<E> orderedIndizes;
-		private final Executor transactionExecutor;
 
 		public WindowedLazyLoadingCursor(final List<E> orderedIndizes, final String[] columnNamesArray, final Map<String, FieldReader<E>> fieldReaders,
-																			final Executor transactionExecutor) {
+																			final Runnable closeRunnable) {
 			this.orderedIndizes = orderedIndizes;
 			this.columnNamesArray = columnNamesArray;
 			this.fieldReaders = fieldReaders;
-			this.transactionExecutor = transactionExecutor;
+			this.closeRunnable = closeRunnable;
 			lastWindowSize = 200 / columnNamesArray.length + 1;
 		}
 
@@ -73,8 +81,15 @@ public class MapperUtil {
 			}
 		}
 
+		@Override
+		public void close() {
+			if (closeRunnable != null) {
+				closeRunnable.run();
+			}
+			super.close();
+		}
+
 		private void fillWindow(final int requiredPos, final boolean forward) {
-			clearOrCreateWindow(MapperUtil.class.getName());
 			final int windowStart;
 			final int windowEnd;
 			if (forward) {
@@ -84,72 +99,68 @@ public class MapperUtil {
 				windowStart = Math.max((requiredPos - lastWindowSize * 4 / 5), 0);
 				windowEnd = Math.min(requiredPos + 1, orderedIndizes.size());
 			}
+
+			clearOrCreateWindow(MapperUtil.class.getName());
 			mWindow.acquireReference();
 			try {
-				transactionExecutor.execute(new Runnable() {
-
-					@Override
-					public void run() {
-						int currentWindowStart = windowStart;
-						while (true) {
-							mWindow.clear();
-							mWindow.setStartPosition(currentWindowStart);
-							mWindow.setNumColumns(columnNamesArray.length);
-							int i = currentWindowStart;
-							for (; i < windowEnd; i++) {
-								if (!mWindow.allocRow()) {
-									// storage full
-									lastWindowSize = Math.min(i - currentWindowStart - 1, 500);
+				int currentWindowStart = windowStart;
+				while (true) {
+					mWindow.clear();
+					mWindow.setStartPosition(currentWindowStart);
+					mWindow.setNumColumns(columnNamesArray.length);
+					int i = currentWindowStart;
+					for (; i < windowEnd; i++) {
+						if (!mWindow.allocRow()) {
+							// storage full
+							lastWindowSize = Math.min(i - currentWindowStart - 1, 500);
+							break;
+						}
+						for (int j = 0; j < columnNamesArray.length; j++) {
+							final String columnName = columnNamesArray[j];
+							final E index = orderedIndizes.get(i);
+							if (index == null) {
+								mWindow.putNull(i, j);
+							} else {
+								final FieldReader<E> fieldReader = fieldReaders.get(columnName);
+								switch (fieldReader.getType()) {
+								case Cursor.FIELD_TYPE_NULL:
+									mWindow.putNull(i, j);
 									break;
-								}
-								for (int j = 0; j < columnNamesArray.length; j++) {
-									final String columnName = columnNamesArray[j];
-									final E index = orderedIndizes.get(i);
-									if (index == null) {
+								case Cursor.FIELD_TYPE_STRING:
+									mWindow.putString(fieldReader.getString(index), i, j);
+									break;
+								case Cursor.FIELD_TYPE_FLOAT: {
+									final Number number = fieldReader.getNumber(index);
+									if (number == null) {
 										mWindow.putNull(i, j);
 									} else {
-										final FieldReader<E> fieldReader = fieldReaders.get(columnName);
-										switch (fieldReader.getType()) {
-										case Cursor.FIELD_TYPE_NULL:
-											mWindow.putNull(i, j);
-											break;
-										case Cursor.FIELD_TYPE_STRING:
-											mWindow.putString(fieldReader.getString(index), i, j);
-											break;
-										case Cursor.FIELD_TYPE_FLOAT: {
-											final Number number = fieldReader.getNumber(index);
-											if (number == null) {
-												mWindow.putNull(i, j);
-											} else {
-												mWindow.putDouble(number.doubleValue(), i, j);
-											}
-										}
-											break;
-										case Cursor.FIELD_TYPE_INTEGER: {
-											final Number number = fieldReader.getNumber(index);
-											if (number == null) {
-												mWindow.putNull(i, j);
-											} else {
-												mWindow.putLong(number.longValue(), i, j);
-											}
-										}
-											break;
-										default:
-											throw new RuntimeException("Unsupportet type " + fieldReader.getType());
-										}
+										mWindow.putDouble(number.doubleValue(), i, j);
 									}
 								}
+									break;
+								case Cursor.FIELD_TYPE_INTEGER: {
+									final Number number = fieldReader.getNumber(index);
+									if (number == null) {
+										mWindow.putNull(i, j);
+									} else {
+										mWindow.putLong(number.longValue(), i, j);
+									}
+								}
+									break;
+								default:
+									throw new RuntimeException("Unsupportet type " + fieldReader.getType());
+								}
 							}
-							if (requiredPos < i) {
-								// window ok
-								return;
-							}
-							// window to short -> recalculate window start and try again
-							currentWindowStart = Math.max((requiredPos - lastWindowSize * 4 / 5), 0);
-
 						}
 					}
-				});
+					if (requiredPos < i) {
+						// window ok
+						return;
+					}
+					// window to short -> recalculate window start and try again
+					currentWindowStart = Math.max((requiredPos - lastWindowSize * 4 / 5), 0);
+
+				}
 			} finally {
 				mWindow.releaseReference();
 			}
@@ -580,10 +591,9 @@ public class MapperUtil {
 																																			final Map<String, FieldReader<E>> fieldReaders,
 																																			final Criterium criterium,
 																																			final SortOrder order,
-																																			final Executor transactionExecutor) {
+																																			final Runnable closeRunnable) {
 		final long startTime = System.currentTimeMillis();
 		final List<String> columnNames = evalProjection(projection, fieldReaders);
-		final int outputColumns = columnNames.size();
 
 		final Iterable<E> filteredIndizes;
 		final boolean filteredIsPrivate;
@@ -600,6 +610,8 @@ public class MapperUtil {
 				}
 			}
 		}
+		final long startOrdeTime = System.currentTimeMillis();
+		Log.i(TAG, "Filter time : " + (startOrdeTime - startTime));
 		final List<E> orderedIndizes;
 		if (order == null) {
 			if (filteredIndizes instanceof List) {
@@ -627,15 +639,21 @@ public class MapperUtil {
 				}
 			}
 			final List<SortOrderEntry> entries = order.getEntries();
+			final FieldReaderOderEntry[] indexedEntries = new FieldReaderOderEntry[entries.size()];
+			for (int i = 0; i < entries.size(); i++) {
+				final SortOrderEntry sortOrderEntry = entries.get(i);
+				final FieldReader<E> fieldReader = fieldReaders.get(sortOrderEntry.getColumnName());
+				indexedEntries[i] = new FieldReaderOderEntry(fieldReader, sortOrderEntry.isNullFirst(), sortOrderEntry.getOrder());
+			}
 			Collections.sort(orderedIndexList, new Comparator<E>() {
 
 				@Override
 				public int compare(final E lhs, final E rhs) {
-					for (final SortOrderEntry orderRule : entries) {
-						final String columnName = orderRule.getColumnName();
+					for (final FieldReaderOderEntry orderRule : indexedEntries) {
+						final FieldReader<E> reader = (FieldReader<E>) orderRule.getFieldReader();
 						final boolean ascending = orderRule.getOrder() == Order.ASC;
-						final Comparable<Object> lValue = (Comparable) lookupValue(lhs, columnName, fieldReaders);
-						final Comparable<Object> rValue = (Comparable) lookupValue(rhs, columnName, fieldReaders);
+						final Comparable<Object> lValue = (Comparable) reader.getValue(lhs);
+						final Comparable<Object> rValue = (Comparable) reader.getValue(rhs);
 						final int cmp = compareRaw(lValue, rValue, orderRule.isNullFirst());
 						if (cmp != 0) {
 							return ascending ? cmp : -cmp;
@@ -646,9 +664,11 @@ public class MapperUtil {
 			});
 			orderedIndizes = orderedIndexList;
 		}
+		final long endPrepareTime = System.currentTimeMillis();
+		Log.i(TAG, "Sort time: " + (endPrepareTime - startOrdeTime));
 		final String[] columnNamesArray = columnNames.toArray(new String[columnNames.size()]);
-		Log.i(TAG, "prepared lazy cursor of " + orderedIndizes.size() + " in " + (System.currentTimeMillis() - startTime));
-		return new WindowedLazyLoadingCursor(orderedIndizes, columnNamesArray, fieldReaders, transactionExecutor);
+		Log.i(TAG, "prepared lazy cursor of " + orderedIndizes.size() + " in " + (endPrepareTime - startTime));
+		return new WindowedLazyLoadingCursor(orderedIndizes, columnNamesArray, fieldReaders, closeRunnable);
 	}
 
 	private static <E> Object lookupValue(final E row, final String column, final Map<String, FieldReader<E>> fieldReaders) {
