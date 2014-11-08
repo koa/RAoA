@@ -116,6 +116,7 @@ import ch.bergturbenthal.raoa.provider.state.ServerListActivity;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 import ch.bergturbenthal.raoa.provider.util.ObjectUtils;
+import ch.bergturbenthal.raoa.provider.util.ReadOnlyIterableIndexedAccess;
 import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser;
 import ch.bergturbenthal.raoa.provider.util.ThumbnailUriParser.ThumbnailUriReceiver;
 
@@ -578,7 +579,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return defaultSortOrder;
 	}
 
-	private Cursor makeCursorForAlbumEntries(	final Collection<AlbumEntryIndex> indices,
+	private Cursor makeCursorForAlbumEntries(	final Iterable<AlbumEntryIndex> indexedAccess,
 																						final String[] projection,
 																						final Collection<AlbumIndex> albumsToNotify,
 																						final Criterium criterium,
@@ -683,7 +684,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		});
 		Log.i(SERVICE_TAG, "End Prepare, Start iteration");
 		try {
-			final NotifyableCursor cursor = MapperUtil.loadConnectionIntoWindowedCursor(indices, projection, indexFieldReaders, criterium, order, new Runnable() {
+			final NotifyableCursor cursor = MapperUtil.loadConnectionIntoWindowedCursor(indexedAccess, projection, indexFieldReaders, criterium, order, new Runnable() {
 
 				@Override
 				public void run() {
@@ -691,11 +692,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				}
 			});
 			Log.i(SERVICE_TAG, "End iteration");
-			final HashSet<AlbumIndex> affectedAlbums = new HashSet<AlbumIndex>(albumsToNotify);
-			for (final AlbumEntryIndex indexEntry : indices) {
-				affectedAlbums.add(indexEntry.getAlbumIndex());
-			}
-			for (final AlbumIndex index : affectedAlbums) {
+			for (final AlbumIndex index : albumsToNotify) {
 				cursorNotifications.addSingleAlbumCursor(index, cursor);
 			}
 			return cursor;
@@ -1130,13 +1127,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
 			@Override
 			public Cursor call(final DataProvider provider) {
-				final Collection<AlbumEntryIndex> albumEntryIndices = new ArrayList<AlbumEntryIndex>();
 				final long startTime = System.currentTimeMillis();
-				for (final AlbumEntryIndex albumEntry : provider.listEntriesByAlbum(album)) {
-					albumEntryIndices.add(albumEntry);
-				}
-				Log.i(SERVICE_TAG, "Iteration-Time: " + (System.currentTimeMillis() - startTime) + " " + albumEntryIndices.size());
-				return makeCursorForAlbumEntries(albumEntryIndices, projection, Collections.singleton(album), criterium, order, provider);
+				final AlbumMeta albumMeta = provider.getAlbumMetadataMap().get(album);
+				final ReadOnlyIterableIndexedAccess<AlbumEntryIndex> readOnlyIterableIndexedAccess = new ReadOnlyIterableIndexedAccess<AlbumEntryIndex>(provider.listEntriesByAlbum(album)
+																																																																												.iterator(),
+																																																																								albumMeta.getEntryCount());
+				Log.i(SERVICE_TAG, "Iteration-Time: " + (System.currentTimeMillis() - startTime) + " " + albumMeta.getEntryCount());
+				return makeCursorForAlbumEntries(readOnlyIterableIndexedAccess, projection, Collections.singleton(album), criterium, order, provider);
 			}
 		});
 	}

@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -28,16 +29,40 @@ import ch.bergturbenthal.raoa.provider.criterium.Constant;
 import ch.bergturbenthal.raoa.provider.criterium.Criterium;
 import ch.bergturbenthal.raoa.provider.criterium.PairValue;
 import ch.bergturbenthal.raoa.provider.criterium.Value;
+import ch.bergturbenthal.raoa.provider.util.IndexedIterable;
 import ch.bergturbenthal.raoa.provider.util.LazyLoader.Lookup;
 import ch.bergturbenthal.raoa.util.Pair;
 
 public class MapperUtil {
+
 	@lombok.Value
 	@AllArgsConstructor(suppressConstructorProperties = true)
 	private static class FieldReaderOderEntry {
 		private FieldReader<?> fieldReader;
 		private boolean nullFirst;
 		private SortOrderEntry.Order order;
+	}
+
+	@AllArgsConstructor(suppressConstructorProperties = true)
+	public static class IndexedIterableList<T> implements IndexedIterable<T> {
+
+		private final List<T> list;
+
+		@Override
+		public T get(final int index) {
+			return list.get(index);
+		}
+
+		@Override
+		public Iterator<T> iterator() {
+			return list.iterator();
+		}
+
+		@Override
+		public int size() {
+			return list.size();
+		}
+
 	}
 
 	private static class IndexedOderEntry {
@@ -55,9 +80,9 @@ public class MapperUtil {
 		private final String[] columnNamesArray;
 		private final Map<String, FieldReader<E>> fieldReaders;
 		private int lastWindowSize;
-		private final List<E> orderedIndizes;
+		private final IndexedIterable<E> orderedIndizes;
 
-		public WindowedLazyLoadingCursor(final List<E> orderedIndizes, final String[] columnNamesArray, final Map<String, FieldReader<E>> fieldReaders,
+		public WindowedLazyLoadingCursor(final IndexedIterable<E> orderedIndizes, final String[] columnNamesArray, final Map<String, FieldReader<E>> fieldReaders,
 																			final Runnable closeRunnable) {
 			this.orderedIndizes = orderedIndizes;
 			this.columnNamesArray = columnNamesArray;
@@ -612,17 +637,20 @@ public class MapperUtil {
 		}
 		final long startOrdeTime = System.currentTimeMillis();
 		Log.i(TAG, "Filter time : " + (startOrdeTime - startTime));
-		final List<E> orderedIndizes;
+		final IndexedIterable<E> orderedIndizes;
 		if (order == null) {
-			if (filteredIndizes instanceof List) {
-				orderedIndizes = (List<E>) filteredIndizes;
+			if (filteredIndizes instanceof IndexedIterable) {
+				orderedIndizes = (IndexedIterable<E>) filteredIndizes;
+			} else if (filteredIndizes instanceof List) {
+				orderedIndizes = new IndexedIterableList<E>((List<E>) filteredIndizes);
 			} else if (filteredIndizes instanceof Collection) {
-				orderedIndizes = new ArrayList<E>((Collection<E>) filteredIndizes);
+				orderedIndizes = new IndexedIterableList<E>(new ArrayList<E>((Collection<E>) filteredIndizes));
 			} else {
-				orderedIndizes = new ArrayList<E>();
+				final ArrayList<E> list = new ArrayList<E>();
 				for (final E e : filteredIndizes) {
-					orderedIndizes.add(e);
+					list.add(e);
 				}
+				orderedIndizes = new IndexedIterableList<E>(list);
 			}
 		} else {
 			final List<E> orderedIndexList;
@@ -662,7 +690,7 @@ public class MapperUtil {
 					return 0;
 				}
 			});
-			orderedIndizes = orderedIndexList;
+			orderedIndizes = new IndexedIterableList<E>(orderedIndexList);
 		}
 		final long endPrepareTime = System.currentTimeMillis();
 		Log.i(TAG, "Sort time: " + (endPrepareTime - startOrdeTime));
