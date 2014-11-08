@@ -238,6 +238,12 @@ public class Client {
 		return builder.build();
 	}
 
+	public static Uri makeAlbumKeywordsUri(final Uri albumUri) {
+		final Builder builder = albumUri.buildUpon();
+		builder.appendPath("keywords");
+		return builder.build();
+	}
+
 	public static Uri makeAlbumUri(final String archiveName, final String albumId) {
 		final Builder builder = ALBUM_URI.buildUpon();
 		builder.appendPath(archiveName);
@@ -265,7 +271,7 @@ public class Client {
 
 	/**
 	 * Build a Content-Provider-URI for reading a given Thumbnail from Content-Provider
-	 * 
+	 *
 	 * @param albumId
 	 *          id of album
 	 * @param entryId

@@ -46,4 +46,6 @@ public interface SynchronisationService {
 	void importFile(final String serverName, final String filename, final byte[] data);
 
 	void resolveIssue(final String serverName, final String issueId, final IssueResolveAction action);
+
+	Cursor readAlbumEntryKeywords(final String archiveName, final String albumName, final String[] projection, final Criterium criterium, final SortOrder order);
 }

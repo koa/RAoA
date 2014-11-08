@@ -39,7 +39,8 @@ public class ArchiveContentProvider extends ContentProvider {
 	public static enum UriType {
 		@Path("albums/*/*")
 		ALBUM, @Path("albums/*/*/entries/*")
-		ALBUM_ENTRY, @Path("albums/*/*/entries")
+		ALBUM_ENTRY, @Path("albums/*/*/keywords")
+		ALBUM_ENTRY_KEYWORDS, @Path("albums/*/*/entries")
 		ALBUM_ENTRY_LIST, @Path("albums/*/*/entries/*/thumbnail")
 		ALBUM_ENTRY_THUMBNAIL, @Path("albums/*/*/entries/*/thumbnail/*")
 		ALBUM_ENTRY_THUMBNAIL_ALIAS, @Path("albums")
@@ -52,28 +53,28 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	}
 
-	private static final Map<Class, NotifyableMatrixCursor> emptyCursors = new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
+	private static final Map<Class, NotifyableMatrixCursor>	emptyCursors			= new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
 
-	private static final EnumUriMatcher<UriType> matcher = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
-	static final String TAG = "Content Provider";
+	private static final EnumUriMatcher<UriType>						matcher						= new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
+	static final String																			TAG								= "Content Provider";
 
-	private SynchronisationService service = null;
+	private SynchronisationService													service						= null;
 	/** Defines callbacks for service binding, passed to bindService() */
-	private final ServiceConnection serviceConnection = new ServiceConnection() {
+	private final ServiceConnection													serviceConnection	= new ServiceConnection() {
 
-		@Override
-		public void onServiceConnected(final ComponentName className, final IBinder service) {
-			// We've bound to LocalService, cast the IBinder and get LocalService
-			// instance
-			final LocalBinder binder = (LocalBinder) service;
-			setService(binder.getService());
-		}
+																																							@Override
+																																							public void onServiceConnected(final ComponentName className, final IBinder service) {
+																																								// We've bound to LocalService, cast the IBinder and get LocalService
+																																								// instance
+																																								final LocalBinder binder = (LocalBinder) service;
+																																								setService(binder.getService());
+																																							}
 
-		@Override
-		public void onServiceDisconnected(final ComponentName arg0) {
-			setService(null);
-		}
-	};
+																																							@Override
+																																							public void onServiceDisconnected(final ComponentName arg0) {
+																																								setService(null);
+																																							}
+																																						};
 
 	@Override
 	public Bundle call(final String method, final String arg, final Bundle extras) {
@@ -154,6 +155,11 @@ public class ArchiveContentProvider extends ContentProvider {
 
 				@Override
 				public void importFile(final String serverName, final String filename, final byte[] data) {
+				}
+
+				@Override
+				public Cursor readAlbumEntryKeywords(final String string, final String string2, final String[] projection, final Criterium criterium, final SortOrder order) {
+					return getEmptyCursor(Client.KeywordEntry.class);
 				}
 
 				@Override
@@ -325,6 +331,8 @@ public class ArchiveContentProvider extends ContentProvider {
 				return getService().readSingleAlbum(segments.get(1), segments.get(2), projection, criterium, order);
 			case ALBUM_ENTRY_LIST:
 				return getService().readAlbumEntryList(segments.get(1), segments.get(2), projection, criterium, order);
+			case ALBUM_ENTRY_KEYWORDS:
+				return getService().readAlbumEntryKeywords(segments.get(1), segments.get(2), projection, criterium, order);
 			case ALBUM_ENTRY:
 				return getService().readSingleAlbumEntry(segments.get(1), segments.get(2), segments.get(4), projection, criterium, order);
 			case SERVER_LIST:
