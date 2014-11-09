@@ -407,7 +407,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   /*
    * (non-Javadoc)
-   *
+   * 
    * @see ch.bergturbenthal.raoa.provider.service.SynchronisationService#importFile(java.lang.String, byte[])
    */
   @Override
@@ -571,19 +571,19 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
   }
 
   private void loadThumbnailsOfAlbum(final AlbumIndex albumIndex) {
-    for (int i = 0; i < 2; i++) {
-      boolean allOk = true;
-      for (final AlbumEntryIndex thumbnailId : getCurrentDataProvider().listEntriesByAlbum(albumIndex)) {
-        final ThumbnailEntry thumbnailEntry = thumbnailCache.get(thumbnailId);
-        if (thumbnailEntry != null && !thumbnailEntry.confirmedByServer && i == 0) {
-          thumbnailCache.remove(thumbnailId);
-        }
-        allOk &= thumbnailEntry != null && thumbnailEntry.confirmedByServer;
-      }
-      if (allOk) {
-        callInTransaction(new Callable<Void>() {
-          @Override
-          public Void call() throws Exception {
+    callInTransaction(new Callable<Void>() {
+      @Override
+      public Void call() throws Exception {
+        for (int i = 0; i < 2; i++) {
+          boolean allOk = true;
+          for (final AlbumEntryIndex thumbnailId : getCurrentDataProvider().listEntriesByAlbum(albumIndex)) {
+            final ThumbnailEntry thumbnailEntry = thumbnailCache.get(thumbnailId);
+            if (thumbnailEntry != null && !thumbnailEntry.confirmedByServer && i == 0) {
+              thumbnailCache.remove(thumbnailId);
+            }
+            allOk &= thumbnailEntry != null && thumbnailEntry.confirmedByServer;
+          }
+          if (allOk) {
             final BTreeMap<AlbumIndex, AlbumState> albumStateMap = getCurrentDataProvider().getAlbumStateMap();
             albumStateMap.putIfAbsent(albumIndex, AlbumState.builder().build());
             final AlbumState oldAlbumState = albumStateMap.get(albumIndex);
@@ -591,10 +591,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
             cursorNotifications.notifySingleAlbumCursorChanged(albumIndex);
             return null;
           }
-        }, true);
-        return;
+        }
+        return null;
       }
-    }
+    }, true);
   }
 
   private SortOrder makeAlbumDefaultSortOrder() {
