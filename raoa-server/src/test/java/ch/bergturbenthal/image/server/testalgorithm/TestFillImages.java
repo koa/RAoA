@@ -28,13 +28,18 @@ public class TestFillImages {
 
 	@Data
 	private static class Image implements Rectangle {
-		private File file;
+		private final File file;
 		private final int height;
 		private double scale = 1;
 		private final int width;
 
 		@Override
 		public void align() {
+		}
+
+		@Override
+		public void collectAllRectangles(final List<Rectangle> list, final int generationSkip) {
+			list.add(this);
 		}
 
 		@Override
@@ -66,6 +71,11 @@ public class TestFillImages {
 				return this;
 			}
 			return null;
+		}
+
+		@Override
+		public Rectangle getReplacedCopy(final Rectangle r1, final Rectangle r2) {
+			return new Image(file, height, width);
 		}
 
 		@Override
@@ -115,6 +125,16 @@ public class TestFillImages {
 				}
 			}
 
+		}
+
+		@Override
+		public void collectAllRectangles(final List<Rectangle> list, final int generationSkip) {
+			if (generationSkip <= 0) {
+				list.add(this);
+			}
+			for (final Rectangle rectangle : subNodes) {
+				rectangle.collectAllRectangles(list, generationSkip - 1);
+			}
 		}
 
 		@Override
@@ -194,6 +214,22 @@ public class TestFillImages {
 		}
 
 		@Override
+		public Rectangle getReplacedCopy(final Rectangle r1, final Rectangle r2) {
+			final List<Rectangle> x = new ArrayList<TestFillImages.Rectangle>(subNodes.size());
+			for (int i = 0; i < subNodes.size(); i++) {
+				final Rectangle rect = subNodes.get(i);
+				if (rect == r1) {
+					x.add(r2);
+				} else if (rect == r2) {
+					x.add(r1);
+				} else {
+					x.add(rect.getReplacedCopy(r1, r2));
+				}
+			}
+			return new Node(orientation, x);
+		}
+
+		@Override
 		public double getScaledHeight() {
 			if (orientation == Orientation.HORIZONTAL) {
 				return subNodes.get(0).getScaledHeight();
@@ -259,6 +295,8 @@ public class TestFillImages {
 
 		void exchange(final Rectangle r1, final Rectangle r2);
 
+		Rectangle getReplacedCopy(final Rectangle r1, final Rectangle r2);
+
 		Rectangle findBestFitness(final Fitness fitness, final Rectangle ignoreCandidate, final int curentLevel, final int fromLevel, final int toLevel);
 
 		boolean contains(final Rectangle rect);
@@ -267,23 +305,34 @@ public class TestFillImages {
 
 		int levelOf(final Rectangle rectangle, final int startLevel);
 
+		void collectAllRectangles(final List<Rectangle> list, final int generationSkip);
+
 	}
 
 	Random random = new Random();
 
-	@Test
-	@Ignore
-	public void test() throws IOException {
+	private String describeRectangle(final Rectangle candidate1) {
+		final NumberFormat format = NumberFormat.getNumberInstance();
+		final String areaDescription = "width: " + format.format(candidate1.getScaledWidth())
+																		+ ", height: "
+																		+ format.format(candidate1.getScaledHeight())
+																		+ ", ratio: "
+																		+ format.format(candidate1.getScaledWidth() / candidate1.getScaledHeight())
+																		+ ", area: "
+																		+ format.format(candidate1.getScaledWidth() * candidate1.getScaledHeight());
+		return areaDescription;
+	}
 
-		final List<Image> images = readImages();
-		Collections.shuffle(images);
+	private void generateMosaic(final List<Image> images, final String series) throws IOException {
+		final double targetRatio = Math.sqrt(2);
+		final int targetHeight = (int) Math.round(1600 / targetRatio);
 		final Rectangle treeRoot = makeRect(images, Orientation.VERTICAL, Orientation.HORIZONTAL, 1.5);
 		treeRoot.align();
 		treeRoot.scale(1600 / treeRoot.getScaledWidth());
 
-		System.out.println(NumberFormat.getInstance().format(treeRoot.getScaledWidth() / treeRoot.getScaledHeight()));
+		// System.out.println(NumberFormat.getInstance().format(treeRoot.getScaledWidth() / treeRoot.getScaledHeight()));
 
-		writeImage(treeRoot, new File("target/out-orig.jpg"));
+		// writeImage(treeRoot, new File("target/out-" + series + "-orig.jpg"));
 
 		final Fitness biggestVerticalFitness = new Fitness() {
 
@@ -321,12 +370,32 @@ public class TestFillImages {
 		// final Fitness candidate2Fitness = smallestVerticalFitness;
 		//
 		for (int i = 1; i < 20; i++) {
-			final Rectangle candidate1 = treeRoot.findBestFitness(smallestVerticalFitness, null, 0, 3, 20);
-			final int hitLevel = candidate1.levelOf(candidate1, 0);
-			final Rectangle candidate2 = treeRoot.findBestFitness(biggestHorizontalFitness, candidate1, 0, hitLevel - 1, 20);
+			System.out.println("----------");
+			final int depth = treeRoot.deepestLevel(0);
+			final double difference = (targetHeight - treeRoot.getScaledHeight());
+			if (Math.abs(difference) < 5) {
+				System.out.println("Found in round " + i);
+				break;
+			}
+			final List<Rectangle> candidateRectangles = new ArrayList<TestFillImages.Rectangle>();
+			treeRoot.collectAllRectangles(candidateRectangles, depth * 2 / 3);
+			final Rectangle candidate1 = candidateRectangles.get(random.nextInt(candidateRectangles.size())); // treeRoot.findBestFitness(smallFitness,
+																																																				// null, 0, depth / 2, depth);
+			final int hitLevel = treeRoot.levelOf(candidate1, 0);
+			final Rectangle candidate2 = treeRoot.findBestFitness(new Fitness() {
+
+				@Override
+				public double calcFitness(final Rectangle image) {
+					final Rectangle replacedCopy = treeRoot.getReplacedCopy(candidate1, image);
+					replacedCopy.align();
+					final double ratio = replacedCopy.getScaledWidth() / replacedCopy.getScaledHeight();
+					final double ratioDifference = Math.abs(ratio - targetRatio);
+					return 1 / ratioDifference;
+				}
+			}, candidate1, 0, depth / 2, depth);
 			if (candidate2 == null) {
 				// no more variants
-				break;
+				continue;
 			}
 			// for (final Image image : images) {
 			// if (candidate1 == null || candidate1Fitness.calcFitness(candidate1) < candidate1Fitness.calcFitness(image)) {
@@ -339,21 +408,24 @@ public class TestFillImages {
 			// if (candidate1 == null || candidate2 == null) {
 			// return;
 			// }
-			System.out.println("total before: width: " + treeRoot.getScaledWidth() + ", height: " + treeRoot.getScaledHeight());
-			System.out.println("candidate 1: width: " + candidate1.getScaledWidth() + ", height: " + candidate1.getScaledHeight());
-			System.out.println("candidate 2: width: " + candidate2.getScaledWidth() + ", height: " + candidate2.getScaledHeight());
+			System.out.println("total before: " + describeRectangle(treeRoot));
+			System.out.println("candidate 1: " + describeRectangle(candidate1));
+			System.out.println("candidate 2: " + describeRectangle(candidate2));
 
 			treeRoot.exchange(candidate1, candidate2);
 			treeRoot.align();
 
-			System.out.println("total after: width: " + treeRoot.getScaledWidth() + ", height: " + treeRoot.getScaledHeight());
+			System.out.println("total after: " + describeRectangle(treeRoot));
 
 			treeRoot.scale(1600 / treeRoot.getScaledWidth());
-			System.out.println(NumberFormat.getInstance().format(treeRoot.getScaledWidth() / treeRoot.getScaledHeight()));
+			System.out.println("total after scaled: " + describeRectangle(treeRoot));
+			// System.out.println(NumberFormat.getInstance().format(treeRoot.getScaledWidth() / treeRoot.getScaledHeight()));
 
-			writeImage(treeRoot, new File("target/out-mutation" + i + ".jpg"));
+			// writeImage(treeRoot, new File("target/out-" + series + "-mutation" + i + ".jpg"));
+
 		}
-
+		writeImage(treeRoot, new File("target/out-" + series + "-final.jpg"));
+		System.out.println("---------------------------------------------");
 	}
 
 	private Orientation inverse(final Orientation orientation) {
@@ -392,7 +464,7 @@ public class TestFillImages {
 	private List<Image> readImages() throws IOException {
 		final List<Image> images = new ArrayList<>();
 
-		final File[] files = new File("/data/heap/data/photos/old/Landschaft/Vorführung Seilbahn 2012-02-18/.servercache").listFiles(new FileFilter() {
+		final File[] files = new File("/tmp/ponytreff").listFiles(new FileFilter() {
 
 			@Override
 			public boolean accept(final File pathname) {
@@ -404,11 +476,29 @@ public class TestFillImages {
 		});
 		for (final File file : files) {
 			final BufferedImage bufferedImage = ImageIO.read(file);
-			final Image image = new Image(bufferedImage.getHeight(), bufferedImage.getWidth());
-			image.setFile(file);
+			final Image image = new Image(file, bufferedImage.getHeight(), bufferedImage.getWidth());
 			images.add(image);
 		}
 		return images;
+	}
+
+	@Test
+	@Ignore
+	public void test() throws IOException {
+
+		final List<Image> images = readImages();
+		Collections.shuffle(images);
+		final int seriesCount = 30;// images.size() / 60;
+		final int seriesSize = (int) Math.round(images.size() * 1.0 / seriesCount);
+		for (int i = 0; i < seriesCount; i++) {
+			final List<Image> part = images.subList(seriesSize * i, i == seriesCount - 1 ? images.size() : seriesSize * (i + 1));
+			final ArrayList<Image> list = new ArrayList<Image>(part);
+			for (int j = 0; j < 3; j++) {
+				Collections.shuffle(list);
+				generateMosaic(list, i + "-" + j);
+			}
+		}
+
 	}
 
 	private void writeImage(final Rectangle treeRoot, final File output) throws IOException {
