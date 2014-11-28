@@ -74,7 +74,7 @@
     <dependency>
       <groupId>org.mapdb</groupId>
       <artifactId>mapdb-renamed</artifactId>
-      <version>1.0.7-SNAPSHOT</version>
+      <version>1.0.7-KOA</version>
     </dependency>
   </dependencies>
 
