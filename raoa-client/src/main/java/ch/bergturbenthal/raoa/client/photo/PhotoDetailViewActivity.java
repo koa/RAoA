@@ -344,30 +344,30 @@ public class PhotoDetailViewActivity extends Activity {
       protected Void doInBackground(final Void... params) {
         knownKeywords = KeywordUtil.getKnownKeywords(getContentResolver());
         final Cursor data = getContentResolver().query(albumKeywordsUri, null, null, null, null);
+        final Map<String, Integer> keywordCountInAlbum = new HashMap<String, Integer>();
         if (data != null && data.moveToFirst()) {
           final int keywordIndex = data.getColumnIndexOrThrow(Client.KeywordEntry.KEYWORD);
           final int countIndex = data.getColumnIndexOrThrow(Client.KeywordEntry.COUNT);
-          final Map<String, Integer> keywordCountInAlbum = new HashMap<String, Integer>();
           do {
             final String keyword = data.getString(keywordIndex);
             final int count = data.getInt(countIndex);
             keywordCountInAlbum.put(keyword, Integer.valueOf(count));
           } while (data.moveToNext());
-          final ArrayList<String> keywordsInAlbum = KeywordUtil.orderKeywordsByFrequent(keywordCountInAlbum);
-          if (keywordCountInAlbum.size() >= VISIBLE_KEYWORD_COUNT) {
-            visibleKeywordsToShow = keywordsInAlbum.subList(0, VISIBLE_KEYWORD_COUNT).toArray(new String[VISIBLE_KEYWORD_COUNT]);
+        }
+        final ArrayList<String> keywordsInAlbum = KeywordUtil.orderKeywordsByFrequent(keywordCountInAlbum);
+        if (keywordCountInAlbum.size() >= VISIBLE_KEYWORD_COUNT) {
+          visibleKeywordsToShow = keywordsInAlbum.subList(0, VISIBLE_KEYWORD_COUNT).toArray(new String[VISIBLE_KEYWORD_COUNT]);
+        } else {
+          final Set<String> keywords = new LinkedHashSet<String>();
+          keywords.addAll(keywordsInAlbum);
+          keywords.addAll(knownKeywords);
+          final Collection<String> visibleEntries;
+          if (keywords.size() > VISIBLE_KEYWORD_COUNT) {
+            visibleEntries = new ArrayList<String>(keywords).subList(0, VISIBLE_KEYWORD_COUNT);
           } else {
-            final Set<String> keywords = new LinkedHashSet<String>();
-            keywords.addAll(keywordsInAlbum);
-            keywords.addAll(knownKeywords);
-            final Collection<String> visibleEntries;
-            if (keywords.size() > VISIBLE_KEYWORD_COUNT) {
-              visibleEntries = new ArrayList<String>(keywords).subList(0, VISIBLE_KEYWORD_COUNT);
-            } else {
-              visibleEntries = keywords;
-            }
-            visibleKeywordsToShow = visibleEntries.toArray(new String[visibleEntries.size()]);
+            visibleEntries = keywords;
           }
+          visibleKeywordsToShow = visibleEntries.toArray(new String[visibleEntries.size()]);
         }
         return null;
       }
