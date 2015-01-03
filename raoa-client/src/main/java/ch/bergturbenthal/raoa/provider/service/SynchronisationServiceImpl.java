@@ -407,7 +407,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see ch.bergturbenthal.raoa.provider.service.SynchronisationService#importFile(java.lang.String, byte[])
    */
   @Override
@@ -1863,7 +1863,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         final BTreeMap<AlbumIndex, AlbumMutationData> currentAlbumMutationMap = currentDataProvider.getAlbumMutationDataMap();
         final AlbumMutationData mutationList = currentAlbumMutationMap.get(album);
 
-        final ArrayList<Mutation> mutations = new ArrayList(mutationList.getMutations());
+        final ArrayList<Mutation> mutations = new ArrayList<Mutation>(mutationList != null ? mutationList.getMutations() : Collections.<Mutation> emptyList());
         boolean modified = false;
         if (values.containsKey(Client.AlbumEntry.META_RATING)) {
           for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
