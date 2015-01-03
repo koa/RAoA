@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
@@ -71,6 +70,7 @@ import android.os.IBinder;
 import android.util.Log;
 import android.util.LruCache;
 import android.util.Pair;
+import ch.bergturbenthal.raoa.client.util.CallbackUtil;
 import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.data.model.PingResponse;
 import ch.bergturbenthal.raoa.data.model.StorageEntry;
@@ -2029,7 +2029,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         if (visibleAlbumsModified) {
           notifyAlbumListChanged();
         }
-        final List<Future<Void>> invokeResults = wrappedExecutorService.invokeAll(updateDetailRunnables);
+        final Collection<Future<Void>> invokeResults = CallbackUtil.limitConcurrent(wrappedExecutorService, 5, updateDetailRunnables);
         for (final Future<Void> future : invokeResults) {
           try {
             future.get();
