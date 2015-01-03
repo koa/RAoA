@@ -18,7 +18,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestFillImages {
@@ -369,11 +368,11 @@ public class TestFillImages {
 		// final Fitness candidate1Fitness = biggestHorizontalFitness;
 		// final Fitness candidate2Fitness = smallestVerticalFitness;
 		//
-		for (int i = 1; i < 20; i++) {
+		for (int i = 1; i < 40; i++) {
 			System.out.println("----------");
 			final int depth = treeRoot.deepestLevel(0);
 			final double difference = (targetHeight - treeRoot.getScaledHeight());
-			if (Math.abs(difference) < 5) {
+			if (Math.abs(difference) < 3) {
 				System.out.println("Found in round " + i);
 				break;
 			}
@@ -424,7 +423,9 @@ public class TestFillImages {
 			// writeImage(treeRoot, new File("target/out-" + series + "-mutation" + i + ".jpg"));
 
 		}
-		writeImage(treeRoot, new File("target/out-" + series + "-final.jpg"));
+		treeRoot.align();
+		treeRoot.scale(5000 / treeRoot.getScaledWidth());
+		writeImage(treeRoot, new File("/tmp/ponytreff/out/mosaic-" + series + "-final.jpg"));
 		System.out.println("---------------------------------------------");
 	}
 
@@ -483,15 +484,18 @@ public class TestFillImages {
 	}
 
 	@Test
-	@Ignore
+	// @Ignore
 	public void test() throws IOException {
 
 		final List<Image> images = readImages();
 		Collections.shuffle(images);
-		final int seriesCount = 30;// images.size() / 60;
-		final int seriesSize = (int) Math.round(images.size() * 1.0 / seriesCount);
+		final int seriesCount = 35;// images.size() / 60;
+		final double seriesSize = images.size() * 1.0 / seriesCount;
+		int lastSeriesStart = 0;
 		for (int i = 0; i < seriesCount; i++) {
-			final List<Image> part = images.subList(seriesSize * i, i == seriesCount - 1 ? images.size() : seriesSize * (i + 1));
+			final int nextSeriesStart = (int) Math.round((i + 1) * seriesSize);
+			final List<Image> part = images.subList(lastSeriesStart, nextSeriesStart);
+			lastSeriesStart = nextSeriesStart;
 			final ArrayList<Image> list = new ArrayList<Image>(part);
 			for (int j = 0; j < 3; j++) {
 				Collections.shuffle(list);
