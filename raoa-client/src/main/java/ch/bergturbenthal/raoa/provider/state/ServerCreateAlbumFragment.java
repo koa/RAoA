@@ -17,6 +17,7 @@ import android.content.ContentResolver;
 import android.database.Cursor;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -45,7 +46,7 @@ public class ServerCreateAlbumFragment extends Fragment {
 		final Spinner selectFolderSpinner = (Spinner) view.findViewById(R.id.selectFolderSpinner);
 
 		new AsyncTask<Void, Void, Void>() {
-			final Collection<String> existingFolders = new TreeSet<String>();
+			final Collection<String>	existingFolders	= new TreeSet<String>();
 
 			@Override
 			protected Void doInBackground(final Void... params) {
@@ -54,6 +55,10 @@ public class ServerCreateAlbumFragment extends Fragment {
 					if (cursor.moveToFirst()) {
 						do {
 							final String albumDir = cursor.getString(0);
+							if (albumDir == null) {
+								Log.e("CREATE_ALBUM", "Album set tu null");
+								continue;
+							}
 							final int lastSlash = albumDir.lastIndexOf('/');
 							if (lastSlash <= 1) {
 								continue;
@@ -106,8 +111,9 @@ public class ServerCreateAlbumFragment extends Fragment {
 					return;
 				}
 				final String serverId = getArguments() == null ? null : getArguments().getString(Client.ServerEntry.SERVER_ID);
-				if (serverId == null)
+				if (serverId == null) {
 					return;
+				}
 				final DateMidnight date = new DateTime(datePicker.getDate()).toDateMidnight();
 
 				final long autoAddDate = date.getMillis() + TimeUnit.HOURS.toMillis(timePicker.getCurrentHour()) + TimeUnit.MINUTES.toMillis(timePicker.getCurrentMinute());
