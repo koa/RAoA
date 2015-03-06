@@ -18,6 +18,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestFillImages {
@@ -484,7 +485,7 @@ public class TestFillImages {
 	}
 
 	@Test
-	// @Ignore
+	@Ignore
 	public void test() throws IOException {
 
 		final List<Image> images = readImages();
