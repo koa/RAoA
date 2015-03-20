@@ -1759,7 +1759,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
         }
         if (!newMutations.isEmpty()) {
           final AlbumMutationData albumMutationData = currentDataProvider.getAlbumMutationDataMap().get(album);
-          final ArrayList<Mutation> mutations = new ArrayList<Mutation>(albumMutationData.getMutations());
+          final ArrayList<Mutation> mutations = albumMutationData == null ? new ArrayList<Mutation>() : new ArrayList<Mutation>(albumMutationData.getMutations());
           mutations.addAll(newMutations);
           mutations.trimToSize();
           currentDataProvider.getAlbumMutationDataMap().put(album, new AlbumMutationData(mutations));
@@ -2008,16 +2008,20 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
                   for (final Entry<AlbumIndex, AlbumMutationData> albumEntry : currentAlbumMutationMap.entrySet()) {
                     final AlbumMutationData mutationData = albumEntry.getValue();
                     if (mutationData != null) {
-                      for (final Iterator<Mutation> mutationIterator = mutationData.getMutations().iterator(); mutationIterator.hasNext();) {
+                      final ArrayList<Mutation> mutations = new ArrayList<Mutation>(mutationData.getMutations());
+                      final AlbumIndex key = albumEntry.getKey();
+                      for (final Iterator<Mutation> mutationIterator = mutations.iterator(); mutationIterator.hasNext();) {
                         final Mutation mutation = mutationIterator.next();
                         if (mutation instanceof MetadataMutation) {
                           final MetadataMutation metaMutation = (MetadataMutation) mutation;
                           if (!metaMutation.getMetadataVersion().equals(newVersion)) {
-                            cursorNotifications.notifySingleAlbumCursorChanged(albumEntry.getKey());
+                            cursorNotifications.notifySingleAlbumCursorChanged(key);
                             mutationIterator.remove();
                           }
                         }
                       }
+                      mutations.trimToSize();
+                      currentAlbumMutationMap.put(key, new AlbumMutationData(mutations));
                     }
                   }
                   return null;
