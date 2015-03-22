@@ -7,12 +7,12 @@ import java.util.NavigableSet;
 
 import lombok.Getter;
 
-import org.mapdb10.BTreeMap;
-import org.mapdb10.Bind;
-import org.mapdb10.DB;
-import org.mapdb10.Fun;
-import org.mapdb10.Fun.Function2;
-import org.mapdb10.Fun.Tuple2;
+import org.mapdb.BTreeMap;
+import org.mapdb.Bind;
+import org.mapdb.DB;
+import org.mapdb.Fun;
+import org.mapdb.Fun.Function2;
+import org.mapdb.Fun.Tuple2;
 
 import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumEntryDto;

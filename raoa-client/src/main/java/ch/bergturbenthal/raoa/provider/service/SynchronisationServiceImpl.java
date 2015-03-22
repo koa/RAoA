@@ -42,11 +42,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.Cleanup;
 
-import org.mapdb10.BTreeMap;
-import org.mapdb10.DB;
-import org.mapdb10.DBMaker;
-import org.mapdb10.TxMaker;
-import org.mapdb10.TxRollbackException;
+import org.mapdb.BTreeMap;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.TxMaker;
+import org.mapdb.TxRollbackException;
 import org.springframework.http.HttpStatus.Series;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
@@ -407,7 +407,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 
   /*
    * (non-Javadoc)
-   *
+   * 
    * @see ch.bergturbenthal.raoa.provider.service.SynchronisationService#importFile(java.lang.String, byte[])
    */
   @Override
