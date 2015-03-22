@@ -21,6 +21,7 @@ public class JacksonSerialisationTest {
 		request.setMutationEntries(new ArrayList<Mutation>(Arrays.<Mutation> asList(new StorageMutation(), new TitleMutation())));
 		final ObjectMapper mapper = new ObjectMapper();
 		final String serialString = mapper.writeValueAsString(request);
+		System.out.println(serialString);
 		final UpdateMetadataRequest parsedRequest = mapper.readValue(serialString, UpdateMetadataRequest.class);
 		// System.out.println(request);
 		// System.out.println(parsedRequest);
