@@ -27,15 +27,15 @@ import android.net.wifi.WifiManager.MulticastLock;
 import android.util.Log;
 
 public class JMDnsListener implements ServerDiscoveryListener {
-	private static final String MDNS_TAG = "jmdns-listener";
-	protected static final String SERVICE_NAME_URL = SERVICE_TYPE + "local.";
-	private final Context context;
-	private final ScheduledExecutorService executorService;
-	private JmmDNS jmmDNS = null;
-	private MulticastLock lock = null;
-	private ScheduledFuture<?> pendingFuture = null;
-	private final ResultListener resultListener;
-	private final Map<InetAddress, JmDNS> runningMdns = new ConcurrentHashMap<InetAddress, JmDNS>();
+	private static final String	           MDNS_TAG	        = "jmdns-listener";
+	protected static final String	         SERVICE_NAME_URL	= SERVICE_TYPE + "local.";
+	private final Context	                 context;
+	private final ScheduledExecutorService	executorService;
+	private JmmDNS	                       jmmDNS	          = null;
+	private MulticastLock	                 lock	            = null;
+	private ScheduledFuture<?>	           pendingFuture	  = null;
+	private final ResultListener	         resultListener;
+	private final Map<InetAddress, JmDNS>	 runningMdns	    = new ConcurrentHashMap<InetAddress, JmDNS>();
 
 	@Builder
 	public JMDnsListener(final Context context, final ResultListener resultListener, final ScheduledExecutorService executorService) {
@@ -46,9 +46,8 @@ public class JMDnsListener implements ServerDiscoveryListener {
 
 	@Override
 	public synchronized void pollForServices(final boolean withProgressUpdate) {
-		if (jmmDNS == null) {
+		if (jmmDNS == null)
 			return;
-		}
 		if (pendingFuture != null) {
 			pendingFuture.cancel(false);
 		}

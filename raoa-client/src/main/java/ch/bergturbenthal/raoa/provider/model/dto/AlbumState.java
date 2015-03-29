@@ -19,8 +19,12 @@ import lombok.experimental.Wither;
 @AllArgsConstructor(suppressConstructorProperties = true, access = AccessLevel.PRIVATE)
 @Builder
 public class AlbumState implements Serializable {
+	/**
+	 *
+	 */
+	private static final long	serialVersionUID	= -7332581137330437461L;
 	@Wither
-	private boolean isSynced;
+	private boolean	          isSynced;
 	@Wither
-	private boolean shouldSync;
+	private boolean	          shouldSync;
 }

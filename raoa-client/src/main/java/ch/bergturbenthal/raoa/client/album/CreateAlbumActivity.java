@@ -21,11 +21,11 @@ public class CreateAlbumActivity extends Activity {
 
 	private void initServerSpinner(final AdapterView<Adapter> selectServerSpinner) {
 		final CursorAdapter adapter = new SimpleCursorAdapter(getApplicationContext(),
-																													android.R.layout.simple_spinner_item,
-																													null,
-																													new String[] { Client.ServerEntry.SERVER_NAME },
-																													new int[] { android.R.id.text1 },
-																													0);
+		                                                      android.R.layout.simple_spinner_item,
+		                                                      null,
+		                                                      new String[] { Client.ServerEntry.SERVER_NAME },
+		                                                      new int[] { android.R.id.text1 },
+		                                                      0);
 		selectServerSpinner.setAdapter(adapter);
 
 		getLoaderManager().initLoader(R.id.selectServerSpinner, null, new LoaderCallbacks<Cursor>() {
@@ -55,11 +55,11 @@ public class CreateAlbumActivity extends Activity {
 		initServerSpinner((AdapterView<Adapter>) findViewById(R.id.selectServerSpinner));
 		final AdapterView<Adapter> selectFolderSpinner = (AdapterView) findViewById(R.id.selectFolderSpinner);
 		final CursorAdapter adapter = new SimpleCursorAdapter(getApplicationContext(),
-																													android.R.layout.simple_spinner_item,
-																													null,
-																													new String[] { "folder" },
-																													new int[] { android.R.id.text1 },
-																													0);
+		                                                      android.R.layout.simple_spinner_item,
+		                                                      null,
+		                                                      new String[] { "folder" },
+		                                                      new int[] { android.R.id.text1 },
+		                                                      0);
 		selectFolderSpinner.setAdapter(adapter);
 		getLoaderManager().initLoader(R.id.selectFolderSpinner, null, new LoaderCallbacks<Cursor>() {
 

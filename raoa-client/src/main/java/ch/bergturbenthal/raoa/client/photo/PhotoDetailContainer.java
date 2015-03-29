@@ -10,13 +10,13 @@ import android.widget.FrameLayout;
 
 public class PhotoDetailContainer extends FrameLayout implements ViewPager.OnPageChangeListener {
 
-	private final Point mCenter = new Point();
-	private final Point mInitialTouch = new Point();
+	private final Point	         mCenter	     = new Point();
+	private final Point	         mInitialTouch	= new Point();
 
-	boolean mNeedsRedraw = false;
+	boolean	                     mNeedsRedraw	 = false;
 
-	private ViewPager mPager;
-	private OnPageChangeListener pageChangeListener;
+	private ViewPager	           mPager;
+	private OnPageChangeListener	pageChangeListener;
 
 	public PhotoDetailContainer(final Context context) {
 		super(context);

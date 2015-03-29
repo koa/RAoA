@@ -10,7 +10,7 @@ import java.io.OutputStream;
 
 /**
  * TODO: add type comment.
- * 
+ *
  */
 public class IOUtil {
 	public static void copyStream(final InputStream is, final OutputStream os) {

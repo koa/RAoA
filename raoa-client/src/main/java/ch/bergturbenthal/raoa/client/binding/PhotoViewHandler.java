@@ -112,9 +112,8 @@ public class PhotoViewHandler implements ViewHandler<View> {
 
 		                                                                                @Override
 		                                                                                protected int sizeOf(final String key, final File value) {
-			                                                                                if (value.exists()) {
+			                                                                                if (value.exists())
 				                                                                                return (int) value.length() / 1024;
-			                                                                                }
 			                                                                                return 0;
 		                                                                                }
 
@@ -242,9 +241,8 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		final SoftReference<Bitmap> ramCacheReference = bitmapCache.get(thumbnailUriString);
 		if (ramCacheReference != null) {
 			final Bitmap cachedBitmap = ramCacheReference.get();
-			if (cachedBitmap != null) {
+			if (cachedBitmap != null)
 				return cachedBitmap;
-			}
 		}
 		return null;
 	}
@@ -302,9 +300,8 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		// get the real image
 		final ContentResolver contentResolver = context.getContentResolver();
 		final String contentType = contentResolver.getType(uri);
-		if (contentType == null) {
+		if (contentType == null)
 			return null;
-		}
 		if (contentType.startsWith("video")) {
 			final MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 			try {
@@ -428,9 +425,8 @@ public class PhotoViewHandler implements ViewHandler<View> {
 	}
 
 	private void storeToCache(final String thumbnailUriString, final Bitmap bitmap, final Context context) {
-		if (bitmap == null) {
+		if (bitmap == null)
 			return;
-		}
 		bitmapCache.put(thumbnailUriString, new SoftReference<Bitmap>(bitmap));
 		if (usePersistentCache) {
 			executor.execute(new Runnable() {

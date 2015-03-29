@@ -10,13 +10,13 @@ import android.view.View;
 
 /**
  * TODO: add type comment.
- * 
+ *
  * @param <V>
- * 
+ *
  */
 public abstract class AbstractViewHandler<V extends View> implements ViewHandler<V> {
 
-	private final int[] affectedViews;
+	private final int[]	affectedViews;
 
 	protected AbstractViewHandler(final int affectedView) {
 		this.affectedViews = new int[] { affectedView };

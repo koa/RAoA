@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import android.os.Parcel;
 
 public class ParcelUtil {
-	private static final Map<Class<? extends Enum<?>>, WeakReference<Enum<? extends Enum<?>>[]>> enumCache = new ConcurrentHashMap<Class<? extends Enum<?>>, WeakReference<Enum<? extends Enum<?>>[]>>();
+	private static final Map<Class<? extends Enum<?>>, WeakReference<Enum<? extends Enum<?>>[]>>	enumCache	= new ConcurrentHashMap<Class<? extends Enum<?>>, WeakReference<Enum<? extends Enum<?>>[]>>();
 
 	public static boolean readBoolean(final Parcel source) {
 		return source.readByte() == 1;

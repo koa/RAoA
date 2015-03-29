@@ -10,7 +10,7 @@ import android.os.Parcelable;
 import android.util.Log;
 
 public class NetworkReceiver extends BroadcastReceiver {
-	private static final String NETWORK_RECEIVER_TAG = "NetworkReceiver";
+	private static final String	NETWORK_RECEIVER_TAG	= "NetworkReceiver";
 
 	public static void notifyNetworkState(final Context context) {
 		final ConnectivityManager conn = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);

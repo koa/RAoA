@@ -27,7 +27,7 @@ import ch.bergturbenthal.raoa.provider.util.IOUtil;
 
 /**
  * TODO: add type comment.
- * 
+ *
  */
 public class ShareReceiveActivity extends ListActivity {
 	private String guessType(final Uri dataUri) {
@@ -54,17 +54,17 @@ public class ShareReceiveActivity extends ListActivity {
 		Log.i("Share", "Filename: " + filename);
 		final byte[] data = readData(dataUri);
 
-		final Cursor cursor = getContentResolver().query(	Client.SERVER_URI,
-																											new String[] { Client.ServerEntry.ID, Client.ServerEntry.SERVER_NAME, Client.ServerEntry.SERVER_ID },
-																											null,
-																											null,
-																											null);
+		final Cursor cursor = getContentResolver().query(Client.SERVER_URI,
+		                                                 new String[] { Client.ServerEntry.ID, Client.ServerEntry.SERVER_NAME, Client.ServerEntry.SERVER_ID },
+		                                                 null,
+		                                                 null,
+		                                                 null);
 		startManagingCursor(cursor);
 		final ListAdapter adapter = new SimpleCursorAdapter(this,
-																												android.R.layout.simple_list_item_1,
-																												cursor,
-																												new String[] { Client.ServerEntry.SERVER_NAME },
-																												new int[] { android.R.id.text1 });
+		                                                    android.R.layout.simple_list_item_1,
+		                                                    cursor,
+		                                                    new String[] { Client.ServerEntry.SERVER_NAME },
+		                                                    new int[] { android.R.id.text1 });
 		setListAdapter(adapter);
 		final ListView listView = getListView();
 		listView.setOnItemClickListener(new OnItemClickListener() {

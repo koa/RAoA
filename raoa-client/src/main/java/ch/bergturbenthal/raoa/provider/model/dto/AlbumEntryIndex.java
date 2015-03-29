@@ -10,9 +10,13 @@ import lombok.Value;
 
 @Value
 public class AlbumEntryIndex implements Comparable<AlbumEntryIndex>, Serializable {
+	/**
+	 *
+	 */
+	private static final long	serialVersionUID	= -5777302234992937234L;
 	@NonNull
-	private final String albumEntryId;
-	private final AlbumIndex albumIndex;
+	private final String	    albumEntryId;
+	private final AlbumIndex	albumIndex;
 
 	public AlbumEntryIndex(final AlbumIndex album, final String albumEntryId) {
 		this.albumIndex = album;
@@ -22,9 +26,8 @@ public class AlbumEntryIndex implements Comparable<AlbumEntryIndex>, Serializabl
 	@Override
 	public int compareTo(final AlbumEntryIndex another) {
 		final int albumCompare = albumIndex.compareTo(another.getAlbumIndex());
-		if (albumCompare != 0) {
+		if (albumCompare != 0)
 			return albumCompare;
-		}
 		return albumEntryId.compareTo(another.getAlbumEntryId());
 	}
 }

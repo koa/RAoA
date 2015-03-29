@@ -8,11 +8,11 @@ import android.util.Log;
 
 /**
  * TODO: add type comment.
- * 
+ *
  */
 public abstract class SimpleAsync extends AsyncTask<Void, Void, Void> {
 
-	private static final String TAG = "SimpleAsync";
+	private static final String	TAG	= "SimpleAsync";
 
 	protected abstract void doInBackground();
 

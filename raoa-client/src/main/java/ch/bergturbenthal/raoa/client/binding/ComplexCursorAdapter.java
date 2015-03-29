@@ -20,7 +20,7 @@ import android.widget.ResourceCursorAdapter;
 
 /**
  * TODO: add type comment.
- * 
+ *
  */
 public class ComplexCursorAdapter extends ResourceCursorAdapter {
 	/**
@@ -40,26 +40,26 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 	 *          additional columns which can be read via {@link ComplexCursorAdapter#getAdditionalValues(int)}
 	 * @return ComplexCursorAdapter
 	 */
-	public static ComplexCursorAdapter registerLoaderManager(	final LoaderManager loaderManager,
-																														final Context context,
-																														final Uri uri,
-																														final int layout,
-																														final Collection<ViewHandler<? extends View>> handlers,
-																														final String[] additionalColumns) {
+	public static ComplexCursorAdapter registerLoaderManager(final LoaderManager loaderManager,
+	                                                         final Context context,
+	                                                         final Uri uri,
+	                                                         final int layout,
+	                                                         final Collection<ViewHandler<? extends View>> handlers,
+	                                                         final String[] additionalColumns) {
 		return registerLoaderManager(loaderManager, 0, context, uri, null, null, null, layout, handlers, additionalColumns);
 
 	}
 
-	public static ComplexCursorAdapter registerLoaderManager(	final LoaderManager loaderManager,
-																														final int loaderManagerId,
-																														final Context context,
-																														final Uri uri,
-																														final String selection,
-																														final String[] selectionArgs,
-																														final String sortOrder,
-																														final int layout,
-																														final Collection<ViewHandler<? extends View>> handlers,
-																														final String[] additionalColumns) {
+	public static ComplexCursorAdapter registerLoaderManager(final LoaderManager loaderManager,
+	                                                         final int loaderManagerId,
+	                                                         final Context context,
+	                                                         final Uri uri,
+	                                                         final String selection,
+	                                                         final String[] selectionArgs,
+	                                                         final String sortOrder,
+	                                                         final int layout,
+	                                                         final Collection<ViewHandler<? extends View>> handlers,
+	                                                         final String[] additionalColumns) {
 		final ComplexCursorAdapter adapter = new ComplexCursorAdapter(context, layout, handlers, additionalColumns);
 		loaderManager.initLoader(loaderManagerId, null, new LoaderCallbacks<Cursor>() {
 
@@ -84,11 +84,11 @@ public class ComplexCursorAdapter extends ResourceCursorAdapter {
 		return adapter;
 	}
 
-	private final String[] additionalColumns;
+	private final String[]	       additionalColumns;
 
-	private Runnable cursorLoadedHandler;
+	private Runnable	             cursorLoadedHandler;
 
-	private final CursorViewBinder viewBinder;
+	private final CursorViewBinder	viewBinder;
 
 	/**
 	 * @param context

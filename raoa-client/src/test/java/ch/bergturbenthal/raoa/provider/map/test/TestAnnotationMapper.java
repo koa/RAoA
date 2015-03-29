@@ -12,8 +12,8 @@ import ch.bergturbenthal.raoa.provider.map.MapperUtil;
 public class TestAnnotationMapper {
 
 	public static class TestBean {
-		private int intValue;
-		private String stringValue;
+		private int		 intValue;
+		private String	stringValue;
 
 		@CursorField("intVal")
 		public int getIntValue() {

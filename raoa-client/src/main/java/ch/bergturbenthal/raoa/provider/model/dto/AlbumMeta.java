@@ -26,29 +26,33 @@ import ch.bergturbenthal.raoa.provider.map.CursorField;
 @Builder
 public class AlbumMeta implements Serializable {
 
+	/**
+	 *
+	 */
+	private static final long	   serialVersionUID	= 1585226909297518367L;
 	@CursorField(Client.Album.ALBUM_CAPTURE_DATE)
-	private Date albumDate;
+	private Date	               albumDate;
 	@CursorField(Client.Album.ID)
-	private String albumId;
-	private String albumTitle;
+	private String	             albumId;
+	private String	             albumTitle;
 	@CursorField(Client.Album.ARCHIVE_NAME)
-	private String archiveName;
+	private String	             archiveName;
 	@NonNull
-	private Collection<Date> autoAddDate;
+	private Collection<Date>	   autoAddDate;
 	@CursorField(Client.Album.ENTRY_COUNT)
-	private int entryCount;
+	private int	                 entryCount;
 	@NonNull
-	private Map<String, Integer> keywordCounts;
-	private Date lastModified;
+	private Map<String, Integer>	keywordCounts;
+	private Date	               lastModified;
 	@Wither
 	@CursorField(Client.Album.NAME)
-	private String name;
+	private String	             name;
 	@CursorField(Client.Album.ORIGINALS_SIZE)
-	private long originalsSize;
+	private long	               originalsSize;
 	@CursorField(Client.Album.REPOSITORY_SIZE)
-	private long repositorySize;
-	private String thumbnailId;
+	private long	               repositorySize;
+	private String	             thumbnailId;
 	@CursorField(Client.Album.THUMBNAILS_SIZE)
-	private long thumbnailSize;
+	private long	               thumbnailSize;
 
 }

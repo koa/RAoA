@@ -8,8 +8,8 @@ import android.content.UriMatcher;
 import android.net.Uri;
 
 public class EnumUriMatcher<E extends Enum<E>> {
-	private final UriMatcher matcher = new UriMatcher(UriMatcher.NO_MATCH);
-	private final Map<Integer, E> ordinalMap = new HashMap<Integer, E>();
+	private final UriMatcher	    matcher	   = new UriMatcher(UriMatcher.NO_MATCH);
+	private final Map<Integer, E>	ordinalMap	= new HashMap<Integer, E>();
 
 	public EnumUriMatcher(final String authority, final Class<E> type) {
 		for (final Field field : type.getFields()) {

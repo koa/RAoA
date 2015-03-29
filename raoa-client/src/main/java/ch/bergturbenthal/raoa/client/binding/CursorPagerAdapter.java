@@ -23,7 +23,7 @@ import android.view.ViewGroup;
 
 /**
  * TODO: add type comment.
- * 
+ *
  */
 public class CursorPagerAdapter extends PagerAdapter {
 	public static interface CurrentPosProvider {
@@ -49,14 +49,14 @@ public class CursorPagerAdapter extends PagerAdapter {
 	 *          handler to fill dynamic elements on the layout
 	 * @return
 	 */
-	public static CursorPagerAdapter registerLoaderManager(	final LoaderManager loaderManager,
-																													final Context context,
-																													final Uri uri,
-																													final String selection,
-																													final String sortOrder,
-																													final int layout,
-																													final Collection<ViewHandler<? extends View>> handlers,
-																													final String[] additionalColumns) {
+	public static CursorPagerAdapter registerLoaderManager(final LoaderManager loaderManager,
+	                                                       final Context context,
+	                                                       final Uri uri,
+	                                                       final String selection,
+	                                                       final String sortOrder,
+	                                                       final int layout,
+	                                                       final Collection<ViewHandler<? extends View>> handlers,
+	                                                       final String[] additionalColumns) {
 		final CursorPagerAdapter adapter = new CursorPagerAdapter(context, layout, handlers, additionalColumns);
 		loaderManager.initLoader(0, null, new LoaderCallbacks<Cursor>() {
 			@Override
@@ -83,20 +83,20 @@ public class CursorPagerAdapter extends PagerAdapter {
 		return adapter;
 	}
 
-	private final String[] additionalColumns;
+	private final String[]	       additionalColumns;
 
-	private final Context context;
+	private final Context	         context;
 
-	private int currentPosition;
-	private Cursor cursor = null;
-	private Runnable cursorLoadedHandler;
-	private View emptyView;
-	private final LayoutInflater inflater;
-	private final int layout;
+	private int	                   currentPosition;
+	private Cursor	               cursor	= null;
+	private Runnable	             cursorLoadedHandler;
+	private View	                 emptyView;
+	private final LayoutInflater	 inflater;
+	private final int	             layout;
 
-	private View listView;
+	private View	                 listView;
 
-	private final CursorViewBinder viewBinder;
+	private final CursorViewBinder	viewBinder;
 
 	public CursorPagerAdapter(final Context context, final int layout, final Collection<ViewHandler<? extends View>> handlers, final String[] additionalColumns) {
 		this.context = context;

@@ -10,7 +10,7 @@ import android.widget.TextView;
 
 public class TextViewHandler extends AbstractViewHandler<TextView> {
 
-	private final String column;
+	private final String	column;
 
 	/**
 	 * @param affectedView

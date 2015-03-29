@@ -1,7 +1,7 @@
 package ch.bergturbenthal.raoa.provider.map;
 
 public abstract class NumericFieldReader<V> implements FieldReader<V> {
-	final int type;
+	final int	type;
 
 	public NumericFieldReader(final int type) {
 		this.type = type;
@@ -9,9 +9,8 @@ public abstract class NumericFieldReader<V> implements FieldReader<V> {
 
 	@Override
 	public String getString(final V value) {
-		if (value == null) {
+		if (value == null)
 			return null;
-		}
 		return getNumber(value).toString();
 	}
 
@@ -22,9 +21,8 @@ public abstract class NumericFieldReader<V> implements FieldReader<V> {
 
 	@Override
 	public Object getValue(final V value) {
-		if (value == null) {
+		if (value == null)
 			return null;
-		}
 		return getNumber(value);
 	}
 

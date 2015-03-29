@@ -25,13 +25,13 @@ import ch.bergturbenthal.raoa.provider.Client;
 
 public class ServerStateFragment extends ListFragment {
 
-	private static final Map<String, Integer> iconMap = new HashMap<String, Integer>();
+	private static final Map<String, Integer>	iconMap	= new HashMap<String, Integer>();
 
 	static {
 		iconMap.put(ProgressType.REFRESH_THUMBNAIL.name(), android.R.drawable.ic_popup_sync);
 		iconMap.put(ProgressType.SYNC_LOCAL_DISC.name(), R.drawable.storage_icon);
 	}
-	private CursorAdapter adapter;
+	private CursorAdapter	                    adapter;
 
 	@Override
 	public void onCreate(final Bundle savedInstanceState) {

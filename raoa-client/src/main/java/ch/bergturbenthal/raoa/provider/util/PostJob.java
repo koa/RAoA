@@ -9,9 +9,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class PostJob {
 
-	private final ExecutorService executorService;
-	private final AtomicReference<Runnable> finishRunnable = new AtomicReference<Runnable>(null);
-	private final AtomicInteger remainingCount = new AtomicInteger(0);
+	private final ExecutorService	          executorService;
+	private final AtomicReference<Runnable>	finishRunnable	= new AtomicReference<Runnable>(null);
+	private final AtomicInteger	            remainingCount	= new AtomicInteger(0);
 
 	public PostJob(final ExecutorService executorService) {
 		this.executorService = executorService;

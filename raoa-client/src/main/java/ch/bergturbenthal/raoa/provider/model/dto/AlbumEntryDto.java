@@ -20,6 +20,11 @@ import ch.bergturbenthal.raoa.provider.map.CursorField;
 @AllArgsConstructor(access = AccessLevel.PRIVATE, suppressConstructorProperties = true)
 public class AlbumEntryDto implements Comparable<AlbumEntryDto>, Serializable {
 
+	/**
+	 *
+	 */
+	private static final long	serialVersionUID	= 3535886753794607084L;
+
 	private static int dateCompare(final Date date1, final Date date2) {
 		return (date1 == null ? new Date(0) : date1).compareTo(date2 == null ? new Date(0) : date2);
 	}
@@ -53,38 +58,38 @@ public class AlbumEntryDto implements Comparable<AlbumEntryDto>, Serializable {
 	}
 
 	@CursorField(Client.AlbumEntry.CAMERA_MAKE)
-	private String cameraMake;
+	private String	           cameraMake;
 	@CursorField(Client.AlbumEntry.CAMERA_MODEL)
-	private String cameraModel;
+	private String	           cameraModel;
 	@CursorField(Client.AlbumEntry.META_CAPTION)
-	private String caption;
+	private String	           caption;
 	@CursorField(Client.AlbumEntry.CAPTURE_DATE)
-	private Date captureDate;
+	private Date	             captureDate;
 	@CursorField(Client.AlbumEntry.ID)
-	private String commId;
-	private String editableMetadataHash;
+	private String	           commId;
+	private String	           editableMetadataHash;
 	@CursorField(Client.AlbumEntry.ENTRY_TYPE)
-	private AlbumEntryType entryType;
+	private AlbumEntryType	   entryType;
 	@CursorField(Client.AlbumEntry.EXPOSURE_TIME)
-	private Double exposureTime;
+	private Double	           exposureTime;
 	@CursorField(Client.AlbumEntry.NAME)
-	private String fileName;
+	private String	           fileName;
 	@CursorField(Client.AlbumEntry.F_NUMBER)
-	private Double fNumber;
+	private Double	           fNumber;
 	@CursorField(Client.AlbumEntry.FOCAL_LENGTH)
-	private Double focalLength;
+	private Double	           focalLength;
 	@CursorField(Client.AlbumEntry.ISO)
-	private Integer iso;
+	private Integer	           iso;
 	@NonNull
-	private Collection<String> keywords;
+	private Collection<String>	keywords;
 	@CursorField(Client.AlbumEntry.LAST_MODIFIED)
-	private Date lastModified;
+	private Date	             lastModified;
 	@CursorField(Client.AlbumEntry.ORIGINAL_SIZE)
-	private long originalFileSize;
+	private long	             originalFileSize;
 	@CursorField(Client.AlbumEntry.META_RATING)
-	private Integer rating;
+	private Integer	           rating;
 	@CursorField(Client.AlbumEntry.THUMBNAIL_SIZE)
-	private Long thumbnailSize;
+	private Long	             thumbnailSize;
 
 	@Override
 	public int compareTo(final AlbumEntryDto another) {
@@ -92,13 +97,11 @@ public class AlbumEntryDto implements Comparable<AlbumEntryDto>, Serializable {
 		final AlbumEntryDto rhs = another;
 
 		final int dateDifference = dateCompare(lhs.getCaptureDate(), rhs.getCaptureDate());
-		if (dateDifference != 0) {
+		if (dateDifference != 0)
 			return dateDifference;
-		}
 		final int fileNameOrder = lhs.getFileName().compareTo(rhs.getFileName());
-		if (fileNameOrder != 0) {
+		if (fileNameOrder != 0)
 			return fileNameOrder;
-		}
 		return lhs.getCommId().compareTo(rhs.getCommId());
 	}
 

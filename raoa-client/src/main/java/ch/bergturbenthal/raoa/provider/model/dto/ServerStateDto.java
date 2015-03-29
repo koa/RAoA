@@ -10,6 +10,6 @@ import ch.bergturbenthal.raoa.data.model.state.ServerState;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ServerStateDto {
-	private final String serverName;
-	private final ServerState serverState;
+	private final String	    serverName;
+	private final ServerState	serverState;
 }

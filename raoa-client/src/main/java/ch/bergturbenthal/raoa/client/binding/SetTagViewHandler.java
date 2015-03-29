@@ -10,11 +10,11 @@ import android.view.View;
 
 /**
  * TODO: add type comment.
- * 
+ *
  */
 public class SetTagViewHandler extends AbstractViewHandler<View> {
 
-	private final String columnName;
+	private final String	columnName;
 
 	public SetTagViewHandler(final int viewId, final String columnName) {
 		super(viewId);

@@ -18,27 +18,27 @@ public class TabListener<T extends Fragment> implements ActionBar.TabListener {
 		actionBar.setDisplayShowTitleEnabled(false);
 		actionBar.removeAllTabs();
 		actionBar.addTab(actionBar.newTab()
-															.setText(R.string.server_progress)
-															.setTabListener(new TabListener<ServerStateFragment>(activity, "progress", ServerStateFragment.class, arguments)));
+		                          .setText(R.string.server_progress)
+		                          .setTabListener(new TabListener<ServerStateFragment>(activity, "progress", ServerStateFragment.class, arguments)));
 		actionBar.addTab(actionBar.newTab()
-															.setText(R.string.server_error)
-															.setTabListener(new TabListener<ServerIssueFragment>(activity, "issues", ServerIssueFragment.class, arguments)));
+		                          .setText(R.string.server_error)
+		                          .setTabListener(new TabListener<ServerIssueFragment>(activity, "issues", ServerIssueFragment.class, arguments)));
 		actionBar.addTab(actionBar.newTab()
-															.setText(R.string.server_create_folder)
-															.setTabListener(new TabListener<ServerCreateAlbumFragment>(activity, "create_folder", ServerCreateAlbumFragment.class, arguments)));
+		                          .setText(R.string.server_create_folder)
+		                          .setTabListener(new TabListener<ServerCreateAlbumFragment>(activity, "create_folder", ServerCreateAlbumFragment.class, arguments)));
 		if (lastIndex >= 0) {
 			actionBar.setSelectedNavigationItem(lastIndex);
 		}
 
 	}
 
-	private final Bundle arguments;
-	private final Class<T> clz;
-	private final Activity context;
+	private final Bundle	 arguments;
+	private final Class<T>	clz;
+	private final Activity	context;
 
-	private Fragment fragment;
+	private Fragment	     fragment;
 
-	private final String tag;
+	private final String	 tag;
 
 	public TabListener(final Activity context, final String tag, final Class<T> clz, final Bundle arguments) {
 		this.context = context;

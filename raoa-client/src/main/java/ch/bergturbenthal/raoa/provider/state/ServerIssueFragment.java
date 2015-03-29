@@ -18,8 +18,8 @@ import ch.bergturbenthal.raoa.R;
 import ch.bergturbenthal.raoa.provider.Client;
 
 public class ServerIssueFragment extends ListFragment {
-	private CursorAdapter adapter;
-	private String serverId;
+	private CursorAdapter	adapter;
+	private String	      serverId;
 
 	@Override
 	public void onCreate(final Bundle savedInstanceState) {
@@ -71,11 +71,11 @@ public class ServerIssueFragment extends ListFragment {
 		final Cursor cursor = (Cursor) adapter.getItem(position);
 		final Intent intent = new Intent(getActivity(), ShowIssueActivity.class);
 		for (final String column : new String[] { Client.IssueEntry.ALBUM_NAME,
-																							Client.IssueEntry.ALBUM_DETAIL_NAME,
-																							Client.IssueEntry.ISSUE_TYPE,
-																							Client.IssueEntry.DETAILS,
-																							Client.IssueEntry.AVAILABLE_ACTIONS,
-																							Client.IssueEntry.ISSUE_ACTION_ID }) {
+		    Client.IssueEntry.ALBUM_DETAIL_NAME,
+		    Client.IssueEntry.ISSUE_TYPE,
+		    Client.IssueEntry.DETAILS,
+		    Client.IssueEntry.AVAILABLE_ACTIONS,
+		    Client.IssueEntry.ISSUE_ACTION_ID }) {
 			final int index = cursor.getColumnIndexOrThrow(column);
 			final String value = cursor.getString(index);
 			intent.putExtra(column, value);

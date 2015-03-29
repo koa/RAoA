@@ -7,7 +7,7 @@ import java.util.concurrent.TimeoutException;
 
 public class DummyFuture<V> implements Future<V> {
 
-	private final V value;
+	private final V	value;
 
 	public DummyFuture(final V value) {
 		this.value = value;

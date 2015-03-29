@@ -14,17 +14,20 @@ import lombok.experimental.Builder;
 @Builder
 @AllArgsConstructor(suppressConstructorProperties = true)
 public class AlbumIndex implements Comparable<AlbumIndex>, Serializable {
+	/**
+	 *
+	 */
+	private static final long	serialVersionUID	= -1742106861663601406L;
 	@NonNull
-	private final String albumId;
+	private final String	    albumId;
 	@NonNull
-	private final String archiveName;
+	private final String	    archiveName;
 
 	@Override
 	public int compareTo(final AlbumIndex another) {
 		final int archivCompare = archiveName.compareTo(another.archiveName);
-		if (archivCompare != 0) {
+		if (archivCompare != 0)
 			return archivCompare;
-		}
 		return albumId.compareTo(another.albumId);
 	}
 }

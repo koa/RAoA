@@ -48,9 +48,9 @@ import ch.bergturbenthal.raoa.provider.Client;
 
 public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<Cursor> {
 
-	private static String TAG = AlbumOverviewActivity.class.getSimpleName();
-	private ComplexCursorAdapter cursorAdapter;
-	private ExecutorService threadPoolExecutor;
+	private static String	       TAG	= AlbumOverviewActivity.class.getSimpleName();
+	private ComplexCursorAdapter	cursorAdapter;
+	private ExecutorService	     threadPoolExecutor;
 
 	private Collection<ViewHandler<? extends View>> makeServerViewHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
@@ -61,12 +61,12 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 
 	private List<ViewHandler<? extends View>> makeViewHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
-		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(	this,
-																																		R.id.album_item_image,
-																																		Client.Album.THUMBNAIL,
-																																		new PhotoViewHandler.DimensionCalculator(R.dimen.image_width),
-																																		threadPoolExecutor,
-																																		"album-overview");
+		final PhotoViewHandler photoViewHandler = new PhotoViewHandler(this,
+		                                                               R.id.album_item_image,
+		                                                               Client.Album.THUMBNAIL,
+		                                                               new PhotoViewHandler.DimensionCalculator(R.dimen.image_width),
+		                                                               threadPoolExecutor,
+		                                                               "album-overview");
 		photoViewHandler.setIdleView(R.id.album_item_empty_layout);
 		ret.add(photoViewHandler);
 		ret.add(new TextViewHandler(R.id.album_item_name, Client.Album.TITLE));
@@ -156,7 +156,7 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		super.onCreate(savedInstanceState);
 
 		threadPoolExecutor = new ThreadPoolExecutor(5, 15, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1000), new ThreadFactory() {
-			final AtomicInteger nextThreadIndex = new AtomicInteger(0);
+			final AtomicInteger	nextThreadIndex	= new AtomicInteger(0);
 
 			@Override
 			public Thread newThread(final Runnable r) {
@@ -168,12 +168,12 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 
 		setContentView(R.layout.album_overview);
 
-		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(	getLoaderManager(),
-																																this,
-																																Client.ALBUM_URI,
-																																R.layout.album_overview_item,
-																																makeViewHandlers(),
-																																new String[] { Client.Album.ENTRY_URI, Client.Album.ALBUM_ENTRIES_URI });
+		cursorAdapter = ComplexCursorAdapter.registerLoaderManager(getLoaderManager(),
+		                                                           this,
+		                                                           Client.ALBUM_URI,
+		                                                           R.layout.album_overview_item,
+		                                                           makeViewHandlers(),
+		                                                           new String[] { Client.Album.ENTRY_URI, Client.Album.ALBUM_ENTRIES_URI });
 		final GridView gridview = (GridView) findViewById(R.id.album_overview);
 		gridview.setEmptyView(findViewById(R.id.no_albums_visible));
 		gridview.setAdapter(cursorAdapter);
@@ -181,15 +181,15 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		@SuppressWarnings("unchecked")
 		final AdapterView<ListAdapter> serverListView = (AdapterView<ListAdapter>) findViewById(R.id.server_list);
 		final ComplexCursorAdapter serverCursorAdapter = ComplexCursorAdapter.registerLoaderManager(getLoaderManager(),
-																																																1,
-																																																this,
-																																																Client.SERVER_URI,
-																																																null,
-																																																null,
-																																																null,
-																																																android.R.layout.two_line_list_item,
-																																																makeServerViewHandlers(),
-																																																null);
+		                                                                                            1,
+		                                                                                            this,
+		                                                                                            Client.SERVER_URI,
+		                                                                                            null,
+		                                                                                            null,
+		                                                                                            null,
+		                                                                                            android.R.layout.two_line_list_item,
+		                                                                                            makeServerViewHandlers(),
+		                                                                                            null);
 		serverListView.setAdapter(serverCursorAdapter);
 		serverListView.setEmptyView(findViewById(R.id.no_servers_visible));
 		// Handle clicks on album image

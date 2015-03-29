@@ -22,10 +22,10 @@ public class LazyLoader {
 	}
 
 	private static class HashMapLookup<K, V> implements Lookup<K, V>, Closeable {
-		private final Map<K, V> loadedValues = new HashMap<K, V>();
-		private final Lookup<K, V> loader;
-		private final AtomicInteger missCount = new AtomicInteger();
-		private final AtomicInteger readCount = new AtomicInteger();
+		private final Map<K, V>		  loadedValues	= new HashMap<K, V>();
+		private final Lookup<K, V>	loader;
+		private final AtomicInteger	missCount		 = new AtomicInteger();
+		private final AtomicInteger	readCount		 = new AtomicInteger();
 
 		private HashMapLookup(final Lookup<K, V> loader) {
 			this.loader = loader;
@@ -40,9 +40,8 @@ public class LazyLoader {
 		@Override
 		public synchronized V get(final K key) {
 			readCount.incrementAndGet();
-			if (loadedValues.containsKey(key)) {
+			if (loadedValues.containsKey(key))
 				return loadedValues.get(key);
-			}
 			missCount.incrementAndGet();
 			final V loadedValue = loader.get(key);
 			loadedValues.put(key, loadedValue);
@@ -55,9 +54,9 @@ public class LazyLoader {
 	}
 
 	private static class LruLookup<K, V> implements Lookup<K, V>, Closeable {
-		private final LruCache<K, V> cache;
-		private final AtomicInteger missCount = new AtomicInteger();
-		private final AtomicInteger readCount = new AtomicInteger();
+		private final LruCache<K, V>	cache;
+		private final AtomicInteger		missCount	= new AtomicInteger();
+		private final AtomicInteger		readCount	= new AtomicInteger();
 
 		private LruLookup(final Lookup<K, V> loader, final int cacheCount) {
 			cache = new LruCache<K, V>(cacheCount) {
@@ -95,8 +94,8 @@ public class LazyLoader {
 	public static <V> Callable<V> loadLazy(final Callable<V> loader) {
 		return new Callable<V>() {
 
-			private boolean alreadyLoaded = false;
-			private V result;
+			private boolean	alreadyLoaded	= false;
+			private V			  result;
 
 			@Override
 			public V call() {
@@ -112,8 +111,8 @@ public class LazyLoader {
 	public static <V> java.util.concurrent.Callable<V> loadLazy(final java.util.concurrent.Callable<V> loader) {
 		return new java.util.concurrent.Callable<V>() {
 
-			private boolean alreadyLoaded = false;
-			private V result;
+			private boolean	alreadyLoaded	= false;
+			private V			  result;
 
 			@Override
 			public V call() throws Exception {

@@ -4,7 +4,7 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 
 public interface ServerDiscoveryListener {
-	public static final String SERVICE_TYPE = "_images._tcp.";
+	public static final String	SERVICE_TYPE	= "_images._tcp.";
 
 	public static interface ResultListener {
 		void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints, final boolean withProgressUpdate);

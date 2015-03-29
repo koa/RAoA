@@ -17,7 +17,11 @@ import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 @Value
 public class AlbumMutationData implements Serializable {
 
-	private Collection<Mutation> mutations;
+	/**
+	 *
+	 */
+	private static final long	   serialVersionUID	= -7175049016885221529L;
+	private Collection<Mutation>	mutations;
 
 	public AlbumMutationData(final Collection<Mutation> mutations) {
 		this.mutations = Collections.unmodifiableCollection(mutations);

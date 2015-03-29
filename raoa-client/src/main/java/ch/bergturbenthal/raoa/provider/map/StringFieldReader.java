@@ -15,9 +15,8 @@ public abstract class StringFieldReader<V> implements FieldReader<V> {
 
 	@Override
 	public Object getValue(final V value) {
-		if (value == null) {
+		if (value == null)
 			return null;
-		}
 		return getString(value);
 	}
 

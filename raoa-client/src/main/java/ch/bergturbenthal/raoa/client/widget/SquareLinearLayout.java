@@ -9,7 +9,7 @@ import android.widget.LinearLayout;
 
 /**
  * TODO: add type comment.
- * 
+ *
  */
 public class SquareLinearLayout extends LinearLayout {
 	/**

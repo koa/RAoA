@@ -26,20 +26,20 @@ public class CursorNotification {
 		}
 	}
 
-	private final ThreadLocal<Boolean> allAlbumCursorModified = new ModifiedFlagThreadLocal();
-	private final Collection<WeakReference<NotifyableCursor>> allAlbumCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableCursor>>();
-	private final ThreadLocal<Boolean> collectingNotifications = new ModifiedFlagThreadLocal();;
-	private final ThreadLocal<Collection<AlbumIndex>> singleAlbumCursorModified = new ThreadLocal<Collection<AlbumIndex>>() {
-		@Override
-		protected Collection<AlbumIndex> initialValue() {
-			return new HashSet<AlbumIndex>();
-		}
-	};
-	private final ConcurrentMap<AlbumIndex, Collection<WeakReference<NotifyableCursor>>> singleAlbumCursors = new ConcurrentHashMap<AlbumIndex, Collection<WeakReference<NotifyableCursor>>>();
-	private final Collection<WeakReference<NotifyableCursor>> stateCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableCursor>>();
-	private final Collection<WeakReference<NotifyableCursor>> storageCursors = new ConcurrentLinkedQueue<WeakReference<NotifyableCursor>>();
+	private final ThreadLocal<Boolean>	                                                 allAlbumCursorModified	   = new ModifiedFlagThreadLocal();
+	private final Collection<WeakReference<NotifyableCursor>>	                           allAlbumCursors	         = new ConcurrentLinkedQueue<WeakReference<NotifyableCursor>>();
+	private final ThreadLocal<Boolean>	                                                 collectingNotifications	 = new ModifiedFlagThreadLocal();	                                                   ;
+	private final ThreadLocal<Collection<AlbumIndex>>	                                   singleAlbumCursorModified	= new ThreadLocal<Collection<AlbumIndex>>() {
+		                                                                                                               @Override
+		                                                                                                               protected Collection<AlbumIndex> initialValue() {
+			                                                                                                               return new HashSet<AlbumIndex>();
+		                                                                                                               }
+	                                                                                                               };
+	private final ConcurrentMap<AlbumIndex, Collection<WeakReference<NotifyableCursor>>>	singleAlbumCursors	     = new ConcurrentHashMap<AlbumIndex, Collection<WeakReference<NotifyableCursor>>>();
+	private final Collection<WeakReference<NotifyableCursor>>	                           stateCursors	             = new ConcurrentLinkedQueue<WeakReference<NotifyableCursor>>();
+	private final Collection<WeakReference<NotifyableCursor>>	                           storageCursors	           = new ConcurrentLinkedQueue<WeakReference<NotifyableCursor>>();
 
-	private final ThreadLocal<Boolean> storagesCursorModified = new ModifiedFlagThreadLocal();
+	private final ThreadLocal<Boolean>	                                                 storagesCursorModified	   = new ModifiedFlagThreadLocal();
 
 	public NotifyableCursor addAllAlbumCursor(final NotifyableCursor cursor) {
 		allAlbumCursors.add(new WeakReference<NotifyableCursor>(cursor));

@@ -29,11 +29,11 @@ public interface SynchronisationService {
 	int updateAlbumEntry(final String archiveName, final String albumName, final String albumEntryName, final ContentValues values);
 
 	Cursor readSingleAlbumEntry(final String archiveName,
-															final String albumName,
-															final String albumEntryName,
-															final String[] projection,
-															final Criterium criterium,
-															final SortOrder order);
+	                            final String albumName,
+	                            final String albumEntryName,
+	                            final String[] projection,
+	                            final Criterium criterium,
+	                            final SortOrder order);
 
 	void createAlbumOnServer(final String server, final String fullAlbumName, final Date autoAddDate);
 

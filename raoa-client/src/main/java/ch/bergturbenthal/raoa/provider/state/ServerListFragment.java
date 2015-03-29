@@ -37,28 +37,28 @@ public class ServerListFragment extends ListFragment {
 	/**
 	 * A dummy implementation of the {@link Callbacks} interface that does nothing. Used only when this fragment is not attached to an activity.
 	 */
-	private static Callbacks sDummyCallbacks = new Callbacks() {
-		@Override
-		public void onItemSelected(final String id) {
-		}
-	};
+	private static Callbacks	  sDummyCallbacks	         = new Callbacks() {
+		                                                     @Override
+		                                                     public void onItemSelected(final String id) {
+		                                                     }
+	                                                     };
 
 	/**
 	 * The serialization (saved instance state) Bundle key representing the activated item position. Only used on tablets.
 	 */
-	private static final String STATE_ACTIVATED_POSITION = "activated_position";
+	private static final String	STATE_ACTIVATED_POSITION	= "activated_position";
 
-	private CursorAdapter adapter;
+	private CursorAdapter	      adapter;
 
 	/**
 	 * The current activated item position. Only used on tablets.
 	 */
-	private int mActivatedPosition = ListView.INVALID_POSITION;
+	private int	                mActivatedPosition	     = ListView.INVALID_POSITION;
 
 	/**
 	 * The fragment's current callback object, which is notified of list item clicks.
 	 */
-	private Callbacks mCallbacks = sDummyCallbacks;
+	private Callbacks	          mCallbacks	             = sDummyCallbacks;
 
 	/**
 	 * Mandatory empty constructor for the fragment manager to instantiate the fragment (e.g. upon screen orientation changes).
@@ -82,11 +82,11 @@ public class ServerListFragment extends ListFragment {
 		super.onCreate(savedInstanceState);
 
 		adapter = new SimpleCursorAdapter(getActivity(),
-																			android.R.layout.simple_list_item_activated_1,
-																			null,
-																			new String[] { Client.ServerEntry.SERVER_NAME },
-																			new int[] { android.R.id.text1 },
-																			0);
+		                                  android.R.layout.simple_list_item_activated_1,
+		                                  null,
+		                                  new String[] { Client.ServerEntry.SERVER_NAME },
+		                                  new int[] { android.R.id.text1 },
+		                                  0);
 		setListAdapter(adapter);
 		getLoaderManager().initLoader(0, null, new LoaderCallbacks<Cursor>() {
 

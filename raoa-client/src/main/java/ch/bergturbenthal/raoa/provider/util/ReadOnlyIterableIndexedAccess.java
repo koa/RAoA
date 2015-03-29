@@ -5,10 +5,10 @@ import java.util.Iterator;
 import java.util.List;
 
 public class ReadOnlyIterableIndexedAccess<E> implements Iterable<E>, IndexedIterable<E> {
-	private final int itemCount;
+	private final int	        itemCount;
 
-	private final Iterator<E> iterator;
-	private final List<E> readValues = new ArrayList<E>();
+	private final Iterator<E>	iterator;
+	private final List<E>	    readValues	= new ArrayList<E>();
 
 	public ReadOnlyIterableIndexedAccess(final Iterator<E> iterator, final int itemCount) {
 		super();
@@ -18,9 +18,8 @@ public class ReadOnlyIterableIndexedAccess<E> implements Iterable<E>, IndexedIte
 
 	@Override
 	public synchronized E get(final int index) {
-		if (index < 0 || index >= itemCount) {
+		if (index < 0 || index >= itemCount)
 			throw new IndexOutOfBoundsException("Index " + index + " is greater than " + itemCount);
-		}
 		while (readValues.size() <= index) {
 			readValues.add(iterator.next());
 		}
@@ -30,7 +29,7 @@ public class ReadOnlyIterableIndexedAccess<E> implements Iterable<E>, IndexedIte
 	@Override
 	public Iterator<E> iterator() {
 		return new Iterator<E>() {
-			int currentIndex = 0;
+			int	currentIndex	= 0;
 
 			@Override
 			public boolean hasNext() {
@@ -39,10 +38,9 @@ public class ReadOnlyIterableIndexedAccess<E> implements Iterable<E>, IndexedIte
 
 			@Override
 			public E next() {
-				if (!hasNext()) {
+				if (!hasNext())
 					// itemCount = currentIndex;
 					return null;
-				}
 				return get(currentIndex++);
 			}
 

@@ -53,28 +53,28 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	}
 
-	private static final Map<Class, NotifyableMatrixCursor>	emptyCursors			= new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
+	private static final Map<Class, NotifyableMatrixCursor>	emptyCursors	    = new ConcurrentHashMap<Class, NotifyableMatrixCursor>();
 
-	private static final EnumUriMatcher<UriType>						matcher						= new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
-	static final String																			TAG								= "Content Provider";
+	private static final EnumUriMatcher<UriType>	          matcher	          = new EnumUriMatcher<UriType>(Client.AUTHORITY, UriType.class);
+	static final String	                                    TAG	              = "Content Provider";
 
-	private SynchronisationService													service						= null;
+	private SynchronisationService	                        service	          = null;
 	/** Defines callbacks for service binding, passed to bindService() */
-	private final ServiceConnection													serviceConnection	= new ServiceConnection() {
+	private final ServiceConnection	                        serviceConnection	= new ServiceConnection() {
 
-																																							@Override
-																																							public void onServiceConnected(final ComponentName className, final IBinder service) {
-																																								// We've bound to LocalService, cast the IBinder and get LocalService
-																																								// instance
-																																								final LocalBinder binder = (LocalBinder) service;
-																																								setService(binder.getService());
-																																							}
+		                                                                          @Override
+		                                                                          public void onServiceConnected(final ComponentName className, final IBinder service) {
+			                                                                          // We've bound to LocalService, cast the IBinder and get LocalService
+			                                                                          // instance
+			                                                                          final LocalBinder binder = (LocalBinder) service;
+			                                                                          setService(binder.getService());
+		                                                                          }
 
-																																							@Override
-																																							public void onServiceDisconnected(final ComponentName arg0) {
-																																								setService(null);
-																																							}
-																																						};
+		                                                                          @Override
+		                                                                          public void onServiceDisconnected(final ComponentName arg0) {
+			                                                                          setService(null);
+		                                                                          }
+	                                                                          };
 
 	@Override
 	public Bundle call(final String method, final String arg, final Bundle extras) {
@@ -107,9 +107,8 @@ public class ArchiveContentProvider extends ContentProvider {
 	protected Cursor getEmptyCursor(final Class<?> klass) {
 		synchronized (emptyCursors) {
 			final NotifyableMatrixCursor existingEntry = emptyCursors.get(klass);
-			if (existingEntry != null) {
+			if (existingEntry != null)
 				return existingEntry;
-			}
 			final ArrayList<String> columns = new ArrayList<String>();
 			for (final Field field : klass.getDeclaredFields()) {
 				final int modifiers = field.getModifiers();
@@ -132,7 +131,7 @@ public class ArchiveContentProvider extends ContentProvider {
 	}
 
 	private SynchronisationService getService() {
-		if (service == null) {
+		if (service == null)
 			return new SynchronisationService() {
 
 				@Override
@@ -198,12 +197,12 @@ public class ArchiveContentProvider extends ContentProvider {
 				}
 
 				@Override
-				public Cursor readSingleAlbumEntry(	final String archiveName,
-																						final String albumName,
-																						final String albumEntryName,
-																						final String[] projection,
-																						final Criterium criterium,
-																						final SortOrder order) {
+				public Cursor readSingleAlbumEntry(final String archiveName,
+				                                   final String albumName,
+				                                   final String albumEntryName,
+				                                   final String[] projection,
+				                                   final Criterium criterium,
+				                                   final SortOrder order) {
 					return getEmptyCursor(Client.AlbumEntry.class);
 				}
 
@@ -229,7 +228,6 @@ public class ArchiveContentProvider extends ContentProvider {
 					return 0;
 				}
 			};
-		}
 		return service;
 	}
 
@@ -288,9 +286,8 @@ public class ArchiveContentProvider extends ContentProvider {
 	public ParcelFileDescriptor openFile(final Uri uri, final String mode) throws FileNotFoundException {
 		// Log.i(TAG, "Open called for " + uri);
 		final UriType match = matcher.match(uri);
-		if (match == null) {
+		if (match == null)
 			return super.openFile(uri, mode);
-		}
 		switch (match) {
 		case ALBUM_ENTRY_THUMBNAIL:
 		case ALBUM_ENTRY_THUMBNAIL_ALIAS:
@@ -301,9 +298,8 @@ public class ArchiveContentProvider extends ContentProvider {
 					return getService().getLoadedThumbnail(archiveName, albumId, thumbnailId);
 				}
 			});
-			if (thumbnail == null) {
+			if (thumbnail == null)
 				throw new FileNotFoundException("Thumbnail-Image " + uri + " not found");
-			}
 			return ParcelFileDescriptor.open(thumbnail, ParcelFileDescriptor.MODE_READ_ONLY);
 		default:
 			break;
@@ -313,9 +309,8 @@ public class ArchiveContentProvider extends ContentProvider {
 
 	@Override
 	public Cursor query(final Uri uri, final String[] projection, final String selection, final String[] selectionArgs, final String sortOrder) {
-		if (Looper.getMainLooper().getThread() == Thread.currentThread()) {
+		if (Looper.getMainLooper().getThread() == Thread.currentThread())
 			throw new RuntimeException("Don't call a query on UI-Thread");
-		}
 		final long startTime = System.currentTimeMillis();
 		try {
 			// Log.i(TAG, "Query called: " + uri);
