@@ -7,15 +7,15 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.type.CollectionType;
-import org.codehaus.jackson.map.type.SimpleType;
-
 import android.content.ContentResolver;
 import android.net.Uri;
 import android.net.Uri.Builder;
 import android.os.Bundle;
 import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.CollectionType;
+import com.fasterxml.jackson.databind.type.SimpleType;
 
 public class Client {
 	public static class Album {

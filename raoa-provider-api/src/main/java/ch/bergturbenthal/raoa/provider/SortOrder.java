@@ -5,7 +5,7 @@ import java.util.List;
 
 import lombok.Data;
 
-import org.codehaus.jackson.map.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Data
 public class SortOrder {

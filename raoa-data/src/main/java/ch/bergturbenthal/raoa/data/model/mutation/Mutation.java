@@ -8,7 +8,6 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 // @Data
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "mutationType")
 @JsonSubTypes({ @JsonSubTypes.Type(value = TitleImageMutation.class, name = "title-image-mutation"),
-								@JsonSubTypes.Type(value = TitleImageMutation.class, name = "title-image-mutation"),
 								@JsonSubTypes.Type(value = TitleMutation.class, name = "title-mutation"),
 								@JsonSubTypes.Type(value = CaptionMutationEntry.class, name = "caption-mutation"),
 								@JsonSubTypes.Type(value = KeywordMutationEntry.class, name = "keyword-mutation"),
