@@ -40,7 +40,7 @@ import ch.bergturbenthal.raoa.client.util.BitmapUtil;
  */
 public class PhotoViewHandler implements ViewHandler<View> {
 	public static class DimensionCalculator implements TargetSizeCalculator {
-		private final int dimension;
+		private final int	dimension;
 
 		public DimensionCalculator(final int dimension) {
 			this.dimension = dimension;
@@ -73,59 +73,63 @@ public class PhotoViewHandler implements ViewHandler<View> {
 	/**
 	 * Scales the image to Fullscreen
 	 */
-	public static TargetSizeCalculator FULLSCREEN_CALCULATOR = new TargetSizeCalculator() {
+	public static TargetSizeCalculator	                 FULLSCREEN_CALCULATOR	    = new TargetSizeCalculator() {
 
-		@Override
-		public Pair<Integer, Integer> evaluateTargetSize(final Context context) {
-			// Get window manager
-			final WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-			// Get display size
-			final DisplayMetrics displaymetrics = new DisplayMetrics();
-			wm.getDefaultDisplay().getMetrics(displaymetrics);
-			return new Pair<Integer, Integer>(Integer.valueOf(displaymetrics.widthPixels), Integer.valueOf(displaymetrics.heightPixels));
-		}
-	};
-	private static final String TAG = "PhotoViewHandler";
+		                                                                                @Override
+		                                                                                public Pair<Integer, Integer> evaluateTargetSize(final Context context) {
+			                                                                                // Get window manager
+			                                                                                final WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+			                                                                                // Get display size
+			                                                                                final DisplayMetrics displaymetrics = new DisplayMetrics();
+			                                                                                wm.getDefaultDisplay().getMetrics(displaymetrics);
+			                                                                                return new Pair<Integer, Integer>(Integer.valueOf(displaymetrics.widthPixels),
+			                                                                                                                  Integer.valueOf(displaymetrics.heightPixels));
+		                                                                                }
+	                                                                                };
+	private static final String	                         TAG	                      = "PhotoViewHandler";
 
-	private int[] affectedViews;
-	private final Map<String, SoftReference<Bitmap>> bitmapCache = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
-	private final File cacheRootDir;
-	private final Executor executor;
+	private int[]	                                       affectedViews;
+	private final Map<String, SoftReference<Bitmap>>	   bitmapCache	              = new ConcurrentHashMap<String, SoftReference<Bitmap>>();
+	private final File	                                 cacheRootDir;
+	private final Executor	                             executor;
 
-	private final int imageViewId;
+	private final int	                                   imageViewId;
 
-	private final LruCache<String, File> persistentBitmapCacheFiles = new LruCache<String, File>(1024 * 1024) {
+	private final LruCache<String, File>	               persistentBitmapCacheFiles	= new LruCache<String, File>(1024 * 1024) {
 
-		@Override
-		protected File create(final String key) {
-			return new File(cacheRootDir, key);
-		}
+		                                                                                @Override
+		                                                                                protected File create(final String key) {
+			                                                                                return new File(cacheRootDir, key);
+		                                                                                }
 
-		@Override
-		protected void entryRemoved(final boolean evicted, final String key, final File oldValue, final File newValue) {
-			oldValue.delete();
-		}
+		                                                                                @Override
+		                                                                                protected void entryRemoved(final boolean evicted,
+		                                                                                                            final String key,
+		                                                                                                            final File oldValue,
+		                                                                                                            final File newValue) {
+			                                                                                oldValue.delete();
+		                                                                                }
 
-		@Override
-		protected int sizeOf(final String key, final File value) {
-			if (value.exists()) {
-				return (int) value.length() / 1024;
-			}
-			return 0;
-		}
+		                                                                                @Override
+		                                                                                protected int sizeOf(final String key, final File value) {
+			                                                                                if (value.exists()) {
+				                                                                                return (int) value.length() / 1024;
+			                                                                                }
+			                                                                                return 0;
+		                                                                                }
 
-	};
+	                                                                                };
 
-	private final Map<View, AsyncTask<Void, Void, Void>> runningBgTasks = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
+	private final Map<View, AsyncTask<Void, Void, Void>>	runningBgTasks	          = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
 
-	private final AtomicInteger storeCounter = new AtomicInteger();
-	Pair<Integer, Integer> targetSize = null;
-	private final TargetSizeCalculator targetSizeCalculator;
-	private final String uriColumn;
-	private final boolean usePersistentCache;
+	private final AtomicInteger	                         storeCounter	              = new AtomicInteger();
+	Pair<Integer, Integer>	                             targetSize	                = null;
+	private final TargetSizeCalculator	                 targetSizeCalculator;
+	private final String	                               uriColumn;
+	private final boolean	                               usePersistentCache;
 
 	public PhotoViewHandler(final Context context, final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator, final Executor executor,
-													final String persistentCachePrefix) {
+	                        final String persistentCachePrefix) {
 		this.imageViewId = viewId;
 		this.uriColumn = uriColumn;
 		this.targetSizeCalculator = targetSizeCalculator;
@@ -188,7 +192,7 @@ public class PhotoViewHandler implements ViewHandler<View> {
 			if (persistentCachedBitmap.exists()) {
 				final AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
 
-					private Bitmap bitmap;
+					private Bitmap	bitmap;
 
 					@Override
 					protected Void doInBackground(final Void... params) {
@@ -262,7 +266,7 @@ public class PhotoViewHandler implements ViewHandler<View> {
 	private void loadFullyFromProvider(final Context context, final ImageView imageView, final View idleView, final String thumbnailUriString) {
 		final AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
 
-			private Bitmap bitmap;
+			private Bitmap	bitmap;
 
 			@Override
 			protected Void doInBackground(final Void... params) {
@@ -380,6 +384,10 @@ public class PhotoViewHandler implements ViewHandler<View> {
 	}
 
 	private void saveCacheEntry(final Bitmap bitmap, final File targetFile) {
+		if (bitmap == null) {
+			targetFile.delete();
+			return;
+		}
 		final File tempFile = new File(targetFile.getParentFile(), targetFile.getName() + "-" + storeCounter.incrementAndGet());
 		try {
 			final OutputStream outputStream = new FileOutputStream(tempFile);
