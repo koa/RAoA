@@ -3,6 +3,7 @@
  */
 package ch.bergturbenthal.raoa.client.binding;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -10,11 +11,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.SoftReference;
-import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import android.content.ContentResolver;
@@ -38,7 +40,7 @@ import ch.bergturbenthal.raoa.client.util.BitmapUtil;
  * Display a Photo on a ImageView
  *
  */
-public class PhotoViewHandler implements ViewHandler<View> {
+public class PhotoViewHandler implements ViewHandler<View>, Closeable {
 	public static class DimensionCalculator implements TargetSizeCalculator {
 		private final int	dimension;
 
@@ -112,19 +114,22 @@ public class PhotoViewHandler implements ViewHandler<View> {
 
 		                                                                                @Override
 		                                                                                protected int sizeOf(final String key, final File value) {
-			                                                                                if (value.exists())
+			                                                                                if (value.exists()) {
 				                                                                                return (int) value.length() / 1024;
+			                                                                                }
 			                                                                                return 0;
 		                                                                                }
 
 	                                                                                };
 
-	private final Map<View, AsyncTask<Void, Void, Void>>	runningBgTasks	          = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
+	private final AtomicBoolean	                         running	                  = new AtomicBoolean(true);
 
+	private final Map<View, AsyncTask<Void, Void, Void>>	runningBgTasks	          = new WeakHashMap<View, AsyncTask<Void, Void, Void>>();
 	private final AtomicInteger	                         storeCounter	              = new AtomicInteger();
 	Pair<Integer, Integer>	                             targetSize	                = null;
 	private final TargetSizeCalculator	                 targetSizeCalculator;
 	private final String	                               uriColumn;
+
 	private final boolean	                               usePersistentCache;
 
 	public PhotoViewHandler(final Context context, final int viewId, final String uriColumn, final TargetSizeCalculator targetSizeCalculator, final Executor executor,
@@ -221,6 +226,11 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		}
 	}
 
+	@Override
+	public void close() {
+		running.set(false);
+	}
+
 	private String createFilename(final String thumbnailUriString) {
 		final StringBuilder filenameSb = new StringBuilder(thumbnailUriString.replace('/', '_'));
 		if (targetSize != null) {
@@ -241,8 +251,9 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		final SoftReference<Bitmap> ramCacheReference = bitmapCache.get(thumbnailUriString);
 		if (ramCacheReference != null) {
 			final Bitmap cachedBitmap = ramCacheReference.get();
-			if (cachedBitmap != null)
+			if (cachedBitmap != null) {
 				return cachedBitmap;
+			}
 		}
 		return null;
 	}
@@ -268,6 +279,9 @@ public class PhotoViewHandler implements ViewHandler<View> {
 
 			@Override
 			protected Void doInBackground(final Void... params) {
+				if (!running.get()) {
+					return null;
+				}
 				final Uri uri = Uri.parse(thumbnailUriString);
 				try {
 					final Bitmap persistentBitmap = loadFromPersistentCache(thumbnailUriString);
@@ -289,7 +303,9 @@ public class PhotoViewHandler implements ViewHandler<View> {
 
 			@Override
 			protected void onPostExecute(final Void result) {
-				displayLoadedImage(bitmap, imageView, idleView);
+				if (running.get()) {
+					displayLoadedImage(bitmap, imageView, idleView);
+				}
 			}
 		};
 		runningBgTasks.put(imageView, asyncTask);
@@ -300,8 +316,9 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		// get the real image
 		final ContentResolver contentResolver = context.getContentResolver();
 		final String contentType = contentResolver.getType(uri);
-		if (contentType == null)
+		if (contentType == null) {
 			return null;
+		}
 		if (contentType.startsWith("video")) {
 			final MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 			try {
@@ -351,29 +368,39 @@ public class PhotoViewHandler implements ViewHandler<View> {
 		}
 	}
 
-	public void preloadCache(final Context context, final Collection<String> images) {
+	public void preloadCache(final Context context, final List<String> images) {
 		calculateTargetSize(context);
-		for (final String imageUri : images) {
-			if (imageUri == null) {
-				continue;
-			}
-			final Uri uri = Uri.parse(imageUri);
-			final File targetFile = persistentBitmapCacheFiles.get(createFilename(imageUri));
-			if (targetFile.exists()) {
-				continue;
-			}
+		int remainingJobCount = 5;
+		int nextIndex = 0;
+		while (nextIndex < images.size()) {
+			final int startIndex = nextIndex;
+			nextIndex = startIndex + (images.size() - startIndex) / remainingJobCount--;
+			final List<String> jobImageList = images.subList(startIndex, nextIndex);
 			executor.execute(new Runnable() {
 
 				@Override
 				public void run() {
-					try {
-						final Bitmap bitmap = loadImage(context, uri);
-						bitmapCache.put(imageUri, new SoftReference<Bitmap>(bitmap));
-						saveCacheEntry(bitmap, targetFile);
-					} catch (final FileNotFoundException e) {
-						// file not ready now
-					} catch (final Throwable t) {
-						Log.i(TAG, "Cannot load image from " + uri, t);
+					for (final String imageUri : jobImageList) {
+						if (!running.get()) {
+							break;
+						}
+						if (imageUri == null) {
+							continue;
+						}
+						final Uri uri = Uri.parse(imageUri);
+						final File targetFile = persistentBitmapCacheFiles.get(createFilename(imageUri));
+						if (targetFile.exists()) {
+							continue;
+						}
+						try {
+							final Bitmap bitmap = loadImage(context, uri);
+							bitmapCache.put(imageUri, new SoftReference<Bitmap>(bitmap));
+							saveCacheEntry(bitmap, targetFile);
+						} catch (final FileNotFoundException e) {
+							// file not ready now
+						} catch (final Throwable t) {
+							Log.i(TAG, "Cannot load image from " + uri, t);
+						}
 					}
 				}
 			});
@@ -425,8 +452,9 @@ public class PhotoViewHandler implements ViewHandler<View> {
 	}
 
 	private void storeToCache(final String thumbnailUriString, final Bitmap bitmap, final Context context) {
-		if (bitmap == null)
+		if (bitmap == null) {
 			return;
+		}
 		bitmapCache.put(thumbnailUriString, new SoftReference<Bitmap>(bitmap));
 		if (usePersistentCache) {
 			executor.execute(new Runnable() {

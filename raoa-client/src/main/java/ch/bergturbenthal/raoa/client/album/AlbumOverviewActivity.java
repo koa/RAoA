@@ -1,5 +1,7 @@
 package ch.bergturbenthal.raoa.client.album;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -48,9 +51,11 @@ import ch.bergturbenthal.raoa.provider.Client;
 
 public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<Cursor> {
 
-	private static String	       TAG	= AlbumOverviewActivity.class.getSimpleName();
-	private ComplexCursorAdapter	cursorAdapter;
-	private ExecutorService	     threadPoolExecutor;
+	private static String	              TAG	           = AlbumOverviewActivity.class.getSimpleName();
+	private final Collection<Closeable>	closeOnDestroy	= new ArrayList<Closeable>();
+	private ComplexCursorAdapter	      cursorAdapter;
+
+	private ExecutorService	            threadPoolExecutor;
 
 	private Collection<ViewHandler<? extends View>> makeServerViewHandlers() {
 		final ArrayList<ViewHandler<? extends View>> ret = new ArrayList<ViewHandler<? extends View>>();
@@ -68,6 +73,7 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 		                                                               threadPoolExecutor,
 		                                                               "album-overview");
 		photoViewHandler.setIdleView(R.id.album_item_empty_layout);
+		closeOnDestroy.add(photoViewHandler);
 		ret.add(photoViewHandler);
 		ret.add(new TextViewHandler(R.id.album_item_name, Client.Album.TITLE));
 		// ret.add(new TextViewHandler(R.id.album_item_size, Client.Album.ENTRY_COUNT));
@@ -219,6 +225,14 @@ public class AlbumOverviewActivity extends Activity implements LoaderCallbacks<C
 
 	@Override
 	protected void onDestroy() {
+		for (final Closeable closeable : closeOnDestroy) {
+			try {
+				closeable.close();
+			} catch (final IOException e) {
+				Log.w(TAG, "Error on close", e);
+			}
+		}
+
 		if (threadPoolExecutor != null) {
 			threadPoolExecutor.shutdownNow();
 		}

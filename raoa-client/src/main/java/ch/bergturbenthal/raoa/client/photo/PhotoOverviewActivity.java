@@ -1,5 +1,7 @@
 package ch.bergturbenthal.raoa.client.photo;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,6 +35,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.util.Pair;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -87,12 +90,14 @@ public class PhotoOverviewActivity extends Activity {
 	public static final String	           CURRENT_FILTER	       = "currentFilter";
 
 	private static final String	           MODE_KEY	             = PhotoOverviewActivity.class.getName() + "-mode";
+
 	private static final String	           SELECTION_KEY	       = PhotoOverviewActivity.class.getName() + "-selection";
 	private Uri	                           albumEntriesUri;
-
 	private String	                       albumTitle	           = null;
 
 	private Uri	                           albumUri;
+
+	private final Collection<Closeable>	   closeOnDestroy	       = new ArrayList<Closeable>();
 	private String	                       currentFilter;
 	private int	                           currentItemIndex;
 	private UiMode	                       currentMode	         = UiMode.NAVIGATION;
@@ -138,13 +143,15 @@ public class PhotoOverviewActivity extends Activity {
 
 			@Override
 			protected void doInBackground() {
-				if (albumUri == null)
+				if (albumUri == null) {
 					return;
+				}
 				final ContentResolver contentResolver = getContentResolver();
 				final Cursor cursor = contentResolver.query(albumUri, new String[] { Client.Album.STORAGES }, null, null, null);
 				try {
-					if (cursor == null || !cursor.moveToFirst())
+					if (cursor == null || !cursor.moveToFirst()) {
 						return;
+					}
 					final Collection<String> storages = new LinkedHashSet<String>();
 					final String storagesRaw = cursor.getString(cursor.getColumnIndexOrThrow(Client.Album.STORAGES));
 					if (storagesRaw != null) {
@@ -188,8 +195,9 @@ public class PhotoOverviewActivity extends Activity {
 				final Collection<String> oldSelectedEntries = new HashSet<String>(selectedEntries.keySet());
 				selectedEntries.clear();
 				try {
-					if (data == null || !data.moveToFirst())
+					if (data == null || !data.moveToFirst()) {
 						return;
+					}
 					final int entryColumn = data.getColumnIndex(Client.AlbumEntry.ENTRY_URI);
 					final int keywordsColumn = data.getColumnIndex(Client.AlbumEntry.META_KEYWORDS);
 					final int thumbnailColumn = data.getColumnIndex(Client.AlbumEntry.THUMBNAIL_ALIAS);
@@ -379,6 +387,7 @@ public class PhotoOverviewActivity extends Activity {
 		                                                               threadPoolExecutor,
 		                                                               "photo-overview");
 		photoViewHandler.setIdleView(R.id.photo_item_empty_layout);
+		closeOnDestroy.add(photoViewHandler);
 		ret.add(photoViewHandler);
 		ret.add(new TextViewHandler(R.id.photo_name, Client.AlbumEntry.NAME));
 		ret.add(new AbstractViewHandler<View>(R.id.photos_overview_grid_item) {
@@ -603,6 +612,14 @@ public class PhotoOverviewActivity extends Activity {
 
 	@Override
 	protected void onDestroy() {
+		for (final Closeable closeable : closeOnDestroy) {
+			try {
+				closeable.close();
+			} catch (final IOException e) {
+				Log.w("PhotoOverview", "Error on close", e);
+			}
+		}
+
 		if (threadPoolExecutor != null) {
 			threadPoolExecutor.shutdownNow();
 		}
@@ -651,8 +668,9 @@ public class PhotoOverviewActivity extends Activity {
 			@Override
 			public void run() {
 				final Cursor data = getContentResolver().query(albumEntriesUri, new String[] { Client.AlbumEntry.THUMBNAIL_ALIAS }, currentFilter, null, null);
-				if (!data.moveToFirst())
+				if (!data.moveToFirst()) {
 					return;
+				}
 				final List<String> allEntries = new ArrayList<String>();
 				final int columnIndex = data.getColumnIndexOrThrow(Client.AlbumEntry.THUMBNAIL_ALIAS);
 				do {
