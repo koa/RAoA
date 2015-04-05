@@ -81,8 +81,9 @@ public class ArchiveConnection {
 
 	public Map<String, AlbumConnection> getAlbums() {
 		final Map<String, AlbumConnection> cached = cachedAlbums.get();
-		if (cached != null)
+		if (cached != null) {
 			return cached;
+		}
 		return listAlbums();
 	}
 
@@ -124,10 +125,11 @@ public class ArchiveConnection {
 					continue;
 				}
 				final AlbumEntry alreadyFoundAlbumEntry = mostCurrentAlbumEntries.get(albumName);
-				if (alreadyFoundAlbumEntry == null || alreadyFoundAlbumEntry.getLastModified().before(albumEntry.getLastModified())) {
+				if (alreadyFoundAlbumEntry == null || alreadyFoundAlbumEntry.getCommitCount() < albumEntry.getCommitCount()
+				    || alreadyFoundAlbumEntry.getLastModified().before(albumEntry.getLastModified())) {
 					serverPerAlbum.put(albumName, new HashSet<String>(Arrays.asList(serverId)));
 					mostCurrentAlbumEntries.put(albumName, albumEntry);
-				} else if (alreadyFoundAlbumEntry.getLastModified().equals(albumEntry.getLastModified())) {
+				} else if (alreadyFoundAlbumEntry.getLastModified().equals(albumEntry.getLastModified()) && alreadyFoundAlbumEntry.getCommitCount() == albumEntry.getCommitCount()) {
 					serverPerAlbum.get(albumName).add(serverId);
 				}
 			}
@@ -140,8 +142,14 @@ public class ArchiveConnection {
 			final AlbumEntry albumEntry = mostCurrentAlbumEntries.get(albumName);
 			final String albumId = albumEntry.getId();
 			final Date lastModified = albumEntry.getLastModified();
+			final int commitCount = albumEntry.getCommitCount();
 			final Set<String> servers = new HashSet<String>(perAlbumEntry.getValue());
 			albumConnections.put(perAlbumEntry.getKey(), new AlbumConnection() {
+
+				@Override
+				public int commitCount() {
+					return commitCount;
+				}
 
 				@Override
 				public Collection<String> connectedServers() {
@@ -150,20 +158,30 @@ public class ArchiveConnection {
 
 				@Override
 				public AlbumDto getAlbumDetail() {
-					final AlbumDtoBuilder albumDtoBuilder = AlbumDto.builder();
+					AlbumDto newestAlbumDto = null;
+					int newestAlbumCommitCount = 0;
+					Date youngestAlbumModificationTime = new Date(0);
 					final Map<String, AlbumEntryDto> entries = new HashMap<String, AlbumEntryDto>();
 					for (final String serverId : servers) {
+						final AlbumDtoBuilder albumDtoBuilder = AlbumDto.builder();
 						final ServerConnection serverConnection = serverConnections.get().get(serverId);
 						if (serverConnection == null) {
 							continue;
 						}
 						final AlbumDetail albumDetail = serverConnection.getAlbumDetail(albumId);
+						if (albumDetail.getCommitCount() <= newestAlbumCommitCount) {
+							continue;
+						}
+						if (albumDetail.getLastModified().before(youngestAlbumModificationTime)) {
+							continue;
+						}
 						if (albumDetail.getAutoAddDate() != null) {
 							albumDtoBuilder.autoAddDate(albumDetail.getAutoAddDate());
 						}
 						albumDtoBuilder.albumTitle(albumDetail.getTitle());
 						albumDtoBuilder.albumTitleEntry(albumDetail.getTitleEntry());
 						albumDtoBuilder.lastModified(albumDetail.getLastModified());
+						albumDtoBuilder.commitCount(albumDetail.getCommitCount());
 						for (final AlbumImageEntry entry : albumDetail.getImages()) {
 							final String key = entry.getId();
 							if (entries.containsKey(key) && entries.get(key).getLastModified().getTime() > entry.getLastModified().getTime()) {
@@ -172,8 +190,11 @@ public class ArchiveConnection {
 							entries.put(key, AlbumEntryDto.fromServer(entry));
 						}
 						albumDtoBuilder.entries(entries);
+						newestAlbumDto = albumDtoBuilder.build();
+						newestAlbumCommitCount = albumDetail.getCommitCount();
+						youngestAlbumModificationTime = albumDetail.getLastModified();
 					}
-					return albumDtoBuilder.build();
+					return newestAlbumDto;
 				}
 
 				@Override
@@ -193,8 +214,9 @@ public class ArchiveConnection {
 						if (serverConnection == null) {
 							continue;
 						}
-						if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile))
+						if (serverConnection.readThumbnail(albumId, fileId, tempFile, targetFile)) {
 							return true;
+						}
 					}
 					return false;
 				}

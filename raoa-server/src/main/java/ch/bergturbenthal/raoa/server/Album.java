@@ -231,6 +231,7 @@ public class Album implements ApplicationContextAware {
 
 		// commit changes from outside the server
 		try {
+			final boolean isClean;
 			final Status status = git.status().call();
 			if (!status.isClean() && status.getConflicting().isEmpty()) {
 				boolean addedSomething = false;
@@ -258,6 +259,12 @@ public class Album implements ApplicationContextAware {
 					}
 					checkout.call();
 				}
+				isClean = git.status().call().isClean();
+			} else {
+				isClean = status.isClean();
+			}
+			if (isClean) {
+				repositoryService.checkoutMaster(git);
 			}
 		} catch (final GitAPIException e) {
 			throw new RuntimeException("Cannot make initial commit", e);
@@ -334,7 +341,7 @@ public class Album implements ApplicationContextAware {
 
 	private long evaluateLastModifiedTime() {
 		try {
-			if (!isMaster()) {
+			if (!repositoryService.isCurrentMaster(git)) {
 				return 1;
 			}
 			final LogCommand log = git.log().setMaxCount(1);
@@ -405,6 +412,10 @@ public class Album implements ApplicationContextAware {
 		} catch (final IOException e) {
 			throw new RuntimeException("Cannot read " + file, e);
 		}
+	}
+
+	public int getCommitCount() {
+		return repositoryService.countCommits(git);
 	}
 
 	public AlbumImage getImage(final String imageId) {
@@ -535,14 +546,6 @@ public class Album implements ApplicationContextAware {
 			pull(initRemoteUri, initRemoteServerName);
 		}
 		cacheDir = new File(baseDir, CACHE_DIR);
-	}
-
-	private boolean isMaster() throws GitAPIException {
-		try {
-			return git.getRepository().getBranch().equals("master");
-		} catch (final IOException e) {
-			return false;
-		}
 	}
 
 	public long lastModified() {

@@ -15,6 +15,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jgit.api.Git;
@@ -46,8 +47,6 @@ import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.RemoteRefUpdate.Status;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.util.FS;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
@@ -57,6 +56,7 @@ import ch.bergturbenthal.raoa.server.state.StateManager;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+@Slf4j
 public class RepositoryServiceImpl implements RepositoryService {
 	private static final class InfiniteCountIterator implements Iterator<String> {
 		private int i = 0;
@@ -78,7 +78,9 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	private static final String CONFLICT_BRANCH_PREFIX = "refs/heads/conflict/";
 
-	private static Logger logger = LoggerFactory.getLogger(RepositoryServiceImpl.class);
+	private static final String MASTER_REF = "refs/heads/master";
+	private static final RefSpec MASTER_REF_SPEC = new RefSpec(MASTER_REF);
+
 	private static final String NOTES_CONFLICT_PREFIX = "refs/notes/conflicts";
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final Set<MergeStatus> modifiedMergeStates = new HashSet<MergeStatus>(Arrays.asList(MergeStatus.FAST_FORWARD,
@@ -88,6 +90,16 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	@Autowired
 	private StateManager stateManager;
+
+	@Override
+	public void checkoutMaster(final Git repository) {
+		try {
+			final Ref ref = repository.checkout().setName(MASTER_REF).call();
+			log.debug("Checked out Reference " + ref);
+		} catch (final GitAPIException e) {
+			throw new RuntimeException("cannot checkout master", e);
+		}
+	}
 
 	/*
 	 * (non-Javadoc)
@@ -127,6 +139,20 @@ public class RepositoryServiceImpl implements RepositoryService {
 		return foundConflicts;
 	}
 
+	@Override
+	public int countCommits(final Git git) {
+		try {
+			int commitCount = 0;
+			for (final RevCommit commit : git.log().call()) {
+				commitCount += 1;
+			}
+			return commitCount;
+		} catch (final GitAPIException e) {
+			log.warn("Cannot count commits on " + git, e);
+			return 0;
+		}
+	}
+
 	/*
 	 * (non-Javadoc)
 	 *
@@ -142,7 +168,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 			}
 		} catch (final GitAPIException e) {
-			logger.error("Cannot read notes from " + git.getRepository(), e);
+			log.error("Cannot read notes from " + git.getRepository(), e);
 		}
 		final ArrayList<ConflictEntry> ret = new ArrayList<ConflictEntry>();
 		for (final Entry<String, Ref> entry : collectConflictBranches(git)) {
@@ -204,6 +230,17 @@ public class RepositoryServiceImpl implements RepositoryService {
 	}
 
 	@Override
+	public boolean isCurrentMaster(final Git repository) {
+		try {
+			final String branchName = repository.getRepository().getFullBranch();
+			return branchName != null && branchName.equals(MASTER_REF);
+		} catch (final IOException e) {
+			log.error("cannot detect current branch of " + repository, e);
+		}
+		return false;
+	}
+
+	@Override
 	public boolean isRepository(final File directory, final boolean bare) {
 
 		try {
@@ -215,7 +252,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 			return repository.getObjectDatabase().exists() && repository.isBare() == bare;
 		} catch (final IOException e) {
-			logger.debug("Cannot find repository at " + directory, e);
+			log.debug("Cannot find repository at " + directory, e);
 			return false;
 		}
 	}
@@ -230,9 +267,9 @@ public class RepositoryServiceImpl implements RepositoryService {
 					mergeCommand.include(branchCommit);
 					final MergeResult mergeResult = mergeCommand.call();
 					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
-					logger.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
+					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
 				} catch (final GitAPIException e) {
-					logger.error("Canot merge on " + git.getRepository().getDirectory(), e);
+					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
 				}
 			}
 		};
@@ -248,9 +285,9 @@ public class RepositoryServiceImpl implements RepositoryService {
 					mergeCommand.include(branchCommit);
 					final MergeResult mergeResult = mergeCommand.call();
 					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
-					logger.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
+					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
 				} catch (final GitAPIException e) {
-					logger.error("Canot merge on " + git.getRepository().getDirectory(), e);
+					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
 				}
 			}
 		};
@@ -262,13 +299,13 @@ public class RepositoryServiceImpl implements RepositoryService {
 			@Cleanup
 			final CloseableProgressMonitor monitor = stateManager.makeProgressMonitor();
 			try {
-				localRepo.fetch().setRemote(remoteUri).setRefSpecs(new RefSpec("refs/heads/master")).setProgressMonitor(monitor).call();
+				localRepo.fetch().setRemote(remoteUri).setRefSpecs(MASTER_REF_SPEC).setProgressMonitor(monitor).call();
 			} catch (final GitAPIException ex) {
-				logger.warn("Cannte fetch head from " + remoteUri, ex);
+				log.warn("Cannte fetch head from " + remoteUri, ex);
 			}
 			final Repository repository = localRepo.getRepository();
 			final Ref fetchHead = repository.getRef("FETCH_HEAD");
-			final Ref headBefore = repository.getRef("refs/heads/master");
+			final Ref headBefore = repository.getRef(MASTER_REF);
 			final MergeResult mergeResult = localRepo.merge().include(fetchHead).call();
 			final MergeStatus mergeStatus = mergeResult.getMergeStatus();
 			if (!mergeStatus.isSuccessful()) {
@@ -356,10 +393,10 @@ public class RepositoryServiceImpl implements RepositoryService {
 						}
 					}
 				} else {
-					final ObjectId localHeadId = localRepository.getRepository().getRef("refs/heads/master").getObjectId();
-					final ObjectId remoteHeadId = externalRepository.getRepository().getRef("refs/heads/master").getObjectId();
+					final ObjectId localHeadId = localRepository.getRepository().getRef(MASTER_REF).getObjectId();
+					final ObjectId remoteHeadId = externalRepository.getRepository().getRef(MASTER_REF).getObjectId();
 					if (!localHeadId.equals(remoteHeadId)) {
-						logger.error("Push error at " + externalDir);
+						log.error("Push error at " + externalDir);
 					}
 				}
 			} else {

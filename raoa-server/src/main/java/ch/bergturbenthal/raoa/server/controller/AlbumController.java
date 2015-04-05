@@ -54,8 +54,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 
 	@Override
 	@RequestMapping(method = RequestMethod.POST)
-	public @ResponseBody
-	AlbumEntry createAlbum(@RequestBody final CreateAlbumRequest request) {
+	public @ResponseBody AlbumEntry createAlbum(@RequestBody final CreateAlbumRequest request) {
 		final Album album = albumAccess.createAlbum(request.getPathComps());
 		final Date autoAddDate = request.getAutoAddDate();
 		if (autoAddDate != null) {
@@ -122,6 +121,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		ret.getClients().addAll(albumAccess.clientsPerAlbum(albumid));
 		ret.setAutoAddDate(album.getAutoAddBeginDate());
 		ret.setLastModified(album.getLastModified());
+		ret.setCommitCount(album.getCommitCount());
 		ret.setRepositorySize(album.getRepositorySize());
 		ret.setTitle(albumMetadata.getAlbumTitle());
 		final String titleEntry = albumMetadata.getTitleEntry();
@@ -140,8 +140,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	}
 
 	@RequestMapping(value = "{albumid}", method = RequestMethod.GET)
-	public @ResponseBody
-	AlbumDetail listAlbumContent(@PathVariable("albumid") final String albumid, final HttpServletResponse response) {
+	public @ResponseBody AlbumDetail listAlbumContent(@PathVariable("albumid") final String albumid, final HttpServletResponse response) {
 		final AlbumDetail content = listAlbumContent(albumid);
 		if (content == null) {
 			response.setStatus(404);
@@ -151,8 +150,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 
 	@Override
 	@RequestMapping(method = RequestMethod.GET)
-	public @ResponseBody
-	AlbumList listAlbums() {
+	public @ResponseBody AlbumList listAlbums() {
 		final AlbumList albumList = new AlbumList();
 		final Collection<AlbumEntry> albumNames = albumList.getAlbumNames();
 		for (final Entry<String, Album> entry : albumAccess.listAlbums().entrySet()) {
@@ -165,6 +163,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	private AlbumEntry makeAlbumEntry(final String id, final Album album) {
 		final AlbumEntry albumEntry = new AlbumEntry(id, album.getName());
 		albumEntry.setLastModified(album.getLastModified());
+		albumEntry.setCommitCount(album.getCommitCount());
 		albumEntry.getClients().addAll(albumAccess.clientsPerAlbum(id));
 		return albumEntry;
 	}

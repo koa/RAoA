@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class AlbumEntry {
 	private final Collection<String> clients = new ArrayList<String>();
+	private int commitCount;
 	private String id;
 	private Date lastModified;
 	private String name;

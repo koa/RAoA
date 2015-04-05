@@ -18,5 +18,7 @@ public interface AlbumConnection {
 
 	Date lastModified();
 
+	int commitCount();
+
 	void updateMetadata(final Collection<Mutation> updateEntries);
 }

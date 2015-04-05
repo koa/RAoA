@@ -9,7 +9,7 @@ public interface RepositoryService {
 
 	/**
 	 * checks all conflict-branches and removes all obsolete
-	 * 
+	 *
 	 * @param git
 	 *          repository to cleanup
 	 */
@@ -19,7 +19,7 @@ public interface RepositoryService {
 
 	/**
 	 * implements pull with a simple conflict-handling
-	 * 
+	 *
 	 * @param localRepo
 	 *          locale repository to pull into
 	 * @param remoteUri
@@ -32,7 +32,7 @@ public interface RepositoryService {
 
 	/**
 	 * Sync to a external File
-	 * 
+	 *
 	 * @param localRepository
 	 *          local Repository
 	 * @param externalDir
@@ -47,7 +47,7 @@ public interface RepositoryService {
 
 	/**
 	 * check if a given directory is a repository
-	 * 
+	 *
 	 * @param directory
 	 *          directory to check
 	 * @param bare
@@ -55,4 +55,27 @@ public interface RepositoryService {
 	 * @return true repository found
 	 */
 	boolean isRepository(final File directory, final boolean bare);
+
+	/**
+	 * Count commits of master branch
+	 *
+	 * @param repository
+	 * @return
+	 */
+	int countCommits(final Git repository);
+
+	/**
+	 * checks if current head is master
+	 *
+	 * @param repository
+	 * @return
+	 */
+	boolean isCurrentMaster(final Git repository);
+
+	/**
+	 * checkout master branch
+	 * 
+	 * @param repository
+	 */
+	void checkoutMaster(final Git repository);
 }

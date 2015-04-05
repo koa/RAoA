@@ -21,6 +21,7 @@ public class AlbumDto implements Serializable {
 	private String	                         albumTitle;
 	private String	                         albumTitleEntry;
 	private Collection<Date>	               autoAddDate;
+	private int	                             commitCount;
 	private final Map<String, AlbumEntryDto>	entries;
 	private Date	                           lastModified;
 }
