@@ -188,6 +188,747 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private final ConcurrentMap<String, ConcurrentMap<String, String>>	visibleAlbums	         = new ConcurrentHashMap<String, ConcurrentMap<String, String>>();
 	private ExecutorService	                                           wrappedExecutorService;
 
+	@Override
+	public void createAlbumOnServer(final String serverId, final String fullAlbumName, final Date autoAddDate) {
+		final ServerConnection serverConnection = getConnectionForServer(serverId);
+		if (serverConnection == null) {
+			return;
+		}
+		serverConnection.createAlbum(fullAlbumName, autoAddDate);
+	}
+
+	@Override
+	public String getContenttype(final String archive, final String albumId, final String image) {
+		return callInTransaction(new Callable<String>() {
+
+			@Override
+			public String call() throws Exception {
+				final AlbumEntryDto entryDto = getCurrentDataProvider().getAlbumEntryMap().get(new AlbumEntryIndex(AlbumIndex.builder()
+				                                                                                                             .archiveName(archive)
+				                                                                                                             .albumId(albumId)
+				                                                                                                             .build(), image));
+				if (entryDto == null) {
+					return null;
+				}
+				switch (entryDto.getEntryType()) {
+				case IMAGE:
+					return "image/jpeg";
+				case VIDEO:
+					return "video/mp4";
+				default:
+					return null;
+				}
+			}
+		},
+		                         true);
+	}
+
+	@Override
+	public File getLoadedThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
+		// final long startTime = System.currentTimeMillis();
+		// Log.i("Performance", "Start load Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId);
+		try {
+			final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build(), albumEntryId));
+			if (thumbnailEntry == null) {
+				return null;
+			}
+			return thumbnailEntry.referencedFile;
+		} finally {
+			// Log.i("Performance", "Returned Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId + " in " + (System.currentTimeMillis() -
+			// startTime) + " ms");
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see ch.bergturbenthal.raoa.provider.service.SynchronisationService#importFile(java.lang.String, byte[])
+	 */
+	@Override
+	public void importFile(final String serverName, final String filename, final byte[] data) {
+
+		final ServerConnection serverConnection = getConnectionForServer(serverName);
+		serverConnection.importFile(filename, data);
+
+	}
+
+	@Override
+	public void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints, final boolean withProgressUpdate) {
+		for (final InetSocketAddress inetSocketAddress : knownServiceEndpoints) {
+			Log.i(SERVICE_TAG, "Addr: " + inetSocketAddress);
+		}
+		final Map<String, Map<URL, PingResponse>> pingResponses = new HashMap<String, Map<URL, PingResponse>>();
+		for (final InetSocketAddress inetSocketAddress : knownServiceEndpoints) {
+			try {
+				if (!inetSocketAddress.getAddress().isReachable(200)) {
+					Log.i(SERVICE_TAG, "Ping to " + inetSocketAddress + " failed");
+					continue;
+				}
+			} catch (final IOException e) {
+				Log.w(SERVICE_TAG, "Cannot ping to " + inetSocketAddress);
+				continue;
+			}
+			final URL url = makeUrl(inetSocketAddress);
+			try {
+				final PingResponse response = pingService(url);
+				if (response != null) {
+					if (pingResponses.containsKey(response.getArchiveId())) {
+						pingResponses.get(response.getArchiveId()).put(url, response);
+					} else {
+						final Map<URL, PingResponse> map = new HashMap<URL, PingResponse>();
+						map.put(url, response);
+						pingResponses.put(response.getArchiveId(), map);
+					}
+				}
+			} catch (final Throwable ex) {
+				Log.e(SERVICE_TAG, "Exception while polling " + url, ex);
+			}
+		}
+		final HashMap<String, ArchiveConnection> oldConnectionMap = new HashMap<String, ArchiveConnection>(connectionMap.get());
+		final HashMap<String, ArchiveConnection> newConnectionMap = new HashMap<String, ArchiveConnection>();
+		for (final Entry<String, Map<URL, PingResponse>> responseEntry : pingResponses.entrySet()) {
+			final String archiveId = responseEntry.getKey();
+			final ArchiveConnection connection = oldConnectionMap.containsKey(archiveId) ? oldConnectionMap.get(archiveId) : new ArchiveConnection(archiveId,
+			                                                                                                                                       wrappedExecutorService);
+			connection.updateServerConnections(responseEntry.getValue());
+			newConnectionMap.put(archiveId, connection);
+		}
+		connectionMap.set(newConnectionMap);
+		updateServerCursors();
+		executorService.submit(new Runnable() {
+
+			@Override
+			public void run() {
+				updateAlbumsOnDB();
+			}
+		});
+		Log.i(SERVICE_TAG, pingResponses.toString());
+	}
+
+	@Override
+	public IBinder onBind(final Intent arg0) {
+		return binder;
+	}
+
+	@Override
+	public void onCreate() {
+		super.onCreate();
+
+		executorService = Executors.newScheduledThreadPool(2, new ThreadFactory() {
+			final AtomicInteger	nextThreadIndex	= new AtomicInteger(0);
+
+			@Override
+			public Thread newThread(final Runnable r) {
+				return new Thread(r, "synchronisation-worker-" + nextThreadIndex.getAndIncrement());
+			}
+		});
+
+		registerScreenOnOff();
+		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+		wrappedExecutorService = ExecutorServiceUtil.wrap(executorService);
+
+		initServiceDiscovery();
+
+		dataDir = new File(getFilesDir(), "data");
+		final File mapdbFile = new File(dataDir, "mapdb");
+		if (!mapdbFile.getParentFile().exists()) {
+			mapdbFile.getParentFile().mkdirs();
+		}
+		mapDB = DBMaker.newFileDB(mapdbFile).makeTxMaker();
+		// init db before first usage
+		callInTransaction(new Callable<Void>() {
+
+			@Override
+			public Void call() throws Exception {
+				return null;
+			}
+		}, false);
+
+		// setup and clean temp-dir
+		tempDir = new File(getCacheDir(), "temp");
+		if (!tempDir.exists()) {
+			tempDir.mkdirs();
+		}
+		for (final File file : tempDir.listFiles()) {
+			file.delete();
+		}
+
+		// setup thumbnails-dir
+		// temporary files
+		thumbnailsTempDir = new File(getCacheDir(), "thumbnails");
+		if (!thumbnailsTempDir.exists()) {
+			thumbnailsTempDir.mkdirs();
+		}
+		// explicit synced thumbnails
+		thumbnailsSyncDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "royalarchive");
+		if (!thumbnailsSyncDir.exists()) {
+			thumbnailsSyncDir.mkdirs();
+		}
+		// preload thumbnail-cache
+		initThumbnailCache(2 * 1024 * 1024);
+
+		executorService.schedule(new Runnable() {
+
+			@Override
+			public void run() {
+				NetworkReceiver.notifyNetworkState(getApplicationContext());
+			}
+		}, 2, TimeUnit.SECONDS);
+	}
+
+	@Override
+	public void onDestroy() {
+		executorService.shutdownNow();
+		notificationManager.cancel(NOTIFICATION);
+		dnsListener.stopListening();
+		stopSlowPolling();
+	}
+
+	@Override
+	public int onStartCommand(final Intent intent, final int flags, final int startId) {
+		if (intent != null) {
+			final ServiceCommand command = intent.getParcelableExtra("command");
+			if (command != null) {
+				switch (command) {
+				case START:
+					startRunning();
+					break;
+				case STOP:
+					stopRunning();
+					break;
+				case POLL:
+					pollServers();
+					break;
+				case SCREEN_ON:
+					startFastPolling();
+					break;
+				case SCREEN_OFF:
+					stopFastPolling();
+					break;
+				default:
+					break;
+				}
+			}
+		}
+		return START_STICKY;
+	}
+
+	@Override
+	public Cursor readAlbumEntryKeywords(final String archiveName, final String albumName, final String[] projection, final Criterium criterium, final SortOrder order) {
+		return callInTransaction(new Callable<Cursor>() {
+
+			@Override
+			public Cursor call() throws Exception {
+				final DataProvider currentDataProvider = getCurrentDataProvider();
+				final BTreeMap<AlbumIndex, AlbumMeta> albumMetaMap = currentDataProvider.getAlbumMetadataMap();
+				final BTreeMap<AlbumIndex, AlbumMutationData> albumMutationMap = currentDataProvider.getAlbumMutationDataMap();
+				final AlbumIndex index = new AlbumIndex(albumName, archiveName);
+
+				final AlbumMeta albumMeta = albumMetaMap.get(index);
+				final Map<String, Integer> keywordCounts;
+				if (albumMeta != null) {
+					keywordCounts = applyKeywordMutations(albumMeta.getKeywordCounts(), albumMutationMap.get(index));
+				} else {
+					keywordCounts = Collections.emptyMap();
+				}
+				final Map<String, FieldReader<Entry<String, Integer>>> fieldReaders = new HashMap<String, FieldReader<Entry<String, Integer>>>();
+				fieldReaders.put(Client.KeywordEntry.KEYWORD, new StringFieldReader<Map.Entry<String, Integer>>() {
+					@Override
+					public String getString(final Entry<String, Integer> value) {
+						return value.getKey();
+					}
+				});
+				fieldReaders.put(Client.KeywordEntry.COUNT, new NumericFieldReader<Map.Entry<String, Integer>>(Cursor.FIELD_TYPE_INTEGER) {
+
+					@Override
+					public Number getNumber(final Entry<String, Integer> value) {
+						return value.getValue();
+					}
+				});
+				return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(keywordCounts.entrySet(), projection, fieldReaders, criterium, order));
+			}
+		}, true);
+
+	}
+
+	@Override
+	public Cursor readAlbumEntryList(final String archiveName, final String albumId, final String[] projection, final Criterium criterium, final SortOrder order) {
+		final AlbumIndex album = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
+
+		return callWithLongTransaction(new TransactionCallable<Cursor>() {
+
+			@Override
+			public Cursor call(final DataProvider provider) {
+				final long startTime = System.currentTimeMillis();
+				final AlbumMeta albumMeta = provider.getAlbumMetadataMap().get(album);
+				if (albumMeta == null) {
+					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(album), criterium, order, provider);
+				}
+				final ReadOnlyIterableIndexedAccess<AlbumEntryIndex> readOnlyIterableIndexedAccess = new ReadOnlyIterableIndexedAccess<AlbumEntryIndex>(provider.listEntriesByAlbum(album)
+				                                                                                                                                                .iterator(),
+				                                                                                                                                        albumMeta.getEntryCount());
+				Log.i(SERVICE_TAG, "Iteration-Time: " + (System.currentTimeMillis() - startTime) + " " + albumMeta.getEntryCount());
+				return makeCursorForAlbumEntries(readOnlyIterableIndexedAccess, projection, Collections.singleton(album), criterium, order, provider);
+			}
+		});
+	}
+
+	@Override
+	public Cursor readAlbumList(final String[] projection, final Criterium criterium, final SortOrder order) {
+		final Criterium visibleCriterium = Criterium.ge(Value.field(Client.Album.VISIBLE_SERVER_COUNT), Value.constant(Integer.valueOf(1)));
+		final Criterium syncedCriterium = Criterium.eq(Value.field(Client.Album.SHOULD_SYNC), Value.constant(Integer.valueOf(1)));
+		final Criterium combinedEnabledCriterium = Criterium.or(visibleCriterium, syncedCriterium);
+		final Criterium queryCriterium;
+		if (criterium == null) {
+			queryCriterium = combinedEnabledCriterium;
+		} else {
+			queryCriterium = Criterium.and(combinedEnabledCriterium, criterium);
+		}
+		return makeCursorForAlbums(projection, queryCriterium, order);
+	}
+
+	@Override
+	public Cursor readKeywordStatistics(final String[] projection, final Criterium criterium, final SortOrder order) {
+		return callInTransaction(new Callable<Cursor>() {
+
+			@Override
+			public Cursor call() throws Exception {
+				final Map<String, Integer> keywordCounts = new TreeMap<String, Integer>();
+				final DataProvider currentDataProvider = getCurrentDataProvider();
+				final BTreeMap<AlbumIndex, AlbumMeta> currentAlbumMetaMap = currentDataProvider.getAlbumMetadataMap();
+				final BTreeMap<AlbumIndex, AlbumMutationData> currentAlbumMutationMap = currentDataProvider.getAlbumMutationDataMap();
+				for (final Entry<AlbumIndex, AlbumMeta> entry : currentAlbumMetaMap.entrySet()) {
+					final AlbumMeta albumMeta = entry.getValue();
+					if (albumMeta == null) {
+						continue;
+					}
+					final Map<String, Integer> storedCounts = albumMeta.getKeywordCounts();
+					final Map<String, Integer> albumKeywordCounts = applyKeywordMutations(storedCounts, currentAlbumMutationMap.get(entry.getKey()));
+					for (final Entry<String, Integer> keywordEntry : albumKeywordCounts.entrySet()) {
+						final Integer oldCount = keywordCounts.get(keywordEntry.getKey());
+						final Integer albumCount = keywordEntry.getValue();
+						if (albumCount == null || albumCount.intValue() <= 0) {
+							continue;
+						}
+						if (oldCount == null) {
+							keywordCounts.put(keywordEntry.getKey(), albumCount);
+						} else {
+							keywordCounts.put(keywordEntry.getKey(), Integer.valueOf(albumCount.intValue() + oldCount.intValue()));
+						}
+					}
+				}
+				final Map<String, FieldReader<Entry<String, Integer>>> fieldReaders = new HashMap<String, FieldReader<Entry<String, Integer>>>();
+				fieldReaders.put(Client.KeywordEntry.KEYWORD, new StringFieldReader<Map.Entry<String, Integer>>() {
+					@Override
+					public String getString(final Entry<String, Integer> value) {
+						return value.getKey();
+					}
+				});
+				fieldReaders.put(Client.KeywordEntry.COUNT, new NumericFieldReader<Map.Entry<String, Integer>>(Cursor.FIELD_TYPE_INTEGER) {
+
+					@Override
+					public Number getNumber(final Entry<String, Integer> value) {
+						return value.getValue();
+					}
+				});
+				return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(keywordCounts.entrySet(), projection, fieldReaders, criterium, order));
+			}
+		}, true);
+	}
+
+	@Override
+	public Cursor readServerIssueList(final String serverId, final String[] projection, final Criterium criterium, final SortOrder order) {
+		final ServerConnection serverConnection = getConnectionForServer(serverId);
+		if (serverConnection == null) {
+			return null;
+		}
+		final Collection<Issue> progressValues = new ArrayList<Issue>(serverConnection.getServerState().getIssues());
+
+		final Map<String, String> mappedFields = new HashMap<String, String>();
+		// mappedFields.put(Client.IssueEntry.CAN_ACK, "acknowledgable");
+		mappedFields.put(Client.IssueEntry.ISSUE_ACTION_ID, "issueId");
+		mappedFields.put(Client.IssueEntry.ALBUM_NAME, "albumName");
+		mappedFields.put(Client.IssueEntry.ALBUM_DETAIL_NAME, "detailName");
+		mappedFields.put(Client.IssueEntry.ISSUE_TIME, "issueTime");
+		mappedFields.put(Client.IssueEntry.DETAILS, "details");
+		mappedFields.put(Client.IssueEntry.ISSUE_TYPE, "type");
+
+		final Map<String, FieldReader<Issue>> fieldReaders = MapperUtil.makeNamedFieldReaders(Issue.class, mappedFields);
+		fieldReaders.put(Client.IssueEntry.ID, new NumericFieldReader<Issue>(Cursor.FIELD_TYPE_INTEGER) {
+			@Override
+			public Number getNumber(final Issue value) {
+				return Long.valueOf(makeLongId(value.getIssueId()));
+			}
+		});
+		fieldReaders.put(Client.IssueEntry.AVAILABLE_ACTIONS, new StringFieldReader<Issue>() {
+
+			@Override
+			public String getString(final Issue value) {
+				return Client.IssueEntry.encodeActions(value.getAvailableActions());
+			}
+		});
+		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders, criterium, order));
+	}
+
+	@Override
+	public Cursor readServerList(final String[] projection, final Criterium criterium, final SortOrder order) {
+		final Map<String, ArchiveConnection> archives = connectionMap.get();
+
+		final Collection<Pair<String, ServerConnection>> connections = new ArrayList<Pair<String, ServerConnection>>();
+		for (final Entry<String, ArchiveConnection> archiveEntry : archives.entrySet()) {
+			for (final ServerConnection server : archiveEntry.getValue().listServers().values()) {
+				connections.add(new Pair<String, ServerConnection>(archiveEntry.getKey(), server));
+			}
+		}
+
+		final Map<String, FieldReader<Pair<String, ServerConnection>>> fieldReaders = new HashMap<String, FieldReader<Pair<String, ServerConnection>>>();
+		fieldReaders.put(Client.ServerEntry.ARCHIVE_NAME, new StringFieldReader<Pair<String, ServerConnection>>() {
+			@Override
+			public String getString(final Pair<String, ServerConnection> value) {
+				return value.first;
+			}
+		});
+		fieldReaders.put(Client.ServerEntry.SERVER_ID, new StringFieldReader<Pair<String, ServerConnection>>() {
+
+			@Override
+			public String getString(final Pair<String, ServerConnection> value) {
+				return value.second.getInstanceId();
+			}
+		});
+		fieldReaders.put(Client.ServerEntry.SERVER_NAME, new StringFieldReader<Pair<String, ServerConnection>>() {
+
+			@Override
+			public String getString(final Pair<String, ServerConnection> value) {
+				return value.second.getServerName();
+			}
+		});
+		fieldReaders.put(Client.ServerEntry.ID, new NumericFieldReader<Pair<String, ServerConnection>>(Cursor.FIELD_TYPE_INTEGER) {
+
+			@Override
+			public Number getNumber(final Pair<String, ServerConnection> value) {
+				return Long.valueOf(makeLongId(value.second.getInstanceId()));
+			}
+		});
+
+		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(connections, projection, fieldReaders, criterium, order));
+
+	}
+
+	@Override
+	public Cursor readServerProgresList(final String serverId, final String[] projection, final Criterium criterium, final SortOrder order) {
+		final ServerConnection serverConnection = getConnectionForServer(serverId);
+		if (serverConnection == null) {
+			return null;
+		}
+		final Collection<Progress> progressValues = new ArrayList<Progress>(serverConnection.getServerState().getProgress());
+
+		final Map<String, String> mappedFields = new HashMap<String, String>();
+		mappedFields.put(Client.ProgressEntry.STEP_COUNT, "stepCount");
+		mappedFields.put(Client.ProgressEntry.CURRENT_STEP_NR, "currentStepNr");
+		mappedFields.put(Client.ProgressEntry.PROGRESS_DESCRIPTION, "progressDescription");
+		mappedFields.put(Client.ProgressEntry.CURRENT_STATE_DESCRIPTION, "currentStepDescription");
+		mappedFields.put(Client.ProgressEntry.PROGRESS_TYPE, "type");
+		final Map<String, FieldReader<Progress>> fieldReaders = MapperUtil.makeNamedFieldReaders(Progress.class, mappedFields);
+		fieldReaders.put(Client.ProgressEntry.ID, new NumericFieldReader<Progress>(Cursor.FIELD_TYPE_INTEGER) {
+
+			@Override
+			public Number getNumber(final Progress value) {
+				return Long.valueOf(makeLongId(value.getProgressId()));
+			}
+		});
+		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders, criterium, order));
+	}
+
+	@Override
+	public Cursor readSingleAlbum(final String archiveName, final String albumId, final String[] projection, final Criterium criterium, final SortOrder order) {
+		final Criterium entryCriterium = Criterium.and(Criterium.eq(Value.field(Client.Album.ARCHIVE_NAME), Value.constant(archiveName)),
+		                                               Criterium.eq(Value.field(Client.Album.ID), Value.constant(albumId)));
+		final Criterium queryCriterium;
+		if (criterium == null) {
+			queryCriterium = entryCriterium;
+		} else {
+			queryCriterium = Criterium.and(entryCriterium, criterium);
+		}
+		return makeCursorForAlbums(projection, queryCriterium, order);
+	}
+
+	@Override
+	public Cursor readSingleAlbumEntry(final String archiveName,
+	                                   final String albumId,
+	                                   final String archiveEntryId,
+	                                   final String[] projection,
+	                                   final Criterium criterium,
+	                                   final SortOrder order) {
+		return callWithLongTransaction(new TransactionCallable<Cursor>() {
+
+			@Override
+			public Cursor call(final DataProvider provider) {
+				final AlbumIndex affectedAlbum = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
+				final AlbumEntryIndex albumEntryIndex = new AlbumEntryIndex(affectedAlbum, archiveEntryId);
+				final AlbumEntryDto entryDto = provider.getAlbumEntryMap().get(albumEntryIndex);
+				if (entryDto == null) {
+					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum), null, null, provider);
+				}
+				return makeCursorForAlbumEntries(Collections.singletonList(albumEntryIndex), projection, Collections.singleton(affectedAlbum), criterium, null, provider);
+			}
+		});
+	}
+
+	@Override
+	public Cursor readStorages(final String[] projection, final Criterium criterium, final SortOrder order) {
+		return callInTransaction(new Callable<Cursor>() {
+
+			@Override
+			public Cursor call() throws Exception {
+				final HashSet<String> archives = new HashSet<String>();
+				final DataProvider currentDataProvider = getCurrentDataProvider();
+				for (final AlbumIndex albumEntry : currentDataProvider.getAlbumMetadataMap().keySet()) {
+					archives.add(albumEntry.getArchiveName());
+				}
+				final Collection<Pair<String, StorageEntry>> storagePairs = new ArrayList<Pair<String, StorageEntry>>();
+				for (final String archiv : archives) {
+					final ArchiveMeta storageList = currentDataProvider.getArchiveMetaMap().get(archiv);
+					if (storageList == null) {
+						continue;
+					}
+					for (final StorageEntry entry : storageList.getClients()) {
+						storagePairs.add(new Pair<String, StorageEntry>(archiv, entry));
+					}
+				}
+				final Map<String, String> mappedFields = new HashMap<String, String>();
+				mappedFields.put(Client.Storage.GBYTES_AVAILABLE, "gBytesAvailable");
+				mappedFields.put(Client.Storage.STORAGE_NAME, "storageName");
+				mappedFields.put(Client.Storage.TAKE_ALL_REPOSITORIES, "takeAllRepositories");
+				mappedFields.put(Client.Storage.STORAGE_ID, "storageId");
+				final Map<String, FieldReader<StorageEntry>> readers = MapperUtil.makeNamedFieldReaders(StorageEntry.class, mappedFields);
+				final Map<String, FieldReader<Pair<String, StorageEntry>>> delegateFieldReaders = MapperUtil.delegateFieldReaders(readers,
+				                                                                                                                  new Lookup<Pair<String, StorageEntry>, StorageEntry>() {
+					                                                                                                                  @Override
+					                                                                                                                  public StorageEntry get(final Pair<String, StorageEntry> key) {
+						                                                                                                                  return key.second;
+					                                                                                                                  }
+				                                                                                                                  });
+				delegateFieldReaders.put(Client.Storage.ARCHIVE_NAME, new StringFieldReader<Pair<String, StorageEntry>>() {
+
+					@Override
+					public String getString(final Pair<String, StorageEntry> value) {
+						return value.first;
+					}
+				});
+				return cursorNotifications.addStorageCursor(MapperUtil.loadCollectionIntoCursor(storagePairs, projection, delegateFieldReaders, criterium, order));
+			}
+		},
+		                         true);
+	}
+
+	@Override
+	public void resolveIssue(final String serverName, final String issueId, final IssueResolveAction action) {
+		final ServerConnection serverConnection = getConnectionForServer(serverName);
+		if (serverConnection == null) {
+			// TODO show a message to user
+			return;
+		}
+		// TODO show message if execution fails
+		serverConnection.resolveIssue(issueId, action);
+	}
+
+	@Override
+	public int updateAlbum(final String archiveName, final String albumId, final ContentValues values) {
+		final AlbumIndex album = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
+		final Collection<AlbumEntryIndex> albumEntriesToClear = new ArrayList<AlbumEntryIndex>();
+		final int updatedCount = callInTransaction(new Callable<Integer>() {
+			@Override
+			public Integer call() throws Exception {
+				final DataProvider currentDataProvider = getCurrentDataProvider();
+				final AlbumMeta albumMeta = currentDataProvider.getAlbumMetadataMap().get(album);
+				if (albumMeta == null) {
+					return Integer.valueOf(0);
+				}
+				final Collection<Mutation> newMutations = new ArrayList<Mutation>();
+				cursorNotifications.notifySingleAlbumCursorChanged(album);
+				// Handling of synchronization flag
+				final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
+				if (shouldSync != null) {
+					final BTreeMap<AlbumIndex, AlbumState> albumStateMap = currentDataProvider.getAlbumStateMap();
+					albumStateMap.putIfAbsent(album, AlbumState.builder().build());
+					final AlbumState albumState = albumStateMap.get(album);
+					if (albumState.isShouldSync() != shouldSync.booleanValue()) {
+						albumStateMap.put(album, albumState.withShouldSync(shouldSync.booleanValue()).withSynced(albumState.isSynced() && shouldSync.booleanValue()));
+						for (final AlbumEntryIndex albumEntryIndex : currentDataProvider.listEntriesByAlbum(album)) {
+							albumEntriesToClear.add(albumEntryIndex);
+						}
+					}
+				}
+
+				// handling of thumbnail image
+				final String thumbnailUri = values.getAsString(Client.Album.THUMBNAIL);
+				if (thumbnailUri != null) {
+					final String thumbnailId = ThumbnailUriParser.parseUri(Uri.parse(thumbnailUri), new ThumbnailUriReceiver<String>() {
+
+						@Override
+						public String execute(final String parsedArchiveName, final String parsedAlbumId, final String thumbnailId) {
+							if (!parsedArchiveName.equals(archiveName)) {
+								return null;
+							}
+							if (!parsedAlbumId.equals(albumId)) {
+								return null;
+							}
+							return thumbnailId;
+						}
+					});
+					if (thumbnailId != null) {
+						final TitleImageMutation mutation = new TitleImageMutation();
+						mutation.setAlbumLastModified(albumMeta.getLastModified());
+						mutation.setTitleImage(thumbnailId);
+						newMutations.add(mutation);
+					}
+				}
+
+				// handling of album title
+				final String title = values.getAsString(Client.Album.TITLE);
+				if (title != null) {
+					final TitleMutation mutation = new TitleMutation();
+					mutation.setAlbumLastModified(albumMeta.getLastModified());
+					mutation.setTitle(title);
+					newMutations.add(mutation);
+				}
+				final String newStorages = values.getAsString(Client.Album.STORAGES);
+				if (newStorages != null) {
+					final ArchiveMeta archiveMeta = currentDataProvider.getArchiveMetaMap().get(album.getArchiveName());
+					final String archiveMetaVersion = archiveMeta == null ? "undefined" : archiveMeta.getVersion();
+					final Collection<String> existingStorages = findStoragesOfAlbum(album);
+					final Collection<String> newStoragesCollection = Client.Album.decodeStorages(newStorages);
+					for (final String newStorage : newStoragesCollection) {
+						if (!existingStorages.contains(newStorage)) {
+							final StorageMutation entry = new StorageMutation();
+							entry.setMetadataVersion(archiveMetaVersion);
+							entry.setMutation(StorageMutation.Mutation.ADD);
+							entry.setStorage(newStorage);
+							newMutations.add(entry);
+						}
+					}
+					for (final String existingStorage : existingStorages) {
+						if (!newStoragesCollection.contains(existingStorage)) {
+							final StorageMutation entry = new StorageMutation();
+							entry.setMetadataVersion(archiveMetaVersion);
+							entry.setMutation(StorageMutation.Mutation.REMOVE);
+							entry.setStorage(existingStorage);
+							newMutations.add(entry);
+						}
+					}
+				}
+				if (!newMutations.isEmpty()) {
+					final AlbumMutationData albumMutationData = currentDataProvider.getAlbumMutationDataMap().get(album);
+					final ArrayList<Mutation> mutations = albumMutationData == null ? new ArrayList<Mutation>() : new ArrayList<Mutation>(albumMutationData.getMutations());
+					mutations.addAll(newMutations);
+					mutations.trimToSize();
+					currentDataProvider.getAlbumMutationDataMap().put(album, new AlbumMutationData(mutations));
+				}
+				return Integer.valueOf(1);
+			}
+
+		}, false).intValue();
+		for (final AlbumEntryIndex entryId : albumEntriesToClear) {
+			thumbnailCache.remove(entryId);
+		}
+		return updatedCount;
+	}
+
+	@Override
+	public int updateAlbumEntry(final String archiveName, final String albumId, final String albumEntryId, final ContentValues values) {
+		final AlbumIndex album = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
+		return callInTransaction(new Callable<Integer>() {
+			@Override
+			public Integer call() throws Exception {
+				final DataProvider currentDataProvider = getCurrentDataProvider();
+				final AlbumEntryDto albumEntryDto = currentDataProvider.getAlbumEntryMap().get(new AlbumEntryIndex(album, albumEntryId));
+				if (albumEntryDto == null) {
+					return Integer.valueOf(0);
+				}
+				final BTreeMap<AlbumIndex, AlbumMutationData> currentAlbumMutationMap = currentDataProvider.getAlbumMutationDataMap();
+				final AlbumMutationData mutationList = currentAlbumMutationMap.get(album);
+
+				final ArrayList<Mutation> mutations = new ArrayList<Mutation>(mutationList != null ? mutationList.getMutations() : Collections.<Mutation> emptyList());
+				boolean modified = false;
+				if (values.containsKey(Client.AlbumEntry.META_RATING)) {
+					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+						final Mutation mutationEntry = entryIterator.next();
+						if (mutationEntry instanceof RatingMutationEntry && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(albumEntryId)) {
+							entryIterator.remove();
+							modified = true;
+						}
+					}
+					final Integer newRating = values.getAsInteger(Client.AlbumEntry.META_RATING);
+					if (!objectEquals(albumEntryDto.getRating(), newRating)) {
+						final RatingMutationEntry newEntry = new RatingMutationEntry();
+						newEntry.setAlbumEntryId(albumEntryId);
+						newEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
+						newEntry.setRating(newRating);
+						mutations.add(newEntry);
+						modified = true;
+					}
+				}
+				if (values.containsKey(Client.AlbumEntry.META_CAPTION)) {
+					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+						final Mutation mutationEntry = entryIterator.next();
+						if (mutationEntry instanceof CaptionMutationEntry && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(albumEntryId)) {
+							entryIterator.remove();
+							modified = true;
+						}
+					}
+					final String newCaption = values.getAsString(Client.AlbumEntry.META_CAPTION);
+					if (!objectEquals(albumEntryDto.getCaption(), newCaption)) {
+						final CaptionMutationEntry mutationEntry = new CaptionMutationEntry();
+						mutationEntry.setAlbumEntryId(albumEntryId);
+						mutationEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
+						mutationEntry.setCaption(newCaption);
+						mutations.add(mutationEntry);
+						modified = true;
+					}
+				}
+
+				if (values.containsKey(Client.AlbumEntry.META_KEYWORDS)) {
+					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
+						final Mutation mutationEntry = entryIterator.next();
+						if (mutationEntry instanceof KeywordMutationEntry && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(albumEntryId)) {
+							entryIterator.remove();
+							modified = true;
+						}
+					}
+					final Collection<String> remainingKeywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(values.getAsString(Client.AlbumEntry.META_KEYWORDS)));
+					for (final String existingKeyword : albumEntryDto.getKeywords()) {
+						final boolean removeThisKeyword = !remainingKeywords.remove(existingKeyword);
+						if (removeThisKeyword) {
+							final KeywordMutationEntry mutationEntry = new KeywordMutationEntry();
+							mutationEntry.setAlbumEntryId(albumEntryId);
+							mutationEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
+							mutationEntry.setKeyword(existingKeyword);
+							mutationEntry.setMutation(KeywordMutation.REMOVE);
+							mutations.add(mutationEntry);
+							modified = true;
+						}
+					}
+					for (final String newKeyword : remainingKeywords) {
+						final KeywordMutationEntry mutationEntry = new KeywordMutationEntry();
+						mutationEntry.setAlbumEntryId(albumEntryId);
+						mutationEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
+						mutationEntry.setKeyword(newKeyword);
+						mutationEntry.setMutation(KeywordMutation.ADD);
+						mutations.add(mutationEntry);
+						modified = true;
+					}
+				}
+				cursorNotifications.notifySingleAlbumCursorChanged(album);
+				if (modified) {
+					mutations.trimToSize();
+					currentAlbumMutationMap.put(album, new AlbumMutationData(mutations));
+				}
+				return Integer.valueOf(1);
+			}
+		}, false).intValue();
+	}
+
 	private Map<String, Integer> applyKeywordMutations(final Map<String, Integer> storedCounts, final AlbumMutationData newMutationData) {
 		if (newMutationData != null) {
 			final Map<String, Integer> albumKeywordCounts = new HashMap<String, Integer>(storedCounts);
@@ -278,15 +1019,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return ret;
 	}
 
-	@Override
-	public void createAlbumOnServer(final String serverId, final String fullAlbumName, final Date autoAddDate) {
-		final ServerConnection serverConnection = getConnectionForServer(serverId);
-		if (serverConnection == null) {
-			return;
-		}
-		serverConnection.createAlbum(fullAlbumName, autoAddDate);
-	}
-
 	private boolean dateEquals(final Date date1, final Date date2) {
 		if (date1 == null) {
 			return date2 == null;
@@ -349,50 +1081,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return serverConnection;
 	}
 
-	@Override
-	public String getContenttype(final String archive, final String albumId, final String image) {
-		return callInTransaction(new Callable<String>() {
-
-			@Override
-			public String call() throws Exception {
-				final AlbumEntryDto entryDto = getCurrentDataProvider().getAlbumEntryMap().get(new AlbumEntryIndex(AlbumIndex.builder()
-				                                                                                                             .archiveName(archive)
-				                                                                                                             .albumId(albumId)
-				                                                                                                             .build(), image));
-				if (entryDto == null) {
-					return null;
-				}
-				switch (entryDto.getEntryType()) {
-				case IMAGE:
-					return "image/jpeg";
-				case VIDEO:
-					return "video/mp4";
-				default:
-					return null;
-				}
-			}
-		},
-		                         true);
-	}
-
 	private DataProvider getCurrentDataProvider() {
 		return currentMapDbTransaction.get();
-	}
-
-	@Override
-	public File getLoadedThumbnail(final String archiveName, final String albumId, final String albumEntryId) {
-		// final long startTime = System.currentTimeMillis();
-		// Log.i("Performance", "Start load Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId);
-		try {
-			final ThumbnailEntry thumbnailEntry = thumbnailCache.get(new AlbumEntryIndex(AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build(), albumEntryId));
-			if (thumbnailEntry == null) {
-				return null;
-			}
-			return thumbnailEntry.referencedFile;
-		} finally {
-			// Log.i("Performance", "Returned Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId + " in " + (System.currentTimeMillis() -
-			// startTime) + " ms");
-		}
 	}
 
 	private ThumbnailEntry ifExsists(final File file, final boolean confirmed) {
@@ -403,19 +1093,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		ret.referencedFile = file;
 		ret.confirmedByServer = confirmed;
 		return ret;
-	}
-
-	/*
-	 * (non-Javadoc)
-	 *
-	 * @see ch.bergturbenthal.raoa.provider.service.SynchronisationService#importFile(java.lang.String, byte[])
-	 */
-	@Override
-	public void importFile(final String serverName, final String filename, final byte[] data) {
-
-		final ServerConnection serverConnection = getConnectionForServer(serverName);
-		serverConnection.importFile(filename, data);
-
 	}
 
 	private void initServiceDiscovery() {
@@ -897,59 +1574,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		cursorNotifications.notifyAllAlbumCursorsChanged();
 	}
 
-	@Override
-	public void notifyServices(final Collection<InetSocketAddress> knownServiceEndpoints, final boolean withProgressUpdate) {
-		for (final InetSocketAddress inetSocketAddress : knownServiceEndpoints) {
-			Log.i(SERVICE_TAG, "Addr: " + inetSocketAddress);
-		}
-		final Map<String, Map<URL, PingResponse>> pingResponses = new HashMap<String, Map<URL, PingResponse>>();
-		for (final InetSocketAddress inetSocketAddress : knownServiceEndpoints) {
-			try {
-				if (!inetSocketAddress.getAddress().isReachable(200)) {
-					Log.i(SERVICE_TAG, "Ping to " + inetSocketAddress + " failed");
-					continue;
-				}
-			} catch (final IOException e) {
-				Log.w(SERVICE_TAG, "Cannot ping to " + inetSocketAddress);
-				continue;
-			}
-			final URL url = makeUrl(inetSocketAddress);
-			try {
-				final PingResponse response = pingService(url);
-				if (response != null) {
-					if (pingResponses.containsKey(response.getArchiveId())) {
-						pingResponses.get(response.getArchiveId()).put(url, response);
-					} else {
-						final Map<URL, PingResponse> map = new HashMap<URL, PingResponse>();
-						map.put(url, response);
-						pingResponses.put(response.getArchiveId(), map);
-					}
-				}
-			} catch (final Throwable ex) {
-				Log.e(SERVICE_TAG, "Exception while polling " + url, ex);
-			}
-		}
-		final HashMap<String, ArchiveConnection> oldConnectionMap = new HashMap<String, ArchiveConnection>(connectionMap.get());
-		final HashMap<String, ArchiveConnection> newConnectionMap = new HashMap<String, ArchiveConnection>();
-		for (final Entry<String, Map<URL, PingResponse>> responseEntry : pingResponses.entrySet()) {
-			final String archiveId = responseEntry.getKey();
-			final ArchiveConnection connection = oldConnectionMap.containsKey(archiveId) ? oldConnectionMap.get(archiveId) : new ArchiveConnection(archiveId,
-			                                                                                                                                       wrappedExecutorService);
-			connection.updateServerConnections(responseEntry.getValue());
-			newConnectionMap.put(archiveId, connection);
-		}
-		connectionMap.set(newConnectionMap);
-		updateServerCursors();
-		executorService.submit(new Runnable() {
-
-			@Override
-			public void run() {
-				updateAlbumsOnDB();
-			}
-		});
-		Log.i(SERVICE_TAG, pingResponses.toString());
-	}
-
 	private <O> boolean objectEquals(final O v1, final O v2) {
 		if (v1 == v2) {
 			return true;
@@ -958,115 +1582,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			return false;
 		}
 		return v1.equals(v2);
-	}
-
-	@Override
-	public IBinder onBind(final Intent arg0) {
-		return binder;
-	}
-
-	@Override
-	public void onCreate() {
-		super.onCreate();
-
-		executorService = Executors.newScheduledThreadPool(2, new ThreadFactory() {
-			final AtomicInteger	nextThreadIndex	= new AtomicInteger(0);
-
-			@Override
-			public Thread newThread(final Runnable r) {
-				return new Thread(r, "synchronisation-worker-" + nextThreadIndex.getAndIncrement());
-			}
-		});
-
-		registerScreenOnOff();
-		notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-
-		wrappedExecutorService = ExecutorServiceUtil.wrap(executorService);
-
-		initServiceDiscovery();
-
-		dataDir = new File(getFilesDir(), "data");
-		final File mapdbFile = new File(dataDir, "mapdb");
-		if (!mapdbFile.getParentFile().exists()) {
-			mapdbFile.getParentFile().mkdirs();
-		}
-		mapDB = DBMaker.newFileDB(mapdbFile).makeTxMaker();
-		// init db before first usage
-		callInTransaction(new Callable<Void>() {
-
-			@Override
-			public Void call() throws Exception {
-				return null;
-			}
-		}, false);
-
-		// setup and clean temp-dir
-		tempDir = new File(getCacheDir(), "temp");
-		if (!tempDir.exists()) {
-			tempDir.mkdirs();
-		}
-		for (final File file : tempDir.listFiles()) {
-			file.delete();
-		}
-
-		// setup thumbnails-dir
-		// temporary files
-		thumbnailsTempDir = new File(getCacheDir(), "thumbnails");
-		if (!thumbnailsTempDir.exists()) {
-			thumbnailsTempDir.mkdirs();
-		}
-		// explicit synced thumbnails
-		thumbnailsSyncDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "royalarchive");
-		if (!thumbnailsSyncDir.exists()) {
-			thumbnailsSyncDir.mkdirs();
-		}
-		// preload thumbnail-cache
-		initThumbnailCache(2 * 1024 * 1024);
-
-		executorService.schedule(new Runnable() {
-
-			@Override
-			public void run() {
-				NetworkReceiver.notifyNetworkState(getApplicationContext());
-			}
-		}, 2, TimeUnit.SECONDS);
-	}
-
-	@Override
-	public void onDestroy() {
-		executorService.shutdownNow();
-		notificationManager.cancel(NOTIFICATION);
-		dnsListener.stopListening();
-		stopSlowPolling();
-	}
-
-	@Override
-	public int onStartCommand(final Intent intent, final int flags, final int startId) {
-		if (intent != null) {
-			final ServiceCommand command = intent.getParcelableExtra("command");
-			if (command != null) {
-				switch (command) {
-				case START:
-					startRunning();
-					break;
-				case STOP:
-					stopRunning();
-					break;
-				case POLL:
-					pollServers();
-					break;
-				case SCREEN_ON:
-					startFastPolling();
-					break;
-				case SCREEN_OFF:
-					stopFastPolling();
-					break;
-				default:
-					break;
-				}
-			}
-		}
-		return START_STICKY;
 	}
 
 	private PingResponse pingService(final URL url) {
@@ -1150,314 +1665,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			return existingValue;
 		}
 		return emptyValue;
-	}
-
-	@Override
-	public Cursor readAlbumEntryKeywords(final String archiveName, final String albumName, final String[] projection, final Criterium criterium, final SortOrder order) {
-		return callInTransaction(new Callable<Cursor>() {
-
-			@Override
-			public Cursor call() throws Exception {
-				final DataProvider currentDataProvider = getCurrentDataProvider();
-				final BTreeMap<AlbumIndex, AlbumMeta> albumMetaMap = currentDataProvider.getAlbumMetadataMap();
-				final BTreeMap<AlbumIndex, AlbumMutationData> albumMutationMap = currentDataProvider.getAlbumMutationDataMap();
-				final AlbumIndex index = new AlbumIndex(albumName, archiveName);
-
-				final AlbumMeta albumMeta = albumMetaMap.get(index);
-				final Map<String, Integer> keywordCounts;
-				if (albumMeta != null) {
-					keywordCounts = applyKeywordMutations(albumMeta.getKeywordCounts(), albumMutationMap.get(index));
-				} else {
-					keywordCounts = Collections.emptyMap();
-				}
-				final Map<String, FieldReader<Entry<String, Integer>>> fieldReaders = new HashMap<String, FieldReader<Entry<String, Integer>>>();
-				fieldReaders.put(Client.KeywordEntry.KEYWORD, new StringFieldReader<Map.Entry<String, Integer>>() {
-					@Override
-					public String getString(final Entry<String, Integer> value) {
-						return value.getKey();
-					}
-				});
-				fieldReaders.put(Client.KeywordEntry.COUNT, new NumericFieldReader<Map.Entry<String, Integer>>(Cursor.FIELD_TYPE_INTEGER) {
-
-					@Override
-					public Number getNumber(final Entry<String, Integer> value) {
-						return value.getValue();
-					}
-				});
-				return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(keywordCounts.entrySet(), projection, fieldReaders, criterium, order));
-			}
-		}, true);
-
-	}
-
-	@Override
-	public Cursor readAlbumEntryList(final String archiveName, final String albumId, final String[] projection, final Criterium criterium, final SortOrder order) {
-		final AlbumIndex album = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
-
-		return callWithLongTransaction(new TransactionCallable<Cursor>() {
-
-			@Override
-			public Cursor call(final DataProvider provider) {
-				final long startTime = System.currentTimeMillis();
-				final AlbumMeta albumMeta = provider.getAlbumMetadataMap().get(album);
-				if (albumMeta == null) {
-					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(album), criterium, order, provider);
-				}
-				final ReadOnlyIterableIndexedAccess<AlbumEntryIndex> readOnlyIterableIndexedAccess = new ReadOnlyIterableIndexedAccess<AlbumEntryIndex>(provider.listEntriesByAlbum(album)
-				                                                                                                                                                .iterator(),
-				                                                                                                                                        albumMeta.getEntryCount());
-				Log.i(SERVICE_TAG, "Iteration-Time: " + (System.currentTimeMillis() - startTime) + " " + albumMeta.getEntryCount());
-				return makeCursorForAlbumEntries(readOnlyIterableIndexedAccess, projection, Collections.singleton(album), criterium, order, provider);
-			}
-		});
-	}
-
-	@Override
-	public Cursor readAlbumList(final String[] projection, final Criterium criterium, final SortOrder order) {
-		final Criterium visibleCriterium = Criterium.ge(Value.field(Client.Album.VISIBLE_SERVER_COUNT), Value.constant(Integer.valueOf(1)));
-		final Criterium syncedCriterium = Criterium.eq(Value.field(Client.Album.SHOULD_SYNC), Value.constant(Integer.valueOf(1)));
-		final Criterium combinedEnabledCriterium = Criterium.or(visibleCriterium, syncedCriterium);
-		final Criterium queryCriterium;
-		if (criterium == null) {
-			queryCriterium = combinedEnabledCriterium;
-		} else {
-			queryCriterium = Criterium.and(combinedEnabledCriterium, criterium);
-		}
-		return makeCursorForAlbums(projection, queryCriterium, order);
-	}
-
-	@Override
-	public Cursor readKeywordStatistics(final String[] projection, final Criterium criterium, final SortOrder order) {
-		return callInTransaction(new Callable<Cursor>() {
-
-			@Override
-			public Cursor call() throws Exception {
-				final Map<String, Integer> keywordCounts = new TreeMap<String, Integer>();
-				final DataProvider currentDataProvider = getCurrentDataProvider();
-				final BTreeMap<AlbumIndex, AlbumMeta> currentAlbumMetaMap = currentDataProvider.getAlbumMetadataMap();
-				final BTreeMap<AlbumIndex, AlbumMutationData> currentAlbumMutationMap = currentDataProvider.getAlbumMutationDataMap();
-				for (final Entry<AlbumIndex, AlbumMeta> entry : currentAlbumMetaMap.entrySet()) {
-					final AlbumMeta albumMeta = entry.getValue();
-					if (albumMeta == null) {
-						continue;
-					}
-					final Map<String, Integer> storedCounts = albumMeta.getKeywordCounts();
-					final Map<String, Integer> albumKeywordCounts = applyKeywordMutations(storedCounts, currentAlbumMutationMap.get(entry.getKey()));
-					for (final Entry<String, Integer> keywordEntry : albumKeywordCounts.entrySet()) {
-						final Integer oldCount = keywordCounts.get(keywordEntry.getKey());
-						final Integer albumCount = keywordEntry.getValue();
-						if (albumCount == null || albumCount.intValue() <= 0) {
-							continue;
-						}
-						if (oldCount == null) {
-							keywordCounts.put(keywordEntry.getKey(), albumCount);
-						} else {
-							keywordCounts.put(keywordEntry.getKey(), Integer.valueOf(albumCount.intValue() + oldCount.intValue()));
-						}
-					}
-				}
-				final Map<String, FieldReader<Entry<String, Integer>>> fieldReaders = new HashMap<String, FieldReader<Entry<String, Integer>>>();
-				fieldReaders.put(Client.KeywordEntry.KEYWORD, new StringFieldReader<Map.Entry<String, Integer>>() {
-					@Override
-					public String getString(final Entry<String, Integer> value) {
-						return value.getKey();
-					}
-				});
-				fieldReaders.put(Client.KeywordEntry.COUNT, new NumericFieldReader<Map.Entry<String, Integer>>(Cursor.FIELD_TYPE_INTEGER) {
-
-					@Override
-					public Number getNumber(final Entry<String, Integer> value) {
-						return value.getValue();
-					}
-				});
-				return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(keywordCounts.entrySet(), projection, fieldReaders, criterium, order));
-			}
-		}, true);
-	}
-
-	@Override
-	public Cursor readServerIssueList(final String serverId, final String[] projection, final Criterium criterium, final SortOrder order) {
-		final ServerConnection serverConnection = getConnectionForServer(serverId);
-		if (serverConnection == null) {
-			return null;
-		}
-		final Collection<Issue> progressValues = new ArrayList<Issue>(serverConnection.getServerState().getIssues());
-
-		final Map<String, String> mappedFields = new HashMap<String, String>();
-		// mappedFields.put(Client.IssueEntry.CAN_ACK, "acknowledgable");
-		mappedFields.put(Client.IssueEntry.ISSUE_ACTION_ID, "issueId");
-		mappedFields.put(Client.IssueEntry.ALBUM_NAME, "albumName");
-		mappedFields.put(Client.IssueEntry.ALBUM_DETAIL_NAME, "detailName");
-		mappedFields.put(Client.IssueEntry.ISSUE_TIME, "issueTime");
-		mappedFields.put(Client.IssueEntry.DETAILS, "details");
-		mappedFields.put(Client.IssueEntry.ISSUE_TYPE, "type");
-
-		final Map<String, FieldReader<Issue>> fieldReaders = MapperUtil.makeNamedFieldReaders(Issue.class, mappedFields);
-		fieldReaders.put(Client.IssueEntry.ID, new NumericFieldReader<Issue>(Cursor.FIELD_TYPE_INTEGER) {
-			@Override
-			public Number getNumber(final Issue value) {
-				return Long.valueOf(makeLongId(value.getIssueId()));
-			}
-		});
-		fieldReaders.put(Client.IssueEntry.AVAILABLE_ACTIONS, new StringFieldReader<Issue>() {
-
-			@Override
-			public String getString(final Issue value) {
-				return Client.IssueEntry.encodeActions(value.getAvailableActions());
-			}
-		});
-		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders, criterium, order));
-	}
-
-	@Override
-	public Cursor readServerList(final String[] projection, final Criterium criterium, final SortOrder order) {
-		final Map<String, ArchiveConnection> archives = connectionMap.get();
-
-		final Collection<Pair<String, ServerConnection>> connections = new ArrayList<Pair<String, ServerConnection>>();
-		for (final Entry<String, ArchiveConnection> archiveEntry : archives.entrySet()) {
-			for (final ServerConnection server : archiveEntry.getValue().listServers().values()) {
-				connections.add(new Pair<String, ServerConnection>(archiveEntry.getKey(), server));
-			}
-		}
-
-		final Map<String, FieldReader<Pair<String, ServerConnection>>> fieldReaders = new HashMap<String, FieldReader<Pair<String, ServerConnection>>>();
-		fieldReaders.put(Client.ServerEntry.ARCHIVE_NAME, new StringFieldReader<Pair<String, ServerConnection>>() {
-			@Override
-			public String getString(final Pair<String, ServerConnection> value) {
-				return value.first;
-			}
-		});
-		fieldReaders.put(Client.ServerEntry.SERVER_ID, new StringFieldReader<Pair<String, ServerConnection>>() {
-
-			@Override
-			public String getString(final Pair<String, ServerConnection> value) {
-				return value.second.getInstanceId();
-			}
-		});
-		fieldReaders.put(Client.ServerEntry.SERVER_NAME, new StringFieldReader<Pair<String, ServerConnection>>() {
-
-			@Override
-			public String getString(final Pair<String, ServerConnection> value) {
-				return value.second.getServerName();
-			}
-		});
-		fieldReaders.put(Client.ServerEntry.ID, new NumericFieldReader<Pair<String, ServerConnection>>(Cursor.FIELD_TYPE_INTEGER) {
-
-			@Override
-			public Number getNumber(final Pair<String, ServerConnection> value) {
-				return Long.valueOf(makeLongId(value.second.getInstanceId()));
-			}
-		});
-
-		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(connections, projection, fieldReaders, criterium, order));
-
-	}
-
-	@Override
-	public Cursor readServerProgresList(final String serverId, final String[] projection, final Criterium criterium, final SortOrder order) {
-		final ServerConnection serverConnection = getConnectionForServer(serverId);
-		if (serverConnection == null) {
-			return null;
-		}
-		final Collection<Progress> progressValues = new ArrayList<Progress>(serverConnection.getServerState().getProgress());
-
-		final Map<String, String> mappedFields = new HashMap<String, String>();
-		mappedFields.put(Client.ProgressEntry.STEP_COUNT, "stepCount");
-		mappedFields.put(Client.ProgressEntry.CURRENT_STEP_NR, "currentStepNr");
-		mappedFields.put(Client.ProgressEntry.PROGRESS_DESCRIPTION, "progressDescription");
-		mappedFields.put(Client.ProgressEntry.CURRENT_STATE_DESCRIPTION, "currentStepDescription");
-		mappedFields.put(Client.ProgressEntry.PROGRESS_TYPE, "type");
-		final Map<String, FieldReader<Progress>> fieldReaders = MapperUtil.makeNamedFieldReaders(Progress.class, mappedFields);
-		fieldReaders.put(Client.ProgressEntry.ID, new NumericFieldReader<Progress>(Cursor.FIELD_TYPE_INTEGER) {
-
-			@Override
-			public Number getNumber(final Progress value) {
-				return Long.valueOf(makeLongId(value.getProgressId()));
-			}
-		});
-		return cursorNotifications.addStateCursor(MapperUtil.loadCollectionIntoCursor(progressValues, projection, fieldReaders, criterium, order));
-	}
-
-	@Override
-	public Cursor readSingleAlbum(final String archiveName, final String albumId, final String[] projection, final Criterium criterium, final SortOrder order) {
-		final Criterium entryCriterium = Criterium.and(Criterium.eq(Value.field(Client.Album.ARCHIVE_NAME), Value.constant(archiveName)),
-		                                               Criterium.eq(Value.field(Client.Album.ID), Value.constant(albumId)));
-		final Criterium queryCriterium;
-		if (criterium == null) {
-			queryCriterium = entryCriterium;
-		} else {
-			queryCriterium = Criterium.and(entryCriterium, criterium);
-		}
-		return makeCursorForAlbums(projection, queryCriterium, order);
-	}
-
-	@Override
-	public Cursor readSingleAlbumEntry(final String archiveName,
-	                                   final String albumId,
-	                                   final String archiveEntryId,
-	                                   final String[] projection,
-	                                   final Criterium criterium,
-	                                   final SortOrder order) {
-		return callWithLongTransaction(new TransactionCallable<Cursor>() {
-
-			@Override
-			public Cursor call(final DataProvider provider) {
-				final AlbumIndex affectedAlbum = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
-				final AlbumEntryIndex albumEntryIndex = new AlbumEntryIndex(affectedAlbum, archiveEntryId);
-				final AlbumEntryDto entryDto = provider.getAlbumEntryMap().get(albumEntryIndex);
-				if (entryDto == null) {
-					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(affectedAlbum), null, null, provider);
-				}
-				return makeCursorForAlbumEntries(Collections.singletonList(albumEntryIndex), projection, Collections.singleton(affectedAlbum), criterium, null, provider);
-			}
-		});
-	}
-
-	@Override
-	public Cursor readStorages(final String[] projection, final Criterium criterium, final SortOrder order) {
-		return callInTransaction(new Callable<Cursor>() {
-
-			@Override
-			public Cursor call() throws Exception {
-				final HashSet<String> archives = new HashSet<String>();
-				final DataProvider currentDataProvider = getCurrentDataProvider();
-				for (final AlbumIndex albumEntry : currentDataProvider.getAlbumMetadataMap().keySet()) {
-					archives.add(albumEntry.getArchiveName());
-				}
-				final Collection<Pair<String, StorageEntry>> storagePairs = new ArrayList<Pair<String, StorageEntry>>();
-				for (final String archiv : archives) {
-					final ArchiveMeta storageList = currentDataProvider.getArchiveMetaMap().get(archiv);
-					if (storageList == null) {
-						continue;
-					}
-					for (final StorageEntry entry : storageList.getClients()) {
-						storagePairs.add(new Pair<String, StorageEntry>(archiv, entry));
-					}
-				}
-				final Map<String, String> mappedFields = new HashMap<String, String>();
-				mappedFields.put(Client.Storage.GBYTES_AVAILABLE, "gBytesAvailable");
-				mappedFields.put(Client.Storage.STORAGE_NAME, "storageName");
-				mappedFields.put(Client.Storage.TAKE_ALL_REPOSITORIES, "takeAllRepositories");
-				mappedFields.put(Client.Storage.STORAGE_ID, "storageId");
-				final Map<String, FieldReader<StorageEntry>> readers = MapperUtil.makeNamedFieldReaders(StorageEntry.class, mappedFields);
-				final Map<String, FieldReader<Pair<String, StorageEntry>>> delegateFieldReaders = MapperUtil.delegateFieldReaders(readers,
-				                                                                                                                  new Lookup<Pair<String, StorageEntry>, StorageEntry>() {
-					                                                                                                                  @Override
-					                                                                                                                  public StorageEntry get(final Pair<String, StorageEntry> key) {
-						                                                                                                                  return key.second;
-					                                                                                                                  }
-				                                                                                                                  });
-				delegateFieldReaders.put(Client.Storage.ARCHIVE_NAME, new StringFieldReader<Pair<String, StorageEntry>>() {
-
-					@Override
-					public String getString(final Pair<String, StorageEntry> value) {
-						return value.first;
-					}
-				});
-				return cursorNotifications.addStorageCursor(MapperUtil.loadCollectionIntoCursor(storagePairs, projection, delegateFieldReaders, criterium, order));
-			}
-		},
-		                         true);
 	}
 
 	private void refreshAlbumDetail(final AlbumConnection albumConnection, final AlbumIndex entry) {
@@ -1604,17 +1811,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		}, 5, TimeUnit.SECONDS);
 	}
 
-	@Override
-	public void resolveIssue(final String serverName, final String issueId, final IssueResolveAction action) {
-		final ServerConnection serverConnection = getConnectionForServer(serverName);
-		if (serverConnection == null) {
-			// TODO show a message to user
-			return;
-		}
-		// TODO show message if execution fails
-		serverConnection.resolveIssue(issueId, action);
-	}
-
 	private synchronized void startFastPolling() {
 		if (fastUpdatePollingFuture == null || fastUpdatePollingFuture.isCancelled()) {
 			fastUpdatePollingFuture = executorService.scheduleWithFixedDelay(new Runnable() {
@@ -1623,7 +1819,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				public void run() {
 					pollServers();
 				}
-			}, 2, 3, TimeUnit.SECONDS);
+			}, 20, 30, TimeUnit.SECONDS);
 		}
 
 	}
@@ -1670,108 +1866,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		if (slowUpdatePollingFuture != null) {
 			slowUpdatePollingFuture.cancel(false);
 		}
-	}
-
-	@Override
-	public int updateAlbum(final String archiveName, final String albumId, final ContentValues values) {
-		final AlbumIndex album = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
-		final Collection<AlbumEntryIndex> albumEntriesToClear = new ArrayList<AlbumEntryIndex>();
-		final int updatedCount = callInTransaction(new Callable<Integer>() {
-			@Override
-			public Integer call() throws Exception {
-				final DataProvider currentDataProvider = getCurrentDataProvider();
-				final AlbumMeta albumMeta = currentDataProvider.getAlbumMetadataMap().get(album);
-				if (albumMeta == null) {
-					return Integer.valueOf(0);
-				}
-				final Collection<Mutation> newMutations = new ArrayList<Mutation>();
-				cursorNotifications.notifySingleAlbumCursorChanged(album);
-				// Handling of synchronization flag
-				final Boolean shouldSync = values.getAsBoolean(Client.Album.SHOULD_SYNC);
-				if (shouldSync != null) {
-					final BTreeMap<AlbumIndex, AlbumState> albumStateMap = currentDataProvider.getAlbumStateMap();
-					albumStateMap.putIfAbsent(album, AlbumState.builder().build());
-					final AlbumState albumState = albumStateMap.get(album);
-					if (albumState.isShouldSync() != shouldSync.booleanValue()) {
-						albumStateMap.put(album, albumState.withShouldSync(shouldSync.booleanValue()).withSynced(albumState.isSynced() && shouldSync.booleanValue()));
-						for (final AlbumEntryIndex albumEntryIndex : currentDataProvider.listEntriesByAlbum(album)) {
-							albumEntriesToClear.add(albumEntryIndex);
-						}
-					}
-				}
-
-				// handling of thumbnail image
-				final String thumbnailUri = values.getAsString(Client.Album.THUMBNAIL);
-				if (thumbnailUri != null) {
-					final String thumbnailId = ThumbnailUriParser.parseUri(Uri.parse(thumbnailUri), new ThumbnailUriReceiver<String>() {
-
-						@Override
-						public String execute(final String parsedArchiveName, final String parsedAlbumId, final String thumbnailId) {
-							if (!parsedArchiveName.equals(archiveName)) {
-								return null;
-							}
-							if (!parsedAlbumId.equals(albumId)) {
-								return null;
-							}
-							return thumbnailId;
-						}
-					});
-					if (thumbnailId != null) {
-						final TitleImageMutation mutation = new TitleImageMutation();
-						mutation.setAlbumLastModified(albumMeta.getLastModified());
-						mutation.setTitleImage(thumbnailId);
-						newMutations.add(mutation);
-					}
-				}
-
-				// handling of album title
-				final String title = values.getAsString(Client.Album.TITLE);
-				if (title != null) {
-					final TitleMutation mutation = new TitleMutation();
-					mutation.setAlbumLastModified(albumMeta.getLastModified());
-					mutation.setTitle(title);
-					newMutations.add(mutation);
-				}
-				final String newStorages = values.getAsString(Client.Album.STORAGES);
-				if (newStorages != null) {
-					final ArchiveMeta archiveMeta = currentDataProvider.getArchiveMetaMap().get(album.getArchiveName());
-					final String archiveMetaVersion = archiveMeta == null ? "undefined" : archiveMeta.getVersion();
-					final Collection<String> existingStorages = findStoragesOfAlbum(album);
-					final Collection<String> newStoragesCollection = Client.Album.decodeStorages(newStorages);
-					for (final String newStorage : newStoragesCollection) {
-						if (!existingStorages.contains(newStorage)) {
-							final StorageMutation entry = new StorageMutation();
-							entry.setMetadataVersion(archiveMetaVersion);
-							entry.setMutation(StorageMutation.Mutation.ADD);
-							entry.setStorage(newStorage);
-							newMutations.add(entry);
-						}
-					}
-					for (final String existingStorage : existingStorages) {
-						if (!newStoragesCollection.contains(existingStorage)) {
-							final StorageMutation entry = new StorageMutation();
-							entry.setMetadataVersion(archiveMetaVersion);
-							entry.setMutation(StorageMutation.Mutation.REMOVE);
-							entry.setStorage(existingStorage);
-							newMutations.add(entry);
-						}
-					}
-				}
-				if (!newMutations.isEmpty()) {
-					final AlbumMutationData albumMutationData = currentDataProvider.getAlbumMutationDataMap().get(album);
-					final ArrayList<Mutation> mutations = albumMutationData == null ? new ArrayList<Mutation>() : new ArrayList<Mutation>(albumMutationData.getMutations());
-					mutations.addAll(newMutations);
-					mutations.trimToSize();
-					currentDataProvider.getAlbumMutationDataMap().put(album, new AlbumMutationData(mutations));
-				}
-				return Integer.valueOf(1);
-			}
-
-		}, false).intValue();
-		for (final AlbumEntryIndex entryId : albumEntriesToClear) {
-			thumbnailCache.remove(entryId);
-		}
-		return updatedCount;
 	}
 
 	private void updateAlbumDetail(final String archiveName,
@@ -1847,100 +1941,6 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		if (shouldLoadThumbnails.get()) {
 			loadThumbnailsOfAlbum(index);
 		}
-	}
-
-	@Override
-	public int updateAlbumEntry(final String archiveName, final String albumId, final String albumEntryId, final ContentValues values) {
-		final AlbumIndex album = AlbumIndex.builder().archiveName(archiveName).albumId(albumId).build();
-		return callInTransaction(new Callable<Integer>() {
-			@Override
-			public Integer call() throws Exception {
-				final DataProvider currentDataProvider = getCurrentDataProvider();
-				final AlbumEntryDto albumEntryDto = currentDataProvider.getAlbumEntryMap().get(new AlbumEntryIndex(album, albumEntryId));
-				if (albumEntryDto == null) {
-					return Integer.valueOf(0);
-				}
-				final BTreeMap<AlbumIndex, AlbumMutationData> currentAlbumMutationMap = currentDataProvider.getAlbumMutationDataMap();
-				final AlbumMutationData mutationList = currentAlbumMutationMap.get(album);
-
-				final ArrayList<Mutation> mutations = new ArrayList<Mutation>(mutationList != null ? mutationList.getMutations() : Collections.<Mutation> emptyList());
-				boolean modified = false;
-				if (values.containsKey(Client.AlbumEntry.META_RATING)) {
-					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
-						final Mutation mutationEntry = entryIterator.next();
-						if (mutationEntry instanceof RatingMutationEntry && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(albumEntryId)) {
-							entryIterator.remove();
-							modified = true;
-						}
-					}
-					final Integer newRating = values.getAsInteger(Client.AlbumEntry.META_RATING);
-					if (!objectEquals(albumEntryDto.getRating(), newRating)) {
-						final RatingMutationEntry newEntry = new RatingMutationEntry();
-						newEntry.setAlbumEntryId(albumEntryId);
-						newEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
-						newEntry.setRating(newRating);
-						mutations.add(newEntry);
-						modified = true;
-					}
-				}
-				if (values.containsKey(Client.AlbumEntry.META_CAPTION)) {
-					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
-						final Mutation mutationEntry = entryIterator.next();
-						if (mutationEntry instanceof CaptionMutationEntry && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(albumEntryId)) {
-							entryIterator.remove();
-							modified = true;
-						}
-					}
-					final String newCaption = values.getAsString(Client.AlbumEntry.META_CAPTION);
-					if (!objectEquals(albumEntryDto.getCaption(), newCaption)) {
-						final CaptionMutationEntry mutationEntry = new CaptionMutationEntry();
-						mutationEntry.setAlbumEntryId(albumEntryId);
-						mutationEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
-						mutationEntry.setCaption(newCaption);
-						mutations.add(mutationEntry);
-						modified = true;
-					}
-				}
-
-				if (values.containsKey(Client.AlbumEntry.META_KEYWORDS)) {
-					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
-						final Mutation mutationEntry = entryIterator.next();
-						if (mutationEntry instanceof KeywordMutationEntry && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(albumEntryId)) {
-							entryIterator.remove();
-							modified = true;
-						}
-					}
-					final Collection<String> remainingKeywords = new HashSet<String>(Client.AlbumEntry.decodeKeywords(values.getAsString(Client.AlbumEntry.META_KEYWORDS)));
-					for (final String existingKeyword : albumEntryDto.getKeywords()) {
-						final boolean removeThisKeyword = !remainingKeywords.remove(existingKeyword);
-						if (removeThisKeyword) {
-							final KeywordMutationEntry mutationEntry = new KeywordMutationEntry();
-							mutationEntry.setAlbumEntryId(albumEntryId);
-							mutationEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
-							mutationEntry.setKeyword(existingKeyword);
-							mutationEntry.setMutation(KeywordMutation.REMOVE);
-							mutations.add(mutationEntry);
-							modified = true;
-						}
-					}
-					for (final String newKeyword : remainingKeywords) {
-						final KeywordMutationEntry mutationEntry = new KeywordMutationEntry();
-						mutationEntry.setAlbumEntryId(albumEntryId);
-						mutationEntry.setBaseVersion(albumEntryDto.getEditableMetadataHash());
-						mutationEntry.setKeyword(newKeyword);
-						mutationEntry.setMutation(KeywordMutation.ADD);
-						mutations.add(mutationEntry);
-						modified = true;
-					}
-				}
-				cursorNotifications.notifySingleAlbumCursorChanged(album);
-				if (modified) {
-					mutations.trimToSize();
-					currentAlbumMutationMap.put(album, new AlbumMutationData(mutations));
-				}
-				return Integer.valueOf(1);
-			}
-		}, false).intValue();
 	}
 
 	private void updateAlbumsOnDB() {
