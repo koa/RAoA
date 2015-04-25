@@ -9,6 +9,7 @@ import java.util.Date;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
@@ -49,6 +50,8 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@Autowired
 	private AlbumAccess albumAccess;
 
+	private final Semaphore concurrentBuildThumbnailSemaphore = new Semaphore(10);
+
 	@Autowired
 	private DirectoryNotificationService directoryNotificationService;
 
@@ -63,34 +66,6 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		return makeAlbumEntry(Util.encodeStringForUrl(album.getName()), album);
 	}
 
-	private void fillAlbumImageEntry(final AlbumImage albumImage, final AlbumImageEntry entry) {
-		entry.setName(albumImage.getName());
-		entry.setVideo(albumImage.isVideo());
-		entry.setLastModified(albumImage.lastModified());
-		entry.setOriginalFileSize(albumImage.getOriginalFileSize());
-		final File thumbnail = albumImage.getThumbnail(true);
-		if (thumbnail != null) {
-			entry.setThumbnailFileSize(thumbnail.length());
-		}
-		try {
-			final AlbumEntryData albumEntryData = albumImage.getAlbumEntryData();
-
-			entry.setCaptureDate(albumImage.captureDate());
-			entry.setCameraMake(albumEntryData.getCameraMake());
-			entry.setCameraModel(albumEntryData.getCameraModel());
-			entry.setCaption(albumEntryData.getCaption());
-			entry.setEditableMetadataHash(albumEntryData.getEditableMetadataHash());
-			entry.setExposureTime(albumEntryData.getExposureTime());
-			entry.setFNumber(albumEntryData.getFNumber());
-			entry.setFocalLength(albumEntryData.getFocalLength());
-			entry.setIso(albumEntryData.getIso());
-			entry.setKeywords(albumEntryData.getKeywords());
-			entry.setRating(albumEntryData.getRating());
-		} catch (final RuntimeException ex) {
-			logger.warn("cannot read metadata from image " + albumImage.getName(), ex);
-		}
-	}
-
 	@RequestMapping(value = "import", method = RequestMethod.GET)
 	public void importDirectory(@RequestParam("path") final String path, final HttpServletResponse response) throws IOException, InterruptedException, ExecutionException {
 		directoryNotificationService.notifyDirectory(new File(path)).get();
@@ -99,7 +74,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.raoa.data.api.Album#importFile(ch.bergturbenthal.raoa.data.model.ImportFileRequest)
 	 */
 	@Override
@@ -160,29 +135,6 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		return albumList;
 	}
 
-	private AlbumEntry makeAlbumEntry(final String id, final Album album) {
-		final AlbumEntry albumEntry = new AlbumEntry(id, album.getName());
-		albumEntry.setLastModified(album.getLastModified());
-		albumEntry.setCommitCount(album.getCommitCount());
-		albumEntry.getClients().addAll(albumAccess.clientsPerAlbum(id));
-		return albumEntry;
-	}
-
-	private ImageResult makeImageResult(final File sourceFile, final AlbumImage image, final Date ifModifiedSince) {
-		final Date lastModified = new Date(sourceFile.lastModified());
-		if (ifModifiedSince == null || ifModifiedSince.before(lastModified)) {
-			return ImageResult.makeModifiedResult(lastModified, image.captureDate(), new ImageResult.StreamSource() {
-
-				@Override
-				public InputStream getInputStream() throws IOException {
-					return new FileInputStream(sourceFile);
-				}
-			}, image.isVideo() ? "video/mp4" : "image/jpeg");
-		} else {
-			return ImageResult.makeNotModifiedResult();
-		}
-	}
-
 	@Override
 	public ImageResult readImage(final String albumId, final String imageId, final Date ifModifiedSince) throws IOException {
 		final Album album = albumAccess.getAlbum(albumId);
@@ -196,6 +148,16 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		final File thumbnailImage = image.getThumbnail(true);
 		if (thumbnailImage != null) {
 			return makeImageResult(thumbnailImage, image, ifModifiedSince);
+		}
+		if (concurrentBuildThumbnailSemaphore.tryAcquire()) {
+			try {
+				final File newThumbnailFile = image.getThumbnail(false);
+				if (newThumbnailFile != null) {
+					return makeImageResult(newThumbnailFile, image, ifModifiedSince);
+				}
+			} finally {
+				concurrentBuildThumbnailSemaphore.release();
+			}
 		}
 		return null;
 	}
@@ -290,5 +252,56 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@RequestMapping(value = "{albumId}/updateMeta", method = RequestMethod.PUT)
 	public void updateMetadata(@PathVariable("albumId") final String albumId, @RequestBody final UpdateMetadataRequest request, final HttpServletResponse response) {
 		updateMetadata(albumId, request);
+	}
+
+	private void fillAlbumImageEntry(final AlbumImage albumImage, final AlbumImageEntry entry) {
+		entry.setName(albumImage.getName());
+		entry.setVideo(albumImage.isVideo());
+		entry.setLastModified(albumImage.lastModified());
+		entry.setOriginalFileSize(albumImage.getOriginalFileSize());
+		final File thumbnail = albumImage.getThumbnail(true);
+		if (thumbnail != null) {
+			entry.setThumbnailFileSize(thumbnail.length());
+		}
+		try {
+			final AlbumEntryData albumEntryData = albumImage.getAlbumEntryData();
+
+			entry.setCaptureDate(albumImage.captureDate());
+			entry.setCameraMake(albumEntryData.getCameraMake());
+			entry.setCameraModel(albumEntryData.getCameraModel());
+			entry.setCaption(albumEntryData.getCaption());
+			entry.setEditableMetadataHash(albumEntryData.getEditableMetadataHash());
+			entry.setExposureTime(albumEntryData.getExposureTime());
+			entry.setFNumber(albumEntryData.getFNumber());
+			entry.setFocalLength(albumEntryData.getFocalLength());
+			entry.setIso(albumEntryData.getIso());
+			entry.setKeywords(albumEntryData.getKeywords());
+			entry.setRating(albumEntryData.getRating());
+		} catch (final RuntimeException ex) {
+			logger.warn("cannot read metadata from image " + albumImage.getName(), ex);
+		}
+	}
+
+	private AlbumEntry makeAlbumEntry(final String id, final Album album) {
+		final AlbumEntry albumEntry = new AlbumEntry(id, album.getName());
+		albumEntry.setLastModified(album.getLastModified());
+		albumEntry.setCommitCount(album.getCommitCount());
+		albumEntry.getClients().addAll(albumAccess.clientsPerAlbum(id));
+		return albumEntry;
+	}
+
+	private ImageResult makeImageResult(final File sourceFile, final AlbumImage image, final Date ifModifiedSince) {
+		final Date lastModified = new Date(sourceFile.lastModified());
+		if (ifModifiedSince == null || ifModifiedSince.before(lastModified)) {
+			return ImageResult.makeModifiedResult(lastModified, image.captureDate(), new ImageResult.StreamSource() {
+
+				@Override
+				public InputStream getInputStream() throws IOException {
+					return new FileInputStream(sourceFile);
+				}
+			}, image.isVideo() ? "video/mp4" : "image/jpeg");
+		} else {
+			return ImageResult.makeNotModifiedResult();
+		}
 	}
 }
