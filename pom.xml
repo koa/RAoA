@@ -288,10 +288,10 @@
       <name>Android ROME Feed Reader Repository</name>
       <url>https://android-rome-feed-reader.googlecode.com/svn/maven2/releases</url>
     </repository>
-    <repository>
+<!--     <repository>
       <id>renarj-release</id>
       <name>Internal release repository</name>
       <url>http://oberasoftware.com:8080/nexus/content/repositories/ren_release/</url>
     </repository>
-  </repositories>
+ -->  </repositories>
 </project>
