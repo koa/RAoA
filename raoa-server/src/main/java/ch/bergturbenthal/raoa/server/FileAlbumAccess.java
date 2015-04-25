@@ -279,7 +279,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.raoa.server.AlbumAccess#importFile(java.lang.String, byte[])
 	 */
 	@Override
@@ -600,7 +600,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					logger.warn("Exception while refreshing thumbnails", t);
 				}
 			}
-		}, 60, 2 * 60, TimeUnit.MINUTES);
+		}, 1, 15, TimeUnit.MINUTES);
 	}
 
 	private Album appendAlbum(final Map<String, Album> albumMap, final File albumDir, final String remoteUri, final String serverName) {
