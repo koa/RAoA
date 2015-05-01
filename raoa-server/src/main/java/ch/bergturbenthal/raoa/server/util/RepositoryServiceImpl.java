@@ -94,16 +94,20 @@ public class RepositoryServiceImpl implements RepositoryService {
 	@Override
 	public void checkoutMaster(final Git repository) {
 		try {
+			final String fullBranch = repository.getRepository().getFullBranch();
+			if ("refs/heads/master".equals(fullBranch)) {
+				return;
+			}
 			final Ref ref = repository.checkout().setName(MASTER_REF).call();
 			log.debug("Checked out Reference " + ref);
-		} catch (final GitAPIException e) {
+		} catch (final GitAPIException | IOException e) {
 			throw new RuntimeException("cannot checkout master", e);
 		}
 	}
 
 	/*
 	 * (non-Javadoc)
-	 *
+	 * 
 	 * @see ch.bergturbenthal.image.server.util.RepositoryService#cleanOldConflicts (org.eclipse.jgit.api.Git)
 	 */
 	@Override
@@ -155,7 +159,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	/*
 	 * (non-Javadoc)
-	 *
+	 * 
 	 * @see ch.bergturbenthal.image.server.util.RepositoryService#describeConflicts (org.eclipse.jgit.api.Git)
 	 */
 	@Override
