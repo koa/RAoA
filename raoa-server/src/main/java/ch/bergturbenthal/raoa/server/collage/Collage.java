@@ -6,14 +6,10 @@ import java.io.FileFilter;
 import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
 import javax.imageio.ImageIO;
-
-import org.junit.Ignore;
-import org.junit.Test;
 
 public class Collage {
 	private static final Random random = new Random();
@@ -160,25 +156,4 @@ public class Collage {
 		return readImagesFromDirectory(dir);
 	}
 
-	@Test
-	@Ignore
-	public void test() throws IOException {
-
-		final List<Image> images = readImages();
-		Collections.shuffle(images);
-		final int seriesCount = 35;// images.size() / 60;
-		final double seriesSize = images.size() * 1.0 / seriesCount;
-		int lastSeriesStart = 0;
-		for (int i = 0; i < seriesCount; i++) {
-			final int nextSeriesStart = (int) Math.round((i + 1) * seriesSize);
-			final List<Image> part = images.subList(lastSeriesStart, nextSeriesStart);
-			lastSeriesStart = nextSeriesStart;
-			final ArrayList<Image> list = new ArrayList<Image>(part);
-			for (int j = 0; j < 3; j++) {
-				Collections.shuffle(list);
-				generateMosaic(list, i + "-" + j);
-			}
-		}
-
-	}
 }
