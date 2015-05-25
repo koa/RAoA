@@ -79,8 +79,8 @@ import ch.bergturbenthal.raoa.server.metadata.PicasaIniData;
 import ch.bergturbenthal.raoa.server.metadata.PicasaIniEntryData;
 import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.model.AlbumMetadata;
+import ch.bergturbenthal.raoa.server.model.ConflictEntry;
 import ch.bergturbenthal.raoa.server.state.StateManager;
-import ch.bergturbenthal.raoa.server.util.ConflictEntry;
 import ch.bergturbenthal.raoa.server.util.RepositoryService;
 
 import com.fasterxml.jackson.core.JsonGenerationException;
@@ -142,6 +142,7 @@ public class Album implements ApplicationContextAware {
 	private static String AUTOADD_FILE = ".autoadd";
 
 	private static String CACHE_DIR = ".servercache";
+	private static String CONFLICT_FILE = "conflict.json";
 	private static String INDEX_FILE = ".index";
 	private static Logger logger = LoggerFactory.getLogger(Album.class);
 	private static ObjectMapper mapper = new ObjectMapper();
@@ -278,6 +279,7 @@ public class Album implements ApplicationContextAware {
 			final Status status = git.status().call();
 			if (!status.isClean()) {
 				git.commit().setMessage(message).call();
+				invalidateCache();
 			}
 		} catch (final GitAPIException e) {
 			throw new RuntimeException("Cannot execute commit on " + getName(), e);
@@ -286,6 +288,10 @@ public class Album implements ApplicationContextAware {
 		} finally {
 			state.set(AlbumState.READY);
 		}
+	}
+
+	private File conflictFile() {
+		return new File(cacheDir, CONFLICT_FILE);
 	}
 
 	private void estimateCreationDates() {
@@ -548,6 +554,14 @@ public class Album implements ApplicationContextAware {
 		cacheDir = new File(baseDir, CACHE_DIR);
 	}
 
+	private void invalidateCache() {
+		final File conflictFile = conflictFile();
+		if (conflictFile.exists()) {
+			conflictFile.delete();
+		}
+		updateConflictStatus();
+	}
+
 	public long lastModified() {
 		long lastModified = 0;
 		for (final File imageFile : listImageFiles()) {
@@ -792,8 +806,10 @@ public class Album implements ApplicationContextAware {
 			Thread.sleep(300);
 		}
 		try {
-			repositoryService.pull(git, remoteUri, serverName);
-			updateConflictStatus();
+			final boolean modified = repositoryService.pull(git, remoteUri, serverName);
+			if (modified) {
+				invalidateCache();
+			}
 		} finally {
 			state.set(AlbumState.READY);
 		}
@@ -854,8 +870,10 @@ public class Album implements ApplicationContextAware {
 	}
 
 	public synchronized void sync(final File remoteDir, final String localName, final String remoteName, final boolean bare) {
-		repositoryService.sync(git, remoteDir, localName, remoteName, bare);
-		updateConflictStatus();
+		final boolean modified = repositoryService.sync(git, remoteDir, localName, remoteName, bare);
+		if (modified) {
+			invalidateCache();
+		}
 	}
 
 	@Override
@@ -889,9 +907,9 @@ public class Album implements ApplicationContextAware {
 		}
 	}
 
-	private void updateConflictStatus() {
+	private synchronized void updateConflictStatus() {
 		try {
-			final Collection<ConflictEntry> conflicts = repositoryService.describeConflicts(git);
+			final Collection<ConflictEntry> conflicts = repositoryService.describeConflicts(git, conflictFile());
 			stateManager.reportConflict(getName(), conflicts);
 		} catch (final Throwable t) {
 			stateManager.recordException(getName(), t);

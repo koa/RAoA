@@ -5,6 +5,8 @@ import java.util.Collection;
 
 import org.eclipse.jgit.api.Git;
 
+import ch.bergturbenthal.raoa.server.model.ConflictEntry;
+
 public interface RepositoryService {
 
 	/**
@@ -15,7 +17,7 @@ public interface RepositoryService {
 	 */
 	void cleanOldConflicts(final Git git);
 
-	Collection<ConflictEntry> describeConflicts(final Git git);
+	Collection<ConflictEntry> describeConflicts(final Git git, final File conflictFile);
 
 	/**
 	 * implements pull with a simple conflict-handling
@@ -74,7 +76,7 @@ public interface RepositoryService {
 
 	/**
 	 * checkout master branch
-	 * 
+	 *
 	 * @param repository
 	 */
 	void checkoutMaster(final Git repository);

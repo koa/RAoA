@@ -24,7 +24,6 @@ import lombok.Data;
 
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jgit.api.errors.JGitInternalException;
-import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.errors.LockFailedException;
 import org.eclipse.jgit.lib.BatchingProgressMonitor;
 import org.springframework.beans.factory.BeanCreationException;
@@ -36,7 +35,8 @@ import ch.bergturbenthal.raoa.data.model.state.IssueType;
 import ch.bergturbenthal.raoa.data.model.state.Progress;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.model.state.ServerState;
-import ch.bergturbenthal.raoa.server.util.ConflictEntry;
+import ch.bergturbenthal.raoa.server.model.ConflictEntry;
+import ch.bergturbenthal.raoa.server.model.FileConflictEntry;
 import ch.bergturbenthal.raoa.server.util.ConflictMeta;
 
 public class StateManagerImpl implements StateManager {
@@ -231,7 +231,7 @@ public class StateManagerImpl implements StateManager {
 		final StringBuilder renamed = new StringBuilder();
 		final StringBuilder modified = new StringBuilder();
 		if (conflictEntry.getDiffs() != null) {
-			for (final DiffEntry diff : conflictEntry.getDiffs()) {
+			for (final FileConflictEntry diff : conflictEntry.getDiffs()) {
 				switch (diff.getChangeType()) {
 				case ADD:
 					added.append(diff.getNewPath());

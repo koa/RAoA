@@ -6,7 +6,7 @@ import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.data.model.state.IssueType;
 import ch.bergturbenthal.raoa.data.model.state.ProgressType;
 import ch.bergturbenthal.raoa.data.model.state.ServerState;
-import ch.bergturbenthal.raoa.server.util.ConflictEntry;
+import ch.bergturbenthal.raoa.server.model.ConflictEntry;
 
 public interface StateManager {
 	ProgressHandler newProgress(final int totalCount, final ProgressType type, final String progressDescription);

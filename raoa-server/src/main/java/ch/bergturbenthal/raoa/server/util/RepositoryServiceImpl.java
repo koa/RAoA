@@ -27,6 +27,7 @@ import org.eclipse.jgit.api.errors.CannotDeleteCurrentBranchException;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NotMergedException;
 import org.eclipse.jgit.diff.DiffEntry;
+import org.eclipse.jgit.errors.RevisionSyntaxException;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
@@ -51,6 +52,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.data.model.state.IssueType;
+import ch.bergturbenthal.raoa.server.model.BranchConflictEntry;
+import ch.bergturbenthal.raoa.server.model.ConflictEntry;
+import ch.bergturbenthal.raoa.server.model.FileConflictCache;
+import ch.bergturbenthal.raoa.server.model.FileConflictEntry;
 import ch.bergturbenthal.raoa.server.state.CloseableProgressMonitor;
 import ch.bergturbenthal.raoa.server.state.StateManager;
 
@@ -107,7 +112,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.image.server.util.RepositoryService#cleanOldConflicts (org.eclipse.jgit.api.Git)
 	 */
 	@Override
@@ -159,11 +164,11 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.image.server.util.RepositoryService#describeConflicts (org.eclipse.jgit.api.Git)
 	 */
 	@Override
-	public Collection<ConflictEntry> describeConflicts(final Git git) {
+	public Collection<ConflictEntry> describeConflicts(final Git git, final File conflictFile) {
 		final Map<AnyObjectId, ObjectId> notes = new HashMap<AnyObjectId, ObjectId>();
 		try {
 			final List<Note> foundNotes = git.notesList().setNotesRef(NOTES_CONFLICT_PREFIX).call();
@@ -174,47 +179,76 @@ public class RepositoryServiceImpl implements RepositoryService {
 		} catch (final GitAPIException e) {
 			log.error("Cannot read notes from " + git.getRepository(), e);
 		}
+		final FileConflictCache conflictCache = loadConflictCache(conflictFile);
+		final Map<String, BranchConflictEntry> oldConflicts = conflictCache.getConflicts();
+		final Map<String, BranchConflictEntry> newConflicts = new HashMap<>();
 		final ArrayList<ConflictEntry> ret = new ArrayList<ConflictEntry>();
 		for (final Entry<String, Ref> entry : collectConflictBranches(git)) {
+			final String branchName = entry.getKey();
 			try {
-				final ObjectReader objectReader = git.getRepository().newObjectReader();
-				final CanonicalTreeParser branchTree;
-				final RevCommit branchCommit;
-				try {
-					final RevWalk revWalk = new RevWalk(objectReader);
+				final BranchConflictEntry cachedConflicts = oldConflicts.get(branchName);
+				final BranchConflictEntry conflictData;
+				if (cachedConflicts == null) {
+					final ObjectReader objectReader = git.getRepository().newObjectReader();
+					final CanonicalTreeParser branchTree;
+					final RevCommit branchCommit;
 					try {
-						branchCommit = revWalk.parseCommit(entry.getValue().getObjectId());
-						branchTree = new CanonicalTreeParser(null, objectReader, branchCommit.getTree().getId());
+						final RevWalk revWalk = new RevWalk(objectReader);
+						try {
+							branchCommit = revWalk.parseCommit(entry.getValue().getObjectId());
+							branchTree = new CanonicalTreeParser(null, objectReader, branchCommit.getTree().getId());
+						} finally {
+							revWalk.dispose();
+						}
 					} finally {
-						revWalk.dispose();
+						objectReader.release();
 					}
-				} finally {
-					objectReader.release();
-				}
-				final List<DiffEntry> diffs = git.diff().setOldTree(branchTree).call();
-				final ObjectId attachedNote = notes.get(entry.getValue().getObjectId());
-				final ConflictMeta conflictMeta;
-				if (attachedNote != null) {
+					final List<DiffEntry> diffs = git.diff().setOldTree(branchTree).setShowNameAndStatusOnly(true).call();
+					final ObjectId attachedNote = notes.get(entry.getValue().getObjectId());
+					final ConflictMeta conflictMeta;
+					if (attachedNote != null) {
 
-					final ObjectLoader noteObjectLoader = git.getRepository().getObjectDatabase().open(attachedNote);
-					final byte[] note = IOUtils.toByteArray(noteObjectLoader.openStream());
-					conflictMeta = mapper.readValue(note, ConflictMeta.class);
+						final ObjectLoader noteObjectLoader = git.getRepository().getObjectDatabase().open(attachedNote);
+						final byte[] note = IOUtils.toByteArray(noteObjectLoader.openStream());
+						conflictMeta = mapper.readValue(note, ConflictMeta.class);
+					} else {
+						conflictMeta = null;
+					}
+					final Collection<FileConflictEntry> conflictEntries = new ArrayList<>(diffs.size());
+					for (final DiffEntry diffEntry : diffs) {
+						conflictEntries.add(new FileConflictEntry(diffEntry));
+					}
+					conflictData = new BranchConflictEntry();
+					conflictData.setBranchCommit(branchCommit.getName());
+					conflictData.setFileEntries(conflictEntries);
+					conflictData.setConflictMeta(conflictMeta);
 				} else {
-					conflictMeta = null;
+					conflictData = cachedConflicts;
 				}
+				newConflicts.put(branchName, conflictData);
 				final ConflictEntry conflictEntry = new ConflictEntry();
-				conflictEntry.setBranch(entry.getKey());
-				conflictEntry.setDiffs(diffs);
-				conflictEntry.setMeta(conflictMeta);
+				conflictEntry.setBranch(branchName);
+				conflictEntry.setDiffs(conflictData.getFileEntries());
+				conflictEntry.setMeta(conflictData.getConflictMeta());
 				final Map<IssueResolveAction, Runnable> actions = new HashMap<>();
-				actions.put(IssueResolveAction.IGNORE_OTHER, makeIgnoreOtherRunnable(git, branchCommit));
-				actions.put(IssueResolveAction.IGNORE_THIS, makeIgnoreThisRunnable(git, branchCommit));
+				actions.put(IssueResolveAction.IGNORE_OTHER, makeIgnoreOtherRunnable(git, conflictData.getBranchCommit()));
+				actions.put(IssueResolveAction.IGNORE_THIS, makeIgnoreThisRunnable(git, conflictData.getBranchCommit()));
 				conflictEntry.setResolveActions(actions);
 				ret.add(conflictEntry);
 			} catch (final Throwable e) {
-				throw new RuntimeException("Cannot parse branch " + entry.getKey(), e);
+				throw new RuntimeException("Cannot parse branch " + branchName, e);
 			}
-
+		}
+		if (newConflicts.isEmpty()) {
+			conflictFile.delete();
+		} else if (!newConflicts.equals(oldConflicts)) {
+			final FileConflictCache cacheToStore = new FileConflictCache();
+			cacheToStore.setConflicts(newConflicts);
+			try {
+				mapper.writerFor(FileConflictCache.class).writeValue(conflictFile, cacheToStore);
+			} catch (final IOException e) {
+				log.error("Cannot write cache to " + conflictFile, e);
+			}
 		}
 		return ret;
 	}
@@ -261,36 +295,50 @@ public class RepositoryServiceImpl implements RepositoryService {
 		}
 	}
 
-	private Runnable makeIgnoreOtherRunnable(final Git git, final RevCommit branchCommit) {
+	private FileConflictCache loadConflictCache(final File conflictFile) {
+		if (!conflictFile.exists()) {
+			return new FileConflictCache();
+		}
+		try {
+			return mapper.reader(FileConflictCache.class).<FileConflictCache> readValue(conflictFile);
+		} catch (final IOException e) {
+			log.error("Cannot load cache " + conflictFile, e);
+			return new FileConflictCache();
+		}
+	}
+
+	private Runnable makeIgnoreOtherRunnable(final Git git, final String branchCommit) {
 		return new Runnable() {
 			@Override
 			public void run() {
 				try {
+					final ObjectId resolvedBranchCommit = git.getRepository().resolve(branchCommit);
 					final MergeCommand mergeCommand = git.merge();
 					mergeCommand.setStrategy(MergeStrategy.OURS);
-					mergeCommand.include(branchCommit);
+					mergeCommand.include(resolvedBranchCommit);
 					final MergeResult mergeResult = mergeCommand.call();
 					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
 					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
-				} catch (final GitAPIException e) {
+				} catch (final GitAPIException | RevisionSyntaxException | IOException e) {
 					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
 				}
 			}
 		};
 	}
 
-	private Runnable makeIgnoreThisRunnable(final Git git, final RevCommit branchCommit) {
+	private Runnable makeIgnoreThisRunnable(final Git git, final String branchCommit) {
 		return new Runnable() {
 			@Override
 			public void run() {
 				try {
+					final ObjectId resolvedBranchCommit = git.getRepository().resolve(branchCommit);
 					final MergeCommand mergeCommand = git.merge();
 					mergeCommand.setStrategy(MergeStrategy.THEIRS);
-					mergeCommand.include(branchCommit);
+					mergeCommand.include(resolvedBranchCommit);
 					final MergeResult mergeResult = mergeCommand.call();
 					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
 					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
-				} catch (final GitAPIException e) {
+				} catch (final GitAPIException | RevisionSyntaxException | IOException e) {
 					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
 				}
 			}
