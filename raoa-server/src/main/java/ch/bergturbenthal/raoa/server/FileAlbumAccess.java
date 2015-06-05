@@ -60,6 +60,7 @@ import javax.jmdns.ServiceInfo;
 import javax.jmdns.ServiceListener;
 
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -73,8 +74,6 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormat;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -120,6 +119,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+@Slf4j
 public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfiguration, ArchiveConfiguration, FileNotification, ApplicationContextAware {
 	private static final String ALBUM_PATH_PREFERENCE = "album_path";
 	private static final String CLIENTID_FILENAME = ".clientid";
@@ -148,7 +148,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private JmmDNS jmmDNS;
 	private final AtomicLong lastLoadedDate = new AtomicLong(0);
 	private final Map<String, Album> loadedAlbums = new ConcurrentHashMap<String, Album>();
-	private final Logger logger = LoggerFactory.getLogger(FileAlbumAccess.class);
 	private Git metaGit;
 	private Preferences preferences = null;
 	private final Object processPeersLock = new Object();;
@@ -279,7 +278,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	/*
 	 * (non-Javadoc)
-	 *
+	 * 
 	 * @see ch.bergturbenthal.raoa.server.AlbumAccess#importFile(java.lang.String, byte[])
 	 */
 	@Override
@@ -304,7 +303,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	@Override
 	public void importFiles(final File importDir) {
 		if (!importDir.getAbsolutePath().startsWith(importBaseDir.getAbsolutePath())) {
-			logger.error("Secutity-Error: Not allowed to read Images from " + importDir + " (Import-Path is " + importBaseDir + ")");
+			log.error("Secutity-Error: Not allowed to read Images from " + importDir + " (Import-Path is " + importBaseDir + ")");
 			return;
 		}
 		importInternal(importDir);
@@ -575,7 +574,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			@Override
 			public void run() {
 				try {
+					log.info("Start refresh Cache");
 					refreshCache(false);
+					log.info("Start refresh thumbnails");
 					final Collection<Album> albums = new ArrayList<Album>(loadAlbums(true).values());
 					final Semaphore thumbnailSemaphore = new Semaphore(10);
 					for (final Album album : albums) {
@@ -596,8 +597,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					}
 					// wait for all threads
 					thumbnailSemaphore.acquire(10);
+					log.info("Finidhed refreshing thumbnails");
 				} catch (final Throwable t) {
-					logger.warn("Exception while refreshing thumbnails", t);
+					log.warn("Exception while refreshing thumbnails", t);
 				}
 			}
 		}, 1, 15, TimeUnit.MINUTES);
@@ -624,7 +626,8 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private String cleanAlbumName(final boolean bare, final String relativeDirectoryName) {
 		if (bare) {
 			if (!relativeDirectoryName.endsWith(".git")) {
-				throw new RuntimeException(relativeDirectoryName + " not ends with .git");
+				log.error(relativeDirectoryName + " not ends with .git");
+				return null;
 			}
 			return relativeDirectoryName.substring(0, relativeDirectoryName.length() - 4);
 		}
@@ -696,7 +699,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				addCommand.call();
 				repo.commit().setMessage(message).call();
 			} else {
-				logger.warn("Repository modified " + repo.getRepository());
+				log.warn("Repository modified " + repo.getRepository());
 			}
 		}
 	}
@@ -746,7 +749,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 						ret.putAll(loadedAlbums);
 					}
 					final File basePath = getBasePath();
-					logger.debug("Load Repositories from: " + basePath);
+					log.debug("Load Repositories from: " + basePath);
 					final int basePathLength = basePath.getAbsolutePath().length();
 					final Collection<Future<String>> futures = new ArrayList<>();
 					for (final File albumDir : findAlbums(basePath, false)) {
@@ -754,7 +757,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 							@Override
 							public String call() throws Exception {
-								logger.debug("Load Repository " + albumDir);
+								log.debug("Load Repository " + albumDir);
 								final String relativePath = albumDir.getAbsolutePath().substring(basePathLength + 1);
 								if (relativePath.equals(META_REPOSITORY)) {
 									return null;
@@ -815,7 +818,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					if (forceWait) {
 						throw new RuntimeException("Troubles while accessing resource " + getBaseDir(), e);
 					} else {
-						logger.error("Troubles while accessing resource " + getBaseDir(), e);
+						log.error("Troubles while accessing resource " + getBaseDir(), e);
 					}
 				}
 			}
@@ -889,7 +892,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		try {
 			preferences.flush();
 		} catch (final BackingStoreException e) {
-			logger.warn("Cannot persist config", e);
+			log.warn("Cannot persist config", e);
 		}
 	}
 
@@ -949,10 +952,10 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					// logger.info(" ->" + album.getName());
 					if (album.importImage(file, createDate)) {
 						modifiedAlbums.add(album);
-						logger.debug("image " + file + " imported successfully to " + album.getName());
+						log.debug("image " + file + " imported successfully to " + album.getName());
 						deleteFiles.add(file);
 					} else {
-						logger.warn("Could not import image " + file);
+						log.warn("Could not import image " + file);
 					}
 				} catch (final ImageProcessingException e) {
 					throw new RuntimeException("Cannot import file " + file, e);
@@ -966,7 +969,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			for (final File file : deleteFiles) {
 				final boolean deleted = file.delete();
 				if (!deleted) {
-					logger.error("Cannot delete File " + file);
+					log.error("Cannot delete File " + file);
 				}
 			}
 		} finally {
@@ -1149,15 +1152,15 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 						}
 						foundPeers.put(pingResponse.getServerId(), candidateUri);
 					} catch (final URISyntaxException e) {
-						logger.warn("Cannot build URL for " + serviceInfo, e);
+						log.warn("Cannot build URL for " + serviceInfo, e);
 					} catch (final RestClientException e) {
-						logger.warn("ping " + serviceInfo, e);
+						log.warn("ping " + serviceInfo, e);
 					}
 				}
 			}
-			logger.info("Found peers: ");
+			log.info("Found peers: ");
 			for (final Entry<String, URI> peerEntry : foundPeers.entrySet()) {
-				logger.info(" - " + peerEntry.getKey() + ": " + peerEntry.getValue());
+				log.info(" - " + peerEntry.getKey() + ": " + peerEntry.getValue());
 			}
 			updateAllRepositories(foundPeers.values());
 		}
@@ -1226,10 +1229,10 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					buf.append(", ");
 					buf.append(imageCount.intValue());
 					buf.append(" Images");
-					logger.info(buf.toString());
+					log.info(buf.toString());
 					updateStatistics(countByTag);
 				} catch (final InterruptedException e) {
-					logger.info("cache refresh interrupted");
+					log.info("cache refresh interrupted");
 				}
 				return null;
 			}
@@ -1256,7 +1259,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			final String localName = getInstanceName();
 			final String remoteName = readClientId(path, bare);
 			if (remoteName == null) {
-				logger.warn("No valid client-id at " + path);
+				log.warn("No valid client-id at " + path);
 				return;
 			}
 			final File remoteMetaDir = new File(path, makeRepositoryDirectoryName(bare, META_REPOSITORY));
@@ -1270,6 +1273,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			final int basePathLength = path.getAbsolutePath().length() + 1;
 			for (final File file : existingAlbumsOnExternalDisk) {
 				final String relativeName = cleanAlbumName(bare, file.getAbsolutePath().substring(basePathLength));
+				if (relativeName == null) {
+					continue;
+				}
 				if (relativeName.equals(META_REPOSITORY)) {
 					continue;
 				}
@@ -1313,7 +1319,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 										}
 										return makeAlbumId(album.getNameComps());
 									} catch (final Exception e) {
-										logger.warn("Cannot read Repository " + path, e);
+										log.warn("Cannot read Repository " + path, e);
 										// cleanup failed repository
 										for (final File file : FileUtils.listFiles(albumDir, null, true)) {
 											file.setWritable(true, false);
@@ -1363,7 +1369,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				}
 			});
 		} catch (final Throwable t) {
-			logger.warn("Cannot sync with " + path, t);
+			log.warn("Cannot sync with " + path, t);
 		}
 	}
 
@@ -1394,7 +1400,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					loadMetaConfig();
 				}
 			} catch (final Throwable e) {
-				logger.error("Cannot pull remote repository from " + remoteHost, e);
+				log.error("Cannot pull remote repository from " + remoteHost, e);
 			}
 			final AlbumList remoteAlbumList = albumListEntity.getBody();
 			final Map<String, Album> localAlbums = listAlbums();
@@ -1430,7 +1436,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 								localAlbumForRemote.pull(remoteUri, pingResponse.getServerName());
 							}
 						} catch (final Throwable e) {
-							logger.warn("Cannot sync with " + remoteHost, e);
+							log.warn("Cannot sync with " + remoteHost, e);
 						}
 					}
 				});
