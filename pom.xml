@@ -14,6 +14,7 @@
     <module>raoa-server-standalone</module>
     <module>raoa-server-war</module>
     <!-- <module>raoa-client-test</module> -->
+    <module>raoa-disk-agent</module>
   </modules>
   <parent>
     <groupId>ch.berg-turbenthal.parent</groupId>
