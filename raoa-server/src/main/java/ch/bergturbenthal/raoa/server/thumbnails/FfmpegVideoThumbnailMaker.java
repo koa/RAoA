@@ -25,39 +25,6 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 
 	private String binary;
 
-	private boolean execute(final CommandLine cmdLine, final long timeout, final OutputStream output) {
-		try {
-			return executeInternal(cmdLine, timeout, output);
-		} catch (final IOException e) {
-			throw new RuntimeException("Cannot execute " + cmdLine, e);
-		}
-	}
-
-	private boolean executeInternal(final CommandLine cmdLine, final long timeout, final OutputStream output) throws ExecuteException, IOException {
-		final Executor executor = new DefaultExecutor();
-		if (output != null) {
-			executor.setStreamHandler(new PumpStreamHandler(output));
-		}
-		executor.setWatchdog(new ExecuteWatchdog(timeout));
-		final int result = executor.execute(cmdLine);
-		return result == 0;
-	}
-
-	@PostConstruct
-	private void init() {
-		if (binary != null && testExecutable(binary)) {
-			// binary is already configured and valid
-			return;
-		}
-		for (final String candidate : binaryCandiates) {
-			if (testExecutable(candidate)) {
-				binary = candidate;
-				return;
-			}
-		}
-		throw new RuntimeException("No ffmpeg-compatible video converter found");
-	}
-
 	@Override
 	public boolean makeVideoThumbnail(final File originalFile, final File thumbnailFile, final File tempDir) {
 		// no valid binary found -> cannot convert
@@ -150,6 +117,39 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 		this.binary = binary;
 	}
 
+	private boolean execute(final CommandLine cmdLine, final long timeout, final OutputStream output) {
+		try {
+			return executeInternal(cmdLine, timeout, output);
+		} catch (final IOException e) {
+			throw new RuntimeException("Cannot execute " + cmdLine, e);
+		}
+	}
+
+	private boolean executeInternal(final CommandLine cmdLine, final long timeout, final OutputStream output) throws ExecuteException, IOException {
+		final Executor executor = new DefaultExecutor();
+		if (output != null) {
+			executor.setStreamHandler(new PumpStreamHandler(output));
+		}
+		executor.setWatchdog(new ExecuteWatchdog(timeout));
+		final int result = executor.execute(cmdLine);
+		return result == 0;
+	}
+
+	@PostConstruct
+	private void init() {
+		if (binary != null && testExecutable(binary)) {
+			// binary is already configured and valid
+			return;
+		}
+		for (final String candidate : binaryCandiates) {
+			if (testExecutable(candidate)) {
+				binary = candidate;
+				return;
+			}
+		}
+		throw new RuntimeException("No ffmpeg-compatible video converter found");
+	}
+
 	private boolean testExecutable(final String executable) {
 		if (executable.trim().length() == 0) {
 			return false;
@@ -157,7 +157,7 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 		final CommandLine cmdLine = new CommandLine(executable);
 		cmdLine.addArgument("-version");
 		try {
-			return executeInternal(cmdLine, TimeUnit.SECONDS.toMillis(2), null);
+			return executeInternal(cmdLine, TimeUnit.MINUTES.toMillis(2), null);
 		} catch (final IOException e) {
 			log.debug("Executable " + executable + " not found", e);
 			return false;
