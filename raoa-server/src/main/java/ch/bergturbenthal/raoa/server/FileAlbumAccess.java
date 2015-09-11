@@ -278,7 +278,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.raoa.server.AlbumAccess#importFile(java.lang.String, byte[])
 	 */
 	@Override
@@ -751,9 +751,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					final File basePath = getBasePath();
 					log.debug("Load Repositories from: " + basePath);
 					final int basePathLength = basePath.getAbsolutePath().length();
-					final Collection<Future<String>> futures = new ArrayList<>();
+					final Map<String, Future<String>> futures = new HashMap<String, Future<String>>();
 					for (final File albumDir : findAlbums(basePath, false)) {
-						futures.add(safeExecutorService.submit(new Callable<String>() {
+						futures.put(albumDir.getName(), safeExecutorService.submit(new Callable<String>() {
 
 							@Override
 							public String call() throws Exception {
@@ -774,10 +774,15 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 						}));
 					}
 					final Set<String> foundAlbums = new HashSet<>();
-					for (final Future<String> future : futures) {
-						final String albumId = future.get();
-						if (albumId != null) {
-							foundAlbums.add(albumId);
+					for (final Entry<String, Future<String>> futureEntry : futures.entrySet()) {
+						try {
+							final Future<String> future = futureEntry.getValue();
+							final String albumId = future.get();
+							if (albumId != null) {
+								foundAlbums.add(albumId);
+							}
+						} catch (final Exception e) {
+							log.error("Cannot load album " + futureEntry.getKey(), e);
 						}
 					}
 					loadedAlbums.keySet().retainAll(foundAlbums);

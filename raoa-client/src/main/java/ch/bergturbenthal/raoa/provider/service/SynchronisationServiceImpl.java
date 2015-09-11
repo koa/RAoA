@@ -1679,7 +1679,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				final BTreeMap<AlbumIndex, AlbumMutationData> albumMutationDataMap = currentDataProvider.getAlbumMutationDataMap();
 				final BTreeMap<AlbumEntryIndex, AlbumEntryDto> albumEntryMap = currentDataProvider.getAlbumEntryMap();
 				final AlbumMutationData mutationList = albumMutationDataMap.get(entry);
-				final Collection<Mutation> mutations = mutationList != null && mutationList.getMutations() != null ? mutationList.getMutations()
+				final Collection<Mutation> mutations = mutationList != null && mutationList.getMutations() != null ? new ArrayList<Mutation>(mutationList.getMutations())
 				    : Collections.<Mutation> emptyList();
 				final Collection<AlbumEntryIndex> entriesToRemove = new HashSet<AlbumEntryIndex>();
 				for (final AlbumEntryIndex entryIndex : currentDataProvider.listEntriesByAlbum(entry)) {
@@ -1753,14 +1753,15 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				}
 				currentDataProvider.getAlbumMetadataMap().put(entry, builder.build());
 
-				notifyAlbumChanged(entry);
 				if (mutations.isEmpty()) {
 					albumMutationDataMap.remove(entry);
+				} else if (mutations.size() != mutationList.getMutations().size()) {
+					albumMutationDataMap.put(entry, new AlbumMutationData(mutations));
 				}
+				notifyAlbumChanged(entry);
 				return null;
 			}
-		},
-		                  false);
+		}, false);
 	}
 
 	private void refreshThumbnailsFromFiles() {
