@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
 
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -138,16 +140,6 @@ public class RepositoryServiceImpl implements RepositoryService {
 		// }
 	}
 
-	private Collection<Entry<String, Ref>> collectConflictBranches(final Git git) {
-		final Collection<Entry<String, Ref>> foundConflicts = new ArrayList<Entry<String, Ref>>();
-		for (final Entry<String, Ref> refEntry : git.getRepository().getAllRefs().entrySet()) {
-			if (refEntry.getKey().startsWith(CONFLICT_BRANCH_PREFIX)) {
-				foundConflicts.add(refEntry);
-			}
-		}
-		return foundConflicts;
-	}
-
 	@Override
 	public int countCommits(final Git git) {
 		try {
@@ -253,20 +245,6 @@ public class RepositoryServiceImpl implements RepositoryService {
 		return ret;
 	}
 
-	private String findNextFreeConflictBranch(final Git localRepo, final String serverName, final Iterator<String> iterator) {
-		final Collection<String> existingConfictBranches = new HashSet<String>();
-		for (final Entry<String, Ref> entry : collectConflictBranches(localRepo)) {
-			existingConfictBranches.add(entry.getKey().substring(CONFLICT_BRANCH_PREFIX.length()));
-		}
-		while (iterator.hasNext()) {
-			final String nextCandidate = serverName.replace(' ', '_') + "/" + iterator.next();
-			if (!existingConfictBranches.contains(nextCandidate)) {
-				return nextCandidate;
-			}
-		}
-		return null;
-	}
-
 	@Override
 	public boolean isCurrentMaster(final Git repository) {
 		try {
@@ -293,56 +271,6 @@ public class RepositoryServiceImpl implements RepositoryService {
 			log.debug("Cannot find repository at " + directory, e);
 			return false;
 		}
-	}
-
-	private FileConflictCache loadConflictCache(final File conflictFile) {
-		if (!conflictFile.exists()) {
-			return new FileConflictCache();
-		}
-		try {
-			return mapper.reader(FileConflictCache.class).<FileConflictCache> readValue(conflictFile);
-		} catch (final IOException e) {
-			log.error("Cannot load cache " + conflictFile, e);
-			return new FileConflictCache();
-		}
-	}
-
-	private Runnable makeIgnoreOtherRunnable(final Git git, final String branchCommit) {
-		return new Runnable() {
-			@Override
-			public void run() {
-				try {
-					final ObjectId resolvedBranchCommit = git.getRepository().resolve(branchCommit);
-					final MergeCommand mergeCommand = git.merge();
-					mergeCommand.setStrategy(MergeStrategy.OURS);
-					mergeCommand.include(resolvedBranchCommit);
-					final MergeResult mergeResult = mergeCommand.call();
-					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
-					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
-				} catch (final GitAPIException | RevisionSyntaxException | IOException e) {
-					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
-				}
-			}
-		};
-	}
-
-	private Runnable makeIgnoreThisRunnable(final Git git, final String branchCommit) {
-		return new Runnable() {
-			@Override
-			public void run() {
-				try {
-					final ObjectId resolvedBranchCommit = git.getRepository().resolve(branchCommit);
-					final MergeCommand mergeCommand = git.merge();
-					mergeCommand.setStrategy(MergeStrategy.THEIRS);
-					mergeCommand.include(resolvedBranchCommit);
-					final MergeResult mergeResult = mergeCommand.call();
-					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
-					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
-				} catch (final GitAPIException | RevisionSyntaxException | IOException e) {
-					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
-				}
-			}
-		};
 	}
 
 	@Override
@@ -397,7 +325,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 	}
 
 	@Override
-	public boolean sync(final Git localRepository, final File externalDir, final String localName, final String remoteName, final boolean bare) {
+	public boolean sync(final Git localRepository, final File externalDir, final String localName, final String remoteName, final boolean bare, final ReadWriteLock rwLock) {
 		try {
 			final Git externalRepository;
 			if (!externalDir.exists()) {
@@ -408,57 +336,149 @@ public class RepositoryServiceImpl implements RepositoryService {
 			} else {
 				externalRepository = Git.open(externalDir);
 			}
-			if (!localRepository.status().call().isClean()) {
-				localRepository.add().addFilepattern(".").call();
-				localRepository.commit().setMessage("Commit for Synchronisation").call();
+			final Lock writeLock = rwLock.writeLock();
+			writeLock.lock();
+			try {
+				if (!localRepository.status().call().isClean()) {
+					localRepository.add().addFilepattern(".").call();
+					localRepository.commit().setMessage("Commit for Synchronisation").call();
+				}
+			} finally {
+				writeLock.unlock();
 			}
 			if (!bare && !externalRepository.status().call().isClean()) {
 				externalRepository.add().addFilepattern(".").call();
 				externalRepository.commit().setMessage("Commit for Synchronisation").call();
 			}
 			final boolean remoteHasHead = externalRepository.getRepository().resolve("HEAD") != null;
-			final boolean localModified = remoteHasHead ? pull(localRepository, externalDir.toURI().toString(), remoteName) : false;
+			final boolean localModified;
+			writeLock.lock();
+			try {
+				localModified = remoteHasHead ? pull(localRepository, externalDir.toURI().toString(), remoteName) : false;
+			} finally {
+				writeLock.unlock();
+			}
 			final String remoteUri = externalDir.toURI().toString();
-			if (bare) {
-				final Iterable<PushResult> pushResults = localRepository.push().setRemote(remoteUri).setRefSpecs(new RefSpec("master:master")).call();
-				boolean pushOk = true;
-				for (final PushResult pushResult : pushResults) {
-					for (final RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
-						final Status status = update.getStatus();
-						pushOk &= (status == Status.OK || status == Status.UP_TO_DATE);
-					}
-				}
-				if (!pushOk) {
-					final String conflictBranchName = findNextFreeConflictBranch(externalRepository, localName, new InfiniteCountIterator());
-					final Iterable<PushResult> pushToFreeBranchResult = localRepository.push()
-																																							.setRemote(remoteUri)
-																																							.setRefSpecs(new RefSpec("refs/heads/master:refs/heads/conflict/" + localName
-																																																				+ "/"
-																																																				+ conflictBranchName))
-																																							.call();
-					for (final PushResult pushResult : pushToFreeBranchResult) {
+			final Lock readLock = rwLock.readLock();
+			readLock.lock();
+			try {
+				if (bare) {
+					final Iterable<PushResult> pushResults = localRepository.push().setRemote(remoteUri).setRefSpecs(new RefSpec("master:master")).call();
+					boolean pushOk = true;
+					for (final PushResult pushResult : pushResults) {
 						for (final RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
 							final Status status = update.getStatus();
-							if (status != Status.OK && status != Status.UP_TO_DATE) {
-								stateManager.appendIssue(IssueType.UNKNOWN, null, null, "Cannot Push to " + remoteName + ": " + update.getMessage(), null);
+							pushOk &= (status == Status.OK || status == Status.UP_TO_DATE);
+						}
+					}
+					if (!pushOk) {
+						final String conflictBranchName = findNextFreeConflictBranch(externalRepository, localName, new InfiniteCountIterator());
+						final Iterable<PushResult> pushToFreeBranchResult = localRepository.push()
+																																								.setRemote(remoteUri)
+																																								.setRefSpecs(new RefSpec("refs/heads/master:refs/heads/conflict/" + localName
+																																																					+ "/"
+																																																					+ conflictBranchName))
+																																								.call();
+						for (final PushResult pushResult : pushToFreeBranchResult) {
+							for (final RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
+								final Status status = update.getStatus();
+								if (status != Status.OK && status != Status.UP_TO_DATE) {
+									stateManager.appendIssue(IssueType.UNKNOWN, null, null, "Cannot Push to " + remoteName + ": " + update.getMessage(), null);
+								}
 							}
+						}
+					} else {
+						final ObjectId localHeadId = localRepository.getRepository().getRef(MASTER_REF).getObjectId();
+						final ObjectId remoteHeadId = externalRepository.getRepository().getRef(MASTER_REF).getObjectId();
+						if (!localHeadId.equals(remoteHeadId)) {
+							log.error("Push error at " + externalDir);
 						}
 					}
 				} else {
-					final ObjectId localHeadId = localRepository.getRepository().getRef(MASTER_REF).getObjectId();
-					final ObjectId remoteHeadId = externalRepository.getRepository().getRef(MASTER_REF).getObjectId();
-					if (!localHeadId.equals(remoteHeadId)) {
-						log.error("Push error at " + externalDir);
-					}
+					final String localUri = localRepository.getRepository().getDirectory().toURI().toString();
+					pull(externalRepository, localUri, localName);
 				}
-			} else {
-				final String localUri = localRepository.getRepository().getDirectory().toURI().toString();
-				pull(externalRepository, localUri, localName);
-			}
 
-			return localModified;
+				return localModified;
+			} finally {
+				readLock.unlock();
+			}
 		} catch (final Throwable e) {
 			throw new RuntimeException("Cannot sync " + localRepository.getRepository() + " to " + externalDir, e);
 		}
+	}
+
+	private Collection<Entry<String, Ref>> collectConflictBranches(final Git git) {
+		final Collection<Entry<String, Ref>> foundConflicts = new ArrayList<Entry<String, Ref>>();
+		for (final Entry<String, Ref> refEntry : git.getRepository().getAllRefs().entrySet()) {
+			if (refEntry.getKey().startsWith(CONFLICT_BRANCH_PREFIX)) {
+				foundConflicts.add(refEntry);
+			}
+		}
+		return foundConflicts;
+	}
+
+	private String findNextFreeConflictBranch(final Git localRepo, final String serverName, final Iterator<String> iterator) {
+		final Collection<String> existingConfictBranches = new HashSet<String>();
+		for (final Entry<String, Ref> entry : collectConflictBranches(localRepo)) {
+			existingConfictBranches.add(entry.getKey().substring(CONFLICT_BRANCH_PREFIX.length()));
+		}
+		while (iterator.hasNext()) {
+			final String nextCandidate = serverName.replace(' ', '_') + "/" + iterator.next();
+			if (!existingConfictBranches.contains(nextCandidate)) {
+				return nextCandidate;
+			}
+		}
+		return null;
+	}
+
+	private FileConflictCache loadConflictCache(final File conflictFile) {
+		if (!conflictFile.exists()) {
+			return new FileConflictCache();
+		}
+		try {
+			return mapper.reader(FileConflictCache.class).<FileConflictCache> readValue(conflictFile);
+		} catch (final IOException e) {
+			log.error("Cannot load cache " + conflictFile, e);
+			return new FileConflictCache();
+		}
+	}
+
+	private Runnable makeIgnoreOtherRunnable(final Git git, final String branchCommit) {
+		return new Runnable() {
+			@Override
+			public void run() {
+				try {
+					final ObjectId resolvedBranchCommit = git.getRepository().resolve(branchCommit);
+					final MergeCommand mergeCommand = git.merge();
+					mergeCommand.setStrategy(MergeStrategy.OURS);
+					mergeCommand.include(resolvedBranchCommit);
+					final MergeResult mergeResult = mergeCommand.call();
+					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
+					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
+				} catch (final GitAPIException | RevisionSyntaxException | IOException e) {
+					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
+				}
+			}
+		};
+	}
+
+	private Runnable makeIgnoreThisRunnable(final Git git, final String branchCommit) {
+		return new Runnable() {
+			@Override
+			public void run() {
+				try {
+					final ObjectId resolvedBranchCommit = git.getRepository().resolve(branchCommit);
+					final MergeCommand mergeCommand = git.merge();
+					mergeCommand.setStrategy(MergeStrategy.THEIRS);
+					mergeCommand.include(resolvedBranchCommit);
+					final MergeResult mergeResult = mergeCommand.call();
+					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
+					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
+				} catch (final GitAPIException | RevisionSyntaxException | IOException e) {
+					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
+				}
+			}
+		};
 	}
 }

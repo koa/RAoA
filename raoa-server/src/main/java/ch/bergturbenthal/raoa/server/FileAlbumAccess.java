@@ -44,6 +44,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.PreferenceChangeEvent;
 import java.util.prefs.PreferenceChangeListener;
@@ -149,8 +151,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private final AtomicLong lastLoadedDate = new AtomicLong(0);
 	private final Map<String, Album> loadedAlbums = new ConcurrentHashMap<String, Album>();
 	private Git metaGit;
-	private Preferences preferences = null;
-	private final Object processPeersLock = new Object();;
+	private final ReadWriteLock metaRwLock = new ReentrantReadWriteLock();
+	private Preferences preferences = null;;
+	private final Object processPeersLock = new Object();
 	private final Semaphore refreshThumbnailsSemaphore = new Semaphore(1);
 	@Autowired
 	private RepositoryService repositoryService;
@@ -158,10 +161,10 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private ExecutorService safeExecutorService;
 	@Autowired
 	private StateManager stateManager;
+
 	private LocalStore store;
 
 	private final ExecutorService syncExecutorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), createSynchThreadFactory());
-
 	private final Semaphore updateAlbumListSemaphore = new Semaphore(1);
 
 	@Override
@@ -278,7 +281,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 	/*
 	 * (non-Javadoc)
-	 *
+	 * 
 	 * @see ch.bergturbenthal.raoa.server.AlbumAccess#importFile(java.lang.String, byte[])
 	 */
 	@Override
@@ -1268,7 +1271,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				return;
 			}
 			final File remoteMetaDir = new File(path, makeRepositoryDirectoryName(bare, META_REPOSITORY));
-			final boolean metaModified = repositoryService.sync(metaGit, remoteMetaDir, localName, remoteName, bare);
+			final boolean metaModified = repositoryService.sync(metaGit, remoteMetaDir, localName, remoteName, bare, metaRwLock);
 			if (metaModified) {
 				loadMetaConfig();
 			}
