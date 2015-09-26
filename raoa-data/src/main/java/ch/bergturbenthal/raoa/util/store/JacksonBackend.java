@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.io.OutputDecorator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 /**
  * TODO: add type comment.
@@ -63,6 +64,8 @@ public class JacksonBackend<T> extends AbstractFileBackend<T> {
 				return src;
 			}
 		});
+		plainMapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
+		gzMapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
 	}
 
 	/**
