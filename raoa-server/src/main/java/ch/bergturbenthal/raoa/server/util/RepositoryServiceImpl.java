@@ -114,7 +114,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	/*
 	 * (non-Javadoc)
-	 *
+	 * 
 	 * @see ch.bergturbenthal.image.server.util.RepositoryService#cleanOldConflicts (org.eclipse.jgit.api.Git)
 	 */
 	@Override
@@ -156,7 +156,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	/*
 	 * (non-Javadoc)
-	 *
+	 * 
 	 * @see ch.bergturbenthal.image.server.util.RepositoryService#describeConflicts (org.eclipse.jgit.api.Git)
 	 */
 	@Override
@@ -359,50 +359,44 @@ public class RepositoryServiceImpl implements RepositoryService {
 				writeLock.unlock();
 			}
 			final String remoteUri = externalDir.toURI().toString();
-			final Lock readLock = rwLock.readLock();
-			readLock.lock();
-			try {
-				if (bare) {
-					final Iterable<PushResult> pushResults = localRepository.push().setRemote(remoteUri).setRefSpecs(new RefSpec("master:master")).call();
-					boolean pushOk = true;
-					for (final PushResult pushResult : pushResults) {
+			if (bare) {
+				final Iterable<PushResult> pushResults = localRepository.push().setRemote(remoteUri).setRefSpecs(new RefSpec("master:master")).call();
+				boolean pushOk = true;
+				for (final PushResult pushResult : pushResults) {
+					for (final RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
+						final Status status = update.getStatus();
+						pushOk &= (status == Status.OK || status == Status.UP_TO_DATE);
+					}
+				}
+				if (!pushOk) {
+					final String conflictBranchName = findNextFreeConflictBranch(externalRepository, localName, new InfiniteCountIterator());
+					final Iterable<PushResult> pushToFreeBranchResult = localRepository.push()
+																																							.setRemote(remoteUri)
+																																							.setRefSpecs(new RefSpec("refs/heads/master:refs/heads/conflict/" + localName
+																																																				+ "/"
+																																																				+ conflictBranchName))
+																																							.call();
+					for (final PushResult pushResult : pushToFreeBranchResult) {
 						for (final RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
 							final Status status = update.getStatus();
-							pushOk &= (status == Status.OK || status == Status.UP_TO_DATE);
-						}
-					}
-					if (!pushOk) {
-						final String conflictBranchName = findNextFreeConflictBranch(externalRepository, localName, new InfiniteCountIterator());
-						final Iterable<PushResult> pushToFreeBranchResult = localRepository.push()
-																																								.setRemote(remoteUri)
-																																								.setRefSpecs(new RefSpec("refs/heads/master:refs/heads/conflict/" + localName
-																																																					+ "/"
-																																																					+ conflictBranchName))
-																																								.call();
-						for (final PushResult pushResult : pushToFreeBranchResult) {
-							for (final RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
-								final Status status = update.getStatus();
-								if (status != Status.OK && status != Status.UP_TO_DATE) {
-									stateManager.appendIssue(IssueType.UNKNOWN, null, null, "Cannot Push to " + remoteName + ": " + update.getMessage(), null);
-								}
+							if (status != Status.OK && status != Status.UP_TO_DATE) {
+								stateManager.appendIssue(IssueType.UNKNOWN, null, null, "Cannot Push to " + remoteName + ": " + update.getMessage(), null);
 							}
-						}
-					} else {
-						final ObjectId localHeadId = localRepository.getRepository().getRef(MASTER_REF).getObjectId();
-						final ObjectId remoteHeadId = externalRepository.getRepository().getRef(MASTER_REF).getObjectId();
-						if (!localHeadId.equals(remoteHeadId)) {
-							log.error("Push error at " + externalDir);
 						}
 					}
 				} else {
-					final String localUri = localRepository.getRepository().getDirectory().toURI().toString();
-					pull(externalRepository, localUri, localName);
+					final ObjectId localHeadId = localRepository.getRepository().getRef(MASTER_REF).getObjectId();
+					final ObjectId remoteHeadId = externalRepository.getRepository().getRef(MASTER_REF).getObjectId();
+					if (!localHeadId.equals(remoteHeadId)) {
+						log.error("Push error at " + externalDir);
+					}
 				}
-
-				return localModified;
-			} finally {
-				readLock.unlock();
+			} else {
+				final String localUri = localRepository.getRepository().getDirectory().toURI().toString();
+				pull(externalRepository, localUri, localName);
 			}
+
+			return localModified;
 		} catch (final Throwable e) {
 			throw new RuntimeException("Cannot sync " + localRepository.getRepository() + " to " + externalDir, e);
 		}
