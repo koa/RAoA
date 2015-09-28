@@ -2,6 +2,7 @@ package ch.bergturbenthal.raoa.server.util;
 
 import java.io.File;
 import java.util.Collection;
+import java.util.concurrent.locks.ReadWriteLock;
 
 import org.eclipse.jgit.api.Git;
 
@@ -42,10 +43,11 @@ public interface RepositoryService {
 	 *          name of the local server
 	 * @param remoteName
 	 *          name of the remote disc
+	 * @param rwLock
 	 * @param boolean bare;
 	 * @return true means the local repository is modified
 	 */
-	boolean sync(final Git localRepository, final File externalDir, final String localName, final String remoteName, final boolean bare);
+	boolean sync(final Git localRepository, final File externalDir, final String localName, final String remoteName, final boolean bare, final ReadWriteLock rwLock);
 
 	/**
 	 * check if a given directory is a repository
