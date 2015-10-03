@@ -140,6 +140,16 @@ public class RepositoryServiceImpl implements RepositoryService {
 		// }
 	}
 
+	private Collection<Entry<String, Ref>> collectConflictBranches(final Git git) {
+		final Collection<Entry<String, Ref>> foundConflicts = new ArrayList<Entry<String, Ref>>();
+		for (final Entry<String, Ref> refEntry : git.getRepository().getAllRefs().entrySet()) {
+			if (refEntry.getKey().startsWith(CONFLICT_BRANCH_PREFIX)) {
+				foundConflicts.add(refEntry);
+			}
+		}
+		return foundConflicts;
+	}
+
 	@Override
 	public int countCommits(final Git git) {
 		try {
@@ -181,10 +191,11 @@ public class RepositoryServiceImpl implements RepositoryService {
 				final BranchConflictEntry cachedConflicts = oldConflicts.get(branchName);
 				final BranchConflictEntry conflictData;
 				if (cachedConflicts == null) {
-					final ObjectReader objectReader = git.getRepository().newObjectReader();
 					final CanonicalTreeParser branchTree;
 					final RevCommit branchCommit;
-					try {
+					{
+						@Cleanup
+						final ObjectReader objectReader = git.getRepository().newObjectReader();
 						final RevWalk revWalk = new RevWalk(objectReader);
 						try {
 							branchCommit = revWalk.parseCommit(entry.getValue().getObjectId());
@@ -192,8 +203,6 @@ public class RepositoryServiceImpl implements RepositoryService {
 						} finally {
 							revWalk.dispose();
 						}
-					} finally {
-						objectReader.release();
 					}
 					final List<DiffEntry> diffs = git.diff().setOldTree(branchTree).setShowNameAndStatusOnly(true).call();
 					final ObjectId attachedNote = notes.get(entry.getValue().getObjectId());
@@ -245,6 +254,20 @@ public class RepositoryServiceImpl implements RepositoryService {
 		return ret;
 	}
 
+	private String findNextFreeConflictBranch(final Git localRepo, final String serverName, final Iterator<String> iterator) {
+		final Collection<String> existingConfictBranches = new HashSet<String>();
+		for (final Entry<String, Ref> entry : collectConflictBranches(localRepo)) {
+			existingConfictBranches.add(entry.getKey().substring(CONFLICT_BRANCH_PREFIX.length()));
+		}
+		while (iterator.hasNext()) {
+			final String nextCandidate = serverName.replace(' ', '_') + "/" + iterator.next();
+			if (!existingConfictBranches.contains(nextCandidate)) {
+				return nextCandidate;
+			}
+		}
+		return null;
+	}
+
 	@Override
 	public boolean isCurrentMaster(final Git repository) {
 		try {
@@ -271,6 +294,56 @@ public class RepositoryServiceImpl implements RepositoryService {
 			log.debug("Cannot find repository at " + directory, e);
 			return false;
 		}
+	}
+
+	private FileConflictCache loadConflictCache(final File conflictFile) {
+		if (!conflictFile.exists()) {
+			return new FileConflictCache();
+		}
+		try {
+			return mapper.reader(FileConflictCache.class).<FileConflictCache> readValue(conflictFile);
+		} catch (final IOException e) {
+			log.error("Cannot load cache " + conflictFile, e);
+			return new FileConflictCache();
+		}
+	}
+
+	private Runnable makeIgnoreOtherRunnable(final Git git, final String branchCommit) {
+		return new Runnable() {
+			@Override
+			public void run() {
+				try {
+					final ObjectId resolvedBranchCommit = git.getRepository().resolve(branchCommit);
+					final MergeCommand mergeCommand = git.merge();
+					mergeCommand.setStrategy(MergeStrategy.OURS);
+					mergeCommand.include(resolvedBranchCommit);
+					final MergeResult mergeResult = mergeCommand.call();
+					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
+					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
+				} catch (final GitAPIException | RevisionSyntaxException | IOException e) {
+					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
+				}
+			}
+		};
+	}
+
+	private Runnable makeIgnoreThisRunnable(final Git git, final String branchCommit) {
+		return new Runnable() {
+			@Override
+			public void run() {
+				try {
+					final ObjectId resolvedBranchCommit = git.getRepository().resolve(branchCommit);
+					final MergeCommand mergeCommand = git.merge();
+					mergeCommand.setStrategy(MergeStrategy.THEIRS);
+					mergeCommand.include(resolvedBranchCommit);
+					final MergeResult mergeResult = mergeCommand.call();
+					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
+					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
+				} catch (final GitAPIException | RevisionSyntaxException | IOException e) {
+					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
+				}
+			}
+		};
 	}
 
 	@Override
@@ -306,13 +379,10 @@ public class RepositoryServiceImpl implements RepositoryService {
 					conflictMeta.setServer(serverName);
 					conflictMeta.setConflictDate(new Date());
 					final String conflictMetaJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(conflictMeta);
+					@Cleanup
 					final RevWalk revWalk = new RevWalk(localRepo.getRepository());
-					try {
-						final RevObject id = revWalk.lookupCommit(newBranch.getObjectId());
-						localRepo.notesAdd().setObjectId(id).setNotesRef(NOTES_CONFLICT_PREFIX).setMessage(conflictMetaJson).call();
-					} finally {
-						revWalk.release();
-					}
+					final RevObject id = revWalk.lookupCommit(newBranch.getObjectId());
+					localRepo.notesAdd().setObjectId(id).setNotesRef(NOTES_CONFLICT_PREFIX).setMessage(conflictMetaJson).call();
 				}
 			}
 			cleanOldConflicts(localRepo);
@@ -400,79 +470,5 @@ public class RepositoryServiceImpl implements RepositoryService {
 		} catch (final Throwable e) {
 			throw new RuntimeException("Cannot sync " + localRepository.getRepository() + " to " + externalDir, e);
 		}
-	}
-
-	private Collection<Entry<String, Ref>> collectConflictBranches(final Git git) {
-		final Collection<Entry<String, Ref>> foundConflicts = new ArrayList<Entry<String, Ref>>();
-		for (final Entry<String, Ref> refEntry : git.getRepository().getAllRefs().entrySet()) {
-			if (refEntry.getKey().startsWith(CONFLICT_BRANCH_PREFIX)) {
-				foundConflicts.add(refEntry);
-			}
-		}
-		return foundConflicts;
-	}
-
-	private String findNextFreeConflictBranch(final Git localRepo, final String serverName, final Iterator<String> iterator) {
-		final Collection<String> existingConfictBranches = new HashSet<String>();
-		for (final Entry<String, Ref> entry : collectConflictBranches(localRepo)) {
-			existingConfictBranches.add(entry.getKey().substring(CONFLICT_BRANCH_PREFIX.length()));
-		}
-		while (iterator.hasNext()) {
-			final String nextCandidate = serverName.replace(' ', '_') + "/" + iterator.next();
-			if (!existingConfictBranches.contains(nextCandidate)) {
-				return nextCandidate;
-			}
-		}
-		return null;
-	}
-
-	private FileConflictCache loadConflictCache(final File conflictFile) {
-		if (!conflictFile.exists()) {
-			return new FileConflictCache();
-		}
-		try {
-			return mapper.reader(FileConflictCache.class).<FileConflictCache> readValue(conflictFile);
-		} catch (final IOException e) {
-			log.error("Cannot load cache " + conflictFile, e);
-			return new FileConflictCache();
-		}
-	}
-
-	private Runnable makeIgnoreOtherRunnable(final Git git, final String branchCommit) {
-		return new Runnable() {
-			@Override
-			public void run() {
-				try {
-					final ObjectId resolvedBranchCommit = git.getRepository().resolve(branchCommit);
-					final MergeCommand mergeCommand = git.merge();
-					mergeCommand.setStrategy(MergeStrategy.OURS);
-					mergeCommand.include(resolvedBranchCommit);
-					final MergeResult mergeResult = mergeCommand.call();
-					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
-					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
-				} catch (final GitAPIException | RevisionSyntaxException | IOException e) {
-					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
-				}
-			}
-		};
-	}
-
-	private Runnable makeIgnoreThisRunnable(final Git git, final String branchCommit) {
-		return new Runnable() {
-			@Override
-			public void run() {
-				try {
-					final ObjectId resolvedBranchCommit = git.getRepository().resolve(branchCommit);
-					final MergeCommand mergeCommand = git.merge();
-					mergeCommand.setStrategy(MergeStrategy.THEIRS);
-					mergeCommand.include(resolvedBranchCommit);
-					final MergeResult mergeResult = mergeCommand.call();
-					final MergeStatus mergeStatus = mergeResult.getMergeStatus();
-					log.info("Merged " + git.getRepository().getDirectory() + " Status: " + mergeStatus);
-				} catch (final GitAPIException | RevisionSyntaxException | IOException e) {
-					log.error("Canot merge on " + git.getRepository().getDirectory(), e);
-				}
-			}
-		};
 	}
 }
