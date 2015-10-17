@@ -63,7 +63,7 @@ public class ImageMagickImageThumbnailMaker implements ThumbnailMaker {
 																	30,
 																	TimeUnit.SECONDS,
 																	new ArrayBlockingQueue<Runnable>(20),
-																	new CustomizableThreadFactory("Image-Magik pool"),
+																	new CustomizableThreadFactory("Image-Magik pool-"),
 																	new ThreadPoolExecutor.CallerRunsPolicy());
 	}
 

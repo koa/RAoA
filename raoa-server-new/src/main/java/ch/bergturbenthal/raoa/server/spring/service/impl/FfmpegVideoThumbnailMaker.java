@@ -41,7 +41,7 @@ public class FfmpegVideoThumbnailMaker implements ThumbnailMaker {
 
 	@Override
 	public ExecutorService createExecutorservice() {
-		return new ThreadPoolExecutor(0, 1, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(20), new CustomizableThreadFactory("ffmpeg-pool"));
+		return new ThreadPoolExecutor(0, 1, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(20), new CustomizableThreadFactory("ffmpeg-pool-"));
 	}
 
 	private boolean execute(final CommandLine cmdLine, final long timeout, final OutputStream output) {
