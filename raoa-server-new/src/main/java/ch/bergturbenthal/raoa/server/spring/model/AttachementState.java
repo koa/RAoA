@@ -7,9 +7,9 @@ import lombok.Value;
 import org.eclipse.jgit.lib.ObjectId;
 
 @Value
-public class ThumbnailState {
+public class AttachementState {
 	private String commitId;
 	private long createTime = System.currentTimeMillis();
-	private Map<String, ObjectId> existingThumbnails;
-	private ObjectId lastThumbnailCommit;
+	private Map<String, ObjectId> existingAttachements;
+	private ObjectId lastAttachementCommit;
 }
