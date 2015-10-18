@@ -66,34 +66,8 @@ public class BareGitAlbumAccess implements AlbumAccess {
 	private static final String COMMIT_ID_FILE = "commit-id";
 	private static final String MASTER_REF = _REFS_HEADS + "master";
 
-	private static <R> Future<R> completedFuture(final R value) {
-		return new Future<R>() {
-
-			@Override
-			public boolean cancel(final boolean mayInterruptIfRunning) {
-				return false;
-			}
-
-			@Override
-			public R get() {
-				return value;
-			}
-
-			@Override
-			public R get(final long timeout, final TimeUnit unit) {
-				return value;
-			}
-
-			@Override
-			public boolean isCancelled() {
-				return false;
-			}
-
-			@Override
-			public boolean isDone() {
-				return true;
-			}
-		};
+	public static <R> Future<R> completedFuture(final R value) {
+		return new CompletedFuture<R>(value);
 	}
 
 	private final ConcurrentMap<File, AlbumData> albums = new ConcurrentHashMap<>();

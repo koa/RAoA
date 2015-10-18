@@ -11,12 +11,13 @@ import lombok.experimental.Builder;
 public class AlbumEntryMetadata {
 	private String cameraMake;
 	private String cameraModel;
+	private String cameraSerial;
 	private String caption;
 	private Date captureDate;
 	private Double exposureTime;
-
 	private Double fNumber;
 	private Double focalLength;
+	private Date gpsDate;
 	private Integer iso;
 	private boolean isVideo;
 	private Collection<String> keywords;
