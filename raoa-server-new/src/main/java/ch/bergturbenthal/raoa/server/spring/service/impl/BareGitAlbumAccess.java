@@ -3,7 +3,6 @@ package ch.bergturbenthal.raoa.server.spring.service.impl;
 import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -11,8 +10,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
@@ -24,9 +23,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.PostConstruct;
-
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.MissingObjectException;
@@ -57,11 +53,27 @@ import ch.bergturbenthal.raoa.server.spring.model.AlbumState;
 import ch.bergturbenthal.raoa.server.spring.model.AttachementState;
 import ch.bergturbenthal.raoa.server.spring.service.AlbumAccess;
 import ch.bergturbenthal.raoa.server.spring.service.AttachementGenerator;
+import ch.bergturbenthal.raoa.server.spring.service.AttachementGenerator.ObjectLoaderLookup;
 import ch.bergturbenthal.raoa.server.spring.util.FindGitDirWalker;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
 public class BareGitAlbumAccess implements AlbumAccess {
+	private static final class RepositoryObjectLoader implements ObjectLoaderLookup {
+		private final Repository repository;
+
+		private RepositoryObjectLoader(final Repository repository) {
+			this.repository = repository;
+		}
+
+		@Override
+		public ObjectLoader createLoader(final ObjectId object) throws IOException {
+			return repository.open(object);
+		}
+	}
+
 	private static final String _REFS_HEADS = "refs/heads/";
 	private static final String COMMIT_ID_FILE = "commit-id";
 	private static final String MASTER_REF = _REFS_HEADS + "master";
@@ -93,6 +105,14 @@ public class BareGitAlbumAccess implements AlbumAccess {
 					final ObjectId treeObjectId = inserter.insert(thumbnailTreeFormatter);
 					final CommitBuilder commitBuilder = new CommitBuilder();
 					if (thumbnailRefBefore != null) {
+						try (RevWalk walk = new RevWalk(repository)) {
+							final RevCommit commit = walk.parseCommit(thumbnailRefBefore);
+							final RevTree tree = commit.getTree();
+							if (tree.getId().equals(treeObjectId)) {
+								log.warn("No change -> Skip commit");
+								return true;
+							}
+						}
 						commitBuilder.setParentId(thumbnailRefBefore);
 					}
 					commitBuilder.setTreeId(treeObjectId);
@@ -134,56 +154,25 @@ public class BareGitAlbumAccess implements AlbumAccess {
 						for (final Entry<String, AlbumEntryData> entry : albumEntries.getEntries().entrySet()) {
 							final AlbumEntryData albumDataEntry = entry.getValue();
 							final String attachementFilename = attachementGenerator.createAttachementFilename(albumDataEntry);
-							final ObjectId existingThumbnail = getAttachementState(albumData, attachementRef).getExistingAttachements().get(attachementFilename);
-							if (existingThumbnail != null) {
-								synchronized (pendingObjects) {
-									pendingObjects.put(attachementFilename, completedFuture(existingThumbnail));
-								}
+							if (attachementFilename == null) {
 								continue;
 							}
-							final String originalFilename = entry.getKey();
-							pendingObjects.put(attachementFilename, attachementGenerator.generateAttachement(originalFilename, new Callable<ObjectLoader>() {
-
-								@Override
-								public ObjectLoader call() throws Exception {
-									final AlbumState albumEntries = getAlbumEntries(albumData);
-									if (albumEntries == null) {
-										return null;
-									}
-									final AlbumEntryData albumEntryData = albumEntries.getEntries().get(originalFilename);
-									if (albumEntryData == null) {
-										return null;
-									}
-									final ObjectId originalFileId = albumEntryData.getOriginalFileId();
-									if (originalFileId == null) {
-										return null;
-									}
-									return repository.open(originalFileId);
-								}
-							}, new Callable<ObjectLoader>() {
-
-								@Override
-								public ObjectLoader call() throws Exception {
-									final AlbumState albumEntries = getAlbumEntries(albumData);
-									if (albumEntries == null) {
-										return null;
-									}
-									final AlbumEntryData albumEntryData = albumEntries.getEntries().get(originalFilename);
-									if (albumEntryData == null) {
-										return null;
-									}
-									final ObjectId metadataSidecarId = albumEntryData.getMetadataSidecarId();
-									if (metadataSidecarId == null) {
-										return null;
-									}
-									return repository.open(metadataSidecarId);
-								}
-							}, repository.getObjectDatabase().newInserter()));
+							final ObjectId existingThumbnail = getAttachementState(albumData, attachementRef).getExistingAttachements().get(attachementFilename);
+							if (existingThumbnail != null) {
+								pendingObjects.put(attachementFilename, completedFuture(existingThumbnail));
+								continue;
+							}
+							pendingObjects.put(	attachementFilename,
+																	attachementGenerator.generateAttachement(	entry.getValue(),
+																																						new RepositoryObjectLoader(repository),
+																																						repository.getObjectDatabase().newInserter()));
 						}
 						final Map<String, ObjectId> entriesOfCommit = new HashMap<String, ObjectId>();
+						int lastFlushSize = 0;
 						do {
 							final long waitUntil = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(20);
-							for (final Iterator<java.util.Map.Entry<String, Future<ObjectId>>> pendingObjectsIterator = pendingObjects.entrySet().iterator(); pendingObjectsIterator.hasNext();) {
+							for (final Iterator<java.util.Map.Entry<String, Future<ObjectId>>> pendingObjectsIterator = pendingObjects.entrySet()
+																																																												.iterator(); pendingObjectsIterator.hasNext();) {
 								final Entry<String, Future<ObjectId>> futureEntry = pendingObjectsIterator.next();
 								try {
 									final Future<ObjectId> future = futureEntry.getValue();
@@ -204,7 +193,10 @@ public class BareGitAlbumAccess implements AlbumAccess {
 								entriesOfCommit.put(COMMIT_ID_FILE, commitIdFile);
 								inserter.flush();
 							}
-							flush(entriesOfCommit, albumData, lastThumbnailCommit);
+							if (lastFlushSize != entriesOfCommit.size()) {
+								flush(entriesOfCommit, albumData, lastThumbnailCommit);
+								lastFlushSize = entriesOfCommit.size();
+							}
 						} while (!pendingObjects.isEmpty());
 
 					} catch (final IOException | InterruptedException | ExecutionException e) {
@@ -290,33 +282,42 @@ public class BareGitAlbumAccess implements AlbumAccess {
 			final ObjectId objectId = treeWalk.getObjectId(0);
 			final String pathString = treeWalk.getPathString();
 			fileEntries.put(pathString, objectId);
-			albumEntries.put(pathString, AlbumEntryData.builder().originalFileId(objectId).build());
+			albumEntries.put(pathString, AlbumEntryData.builder().filename(pathString).originalFileId(objectId).build());
 		}
-		final List<String> metadataEntries = new ArrayList<String>();
-		for (final Entry<String, AlbumEntryData> fileEntry : albumEntries.entrySet()) {
-			final String metadataFileName = fileEntry.getKey() + ".xmp";
-			final AlbumEntryData sidecarEntry = albumEntries.get(metadataFileName);
-			if (sidecarEntry != null) {
-				fileEntry.getValue().setMetadataSidecarId(sidecarEntry.getOriginalFileId());
-				metadataEntries.add(fileEntry.getKey());
+		for (final Iterator<java.util.Map.Entry<String, AlbumEntryData>> entryIterator = albumEntries.entrySet().iterator(); entryIterator.hasNext();) {
+			final Entry<String, AlbumEntryData> fileEntry = entryIterator.next();
+			final AlbumEntryData entryData = fileEntry.getValue();
+			final Map<Class<? extends Object>, Set<ObjectId>> attachedFiles = entryData.getAttachedFiles();
+			for (final AttachementGenerator attachementGenerator : attachementGenerators) {
+				final Map<Class<? extends Object>, Set<ObjectId>> files = attachementGenerator.findAdditionalFiles(	entryData,
+																																																						fileEntries,
+																																																						new RepositoryObjectLoader(repository));
+				if (files != null) {
+					attachedFiles.putAll(files);
+				}
+			}
+			if (attachedFiles.isEmpty()) {
+				entryIterator.remove();
 			}
 		}
-		albumEntries.keySet().removeAll(metadataEntries);
 
 		for (final AttachementGenerator attachementGenerator : attachementGenerators) {
 			final AttachementState attachementState = getAttachementState(albumData, attachementGenerator.attachementType());
 			if (attachementState != null) {
 				for (final Entry<String, AlbumEntryData> albumEntry : albumEntries.entrySet()) {
 					final String attachementKey = attachementGenerator.createAttachementFilename(albumEntry.getValue());
+					if (attachementKey == null) {
+						continue;
+					}
 					final ObjectId objectId = attachementState.getExistingAttachements().get(attachementKey);
 					if (objectId != null) {
-						albumEntry.getValue().getAttachements().put(attachementGenerator.attachementType(), objectId);
+						albumEntry.getValue().getGeneratedAttachements().put(attachementGenerator.attachementType(), objectId);
 					}
 				}
 			}
 		}
 
-		return new AlbumState(albumEntries, masterRef);
+		return new AlbumState(albumEntries, fileEntries, masterRef);
 	}
 
 	@Scheduled(fixedDelay = 1000 * 60 * 10, initialDelay = 1000 * 10)

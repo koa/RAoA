@@ -10,5 +10,6 @@ import org.eclipse.jgit.lib.ObjectId;
 public class AlbumState {
 	private long createTime = System.currentTimeMillis();
 	private Map<String, AlbumEntryData> entries;
+	private Map<String, ObjectId> files;
 	private ObjectId lastCommit;
 }

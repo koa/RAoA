@@ -5,6 +5,9 @@
   <artifactId>raoa-main</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
+  <prerequisites>
+    <maven>3.0.8</maven>
+  </prerequisites>
   <modules>
     <module>image-client</module>
     <module>raoa-server</module>
@@ -38,7 +41,7 @@
       <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-dependencies</artifactId>
-        <version>1.3.0.M5</version>
+        <version>1.3.0.RC1</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -91,7 +94,7 @@
         <groupId>org.eclipse.jetty</groupId>
         <artifactId>jetty-jsp</artifactId>
         <version>9.2.3.v20140905</version>
-      </dependency>    
+      </dependency>
       <dependency>
         <groupId>org.im4java</groupId>
         <artifactId>im4java</artifactId>
@@ -125,7 +128,7 @@
       <dependency>
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
-        <version>1.14.8</version>
+        <version>1.16.6</version>
         <scope>provided</scope>
       </dependency>
       <dependency>

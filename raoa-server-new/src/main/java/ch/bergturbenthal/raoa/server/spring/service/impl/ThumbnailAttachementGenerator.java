@@ -3,9 +3,11 @@ package ch.bergturbenthal.raoa.server.spring.service.impl;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -39,6 +41,13 @@ public class ThumbnailAttachementGenerator implements AttachementGenerator {
 		return entry.getOriginalFileId().name();
 	}
 
+	@Override
+	public Map<Class<? extends Object>, Set<ObjectId>> findAdditionalFiles(	final AlbumEntryData entry,
+																																					final Map<String, ObjectId> filenames,
+																																					final ObjectLoaderLookup lookup) {
+		return Collections.emptyMap();
+	}
+
 	private ThumbnailMaker findThumbnailMaker(final String filename) {
 		for (final ThumbnailMaker thumbnailMaker : thumbnailMakers) {
 			if (thumbnailMaker.canMakeThumbnail(filename)) {
@@ -49,10 +58,8 @@ public class ThumbnailAttachementGenerator implements AttachementGenerator {
 	}
 
 	@Override
-	public Future<ObjectId> generateAttachement(final String originalFilename,
-																							final Callable<ObjectLoader> entryLoader,
-																							final Callable<ObjectLoader> sidecarLoader,
-																							final ObjectInserter inserter) {
+	public Future<ObjectId> generateAttachement(final AlbumEntryData entryData, final ObjectLoaderLookup lookup, final ObjectInserter inserter) {
+		final String originalFilename = entryData.getFilename();
 		final ThumbnailMaker maker = findThumbnailMaker(originalFilename);
 		if (maker == null) {
 			return null;
@@ -71,7 +78,7 @@ public class ThumbnailAttachementGenerator implements AttachementGenerator {
 				final File tempInFile = File.createTempFile("thumbnail-in", suffix);
 				final File tempOutFile = File.createTempFile("thumbnail-out", suffix);
 				try {
-					final ObjectLoader objectLoader = entryLoader.call();
+					final ObjectLoader objectLoader = lookup.createLoader(entryData.getOriginalFileId());
 					try (FileOutputStream inFileOS = new FileOutputStream(tempInFile)) {
 						objectLoader.copyTo(inFileOS);
 					}
