@@ -29,7 +29,7 @@ public class XmpMetadataReader extends AbstractDrewMetadataReader {
 
 	@Override
 	public void readMetadata(final ObjectLoader objectLoader, final AlbumEntryMetadata metadata) throws IOException {
-		final long startTime = System.currentTimeMillis();
+		final long startTime = System.nanoTime();
 		try (final ObjectStream stream = objectLoader.openStream()) {
 			final XMPMeta xmpMeta = XMPMetaFactory.parse(stream);
 			final String caption = readCaption(xmpMeta);
