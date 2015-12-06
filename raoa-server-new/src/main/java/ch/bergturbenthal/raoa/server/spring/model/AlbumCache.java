@@ -7,9 +7,8 @@ import org.eclipse.jgit.lib.ObjectId;
 import lombok.Value;
 
 @Value
-public class AlbumState {
+public class AlbumCache {
 	private AlbumMetadata albumMetadata;
-	private long createTime = System.currentTimeMillis();
 	private Map<String, AlbumEntryData> entries;
 	private Map<String, ObjectId> files;
 	private ObjectId lastCommit;

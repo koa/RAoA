@@ -1,19 +1,23 @@
 package ch.bergturbenthal.raoa.server.spring.model;
 
 import java.lang.ref.WeakReference;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.eclipse.jgit.lib.Repository;
 
-import lombok.Data;
+import lombok.Builder;
+import lombok.RequiredArgsConstructor;
+import lombok.Value;
 
-@Data
+@Value
+@Builder
+@RequiredArgsConstructor
 public class AlbumData {
-	private Repository albumRepository;
-	private WeakReference<AlbumState> albumStateReference;
-	private Map<String, WeakReference<AttachementState>> attachementStates = new HashMap<String, WeakReference<AttachementState>>();
-	private String fullAlbumName;
-	private Date lastRefreshTime;
+	private final AtomicReference<WeakReference<AlbumCache>> albumCacheReference = new AtomicReference<WeakReference<AlbumCache>>(null);
+	private final Repository albumRepository;
+	private final Map<String, WeakReference<AttachementCache>> attachementCaches = new ConcurrentHashMap<String, WeakReference<AttachementCache>>();
+	private final AtomicReference<BranchState> currentState = new AtomicReference<BranchState>();
+	private final String fullAlbumName;
 }

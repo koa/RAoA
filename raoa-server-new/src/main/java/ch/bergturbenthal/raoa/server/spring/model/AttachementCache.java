@@ -7,7 +7,7 @@ import lombok.Value;
 import org.eclipse.jgit.lib.ObjectId;
 
 @Value
-public class AttachementState {
+public class AttachementCache {
 	private String commitId;
 	private long createTime = System.currentTimeMillis();
 	private Map<String, ObjectId> existingAttachements;
