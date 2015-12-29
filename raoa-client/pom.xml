@@ -13,7 +13,7 @@
   </parent>
 
   <properties>
-    <platform.version>4.0.1.2</platform.version>
+    <platform.version>4.1.1.4</platform.version>
   </properties>
 
   <dependencies>
@@ -25,6 +25,7 @@
     <dependency>
       <groupId>com.google.android</groupId>
       <artifactId>support-v4</artifactId>
+      <version>r7</version>
     </dependency>
     <dependency>
       <groupId>ch.bergturbenthal.raoa</groupId>
@@ -34,10 +35,12 @@
     <dependency>
       <groupId>javax.jmdns</groupId>
       <artifactId>jmdns</artifactId>
+      <version>3.4.1</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.android</groupId>
       <artifactId>spring-android-rest-template</artifactId>
+      <version>2.0.0.M3</version>
     </dependency>
     <dependency>
       <groupId>ch.bergturbenthal.raoa</groupId>
@@ -52,10 +55,6 @@
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
       <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.projectlombok</groupId>
-      <artifactId>lombok-api</artifactId>
     </dependency>
     <dependency>
       <groupId>junit</groupId>
@@ -79,53 +78,31 @@
   </dependencies>
 
   <build>
-    <resources>
+    <!-- <resources>
       <resource>
         <directory>${project.build.directory}/dependency/services</directory>
       </resource>
-    </resources>
+    </resources> -->
     <plugins>
       <plugin>
-        <groupId>com.jayway.maven.plugins.android.generation2</groupId>
+        <groupId>com.simpligility.maven.plugins</groupId>
         <artifactId>android-maven-plugin</artifactId>
         <configuration>
           <androidManifestFile>${project.basedir}/AndroidManifest.xml</androidManifestFile>
           <assetsDirectory>${project.basedir}/assets</assetsDirectory>
           <resourceDirectory>${project.basedir}/res</resourceDirectory>
-          <nativeLibrariesDirectory>${project.basedir}/src/main/native</nativeLibrariesDirectory>
-          <apk>
+         <!--  <apk>
             <metaIncludes>
               <metaInclude>services/**</metaInclude>
             </metaIncludes>
-          </apk>
+          </apk> -->
           <sdk>
-            <platform>16</platform>
+            <platform>21</platform>
           </sdk>
           <undeployBeforeDeploy>true</undeployBeforeDeploy>
         </configuration>
         <extensions>true</extensions>
       </plugin>
-
-      <plugin>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>2.3.2</version>
-        <configuration>
-          <source>1.6</source>
-          <target>1.6</target>
-        </configuration>
-      </plugin>
     </plugins>
   </build>
-  <repositories>
-    <repository>
-      <id>berg-turbenthal-snapshots</id>
-      <name>Neptun-snapshots</name>
-      <url>http://www.berg-turbenthal.ch/nexus/content/repositories/snapshots/</url>
-    </repository>
-    <repository>
-      <id>berg-turbenthal-releases</id>
-      <name>Neptun-releases</name>
-      <url>http://www.berg-turbenthal.ch/nexus/content/repositories/releases/</url>
-    </repository>
-  </repositories>
 </project>

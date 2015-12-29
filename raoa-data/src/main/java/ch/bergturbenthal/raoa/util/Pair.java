@@ -7,10 +7,10 @@ import lombok.Data;
 
 /**
  * TODO: add type comment.
- * 
+ *
  * @param <F>
  * @param <S>
- * 
+ *
  */
 @Data
 public class Pair<F, S> {

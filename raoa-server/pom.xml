@@ -102,11 +102,11 @@
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-exec</artifactId>
-      <version>1.2</version>
     </dependency>
     <dependency>
       <groupId>org.springframework</groupId>
@@ -115,12 +115,10 @@
     <dependency>
       <groupId>com.googlecode.mp4parser</groupId>
       <artifactId>isoparser</artifactId>
-      <version>1.0.2</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
-      <version>3.3.2</version>
     </dependency>
     <dependency>
       <groupId>javax.servlet</groupId>

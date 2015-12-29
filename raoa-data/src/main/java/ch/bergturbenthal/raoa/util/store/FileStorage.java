@@ -38,8 +38,8 @@ public class FileStorage {
 				}
 				final Collection<FileBackend.CommitExecutor> executors = new ArrayList<FileBackend.CommitExecutor>();
 				for (final Entry<Pair<Class<Object>, String>, Object> referencedEntry : referencedObjects.entrySet()) {
-					final FileBackend<Object> backend = getBackend(referencedEntry.getKey().first);
-					final String relativePath = referencedEntry.getKey().second;
+					final FileBackend<Object> backend = getBackend(referencedEntry.getKey().getFirst());
+					final String relativePath = referencedEntry.getKey().getSecond();
 					if (!nullSafeEquals(backend.getLastModified(relativePath), lastModified.get(referencedEntry.getKey()))) {
 						throw new ConcurrentTransactionException(relativePath);
 					}
@@ -111,10 +111,10 @@ public class FileStorage {
 			cacheLoop:
 			for (final Entry<Pair<Class<Object>, String>, Object> referencedEntry : referencedObjects.entrySet()) {
 				final Pair<Class<Object>, String> key = referencedEntry.getKey();
-				if (!key.first.equals(type)) {
+				if (!key.getFirst().equals(type)) {
 					continue;
 				}
-				final String cacheEntryPath = key.second;
+				final String cacheEntryPath = key.getSecond();
 				final String[] pathComps = cacheEntryPath.split("/");
 				if (pathComps.length != pathPatterns.size()) {
 					continue;
@@ -150,15 +150,6 @@ public class FileStorage {
 
 	private static Logger logger = Logger.getLogger(FileStorage.class.getName());
 
-	private int currentCacheSize;
-
-	private final ThreadLocal<Transaction> currentTransaction = new ThreadLocal<Transaction>();
-	private Map<Class<Object>, Map<String, Object>> readOnlyPrimaryCache;
-
-	private final Map<Pair<Class<Object>, String>, WeakReference<Object>> readOnlySecondCache = new ConcurrentHashMap<Pair<Class<Object>, String>, WeakReference<Object>>();
-
-	private final Map<Class<?>, FileBackend<?>> registeredBackends = new HashMap<Class<?>, FileBackend<?>>();
-
 	/**
 	 * @param <T>
 	 * @param lastModified
@@ -174,6 +165,15 @@ public class FileStorage {
 		}
 		return v1.equals(v2);
 	}
+
+	private int currentCacheSize;
+	private final ThreadLocal<Transaction> currentTransaction = new ThreadLocal<Transaction>();
+
+	private Map<Class<Object>, Map<String, Object>> readOnlyPrimaryCache;
+
+	private final Map<Pair<Class<Object>, String>, WeakReference<Object>> readOnlySecondCache = new ConcurrentHashMap<Pair<Class<Object>, String>, WeakReference<Object>>();
+
+	private final Map<Class<?>, FileBackend<?>> registeredBackends = new HashMap<Class<?>, FileBackend<?>>();
 
 	public FileStorage(final Collection<FileBackend<?>> backends) {
 		for (final FileBackend<?> fileBackend : backends) {
@@ -207,6 +207,11 @@ public class FileStorage {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
+	private <T> FileBackend<T> getBackend(final Class<T> type) {
+		return (FileBackend<T>) registeredBackends.get(type);
+	}
+
 	public <D> D getObject(final String relativePath, final Class<D> type, final ReadPolicy policy) {
 		if (policy == ReadPolicy.READ_ONLY) {
 			return getObjectReadOnly(relativePath, type);
@@ -224,33 +229,6 @@ public class FileStorage {
 		}
 		transaction.putObject(relativePath, newInstance);
 		return newInstance;
-	}
-
-	public <D> Collection<String> listRelativePath(final List<Pattern> pathPatterns, final Class<D> type) {
-		final Collection<String> storedPaths = new LinkedHashSet<String>(getBackend(type).listRelativePath(pathPatterns));
-		final Transaction transaction = currentTransaction.get();
-		if (transaction != null) {
-			storedPaths.addAll(transaction.listRelativePath(pathPatterns, type));
-		}
-		return storedPaths;
-	}
-
-	public <D> void putObject(final String relativePath, final D value) {
-		currentTransaction.get().putObject(relativePath, value);
-	}
-
-	public void reduceCurrentCacheSize() {
-		currentCacheSize = currentCacheSize * 4 / 5;
-		setCacheSize(currentCacheSize);
-	}
-
-	public <D> void removeObject(final String relativePath, final Class<D> type) {
-		currentTransaction.get().remove(relativePath, type);
-	}
-
-	@SuppressWarnings("unchecked")
-	private <T> FileBackend<T> getBackend(final Class<T> type) {
-		return (FileBackend<T>) registeredBackends.get(type);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -290,6 +268,28 @@ public class FileStorage {
 			}
 			return loaded;
 		}
+	}
+
+	public <D> Collection<String> listRelativePath(final List<Pattern> pathPatterns, final Class<D> type) {
+		final Collection<String> storedPaths = new LinkedHashSet<String>(getBackend(type).listRelativePath(pathPatterns));
+		final Transaction transaction = currentTransaction.get();
+		if (transaction != null) {
+			storedPaths.addAll(transaction.listRelativePath(pathPatterns, type));
+		}
+		return storedPaths;
+	}
+
+	public <D> void putObject(final String relativePath, final D value) {
+		currentTransaction.get().putObject(relativePath, value);
+	}
+
+	public void reduceCurrentCacheSize() {
+		currentCacheSize = currentCacheSize * 4 / 5;
+		setCacheSize(currentCacheSize);
+	}
+
+	public <D> void removeObject(final String relativePath, final Class<D> type) {
+		currentTransaction.get().remove(relativePath, type);
 	}
 
 	private void setCacheSize(final int totallyCacheSize) {

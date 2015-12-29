@@ -12,17 +12,17 @@ import java.util.TimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
-
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
-import com.drew.metadata.exif.CanonMakernoteDirectory;
 import com.drew.metadata.exif.ExifIFD0Directory;
 import com.drew.metadata.exif.ExifSubIFDDirectory;
 import com.drew.metadata.exif.GpsDirectory;
-import com.drew.metadata.exif.NikonType2MakernoteDirectory;
+import com.drew.metadata.exif.makernotes.CanonMakernoteDirectory;
+import com.drew.metadata.exif.makernotes.NikonType2MakernoteDirectory;
 import com.drew.metadata.iptc.IptcDirectory;
 import com.drew.metadata.xmp.XmpDirectory;
+
+import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 
 public class MetadataWrapper implements MetadataHolder {
 	private static class TagId {
@@ -54,8 +54,9 @@ public class MetadataWrapper implements MetadataHolder {
 
 	public MetadataWrapper(final Metadata metadata) {
 		this.metadata = metadata;
-		final XmpDirectory xmpDirectory = metadata.getDirectory(XmpDirectory.class);
-		if (xmpDirectory != null) {
+		final Collection<XmpDirectory> directoriesOfType = metadata.getDirectoriesOfType(XmpDirectory.class);
+		if (directoriesOfType != null && !directoriesOfType.isEmpty()) {
+			final XmpDirectory xmpDirectory = directoriesOfType.iterator().next();
 			xmp = new XmpWrapper(xmpDirectory.getXMPMeta());
 		} else {
 			xmp = null;
@@ -64,7 +65,7 @@ public class MetadataWrapper implements MetadataHolder {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.raoa.server.metadata.MetadataHolder#fill(ch.bergturbenthal.raoa.server.model.AlbumEntryData)
 	 */
 	@Override
@@ -85,7 +86,7 @@ public class MetadataWrapper implements MetadataHolder {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.raoa.server.metadata.MetadataHolder#readCameraDate()
 	 */
 	@Override
@@ -106,9 +107,9 @@ public class MetadataWrapper implements MetadataHolder {
 	}
 
 	private String readCameraSerial() {
-		for (final TagId tag : new TagId[] { new TagId(NikonType2MakernoteDirectory.class, NikonType2MakernoteDirectory.TAG_NIKON_TYPE2_CAMERA_SERIAL_NUMBER_2),
-																				new TagId(NikonType2MakernoteDirectory.class, NikonType2MakernoteDirectory.TAG_NIKON_TYPE2_CAMERA_SERIAL_NUMBER),
-																				new TagId(CanonMakernoteDirectory.class, CanonMakernoteDirectory.TAG_CANON_SERIAL_NUMBER) }) {
+		for (final TagId tag : new TagId[] {	new TagId(NikonType2MakernoteDirectory.class, NikonType2MakernoteDirectory.TAG_CAMERA_SERIAL_NUMBER_2),
+																					new TagId(NikonType2MakernoteDirectory.class, NikonType2MakernoteDirectory.TAG_CAMERA_SERIAL_NUMBER),
+																					new TagId(CanonMakernoteDirectory.class, CanonMakernoteDirectory.TAG_CANON_SERIAL_NUMBER) }) {
 			final String serial = trimToNull(readString(tag.directory, tag.tagId));
 			if (serial != null) {
 				return serial;
@@ -130,7 +131,7 @@ public class MetadataWrapper implements MetadataHolder {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.raoa.server.metadata.MetadataHolder#readCreateDate()
 	 */
 	@Override
@@ -143,22 +144,29 @@ public class MetadataWrapper implements MetadataHolder {
 	}
 
 	private Date readDate(final Class<? extends Directory> directory, final int tag) {
-		if (metadata.containsDirectory(directory)) {
-			final Directory directory2 = metadata.getDirectory(directory);
-			if (directory2.containsTag(tag)) {
-				return directory2.getDate(tag);
+		final Collection<? extends Directory> directoriesOfType = metadata.getDirectoriesOfType(directory);
+		if (directoriesOfType != null) {
+			for (final Directory directory2 : directoriesOfType) {
+				if (directory2.containsTag(tag)) {
+					return directory2.getDate(tag);
+				}
+
 			}
 		}
 		return null;
 	}
 
 	private Double readDouble(final Class<? extends Directory> directory, final int tag) {
-		final Directory directory2 = metadata.getDirectory(directory);
-		if (directory2 == null) {
-			return null;
-		}
-		return directory2.getDoubleObject(tag);
+		final Collection<? extends Directory> directoriesOfType = metadata.getDirectoriesOfType(directory);
+		if (directoriesOfType != null) {
+			for (final Directory directory2 : directoriesOfType) {
+				if (directory2.containsTag(tag)) {
+					return directory2.getDoubleObject(tag);
+				}
 
+			}
+		}
+		return null;
 	}
 
 	private Double readExposureTime() {
@@ -183,38 +191,45 @@ public class MetadataWrapper implements MetadataHolder {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.raoa.server.metadata.MetadataHolder#readGpsDate()
 	 */
 	@Override
 	public Date readGpsDate() {
-		try {
-			if (!metadata.containsDirectory(GpsDirectory.class)) {
-				return null;
-			}
-			final Directory directory = metadata.getDirectory(GpsDirectory.class);
-			if (!directory.containsTag(GpsDirectory.TAG_GPS_TIME_STAMP)) {
-				return null;
-			}
-			final int[] time = directory.getIntArray(7);
-			final String date = directory.getString(29);
-			final Object[] values = new MessageFormat("{0,number}:{1,number}:{2,number}").parse(date);
-			final GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-			calendar.set(((Number) values[0]).intValue(), ((Number) values[1]).intValue() - 1, ((Number) values[2]).intValue(), time[0], time[1], time[2]);
-			return calendar.getTime();
-		} catch (final ParseException e) {
-			logger.warn("Cannot read Gps-Date", e);
+		final Collection<GpsDirectory> gpsDirectories = metadata.getDirectoriesOfType(GpsDirectory.class);
+		if (gpsDirectories == null) {
 			return null;
 		}
+		for (final GpsDirectory gpsDirectory : gpsDirectories) {
+			try {
+				if (!gpsDirectory.containsTag(GpsDirectory.TAG_TIME_STAMP)) {
+					continue;
+				}
+				final int[] time = gpsDirectory.getIntArray(7);
+				final String date = gpsDirectory.getString(29);
+				final Object[] values = new MessageFormat("{0,number}:{1,number}:{2,number}").parse(date);
+				final GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+				calendar.set(((Number) values[0]).intValue(), ((Number) values[1]).intValue() - 1, ((Number) values[2]).intValue(), time[0], time[1], time[2]);
+				return calendar.getTime();
+			} catch (final ParseException e) {
+				logger.warn("Cannot read Gps-Date", e);
+				continue;
+			}
+		}
+		return null;
 	}
 
 	private Integer readInteger(final Class<? extends Directory> directory, final int tag) {
-		final Directory directory2 = metadata.getDirectory(directory);
-		if (directory2 == null) {
-			return null;
-		}
-		return directory2.getInteger(tag);
+		final Collection<? extends Directory> directoriesOfType = metadata.getDirectoriesOfType(directory);
+		if (directoriesOfType != null) {
+			for (final Directory directory2 : directoriesOfType) {
+				if (directory2.containsTag(tag)) {
+					return directory2.getInteger(tag);
+				}
 
+			}
+		}
+		return null;
 	}
 
 	private Integer readIso() {
@@ -223,15 +238,19 @@ public class MetadataWrapper implements MetadataHolder {
 
 	private Collection<String> readKeywords() {
 		final Collection<String> ret = new LinkedHashSet<>();
-		final IptcDirectory iptcDirectory = metadata.getDirectory(IptcDirectory.class);
-		if (iptcDirectory != null) {
-			final String[] iptcKeywords = iptcDirectory.getStringArray(IptcDirectory.TAG_KEYWORDS);
-			if (iptcKeywords != null) {
-				ret.addAll(Arrays.asList(iptcKeywords));
+		final Collection<IptcDirectory> iptcDirectories = metadata.getDirectoriesOfType(IptcDirectory.class);
+		if (iptcDirectories != null) {
+			for (final IptcDirectory iptcDirectory : iptcDirectories) {
+				if (iptcDirectory != null) {
+					final String[] iptcKeywords = iptcDirectory.getStringArray(IptcDirectory.TAG_KEYWORDS);
+					if (iptcKeywords != null) {
+						ret.addAll(Arrays.asList(iptcKeywords));
+					}
+				}
+				if (xmp != null) {
+					ret.addAll(xmp.readKeywords());
+				}
 			}
-		}
-		if (xmp != null) {
-			ret.addAll(xmp.readKeywords());
 		}
 		return ret;
 	}
@@ -245,10 +264,13 @@ public class MetadataWrapper implements MetadataHolder {
 	}
 
 	private String readString(final Class<? extends Directory> directory, final int tag) {
-		if (metadata.containsDirectory(directory)) {
-			final Directory directory2 = metadata.getDirectory(directory);
-			if (directory2.containsTag(tag)) {
-				return directory2.getString(tag);
+		final Collection<? extends Directory> directoriesOfType = metadata.getDirectoriesOfType(directory);
+		if (directoriesOfType != null) {
+			for (final Directory directory2 : directoriesOfType) {
+				if (directory2.containsTag(tag)) {
+					return directory2.getString(tag);
+				}
+
 			}
 		}
 		return null;

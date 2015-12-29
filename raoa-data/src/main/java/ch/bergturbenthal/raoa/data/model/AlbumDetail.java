@@ -16,4 +16,8 @@ public class AlbumDetail extends AlbumEntry {
 	private long repositorySize;
 	private String title;
 	private String titleEntry;
+
+	public AlbumDetail(final String id, final String name) {
+		super(id, name);
+	}
 }
