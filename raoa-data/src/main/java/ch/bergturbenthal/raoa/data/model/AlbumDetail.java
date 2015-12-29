@@ -6,9 +6,11 @@ import java.util.Date;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
+@NoArgsConstructor
 public class AlbumDetail extends AlbumEntry {
 	private Collection<Date> autoAddDate;
 	private final Collection<AlbumImageEntry> images = new ArrayList<AlbumImageEntry>();
