@@ -107,7 +107,7 @@ import ch.bergturbenthal.raoa.provider.model.dto.AlbumMeta;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMeta.AlbumMetaBuilder;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumMutationData;
 import ch.bergturbenthal.raoa.provider.model.dto.AlbumState;
-import ch.bergturbenthal.raoa.provider.service.discovery.JMDnsListener;
+import ch.bergturbenthal.raoa.provider.service.discovery.DispatchingListener;
 import ch.bergturbenthal.raoa.provider.service.discovery.ServerDiscoveryListener;
 import ch.bergturbenthal.raoa.provider.service.discovery.ServerDiscoveryListener.ResultListener;
 import ch.bergturbenthal.raoa.provider.state.ServerListActivity;
@@ -415,7 +415,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	}
 
 	private void initServiceDiscovery() {
-		dnsListener = JMDnsListener.builder().context(getApplicationContext()).resultListener(this).executorService(executorService).build();
+		dnsListener = DispatchingListener.builder().context(getApplicationContext()).resultListener(this).executorService(executorService).build();
 		// dnsListener = NsdListener.builder().context(getApplicationContext()).resultListener(this).build();
 	}
 
