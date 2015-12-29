@@ -23,6 +23,7 @@ public class FindWellKnownDnsEntriesListener implements ServerDiscoveryListener 
 			final Collection<InetSocketAddress> knownServiceEndpoints = new ArrayList<InetSocketAddress>(inetAddresses.length);
 			for (final InetAddress inetAddress : inetAddresses) {
 				knownServiceEndpoints.add(new InetSocketAddress(inetAddress, 80));
+				knownServiceEndpoints.add(new InetSocketAddress(inetAddress, 8080));
 			}
 			resultListener.notifyServices(knownServiceEndpoints, withProgressUpdate);
 		} catch (final UnknownHostException e) {
