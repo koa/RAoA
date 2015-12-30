@@ -6,7 +6,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.PostConstruct;
@@ -27,6 +29,13 @@ import ch.bergturbenthal.raoa.server.spring.service.ThumbnailMaker;
 public class ImageMagickImageThumbnailMaker implements ThumbnailMaker {
 	private static final Logger log = LoggerFactory.getLogger(ImageMagickImageThumbnailMaker.class);
 	private ImageCommand cmd = null;
+	private final ExecutorService executorService = new ThreadPoolExecutor(	0,
+																																					Runtime.getRuntime().availableProcessors(),
+																																					30,
+																																					TimeUnit.SECONDS,
+																																					new ArrayBlockingQueue<Runnable>(20),
+																																					new CustomizableThreadFactory("Image-Magik pool-"),
+																																					new ThreadPoolExecutor.CallerRunsPolicy());
 	private String gmBinary = null;
 	private String imConvertBinary = null;
 
@@ -56,17 +65,6 @@ public class ImageMagickImageThumbnailMaker implements ThumbnailMaker {
 		}
 	}
 
-	@Override
-	public ExecutorService createExecutorservice() {
-		return new ThreadPoolExecutor(0,
-																	Runtime.getRuntime().availableProcessors(),
-																	30,
-																	TimeUnit.SECONDS,
-																	new ArrayBlockingQueue<Runnable>(20),
-																	new CustomizableThreadFactory("Image-Magik pool-"),
-																	new ThreadPoolExecutor.CallerRunsPolicy());
-	}
-
 	@PostConstruct
 	public void init() {
 		final Collection<ImageCommand> cmdCandidates = new ArrayList<>();
@@ -92,6 +90,11 @@ public class ImageMagickImageThumbnailMaker implements ThumbnailMaker {
 
 	@Override
 	public boolean makeThumbnail(final File originalFile, final File thumbnailFile, final File tempDir) {
+		return makeThumbnailImage(originalFile, thumbnailFile, thumbnailSize, tempDir);
+	}
+
+	@Override
+	public boolean makeThumbnailImage(final File originalFile, final File thumbnailFile, final int thumbnailSize, final File tempDir) {
 		if (cmd == null) {
 			return false;
 		}
@@ -151,6 +154,11 @@ public class ImageMagickImageThumbnailMaker implements ThumbnailMaker {
 
 	public void setThumbnailSize(final int thumbnailSize) {
 		this.thumbnailSize = thumbnailSize;
+	}
+
+	@Override
+	public <T> Future<T> submit(final Callable<T> callable) {
+		return executorService.submit(callable);
 	}
 
 }

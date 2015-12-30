@@ -7,15 +7,15 @@ import org.springframework.stereotype.Service;
 import ch.bergturbenthal.raoa.server.spring.service.ThumbnailMaker;
 
 @Service
-public class ThumbnailAttachementGenerator extends AbstractThumbnailAttachementGenerator {
+public class MobileAttachementGenerator extends AbstractThumbnailAttachementGenerator {
 	@Override
 	public String attachementType() {
-		return "thumbnail";
+		return "mobile-version";
 	}
 
 	@Override
 	protected void processFile(final ThumbnailMaker maker, final File tempInFile, final File tempOutFile) {
-		maker.makeThumbnailImage(tempInFile, tempOutFile, 512, tempOutFile.getParentFile());
+		maker.makeThumbnail(tempInFile, tempOutFile, tempOutFile.getParentFile());
 	}
 
 }

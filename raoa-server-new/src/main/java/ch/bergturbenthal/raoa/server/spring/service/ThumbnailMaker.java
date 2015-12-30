@@ -1,13 +1,16 @@
 package ch.bergturbenthal.raoa.server.spring.service;
 
 import java.io.File;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 
 public interface ThumbnailMaker {
-	boolean makeThumbnail(final File originalFile, final File thumbnailFile, final File tempDir);
-
 	boolean canMakeThumbnail(final String filename);
 
-	ExecutorService createExecutorservice();
+	boolean makeThumbnail(final File originalFile, final File thumbnailFile, final File tempDir);
+
+	boolean makeThumbnailImage(final File originalFile, final File thumbnailFile, final int thumbnailSize, final File tempDir);
+
+	<T> Future<T> submit(Callable<T> callable);
 
 }
