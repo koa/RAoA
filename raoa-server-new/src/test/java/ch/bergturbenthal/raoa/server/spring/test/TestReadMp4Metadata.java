@@ -30,7 +30,7 @@ public class TestReadMp4Metadata {
 		final long startTime = System.currentTimeMillis();
 		@Cleanup
 		final IsoFile isoFile = new IsoFile("/data/heap/data/photos/Pferde/Turniere/2015/SM Frauenfeld 2015/Mario Bezzola Dressur.mp4");
-		final MovieHeaderBox header = Path.getPath(isoFile, "moov[0]/mvhd[0]");
+		final MovieHeaderBox header = (MovieHeaderBox) Path.getPath(isoFile, "moov[0]/mvhd[0]");
 		final Date creationTime = header.getCreationTime();
 		final double duration = header.getDuration() * 1.0 / header.getTimescale();
 		System.out.println("Created at " + creationTime + ", duration: " + duration);

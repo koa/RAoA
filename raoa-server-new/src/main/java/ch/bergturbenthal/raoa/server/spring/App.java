@@ -6,10 +6,11 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import ch.bergturbenthal.raoa.server.spring.configuration.ServerConfiguration;
+import ch.bergturbenthal.raoa.server.spring.controller.MainController;
 import ch.bergturbenthal.raoa.server.spring.service.impl.BareGitAlbumAccess;
 
 @EnableAutoConfiguration
-@ComponentScan(basePackageClasses = { ServerConfiguration.class, BareGitAlbumAccess.class })
+@ComponentScan(basePackageClasses = { ServerConfiguration.class, BareGitAlbumAccess.class, MainController.class })
 @EnableScheduling
 public class App {
 	public static void main(final String[] args) throws Exception {

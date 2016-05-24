@@ -31,7 +31,7 @@ public class ImageMagickImageThumbnailMaker implements ThumbnailMaker {
 	private ImageCommand cmd = null;
 	private final ExecutorService executorService = new ThreadPoolExecutor(	0,
 																																					Runtime.getRuntime().availableProcessors(),
-																																					30,
+																																					6,
 																																					TimeUnit.SECONDS,
 																																					new ArrayBlockingQueue<Runnable>(20),
 																																					new CustomizableThreadFactory("Image-Magik pool-"),

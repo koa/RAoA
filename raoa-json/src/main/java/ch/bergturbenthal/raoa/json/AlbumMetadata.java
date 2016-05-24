@@ -1,4 +1,6 @@
-package ch.bergturbenthal.raoa.server.spring.model;
+package ch.bergturbenthal.raoa.json;
+
+import java.util.Date;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -6,11 +8,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder(toBuilder = true)
 public class AlbumMetadata {
-	private String albumId;
-	private String albumTitle;
-	private String titleEntry;
+	private String id;
+	private String name;
+	private Date timestamp;
 }

@@ -32,6 +32,7 @@ import ch.bergturbenthal.raoa.server.spring.service.MetadataReader;
 @Service
 public class MetadataAttachementGenerator implements AttachementGenerator {
 
+	public static final String ATTACHEMENT_NAME = "metadata";
 	private final ExecutorService executorService = new ThreadPoolExecutor(	0,
 																																					1,
 																																					30,
@@ -44,7 +45,7 @@ public class MetadataAttachementGenerator implements AttachementGenerator {
 
 	@Override
 	public String attachementType() {
-		return "metadata";
+		return ATTACHEMENT_NAME;
 	}
 
 	@Override

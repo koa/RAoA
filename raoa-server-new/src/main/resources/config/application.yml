@@ -1,6 +1,6 @@
 raoa:
 #  album-base-dir: /tmp/testdata/
 #  album-base-dir: /media/akoenig/Transfer HD 2GB/Pferde/Turniere/2015/
-  album-base-dir: /media/akoenig/Transfer HD 2GB/
+  album-base-dir: /media/akoenig/Transfer HD 3TB/
 server:
   port: 8081

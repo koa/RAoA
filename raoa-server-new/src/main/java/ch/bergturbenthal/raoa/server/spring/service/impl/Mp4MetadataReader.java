@@ -39,7 +39,7 @@ public class Mp4MetadataReader implements MetadataReader {
 				objectLoader.copyTo(outputStream);
 			}
 			final IsoFile isoFile = new IsoFile(new FileDataSourceImpl(tempFile));
-			final MovieHeaderBox header = Path.getPath(isoFile, "moov[0]/mvhd[0]");
+			final MovieHeaderBox header = (MovieHeaderBox) Path.getPath(isoFile, "moov[0]/mvhd[0]");
 			metadata.setVideo(true);
 			if (header != null) {
 				metadata.setCaptureDate(header.getCreationTime());

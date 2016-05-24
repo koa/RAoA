@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.server.spring.service.impl;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +11,10 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+
+import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
@@ -21,6 +26,8 @@ import ch.bergturbenthal.raoa.server.spring.service.AttachementGenerator;
 import ch.bergturbenthal.raoa.server.spring.service.ThumbnailMaker;
 
 public abstract class AbstractThumbnailAttachementGenerator implements AttachementGenerator {
+
+	private File tempDir;
 
 	@Autowired
 	private List<ThumbnailMaker> thumbnailMakers;
@@ -67,9 +74,9 @@ public abstract class AbstractThumbnailAttachementGenerator implements Attacheme
 
 			@Override
 			public ObjectId call() throws Exception {
-				final File tempInFile = File.createTempFile("thumbnail-in", suffix);
+				final File tempInFile = File.createTempFile("thumbnail-in", suffix, tempDir);
 				tempInFile.deleteOnExit();
-				final File tempOutFile = File.createTempFile("thumbnail-out", suffix);
+				final File tempOutFile = File.createTempFile("thumbnail-out", suffix, tempDir);
 				tempOutFile.deleteOnExit();
 				try {
 					final ObjectLoader objectLoader = lookup.createLoader(entryData.getOriginalFileId());
@@ -90,6 +97,20 @@ public abstract class AbstractThumbnailAttachementGenerator implements Attacheme
 		});
 	}
 
+	@PostConstruct
+	public void initTempDir() throws IOException {
+		tempDir = File.createTempFile("raoa", "thumbnail");
+		tempDir.delete();
+		if (!tempDir.mkdirs()) {
+			throw new IOException("Cannot create directory " + tempDir);
+		}
+	}
+
 	protected abstract void processFile(ThumbnailMaker maker, File tempInFile, File tempOutFile);
+
+	@PreDestroy
+	public void removeTempDir() {
+		FileUtils.deleteQuietly(tempDir);
+	}
 
 }
