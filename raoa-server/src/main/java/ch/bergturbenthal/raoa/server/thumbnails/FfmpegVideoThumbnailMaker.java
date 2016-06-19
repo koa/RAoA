@@ -8,8 +8,6 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.PostConstruct;
 
-import lombok.Cleanup;
-
 import org.apache.commons.exec.CommandLine;
 import org.apache.commons.exec.DefaultExecutor;
 import org.apache.commons.exec.ExecuteException;
@@ -18,6 +16,8 @@ import org.apache.commons.exec.Executor;
 import org.apache.commons.exec.PumpStreamHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import lombok.Cleanup;
 
 public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 	private static String[] binaryCandiates = new String[] { "ffmpeg", "avconv" };
@@ -38,49 +38,53 @@ public class FfmpegVideoThumbnailMaker implements VideoThumbnailMaker {
 		final CommandLine cmdLine = new CommandLine(binary);
 		final String[] arguments;
 		if (originalFile.length() < 1024 * 1024 * 1024) {
-			arguments = new String[] { "-i",
-																originalFile.getAbsolutePath(),
-																"-vcodec",
-																"libx264",
-																"-b:v",
-																"512k",
-																"-profile:v",
-																"baseline",
-																"-b:a",
-																"24k",
-																"-vf",
-																"yadif",
-																"-vf",
-																"scale=1280:720",
-																"-acodec",
-																"libvo_aacenc",
-																"-sn",
-																"-r",
-																"30",
-																tempFile.getAbsolutePath() };
+			arguments = new String[] {	"-i",
+																	originalFile.getAbsolutePath(),
+																	"-vcodec",
+																	"libx264",
+																	"-b:v",
+																	"512k",
+																	"-profile:v",
+																	"baseline",
+																	"-b:a",
+																	"24k",
+																	"-vf",
+																	"yadif",
+																	"-vf",
+																	"scale=1280:720",
+																	"-acodec",
+																	"libvo_aacenc",
+																	"-sn",
+																	"-r",
+																	"30",
+																	"-ac",
+																	"2",
+																	tempFile.getAbsolutePath() };
 		} else {
-			arguments = new String[] { "-i",
-																originalFile.getAbsolutePath(),
-																"-vf",
-																"yadif",
-																"-vf",
-																"scale=480:360",
-																"-vcodec",
-																"libx264",
-																"-b:v",
-																"256k",
-																"-profile:v",
-																"baseline",
-																"-b:a",
-																"24k",
-																"-acodec",
-																"libvo_aacenc",
-																"-aspect",
-																"16:9",
-																"-sn",
-																"-r",
-																"30",
-																tempFile.getAbsolutePath() };
+			arguments = new String[] {	"-i",
+																	originalFile.getAbsolutePath(),
+																	"-vf",
+																	"yadif",
+																	"-vf",
+																	"scale=480:360",
+																	"-vcodec",
+																	"libx264",
+																	"-b:v",
+																	"256k",
+																	"-profile:v",
+																	"baseline",
+																	"-b:a",
+																	"24k",
+																	"-acodec",
+																	"libvo_aacenc",
+																	"-aspect",
+																	"16:9",
+																	"-sn",
+																	"-r",
+																	"30",
+																	"-ac",
+																	"2",
+																	tempFile.getAbsolutePath() };
 		}
 
 		cmdLine.addArguments(arguments, false);
