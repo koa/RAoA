@@ -16,9 +16,6 @@ import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeCommand;
@@ -52,6 +49,8 @@ import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.util.FS;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.data.model.state.IssueType;
 import ch.bergturbenthal.raoa.server.model.BranchConflictEntry;
@@ -60,8 +59,8 @@ import ch.bergturbenthal.raoa.server.model.FileConflictCache;
 import ch.bergturbenthal.raoa.server.model.FileConflictEntry;
 import ch.bergturbenthal.raoa.server.state.CloseableProgressMonitor;
 import ch.bergturbenthal.raoa.server.state.StateManager;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class RepositoryServiceImpl implements RepositoryService {
@@ -114,7 +113,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.image.server.util.RepositoryService#cleanOldConflicts (org.eclipse.jgit.api.Git)
 	 */
 	@Override
@@ -136,7 +135,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 		// return;
 		// logger.info("Conflicts for " + git.getRepository());
 		// for (final ConflictEntry conflictEntry : conflicts) {
-		// logger.info("  - " + conflictEntry);
+		// logger.info(" - " + conflictEntry);
 		// }
 	}
 
@@ -166,7 +165,7 @@ public class RepositoryServiceImpl implements RepositoryService {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see ch.bergturbenthal.image.server.util.RepositoryService#describeConflicts (org.eclipse.jgit.api.Git)
 	 */
 	@Override
@@ -395,7 +394,12 @@ public class RepositoryServiceImpl implements RepositoryService {
 	}
 
 	@Override
-	public boolean sync(final Git localRepository, final File externalDir, final String localName, final String remoteName, final boolean bare, final ReadWriteLock rwLock) {
+	public boolean sync(final Git localRepository,
+											final File externalDir,
+											final String localName,
+											final String remoteName,
+											final boolean bare,
+											final ReadWriteLock rwLock) {
 		try {
 			final Git externalRepository;
 			if (!externalDir.exists()) {
@@ -440,9 +444,9 @@ public class RepositoryServiceImpl implements RepositoryService {
 				}
 				if (!pushOk) {
 					final String conflictBranchName = findNextFreeConflictBranch(externalRepository, localName, new InfiniteCountIterator());
-					final Iterable<PushResult> pushToFreeBranchResult = localRepository.push()
+					final Iterable<PushResult> pushToFreeBranchResult = localRepository	.push()
 																																							.setRemote(remoteUri)
-																																							.setRefSpecs(new RefSpec("refs/heads/master:refs/heads/conflict/" + localName
+																																							.setRefSpecs(new RefSpec("refs/heads/master:refs/heads/conflict/"+ localName
 																																																				+ "/"
 																																																				+ conflictBranchName))
 																																							.call();

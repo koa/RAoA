@@ -19,6 +19,7 @@
     <module>raoa-server-new</module>
     <module>raoa-json</module>
     <module>raoa-document-client</module>
+    <module>raoa-server-standalone-docker</module>
   </modules>
   <parent>
     <groupId>ch.berg-turbenthal.parent</groupId>
@@ -74,7 +75,7 @@
       <dependency>
         <groupId>javax.jmdns</groupId>
         <artifactId>jmdns</artifactId>
-        <version>3.4.2</version>
+        <version>3.4.1</version>
       </dependency>
       <dependency>
         <groupId>org.eclipse.jgit</groupId>

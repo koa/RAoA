@@ -63,6 +63,7 @@ import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.annotation.Scope;
 
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -92,6 +93,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 
+@Scope("prototype")
 public class Album implements ApplicationContextAware {
 	@Data
 	private static class AlbumCache {
@@ -606,7 +608,7 @@ public class Album implements ApplicationContextAware {
 					return false;
 				}
 				final String lowerFilename = file.getName().toLowerCase();
-				return lowerFilename.endsWith(".jpg")|| lowerFilename.endsWith(".jpeg")
+				return lowerFilename.endsWith(".jpg")	|| lowerFilename.endsWith(".jpeg")
 								|| lowerFilename.endsWith(".nef")
 								|| lowerFilename.endsWith(".mkv")
 								|| lowerFilename.endsWith(".mp4");
