@@ -57,6 +57,7 @@ import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.errors.RevisionSyntaxException;
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -611,8 +612,38 @@ public class BareGitAlbumAccess implements AlbumAccess {
 
 	@Override
 	public AlbumEntry takeAlbumEntry(final String album) {
-		// TODO Auto-generated method stub
-		return null;
+		final AlbumData albumData = albums.get(album);
+		if (albumData == null) {
+			return null;
+		}
+
+		final String id = album;
+		final String name = albumData.getFullAlbumName();
+		final AlbumEntry albumEntry = new AlbumEntry(id, name.substring(0, name.length() - 4));
+		try {
+			final AlbumCache albumCache = getAlbumCache(albumData);
+			final AlbumMetadata albumMetadata = albumCache.getAlbumMetadata();
+			albumEntry.setTitle(albumMetadata.getAlbumTitle());
+		} catch (final IOException ex) {
+			log.error("cannot load full album metadata", ex);
+		}
+		try {
+			final Repository repository = albumData.getAlbumRepository();
+			final Iterable<RevCommit> log = new Git(repository).log().add(repository.resolve(MASTER_REF)).call();
+			int count = 0;
+			int lastCommitTime = 0;
+			for (final RevCommit revCommit : log) {
+				lastCommitTime = revCommit.getCommitTime();
+				count += 1;
+			}
+			albumEntry.setCommitCount(count);
+			if (count > 0) {
+				albumEntry.setLastModified(new Date(TimeUnit.SECONDS.toMillis(lastCommitTime)));
+			}
+		} catch (RevisionSyntaxException | GitAPIException | IOException e) {
+			log.error("cannot load full album metadata", e);
+		}
+		return albumEntry;
 	}
 
 	private boolean updateAlbum(final AlbumData albumData, final String message, final Map<String, InsertHandler> updateHandlers)	throws IOException,

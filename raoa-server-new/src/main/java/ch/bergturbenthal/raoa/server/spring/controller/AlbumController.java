@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.server.spring.controller;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Date;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,9 +50,17 @@ public class AlbumController implements Album {
 	}
 
 	@Override
+	@RequestMapping(method = RequestMethod.GET)
 	public AlbumList listAlbums() {
-		// TODO Auto-generated method stub
-		return null;
+		final AlbumList ret = new AlbumList();
+		final Collection<AlbumEntry> entryList = ret.getAlbumNames();
+		for (final String entry : albumAccess.listAlbums()) {
+			final AlbumEntry albumEntry = albumAccess.takeAlbumEntry(entry);
+			if (albumEntry != null) {
+				entryList.add(albumEntry);
+			}
+		}
+		return ret;
 	}
 
 	@Override
