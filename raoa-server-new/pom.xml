@@ -60,6 +60,25 @@
 			<groupId>javax.jmdns</groupId>
 			<artifactId>jmdns</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>io.springfox</groupId>
+			<artifactId>springfox-swagger2</artifactId>
+			<version>2.4.0</version>
+		</dependency>
+		<dependency>
+			<groupId>io.springfox</groupId>
+			<artifactId>springfox-swagger-ui</artifactId>
+			<version>2.4.0</version>
+		</dependency>
+		<dependency>
+			<groupId>ch.bergturbenthal.raoa</groupId>
+			<artifactId>raoa-data</artifactId>
+			<version>0.1.0-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+		</dependency>
 	</dependencies>
 	<properties>
 		<java.version>1.8</java.version>
@@ -81,6 +100,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.5.1</version>
 				<configuration>
 					<source>${java.version}</source>
 					<target>${java.version}</target>
@@ -89,7 +109,7 @@
 			<plugin>
 				<groupId>io.fabric8</groupId>
 				<artifactId>docker-maven-plugin</artifactId>
-				<version>0.15.4</version>
+				<version>0.16.8</version>
 				<executions>
 					<execution>
 						<phase>package</phase>
@@ -99,18 +119,49 @@
 					</execution>
 				</executions>
 				<configuration>
-					<imageName>koa/${project.artifactId}</imageName>
+					<images>
+						<image>
+							<name>registry.berg-turbenthal.ch:5000/raoa/${project.artifactId}</name>
+							<build>
+								<!-- <from>openjdk:8</from>
+								<runCmds>
+									<runCmd>apt-get update</runCmd>
+									<runCmd>apt-get -y install imagemagick ffmpeg libavcodec-extra</runCmd>
+									<runCmd>mkdir /data</runCmd>
+									<runCmd>chown nobody /data</runCmd>
+								</runCmds> -->
+								<from>registry.berg-turbenthal.ch:5000/raoa/base</from>
+								<assembly>
+									<descriptorRef>artifact</descriptorRef>
+								</assembly>
+								<env>
+									<RAOA_ALBUM_BASE_DIR>/data</RAOA_ALBUM_BASE_DIR>
+									<SERVER_PORT>8080</SERVER_PORT>
+								</env>
+								<volumes>
+									<volume>/data</volume>
+								</volumes>
+								<ports>
+									<port>8080</port>
+								</ports>
+								<user>nobody</user>
+								<entryPoint>
+									<exec>
+										<arg>java</arg>
+										<arg>-jar</arg>
+										<arg>/maven/${project.artifactId}-${project.version}.jar</arg>
+									</exec>
+								</entryPoint>
+							</build>
+						</image>
+					</images>
 					<baseImage>java</baseImage>
+					<imageName>registry.berg-turbenthal.ch:5000/raoa/${project.artifactId}</imageName>
 					<entryPoint>["java", "-jar", "/${project.build.finalName}.jar"]</entryPoint>
 					<!-- copy the service's jar file from target into the root directory 
 						of the image -->
-					<resources>
-						<resource>
-							<targetPath>/</targetPath>
-							<directory>${project.build.directory}</directory>
-							<include>${project.build.finalName}.jar</include>
-						</resource>
-					</resources>
+					<!-- <resources> <resource> <targetPath>/</targetPath> <directory>${project.build.directory}</directory> 
+						<include>${project.build.finalName}.jar</include> </resource> </resources> -->
 				</configuration>
 			</plugin>
 		</plugins>

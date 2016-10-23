@@ -1,0 +1,7 @@
+raoa:
+  album-base-dir: /tmp/testdata/
+#  album-base-dir: /media/akoenig/Transfer HD 2GB/Pferde/Turniere/2015/
+#  album-base-dir: /media/akoenig/Transfer HD 3TB/
+  serverName: local-test
+server:
+  port: 8081

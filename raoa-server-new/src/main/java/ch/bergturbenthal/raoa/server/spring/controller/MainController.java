@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import ch.bergturbenthal.raoa.json.AlbumMetadata;
@@ -16,17 +17,17 @@ public class MainController {
 	@Autowired
 	private AlbumAccess albumAccess;
 
-	@RequestMapping("album/{albumId}")
+	@RequestMapping(path = "album/{albumId}", method = RequestMethod.GET)
 	public AlbumMetadata getAlbums(@PathVariable("albumId") final String albumId) {
 		return albumAccess.getAlbumMetadata(albumId);
 	}
 
-	@RequestMapping("/instance")
+	@RequestMapping(path = "/instance", method = RequestMethod.GET)
 	public InstanceData getInstanceData() {
 		return albumAccess.getInstanceData();
 	}
 
-	@RequestMapping("album")
+	@RequestMapping(path = "album", method = RequestMethod.GET)
 	public List<String> listAlbums() {
 		return albumAccess.listAlbums();
 	}
