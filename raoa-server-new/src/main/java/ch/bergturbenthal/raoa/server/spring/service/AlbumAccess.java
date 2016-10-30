@@ -1,11 +1,12 @@
 package ch.bergturbenthal.raoa.server.spring.service;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.json.AlbumMetadata;
 import ch.bergturbenthal.raoa.json.InstanceData;
 
@@ -26,6 +27,10 @@ public interface AlbumAccess {
 		Optional<Instant> getLastModified();
 
 		Collection<ImageDataHandler> listImages();
+	}
+
+	public interface FileContent {
+		InputStream takeInputStream() throws IOException;
 	}
 
 	public interface ImageDataHandler {
@@ -51,11 +56,13 @@ public interface AlbumAccess {
 
 		Optional<Instant> getLastModified();
 
-		String getName();
+		Optional<String> getName();
 
 		Optional<Long> getOriginalFileSize();
 
 		Optional<Boolean> isVideo();
+
+		Optional<FileContent> mobileData() throws IOException;
 	}
 
 	boolean addAutoaddBeginDate(String album, Instant instant);
@@ -72,5 +79,6 @@ public interface AlbumAccess {
 
 	List<String> listAlbums();
 
-	AlbumEntry takeAlbumEntry(String album);
+	Optional<ImageDataHandler> takeImageById(String albumId, String imageId);
+
 }

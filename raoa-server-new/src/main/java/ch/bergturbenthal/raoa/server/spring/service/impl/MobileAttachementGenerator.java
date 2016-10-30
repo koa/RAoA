@@ -8,9 +8,11 @@ import ch.bergturbenthal.raoa.server.spring.service.ThumbnailMaker;
 
 @Service
 public class MobileAttachementGenerator extends AbstractThumbnailAttachementGenerator {
+	public static final String ATTACHEMENT_TYPE = "mobile-version";
+
 	@Override
 	public String attachementType() {
-		return "mobile-version";
+		return ATTACHEMENT_TYPE;
 	}
 
 	@Override
