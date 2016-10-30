@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
@@ -14,6 +15,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.time.DateTimeException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -33,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -47,6 +50,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import javax.annotation.PostConstruct;
 
@@ -70,6 +75,7 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.RefUpdate.Result;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.RepositoryBuilder;
 import org.eclipse.jgit.lib.TreeFormatter;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
@@ -95,21 +101,38 @@ import ch.bergturbenthal.raoa.server.spring.model.AlbumData;
 import ch.bergturbenthal.raoa.server.spring.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.spring.model.AlbumEntryMetadata;
 import ch.bergturbenthal.raoa.server.spring.model.AlbumMetadata;
+import ch.bergturbenthal.raoa.server.spring.model.ArchiveData;
 import ch.bergturbenthal.raoa.server.spring.model.AttachementCache;
 import ch.bergturbenthal.raoa.server.spring.model.BranchState;
+import ch.bergturbenthal.raoa.server.spring.model.StorageData;
 import ch.bergturbenthal.raoa.server.spring.service.AlbumAccess;
 import ch.bergturbenthal.raoa.server.spring.service.AttachementGenerator;
 import ch.bergturbenthal.raoa.server.spring.service.AttachementGenerator.ObjectLoaderLookup;
 import ch.bergturbenthal.raoa.server.spring.service.HashGenerator;
+import ch.bergturbenthal.raoa.server.spring.util.CachingSupplier;
 import ch.bergturbenthal.raoa.server.spring.util.FindGitDirWalker;
 import lombok.Cleanup;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
 public class BareGitAlbumAccess implements AlbumAccess {
+	@Value
+	private static class ArchiveMetadataHolder {
+		private ArchiveData archiveData;
+		private ObjectId lastCommit;
+		private Instant lastLoadTime;
+	}
+
 	private static interface InsertHandler {
 		ObjectId insert(ObjectInserter inserter) throws IOException;
+	}
+
+	@Value
+	public static class LogAnalyzeResult {
+		private int commitCount;
+		private Optional<Instant> lastCommitTime;
 	}
 
 	private static final class RepositoryObjectLoader implements ObjectLoaderLookup {
@@ -134,11 +157,15 @@ public class BareGitAlbumAccess implements AlbumAccess {
 	private static final ObjectWriter ALBUM_METADATA_WRITER = _OM.writerFor(AlbumMetadata.class);
 
 	private static final String AUTOADD_FILE = ".autoadd";
+
 	private static final String COMMIT_ID_FILE = "commit-id";
+	private static final String CONFIG_JSON = "config.json";
 	private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = new DateTimeFormatter[] {	DateTimeFormatter.ISO_INSTANT,
+																																														DateTimeFormatter.ISO_ZONED_DATE_TIME,
 																																														DateTimeFormatter.ISO_LOCAL_DATE_TIME,
 																																														DateTimeFormatter.ISO_LOCAL_DATE };
 	private static final String MASTER_REF = _REFS_HEADS + "master";
+	private static final String META_REPOSITORY = ".meta.git";
 	private static final String RAOA_JSON = ".raoa.json";
 
 	public static <R> Future<R> completedFuture(final R value) {
@@ -146,16 +173,17 @@ public class BareGitAlbumAccess implements AlbumAccess {
 	}
 
 	private final ConcurrentMap<String, AlbumData> albums = new ConcurrentHashMap<>();
-
 	private final Map<AttachementGenerator, ExecutorService> attachementGeneratorExecutors = new HashMap<AttachementGenerator, ExecutorService>();
+
 	@Autowired
 	private List<AttachementGenerator> attachementGenerators;
 	@Autowired
 	private ServerConfiguration configuration;
 	@Autowired
 	private HashGenerator hashGenerator;
-
 	private final String instanceId = UUID.randomUUID().toString();
+
+	private final AtomicReference<ArchiveMetadataHolder> lastMetadataState = new AtomicReference<BareGitAlbumAccess.ArchiveMetadataHolder>(null);
 
 	@Override
 	public boolean addAutoaddBeginDate(final String album, final Instant autoAddDate) {
@@ -354,6 +382,32 @@ public class BareGitAlbumAccess implements AlbumAccess {
 		}
 	}
 
+	private ObjectId findSingleFile(final Repository repository, final String refName, final String filename) throws IOException {
+		final ObjectId ref = repository.resolve(refName);
+		if (ref == null) {
+			return null;
+		}
+		@Cleanup
+		final RevWalk revWalk = new RevWalk(repository);
+		@Cleanup
+		final TreeWalk treeWalk = new TreeWalk(repository);
+
+		final RevCommit commit = revWalk.parseCommit(ref);
+		final RevTree tree = commit.getTree();
+		treeWalk.addTree(tree);
+		while (treeWalk.next()) {
+			if (treeWalk.isSubtree()) {
+				continue;
+			}
+			final String pathString = treeWalk.getPathString();
+			if (pathString.equals(filename)) {
+				final ObjectId objectId = treeWalk.getObjectId(0);
+				return objectId;
+			}
+		}
+		return null;
+	}
+
 	private AlbumCache getAlbumCache(final AlbumData albumData) throws IOException {
 		if (albumData == null) {
 			return null;
@@ -375,6 +429,195 @@ public class BareGitAlbumAccess implements AlbumAccess {
 				}
 			}
 		}
+	}
+
+	@Override
+	public Optional<AlbumDataHandler> getAlbumData(final String albumid) {
+		final AlbumData albumData = albums.get(albumid);
+
+		final Supplier<ArchiveData> archive = new CachingSupplier<>(() -> getArchiveData());
+
+		return Optional.ofNullable(albumData).map((Function<AlbumData, AlbumDataHandler>) data -> new AlbumDataHandler() {
+
+			final Supplier<Optional<AlbumCache>> albumCache = new CachingSupplier<>(() -> {
+				try {
+					return Optional.of(getAlbumCache(data));
+				} catch (final IOException e) {
+					log.error("Cannot take album cache", e);
+					return Optional.empty();
+				}
+			});
+
+			final Supplier<Optional<LogAnalyzeResult>> logAnalyzeResult = new CachingSupplier<>(() -> {
+				try {
+					final Repository repository = data.getAlbumRepository();
+					final Iterable<RevCommit> log = new Git(repository).log().add(repository.resolve(MASTER_REF)).call();
+					int count = 0;
+					int lastCommitTime = 0;
+					for (final RevCommit revCommit : log) {
+						lastCommitTime = revCommit.getCommitTime();
+						count += 1;
+					}
+					return Optional.of(new LogAnalyzeResult(count, count > 0 ? Optional.of(Instant.ofEpochMilli(TimeUnit.SECONDS.toMillis(lastCommitTime))) : Optional.empty()));
+				} catch (final IOException | RevisionSyntaxException | GitAPIException e) {
+					log.error("Cannot take album cache", e);
+					return Optional.empty();
+				}
+			});
+
+			@Override
+			public String getAlbumName() {
+				final String name = data.getFullAlbumName();
+				return name.substring(0, name.length() - 4);
+			}
+
+			@Override
+			public Optional<String> getAlbumTitle() {
+				return albumCache.get().map(cache -> cache.getAlbumMetadata().getAlbumTitle());
+			}
+
+			@Override
+			public Optional<String> getAlbumTitleEntry() {
+				return albumCache.get().map(cache -> cache.getAlbumMetadata().getTitleEntry());
+			}
+
+			@Override
+			public Collection<Instant> getAutoAddDates() {
+				return getAutoaddBeginDates(albumid);
+			}
+
+			@Override
+			public Collection<String> getClients() {
+				final ArchiveData archiveData = archive.get();
+				final String albumName = getAlbumName();
+				final Collection<String> clientList = new ArrayList<>();
+				for (final Entry<String, StorageData> storageEntry : archiveData.getStorages().entrySet()) {
+					if (storageEntry.getValue().getAlbumList().contains(albumName)) {
+						clientList.add(storageEntry.getKey());
+					}
+				}
+				return clientList;
+			}
+
+			@Override
+			public int getCommitCount() {
+				return logAnalyzeResult.get().map(r -> r.getCommitCount()).orElse(0);
+			}
+
+			@Override
+			public Optional<Instant> getLastModified() {
+				return logAnalyzeResult.get().map(r -> r.getLastCommitTime().orElse(null));
+			}
+
+			@Override
+			public Collection<ImageDataHandler> listImages() {
+				return albumCache.get().map(cache -> {
+					final Repository albumRepository = albumData.getAlbumRepository();
+					final ObjectDatabase objectDatabase = albumRepository.getObjectDatabase();
+					final Collection<ImageDataHandler> ret = new ArrayList<>();
+					final Map<String, AlbumEntryData> entries = cache.getEntries();
+					for (final Entry<String, AlbumEntryData> fileEntry : entries.entrySet()) {
+						final String filename = fileEntry.getKey();
+						final AlbumEntryData albumEntryData = fileEntry.getValue();
+						final Supplier<Optional<AlbumEntryMetadata>> entryMetadata = new CachingSupplier<>(() -> {
+							final ObjectId file = albumEntryData.getGeneratedAttachements().get(MetadataAttachementGenerator.ATTACHEMENT_NAME);
+							if (file == null) {
+								return Optional.empty();
+							}
+							try {
+								final ObjectLoader objectLoader = objectDatabase.open(file, Constants.OBJ_BLOB);
+								@Cleanup
+								final InputStream stream = objectLoader.openStream();
+								return Optional.of(_OM.readerFor(AlbumEntryMetadata.class).readValue(stream));
+							} catch (final IOException e) {
+								log.error("Cannot open metadata of " + filename, e);
+								return Optional.empty();
+							}
+						});
+						ret.add(new ImageDataHandler() {
+
+							@Override
+							public Optional<String> getCameraMake() {
+								return entryMetadata.get().map(m -> m.getCameraMake());
+							}
+
+							@Override
+							public Optional<String> getCameraModel() {
+								return entryMetadata.get().map(m -> m.getCameraModel());
+							}
+
+							@Override
+							public Optional<String> getCaption() {
+								return entryMetadata.get().map(m -> m.getCaption());
+							}
+
+							@Override
+							public Optional<Instant> getCaptureDate() {
+								return entryMetadata.get().map(m -> m.getCaptureDate().toInstant());
+							}
+
+							@Override
+							public Optional<Double> getExposureTime() {
+								return entryMetadata.get().map(m -> m.getExposureTime());
+							}
+
+							@Override
+							public Optional<Double> getFNumber() {
+								return entryMetadata.get().map(m -> m.getFNumber());
+							}
+
+							@Override
+							public Optional<Double> getFocalLength() {
+								return entryMetadata.get().map(m -> m.getFocalLength());
+							}
+
+							@Override
+							public String getId() {
+								return fileEntry.getValue().getOriginalFileId().name();
+							}
+
+							@Override
+							public Optional<Integer> getIso() {
+								return entryMetadata.get().map(m -> m.getIso());
+							}
+
+							@Override
+							public Collection<String> getKeywords() {
+								return entryMetadata.get().map(m -> m.getKeywords()).orElse(Collections.emptyList());
+							}
+
+							@Override
+							public Optional<Instant> getLastModified() {
+								return Optional.empty();
+							}
+
+							@Override
+							public String getName() {
+								return filename;
+							}
+
+							@Override
+							public Optional<Long> getOriginalFileSize() {
+								try {
+									return Optional.of(objectDatabase.open(albumEntryData.getOriginalFileId()).getSize());
+								} catch (final IOException e) {
+									log.error("Cannot access file " + filename, e);
+									return Optional.empty();
+								}
+							}
+
+							@Override
+							public Optional<Boolean> isVideo() {
+								return entryMetadata.get().map(m -> m.isVideo());
+							}
+						});
+					}
+					return ret;
+				}).orElse(Collections.emptyList());
+			}
+
+		});
+
 	}
 
 	@Override
@@ -421,6 +664,26 @@ public class BareGitAlbumAccess implements AlbumAccess {
 			log.error("Canot load Album data" + albumId);
 		}
 		return null;
+	}
+
+	private ArchiveData getArchiveData() {
+		final ArchiveMetadataHolder archiveMetadataHolder = lastMetadataState.get();
+		if (archiveMetadataHolder != null) {
+			final Instant lastLoadTime = archiveMetadataHolder.getLastLoadTime();
+			if (Duration.between(lastLoadTime, Instant.now()).getSeconds() < 10) {
+				return archiveMetadataHolder.getArchiveData();
+			}
+		}
+		try {
+			final Repository metadataRepository = getMetadataRespository();
+			final ObjectId objectId = findSingleFile(metadataRepository, MASTER_REF, CONFIG_JSON);
+			final ObjectLoader objectLoader = metadataRepository.getObjectDatabase().open(objectId, Constants.OBJ_BLOB);
+			@Cleanup
+			final ObjectStream stream = objectLoader.openStream();
+			return new ObjectMapper().readValue(stream, ArchiveData.class);
+		} catch (final Exception ex) {
+			throw new RuntimeException("Error accessing archive metadata", ex);
+		}
 	}
 
 	private AttachementCache getAttachementState(final AlbumData data, final String attachementType) throws IOException {
@@ -497,6 +760,25 @@ public class BareGitAlbumAccess implements AlbumAccess {
 			log.error("Cannot read " + albumBaseFile, e);
 		}
 		return null;
+	}
+
+	private Repository getMetadataRespository() throws IOException, IllegalStateException, GitAPIException {
+		final String albumBaseDir = configuration.getAlbumBaseDir();
+		final File albumDir = new File(new File(albumBaseDir), META_REPOSITORY);
+		if (albumDir.exists()) {
+			return new RepositoryBuilder().setGitDir(albumDir).setBare().setMustExist(true).build();
+		}
+		final Git createdGit = Git.init().setDirectory(albumDir).setBare(true).call();
+		final Repository repository = createdGit.getRepository();
+		final boolean createSuccessful = updateFilesOfBranch(repository, MASTER_REF, Collections.singletonMap(CONFIG_JSON, inserter -> {
+			final ArchiveData emptyArchive = new ArchiveData();
+			emptyArchive.setArchiveName("Unnamed Archive");
+			return inserter.insert(Constants.OBJ_BLOB, new ObjectMapper().writeValueAsBytes(emptyArchive));
+		}), "Initial Commit");
+		if (!createSuccessful) {
+			throw new RuntimeException("Cannot create initial commit on " + albumDir);
+		}
+		return repository;
 	}
 
 	@PostConstruct
@@ -619,11 +901,22 @@ public class BareGitAlbumAccess implements AlbumAccess {
 
 		final String id = album;
 		final String name = albumData.getFullAlbumName();
-		final AlbumEntry albumEntry = new AlbumEntry(id, name.substring(0, name.length() - 4));
+		final String fullAlbumName = name.substring(0, name.length() - 4);
+		final AlbumEntry albumEntry = new AlbumEntry(id, fullAlbumName);
 		try {
 			final AlbumCache albumCache = getAlbumCache(albumData);
 			final AlbumMetadata albumMetadata = albumCache.getAlbumMetadata();
-			albumEntry.setTitle(albumMetadata.getAlbumTitle());
+			final String albumTitle = albumMetadata.getAlbumTitle();
+			if (albumTitle != null) {
+				albumEntry.setTitle(albumTitle);
+			} else {
+				final int nameStart = fullAlbumName.lastIndexOf('/');
+				if (nameStart < 0) {
+					albumEntry.setTitle(fullAlbumName);
+				} else {
+					albumEntry.setTitle(fullAlbumName.substring(nameStart + 1));
+				}
+			}
 		} catch (final IOException ex) {
 			log.error("cannot load full album metadata", ex);
 		}
@@ -636,12 +929,21 @@ public class BareGitAlbumAccess implements AlbumAccess {
 				lastCommitTime = revCommit.getCommitTime();
 				count += 1;
 			}
+			final LogAnalyzeResult analyzeTesult = new LogAnalyzeResult(count,
+																																	count > 0 ? Optional.of(Instant.ofEpochMilli(TimeUnit.SECONDS.toMillis(lastCommitTime)))
+																																			: Optional.empty());
 			albumEntry.setCommitCount(count);
 			if (count > 0) {
 				albumEntry.setLastModified(new Date(TimeUnit.SECONDS.toMillis(lastCommitTime)));
 			}
 		} catch (RevisionSyntaxException | GitAPIException | IOException e) {
 			log.error("cannot load full album metadata", e);
+		}
+		final ArchiveData archiveData = getArchiveData();
+		for (final Entry<String, StorageData> storageEntry : archiveData.getStorages().entrySet()) {
+			if (storageEntry.getValue().getAlbumList().contains(fullAlbumName)) {
+				albumEntry.getClients().add(storageEntry.getKey());
+			}
 		}
 		return albumEntry;
 	}
@@ -652,18 +954,7 @@ public class BareGitAlbumAccess implements AlbumAccess {
 																																																																MissingObjectException,
 																																																																CorruptObjectException {
 		final Repository repository = albumData.getAlbumRepository();
-		final Map<String, ObjectId> insertedObjects = insertObjects(repository.getObjectDatabase().newInserter(), updateHandlers);
-		while (true) {
-			final Result updateResult = updateBranch(MASTER_REF, message, repository, insertedObjects);
-			if (updateResult == Result.NEW || updateResult == Result.FAST_FORWARD) {
-				return true;
-			}
-			if (updateResult == Result.REJECTED) {
-				// repeat in case of conflict
-				continue;
-			}
-			return false;
-		}
+		return updateFilesOfBranch(repository, MASTER_REF, updateHandlers, message);
 	}
 
 	private void updateAlbumList(final String albumBaseDir) {
@@ -675,6 +966,8 @@ public class BareGitAlbumAccess implements AlbumAccess {
 				final FindGitDirWalker gitDirWalker = new FindGitDirWalker();
 				final HashSet<String> remainingAlbums = new HashSet<>(albums.keySet());
 				for (final File foundDir : gitDirWalker.findGitDirs(albumBaseFile)) {
+					log.info("Found Repository: " + foundDir);
+					final Instant repositoryStartTime = Instant.now();
 					final Path albumPath = fs.getPath(foundDir.getPath());
 					final String pathName = relative(albumBasePath, albumPath);
 					try {
@@ -733,6 +1026,8 @@ public class BareGitAlbumAccess implements AlbumAccess {
 						remainingAlbums.remove(albumKey);
 					} catch (final IOException e) {
 						log.error("Cannot load repository " + pathName, e);
+					} finally {
+						log.info("Ended repository " + foundDir + ", Duration: " + Duration.between(repositoryStartTime, Instant.now()));
 					}
 				}
 				for (final String remainingAlbum : remainingAlbums) {
@@ -995,6 +1290,28 @@ public class BareGitAlbumAccess implements AlbumAccess {
 		final Result result = ru.update();
 		log.info("Update result: " + result);
 		return result;
+	}
+
+	private boolean updateFilesOfBranch(final Repository repository,
+																			final String branch,
+																			final Map<String, InsertHandler> updateHandlers,
+																			final String message)	throws IOException,
+																														AmbiguousObjectException,
+																														IncorrectObjectTypeException,
+																														MissingObjectException,
+																														CorruptObjectException {
+		final Map<String, ObjectId> insertedObjects = insertObjects(repository.getObjectDatabase().newInserter(), updateHandlers);
+		while (true) {
+			final Result updateResult = updateBranch(branch, message, repository, insertedObjects);
+			if (updateResult == Result.NEW || updateResult == Result.FAST_FORWARD) {
+				return true;
+			}
+			if (updateResult == Result.REJECTED) {
+				// repeat in case of conflict
+				continue;
+			}
+			return false;
+		}
 	}
 
 	private AttachementCache walkAttachement(final Repository repository, final String attachementRef) throws IOException, MissingObjectException, CorruptObjectException {

@@ -3,6 +3,7 @@ package ch.bergturbenthal.raoa.server.spring.model;
 import java.util.Collection;
 import java.util.Date;
 
+import ch.bergturbenthal.raoa.data.model.Location;
 import lombok.Data;
 
 @Data
@@ -19,6 +20,7 @@ public class AlbumEntryMetadata {
 	private Integer iso;
 	private boolean isVideo;
 	private Collection<String> keywords;
+	private Location location;
 	private long originalFileSize;
 	private Integer rating;
 	private Long thumbnailFileSize;

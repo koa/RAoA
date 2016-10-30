@@ -138,9 +138,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private ApplicationContext applicationContext;
 
 	private File baseDir;
-	@Value("${raoa.album}")
+	@Value("${raoa.album:}")
 	private File configuredAlbumBasePath;
-	@Value("${raoa.import}")
+	@Value("${raoa.import:}")
 	private File configuredImportBasePath;
 	private final ConcurrentMap<String, Object> createAlbumLocks = new ConcurrentHashMap<String, Object>();
 	@Autowired
@@ -955,12 +955,12 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	private void readLocalSettingsFromPreferences() {
-		if (configuredAlbumBasePath != null) {
+		if (configuredAlbumBasePath != null && configuredAlbumBasePath.exists()) {
 			setBaseDir(configuredAlbumBasePath);
 		} else {
 			setBaseDir(new File(preferences.get(ALBUM_PATH_PREFERENCE, new File(System.getProperty("user.home"), "images").getAbsolutePath())));
 		}
-		if (configuredImportBasePath != null) {
+		if (configuredImportBasePath != null && configuredImportBasePath.exists()) {
 			setImportBaseDir(configuredImportBasePath);
 		} else {
 			setImportBaseDir(new File(preferences.get(IMPORT_BASE_PATH_REFERENCE, "nowhere")));

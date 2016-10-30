@@ -30,7 +30,7 @@ public class ImageMagickImageThumbnailMaker implements ThumbnailMaker {
 	private static final Logger log = LoggerFactory.getLogger(ImageMagickImageThumbnailMaker.class);
 	private ImageCommand cmd = null;
 	private final ExecutorService executorService = new ThreadPoolExecutor(	0,
-																																					Runtime.getRuntime().availableProcessors(),
+																																					1,
 																																					6,
 																																					TimeUnit.SECONDS,
 																																					new ArrayBlockingQueue<Runnable>(20),
