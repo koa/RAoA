@@ -79,6 +79,38 @@
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-lang3</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>com.vaadin</groupId>
+			<artifactId>vaadin-spring-boot-starter</artifactId>
+			<version>1.0.2</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security.oauth</groupId>
+			<artifactId>spring-security-oauth2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+			<dependency>
+				<groupId>com.vaadin</groupId>
+				<artifactId>vaadin-push</artifactId>
+				<version>7.7.0</version>
+			</dependency>
 	</dependencies>
 	<properties>
 		<java.version>1.8</java.version>
@@ -123,13 +155,9 @@
 						<image>
 							<name>registry.berg-turbenthal.ch:5000/raoa/${project.artifactId}</name>
 							<build>
-								<!-- <from>openjdk:8</from>
-								<runCmds>
-									<runCmd>apt-get update</runCmd>
-									<runCmd>apt-get -y install imagemagick ffmpeg libavcodec-extra</runCmd>
-									<runCmd>mkdir /data</runCmd>
-									<runCmd>chown nobody /data</runCmd>
-								</runCmds> -->
+								<!-- <from>openjdk:8</from> <runCmds> <runCmd>apt-get update</runCmd> 
+									<runCmd>apt-get -y install imagemagick ffmpeg libavcodec-extra</runCmd> <runCmd>mkdir 
+									/data</runCmd> <runCmd>chown nobody /data</runCmd> </runCmds> -->
 								<from>registry.berg-turbenthal.ch:5000/raoa/base</from>
 								<assembly>
 									<descriptorRef>artifact</descriptorRef>
