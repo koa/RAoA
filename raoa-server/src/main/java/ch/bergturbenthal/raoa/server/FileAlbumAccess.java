@@ -13,6 +13,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
@@ -697,6 +698,13 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				}
 			}
 		}, 30, TimeUnit.SECONDS);
+		executorService.scheduleWithFixedDelay(new Runnable() {
+
+			@Override
+			public void run() {
+				pollCurrentKnownPeers();
+			}
+		}, 0, 5, TimeUnit.MINUTES);
 	}
 
 	@PostConstruct
@@ -906,6 +914,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		synchronized (processPeersLock) {
 
 			final Map<String, URI> foundPeers = new HashMap<String, URI>();
+			final List<InetSocketAddress> checkCandidates = new ArrayList<>();
+			checkCandidates.add(new InetSocketAddress("royalarchive.lan", 8080));
+			checkCandidates.add(new InetSocketAddress("royalarchive.lan", 80));
 			for (final ServiceInfo serviceInfo : services) {
 				final int peerPort = serviceInfo.getPort();
 				final InetAddress[] addresses = serviceInfo.getInetAddresses();
@@ -913,26 +924,32 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					if (inetAddress.isLinkLocalAddress()) {
 						continue;
 					}
-					try {
-						final URI candidateUri = new URI("http", null, inetAddress.getHostAddress(), peerPort, "/rest/", null, null);
-						final ResponseEntity<PingResponse> responseEntity = ping(candidateUri);
-						if (!responseEntity.hasBody() || responseEntity.getStatusCode().series() != Series.SUCCESSFUL) {
-							continue;
-						}
-						final PingResponse pingResponse = responseEntity.getBody();
-						if (!pingResponse.getArchiveId().equals(getArchiveName())) {
-							continue;
-						}
-						if (pingResponse.getServerId().equals(getInstanceId())) {
-							continue;
-						}
-						foundPeers.put(pingResponse.getServerId(), candidateUri);
-					} catch (final URISyntaxException e) {
-						log.warn("Cannot build URL for " + serviceInfo, e);
-					} catch (final RestClientException e) {
-						log.warn("ping " + serviceInfo, e);
-					}
+					final InetSocketAddress peerCandidate = new InetSocketAddress(inetAddress, peerPort);
+					checkCandidates.add(peerCandidate);
 				}
+			}
+			for (final InetSocketAddress peerCandidate : checkCandidates) {
+				try {
+					final URI candidateUri = new URI("http", null, peerCandidate.getAddress().getHostAddress(), peerCandidate.getPort(), "/rest/", null, null);
+					log.info("Try: " + candidateUri);
+					final ResponseEntity<PingResponse> responseEntity = ping(candidateUri);
+					if (!responseEntity.hasBody() || responseEntity.getStatusCode().series() != Series.SUCCESSFUL) {
+						continue;
+					}
+					final PingResponse pingResponse = responseEntity.getBody();
+					if (!pingResponse.getArchiveId().equals(getArchiveName())) {
+						continue;
+					}
+					if (pingResponse.getServerId().equals(getInstanceId())) {
+						continue;
+					}
+					foundPeers.put(pingResponse.getServerId(), candidateUri);
+				} catch (final URISyntaxException e) {
+					log.warn("Cannot build URL for " + peerCandidate, e);
+				} catch (final RestClientException e) {
+					log.warn("ping " + peerCandidate, e);
+				}
+
 			}
 			log.info("Found peers: ");
 			for (final Entry<String, URI> peerEntry : foundPeers.entrySet()) {
