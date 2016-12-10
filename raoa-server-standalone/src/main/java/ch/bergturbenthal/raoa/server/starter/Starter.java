@@ -8,7 +8,6 @@ import javax.jmdns.NetworkTopologyEvent;
 import javax.jmdns.NetworkTopologyListener;
 import javax.jmdns.ServiceInfo;
 
-import org.apache.jasper.servlet.JspServlet;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
@@ -21,7 +20,6 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.web.servlet.DispatcherServlet;
 
 public class Starter {
@@ -43,17 +41,17 @@ public class Starter {
 		server.setConnectors(new Connector[] { connector });
 		final ServletContextHandler context = new ServletContextHandler();
 		context.setSessionHandler(new SessionHandler());
-		context.addServlet(JspServlet.class, "*.jsp");
+		// context.addServlet(JspServlet.class, "*.jsp");
 		context.setClassLoader(ClassLoader.getSystemClassLoader());
-		final SpringResource baseResource = new SpringResource(new ClassPathResource("web/"));
-		context.setBaseResource(baseResource);
+		// final SpringResource baseResource = new SpringResource(new ClassPathResource("web/"));
+		// context.setBaseResource(baseResource);
 		final ServletHolder dispatcherServlet = context.addServlet(DispatcherServlet.class, "/rest/*");
 		dispatcherServlet.setInitParameter("contextConfigLocation", "classpath:/spring/servlet-context.xml");
 		dispatcherServlet.setInitOrder(1);
 
 		final HandlerCollection handlers = new HandlerCollection();
 		final ResourceHandler resourceHandler = new ResourceHandler();
-		resourceHandler.setBaseResource(baseResource);
+		// resourceHandler.setBaseResource(baseResource);
 		handlers.setHandlers(new Handler[] { context, resourceHandler, new DefaultHandler() });
 		server.setHandler(handlers);
 		server.start();

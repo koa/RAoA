@@ -8,9 +8,11 @@ import ch.bergturbenthal.raoa.server.spring.service.ThumbnailMaker;
 
 @Service
 public class ThumbnailAttachementGenerator extends AbstractThumbnailAttachementGenerator {
+	public static final String ATTACHEMENT_TYPE = "thumbnail";
+
 	@Override
 	public String attachementType() {
-		return "thumbnail";
+		return ATTACHEMENT_TYPE;
 	}
 
 	@Override

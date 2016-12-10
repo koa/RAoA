@@ -1,3 +1,7 @@
+spring:
+  application:
+    name: RAoA
+
 security:
   oauth2:
     client:
@@ -11,3 +15,11 @@ security:
     resource:
       userInfoUri: https://www.googleapis.com/oauth2/v3/userinfo
       preferTokenInfo: true
+
+eureka:
+  instance:
+    instance-id: ${spring.application.name}:${vcap.application.instance_id:${spring.application.instance_id:${random.value}}}
+  client:
+    service-url:
+      defaultZone: http://discovery.berg-turbenthal.ch/eureka/
+      

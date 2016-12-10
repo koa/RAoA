@@ -11,12 +11,12 @@ import ch.bergturbenthal.raoa.server.collage.Rectangle;
 
 public class CreateCollage {
 	public static void main(final String[] args) throws IOException {
-		final int collageCount = 6;
-		final List<Image> originalImages = Collage.readImagesFromDirectory(new File("/tmp/bea/prepared"));
+		final int collageCount = 35;
+		final List<Image> originalImages = Collage.readImagesFromDirectory(new File("/tmp/ponytreff/prepared"));
 		Collections.shuffle(originalImages);
 		int currentPos = 0;
 		int remainingCount = collageCount;
-		final File outDir = new File("/tmp/bea/collage");
+		final File outDir = new File("/tmp/ponytreff/collage");
 		outDir.mkdirs();
 		while (currentPos < originalImages.size()) {
 			final int currentCollageCount = (originalImages.size() - currentPos) / remainingCount--;

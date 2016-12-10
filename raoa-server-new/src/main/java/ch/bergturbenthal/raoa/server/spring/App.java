@@ -8,6 +8,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.oauth2.client.EnableOAuth2Sso;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.AuthoritiesExtractor;
+import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,7 @@ import com.vaadin.spring.annotation.EnableVaadin;
 import ch.bergturbenthal.raoa.server.spring.configuration.ServerConfiguration;
 import ch.bergturbenthal.raoa.server.spring.controller.MainController;
 import ch.bergturbenthal.raoa.server.spring.interfaces.ui.MainUI;
+import ch.bergturbenthal.raoa.server.spring.interfaces.view.AlbumOverviewView;
 import ch.bergturbenthal.raoa.server.spring.service.impl.BareGitAlbumAccess;
 import springfox.documentation.builders.PathSelectors;
 import springfox.documentation.builders.RequestHandlerSelectors;
@@ -28,12 +30,13 @@ import springfox.documentation.spring.web.plugins.Docket;
 import springfox.documentation.swagger2.annotations.EnableSwagger2;
 
 @EnableAutoConfiguration
-@ComponentScan(basePackageClasses = { ServerConfiguration.class, BareGitAlbumAccess.class, MainController.class, MainUI.class })
+@ComponentScan(basePackageClasses = { ServerConfiguration.class, BareGitAlbumAccess.class, MainController.class, MainUI.class, AlbumOverviewView.class })
 @EnableScheduling
 @EnableSwagger2
 @Configuration
 @EnableVaadin
 @EnableOAuth2Sso
+@EnableEurekaClient
 public class App {
 
 	// @Bean

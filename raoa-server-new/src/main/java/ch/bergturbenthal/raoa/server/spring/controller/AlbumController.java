@@ -1,20 +1,15 @@
 package ch.bergturbenthal.raoa.server.spring.controller;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,9 +28,6 @@ import ch.bergturbenthal.raoa.data.model.ImportFileRequest;
 import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.server.spring.service.AlbumAccess;
 import ch.bergturbenthal.raoa.server.spring.service.AlbumAccess.AlbumDataHandler;
-import ch.bergturbenthal.raoa.server.spring.service.AlbumAccess.FileContent;
-import ch.bergturbenthal.raoa.server.spring.service.AlbumAccess.ImageDataHandler;
-import lombok.Cleanup;
 
 @RestController
 @RequestMapping("/albums")
@@ -158,30 +150,6 @@ public class AlbumController implements Album {
 	public ImageResult readImage(final String albumId, final String imageId, final Date ifModifiedSince) throws IOException {
 		// TODO Auto-generated method stub
 		return null;
-	}
-
-	@RequestMapping(value = "{albumId}/image/{imageId}.jpg", method = RequestMethod.GET)
-	public void readImage(@PathVariable("albumId") final String albumId,
-												@PathVariable("imageId") final String imageId,
-												final HttpServletRequest request,
-												final HttpServletResponse response) throws IOException {
-
-		final Optional<ImageDataHandler> imageById = albumAccess.takeImageById(albumId, imageId);
-		if (!imageById.isPresent()) {
-			response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-			return;
-		}
-		final ImageDataHandler imageDataHandler = imageById.get();
-		final Optional<FileContent> mobileData = imageDataHandler.mobileData();
-		if (!mobileData.isPresent()) {
-			response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-			return;
-		}
-		@Cleanup
-		final InputStream dataInputStreamOptinal = mobileData.get().takeInputStream();
-		response.setContentType(imageDataHandler.isVideo().get() ? "video/mp4" : "image/jpeg");
-		StreamUtils.copy(dataInputStreamOptinal, response.getOutputStream());
-
 	}
 
 	@Override

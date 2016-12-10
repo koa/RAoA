@@ -1,0 +1,16 @@
+@import "../valo/valo";
+
+@mixin mytheme {
+  @include valo;
+
+  /* An actual theme rule */
+  .v-button {
+    color: blue;
+  }
+   !important; /* define row height */
+  .gridwiththumbnails .imagecol {
+      height: 128px;
+      background: black;
+      text-align: center;
+   }
+}

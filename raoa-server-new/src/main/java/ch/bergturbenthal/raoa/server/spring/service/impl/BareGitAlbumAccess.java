@@ -416,6 +416,13 @@ public class BareGitAlbumAccess implements AlbumAccess {
 				final Optional<ObjectId> foundAttachement = findSingleFile(albumRepository, _REFS_HEADS + MobileAttachementGenerator.ATTACHEMENT_TYPE, fileId);
 				return foundAttachement.map(o -> () -> albumRepository.open(o, Constants.OBJ_BLOB).openStream());
 			}
+
+			@Override
+			public Optional<FileContent> thumnbailData() throws IOException {
+				final String fileId = getId();
+				final Optional<ObjectId> foundAttachement = findSingleFile(albumRepository, _REFS_HEADS + ThumbnailAttachementGenerator.ATTACHEMENT_TYPE, fileId);
+				return foundAttachement.map(o -> () -> albumRepository.open(o, Constants.OBJ_BLOB).openStream());
+			}
 		};
 	}
 
@@ -635,6 +642,19 @@ public class BareGitAlbumAccess implements AlbumAccess {
 			@Override
 			public Collection<Instant> getAutoAddDates() {
 				return getAutoaddBeginDates(albumid);
+			}
+
+			@Override
+			public Optional<Instant> getCaptureTime() {
+				final ch.bergturbenthal.raoa.json.AlbumMetadata albumMetadata = getAlbumMetadata(albumid);
+				if (albumMetadata == null) {
+					return Optional.empty();
+				}
+				final Date date = albumMetadata.getTimestamp();
+				if (date == null) {
+					return Optional.empty();
+				}
+				return Optional.of(date.toInstant());
 			}
 
 			@Override

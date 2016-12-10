@@ -20,6 +20,8 @@ public interface AlbumAccess {
 
 		Collection<Instant> getAutoAddDates();
 
+		Optional<Instant> getCaptureTime();
+
 		Collection<String> getClients();
 
 		int getCommitCount();
@@ -27,6 +29,7 @@ public interface AlbumAccess {
 		Optional<Instant> getLastModified();
 
 		Collection<ImageDataHandler> listImages();
+
 	}
 
 	public interface FileContent {
@@ -63,6 +66,8 @@ public interface AlbumAccess {
 		Optional<Boolean> isVideo();
 
 		Optional<FileContent> mobileData() throws IOException;
+
+		Optional<FileContent> thumnbailData() throws IOException;
 	}
 
 	boolean addAutoaddBeginDate(String album, Instant instant);
