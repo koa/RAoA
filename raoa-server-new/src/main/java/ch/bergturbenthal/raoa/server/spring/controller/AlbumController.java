@@ -16,22 +16,26 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.async.DeferredResult;
 
-import ch.bergturbenthal.raoa.data.api.Album;
 import ch.bergturbenthal.raoa.data.api.ImageResult;
 import ch.bergturbenthal.raoa.data.model.AlbumDetail;
 import ch.bergturbenthal.raoa.data.model.AlbumEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumImageEntry;
 import ch.bergturbenthal.raoa.data.model.AlbumList;
 import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
-import ch.bergturbenthal.raoa.data.model.ImportFileRequest;
 import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.server.spring.service.AlbumAccess;
 import ch.bergturbenthal.raoa.server.spring.service.AlbumAccess.AlbumDataHandler;
+import reactor.core.Cancellation;
+import reactor.core.publisher.Mono;
+import rx.Observable;
+import rx.Subscriber;
+import rx.Subscription;
 
 @RestController
 @RequestMapping("/albums")
-public class AlbumController implements Album {
+public class AlbumController {
 	private final class AbumDetailConverter implements Function<AlbumDataHandler, AlbumDetail> {
 		private final String albumid;
 		private final int count;
@@ -98,15 +102,20 @@ public class AlbumController implements Album {
 	@Autowired
 	private AlbumAccess albumAccess;
 
-	@Override
 	@RequestMapping(method = RequestMethod.POST)
-	public AlbumEntry createAlbum(@RequestBody final CreateAlbumRequest request) {
-		final String album = albumAccess.createAlbum(request.getPathComps());
+	public Mono<AlbumEntry> createAlbumObservable(@RequestBody final CreateAlbumRequest request) {
 		final Date autoAddDate = request.getAutoAddDate();
-		if (autoAddDate != null) {
-			albumAccess.addAutoaddBeginDate(album, autoAddDate.toInstant());
-		}
-		return albumAccess.getAlbumData(album).map(new AlbumEntryConverter(album)).orElseThrow(() -> new RuntimeException("Cannot take created repository"));
+		final Mono<String> createAlbum = albumAccess.createAlbum(request.getPathComps());
+		final Mono<String> created = createAlbum.then((Function<String, Mono<String>>) album -> {
+			if (autoAddDate != null) {
+				albumAccess.addAutoaddBeginDate(album, autoAddDate.toInstant());
+			}
+			return Mono.just(album);
+		});
+		final Function<String, AlbumEntry> map = album -> albumAccess	.getAlbumData(album)
+																																	.map(new AlbumEntryConverter(album))
+																																	.orElseThrow(() -> new RuntimeException("Cannot take created repository"));
+		return created.map(map);
 
 	}
 
@@ -121,18 +130,10 @@ public class AlbumController implements Album {
 
 	}
 
-	@Override
-	public void importFile(final ImportFileRequest request) {
-		// TODO Auto-generated method stub
-
-	}
-
-	@Override
 	public AlbumDetail listAlbumContent(final String albumid) {
 		return albumAccess.getAlbumData(albumid).map(new AbumDetailConverter(albumid, 0, Integer.MAX_VALUE)).orElse(null);
 	}
 
-	@Override
 	@RequestMapping(method = RequestMethod.GET)
 	public AlbumList listAlbums() {
 		final AlbumList ret = new AlbumList();
@@ -146,30 +147,60 @@ public class AlbumController implements Album {
 		return ret;
 	}
 
-	@Override
+	private <T> DeferredResult<T> mono2singleResult(final Mono<T> mono) {
+		final DeferredResult<T> ret = new DeferredResult<>();
+		final Cancellation cancellation = mono.subscribe(t -> ret.setResult(t), t -> ret.setErrorResult(t));
+		ret.onTimeout(() -> {
+			cancellation.dispose();
+		});
+		return ret;
+	}
+
+	private <T> DeferredResult<T> observable2singleResult(final Observable<T> observable) {
+		final DeferredResult<T> ret = new DeferredResult<T>();
+		final Subscription subscription = observable.subscribe(new Subscriber<T>() {
+
+			@Override
+			public void onCompleted() {
+				// TODO Auto-generated method stub
+
+			}
+
+			@Override
+			public void onError(final Throwable e) {
+				ret.setErrorResult(e);
+			}
+
+			@Override
+			public void onNext(final T t) {
+				ret.setResult(t);
+			}
+		});
+		ret.onTimeout(() -> {
+			subscription.unsubscribe();
+		});
+		return ret;
+	}
+
 	public ImageResult readImage(final String albumId, final String imageId, final Date ifModifiedSince) throws IOException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
-	@Override
 	public void registerClient(final String albumId, final String clientId) {
 
 	}
 
-	@Override
 	public void setAutoAddDate(final String albumId, final Date autoAddDate) {
 		// TODO Auto-generated method stub
 
 	}
 
-	@Override
 	public void unRegisterClient(final String albumId, final String clientId) {
 		// TODO Auto-generated method stub
 
 	}
 
-	@Override
 	public void updateMetadata(final String albumId, final UpdateMetadataRequest request) {
 		// TODO Auto-generated method stub
 

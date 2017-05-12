@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import ch.bergturbenthal.raoa.json.AlbumMetadata;
 import ch.bergturbenthal.raoa.json.InstanceData;
+import reactor.core.publisher.Mono;
 
 public interface AlbumAccess {
 	public interface AlbumDataHandler {
@@ -72,7 +73,7 @@ public interface AlbumAccess {
 
 	boolean addAutoaddBeginDate(String album, Instant instant);
 
-	String createAlbum(String[] pathComps);
+	Mono<String> createAlbum(String[] pathComps);
 
 	Optional<AlbumDataHandler> getAlbumData(String albumid);
 

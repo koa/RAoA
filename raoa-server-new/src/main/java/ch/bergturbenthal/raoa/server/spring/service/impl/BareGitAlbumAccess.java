@@ -118,6 +118,7 @@ import ch.bergturbenthal.raoa.server.spring.util.FindGitDirWalker;
 import lombok.Cleanup;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @Service
@@ -246,39 +247,41 @@ public class BareGitAlbumAccess implements AlbumAccess {
 	}
 
 	@Override
-	public String createAlbum(final String[] pathComps) {
-		final Path basePath = FileSystems.getDefault().getPath(configuration.getAlbumBaseDir()).toAbsolutePath();
-		final Path albumPath = FileSystems.getDefault().getPath(configuration.getAlbumBaseDir(), pathComps).normalize().toAbsolutePath();
-		if (!albumPath.startsWith(basePath)) {
-			throw new IllegalArgumentException("Invalid path: " + albumPath);
-		}
-		final Path parentPath = albumPath.getParent();
-		final String lastComp = albumPath.toFile().getName();
-		if (lastComp.endsWith(".git")) {
-			throw new IllegalArgumentException("Illegal album name: " + Arrays.toString(pathComps));
-		}
-		final File newAlbumDir = new File(parentPath.toFile(), lastComp + ".git");
-		final String pathName = relative(basePath, albumPath);
-		final String hash = hashGenerator.generateHash(pathName);
-		if (newAlbumDir.exists()) {
-			for (final Entry<String, AlbumData> albumEntry : albums.entrySet()) {
-				if (newAlbumDir.equals(albumEntry.getValue().getAlbumRepository().getDirectory())) {
-					return albumEntry.getKey();
-				}
+	public Mono<String> createAlbum(final String[] pathComps) {
+		return Mono.defer(() -> {
+			final Path basePath = FileSystems.getDefault().getPath(configuration.getAlbumBaseDir()).toAbsolutePath();
+			final Path albumPath = FileSystems.getDefault().getPath(configuration.getAlbumBaseDir(), pathComps).normalize().toAbsolutePath();
+			if (!albumPath.startsWith(basePath)) {
+				return Mono.error(new IllegalArgumentException("Invalid path: " + albumPath));
 			}
-			throw new IllegalArgumentException("Directory " + pathName + " already exists");
-		}
-		try {
-			final Git git = Git.init().setBare(true).setDirectory(newAlbumDir).call();
-			final Repository repository = git.getRepository();
-			final AlbumData albumData = AlbumData.builder().fullAlbumName(pathName).albumRepository(repository).build();
-			final AlbumMetadata metadata = new AlbumMetadata(hash, lastComp, null);
-			updateAlbumMeta(albumData, null, metadata);
-			albums.put(hash, albumData);
-			return hash;
-		} catch (final IllegalStateException | GitAPIException | IOException e) {
-			throw new RuntimeException("Cannot create new album " + pathName, e);
-		}
+			final Path parentPath = albumPath.getParent();
+			final String lastComp = albumPath.toFile().getName();
+			if (lastComp.endsWith(".git")) {
+				return Mono.error(new IllegalArgumentException("Illegal album name: " + Arrays.toString(pathComps)));
+			}
+			final File newAlbumDir = new File(parentPath.toFile(), lastComp + ".git");
+			final String pathName = relative(basePath, albumPath);
+			final String hash = hashGenerator.generateHash(pathName);
+			if (newAlbumDir.exists()) {
+				for (final Entry<String, AlbumData> albumEntry : albums.entrySet()) {
+					if (newAlbumDir.equals(albumEntry.getValue().getAlbumRepository().getDirectory())) {
+						return Mono.just(albumEntry.getKey());
+					}
+				}
+				return Mono.error(new IllegalArgumentException("Directory " + pathName + " already exists"));
+			}
+			try {
+				final Git git = Git.init().setBare(true).setDirectory(newAlbumDir).call();
+				final Repository repository = git.getRepository();
+				final AlbumData albumData = AlbumData.builder().fullAlbumName(pathName).albumRepository(repository).build();
+				final AlbumMetadata metadata = new AlbumMetadata(hash, lastComp, null);
+				updateAlbumMeta(albumData, null, metadata);
+				albums.put(hash, albumData);
+				return Mono.just(hash);
+			} catch (final IllegalStateException | GitAPIException | IOException e) {
+				return Mono.error(new RuntimeException("Cannot create new album " + pathName, e));
+			}
+		});
 	}
 
 	protected CommitBuilder createCommit(final Repository repository, final ObjectId parentCommit, final ObjectId treeObjectId)	throws MissingObjectException,
