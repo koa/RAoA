@@ -2,11 +2,16 @@ package ch.bergturbenthal.raoa.server.starter;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.ImportResource;
+
+import ch.bergturbenthal.raoa.server.controller.PingController;
+import ch.bergturbenthal.raoa.server.watcher.DirectoryNotificationService;
 
 @SpringBootApplication
 @ImportResource("classpath:spring/services.xml")
 // @EnableEurekaClient
+@ComponentScan(basePackageClasses = { PingController.class, DirectoryNotificationService.class })
 public class Starter {
 
 	/**

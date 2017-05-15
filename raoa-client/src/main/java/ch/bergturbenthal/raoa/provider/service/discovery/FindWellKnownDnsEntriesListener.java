@@ -18,17 +18,19 @@ public class FindWellKnownDnsEntriesListener implements ServerDiscoveryListener 
 
 	@Override
 	public void pollForServices(final boolean withProgressUpdate) {
-		try {
-			final InetAddress[] inetAddresses = InetAddress.getAllByName("royalarchive.lan");
-			final Collection<InetSocketAddress> knownServiceEndpoints = new ArrayList<InetSocketAddress>(inetAddresses.length);
-			for (final InetAddress inetAddress : inetAddresses) {
-				knownServiceEndpoints.add(new InetSocketAddress(inetAddress, 80));
-				knownServiceEndpoints.add(new InetSocketAddress(inetAddress, 8080));
+		final Collection<InetSocketAddress> knownServiceEndpoints = new ArrayList<InetSocketAddress>();
+		for (final String hostname : new String[] { "royalarchive.lan", "raoa.teamkoenig.ch" }) {
+			try {
+				final InetAddress[] inetAddresses = InetAddress.getAllByName(hostname);
+				for (final InetAddress inetAddress : inetAddresses) {
+					knownServiceEndpoints.add(new InetSocketAddress(inetAddress, 80));
+					knownServiceEndpoints.add(new InetSocketAddress(inetAddress, 8080));
+				}
+			} catch (final UnknownHostException e) {
+				// ip address not set -> ignore
 			}
-			resultListener.notifyServices(knownServiceEndpoints, withProgressUpdate);
-		} catch (final UnknownHostException e) {
-			// ip address not set -> ignore
 		}
+		resultListener.notifyServices(knownServiceEndpoints, withProgressUpdate);
 		// TODO Auto-generated method stub
 
 	}

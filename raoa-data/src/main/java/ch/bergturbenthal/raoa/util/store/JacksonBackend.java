@@ -29,44 +29,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
  */
 public class JacksonBackend<T> extends AbstractFileBackend<T> {
 
-	private final static ObjectMapper gzMapper = new ObjectMapper();
-	private final static ObjectMapper plainMapper = new ObjectMapper();
+	private final static ObjectMapper mapper = new ObjectMapper();
 	private static final String SUFFIX = ".json";
 	private final Class<T> type;
-	{
-		final JsonFactory jsonFactory = gzMapper.getJsonFactory();
-		jsonFactory.setOutputDecorator(new OutputDecorator() {
-
-			@Override
-			public OutputStream decorate(final IOContext ctxt, final OutputStream out) throws IOException {
-				return new GZIPOutputStream(out);
-			}
-
-			@Override
-			public Writer decorate(final IOContext ctxt, final Writer w) throws IOException {
-				return w;
-			}
-		});
-		jsonFactory.setInputDecorator(new InputDecorator() {
-
-			@Override
-			public InputStream decorate(final IOContext ctxt, final byte[] src, final int offset, final int length) throws IOException {
-				return null;
-			}
-
-			@Override
-			public InputStream decorate(final IOContext ctxt, final InputStream in) throws IOException {
-				return new GZIPInputStream(in);
-			}
-
-			@Override
-			public Reader decorate(final IOContext ctxt, final Reader src) throws IOException {
-				return src;
-			}
-		});
-		plainMapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
-		gzMapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
-	}
 
 	/**
 	 * @param basePath
@@ -83,12 +48,43 @@ public class JacksonBackend<T> extends AbstractFileBackend<T> {
 			private final ObjectReader reader;
 			private final ObjectWriter writer;
 			{
+				mapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
 				if (compression) {
-					writer = gzMapper.writer().withDefaultPrettyPrinter();
-					reader = gzMapper.reader(type);
+					final JsonFactory jsonFactory = mapper.getJsonFactory();
+					jsonFactory.setOutputDecorator(new OutputDecorator() {
+
+						@Override
+						public OutputStream decorate(final IOContext ctxt, final OutputStream out) throws IOException {
+							return new GZIPOutputStream(out);
+						}
+
+						@Override
+						public Writer decorate(final IOContext ctxt, final Writer w) throws IOException {
+							return w;
+						}
+					});
+					jsonFactory.setInputDecorator(new InputDecorator() {
+
+						@Override
+						public InputStream decorate(final IOContext ctxt, final byte[] src, final int offset, final int length) throws IOException {
+							return null;
+						}
+
+						@Override
+						public InputStream decorate(final IOContext ctxt, final InputStream in) throws IOException {
+							return new GZIPInputStream(in);
+						}
+
+						@Override
+						public Reader decorate(final IOContext ctxt, final Reader src) throws IOException {
+							return src;
+						}
+					});
+					writer = mapper.writer().withDefaultPrettyPrinter();
+					reader = mapper.readerFor(type);
 				} else {
-					writer = plainMapper.writer().withDefaultPrettyPrinter();
-					reader = plainMapper.reader(type);
+					writer = mapper.writer().withDefaultPrettyPrinter();
+					reader = mapper.readerFor(type);
 				}
 			}
 
