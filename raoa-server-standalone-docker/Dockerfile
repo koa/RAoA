@@ -4,6 +4,7 @@ RUN apt-get -y install imagemagick ffmpeg libavcodec-extra
  
 RUN mkdir /data
 RUN chown nobody /data
+RUN usermod -d /tmp nobody
 WORKDIR /
 COPY target/raoa-server-standalone*.jar /app.jar
 USER nobody
