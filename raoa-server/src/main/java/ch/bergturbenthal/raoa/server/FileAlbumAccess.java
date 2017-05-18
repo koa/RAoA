@@ -693,9 +693,16 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 
 			@Override
 			public void run() {
-				if (importBaseDir != null && executorService != null) {
-					fileWatcher = createFileWatcher();
+				try {
+					log.info("Ready for create filewatcher " + importBaseDir + ", " + executorService);
+					if (importBaseDir != null && executorService != null) {
+						fileWatcher = createFileWatcher();
+					}
+					log.info("Filewatcher created: " + fileWatcher);
+				} catch (final Exception ex) {
+					log.error("Cannot start filewatcher", ex);
 				}
+				log.info("Closing");
 			}
 		}, 30, TimeUnit.SECONDS);
 		executorService.scheduleWithFixedDelay(new Runnable() {
@@ -929,25 +936,36 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				}
 			}
 			for (final InetSocketAddress peerCandidate : checkCandidates) {
+				final Collection<URI> availableURIs = new ArrayList<>();
 				try {
-					final URI candidateUri = new URI("http", null, peerCandidate.getAddress().getHostAddress(), peerCandidate.getPort(), "/rest/", null, null);
-					log.info("Try: " + candidateUri);
-					final ResponseEntity<PingResponse> responseEntity = ping(candidateUri);
-					if (!responseEntity.hasBody() || responseEntity.getStatusCode().series() != Series.SUCCESSFUL) {
-						continue;
+					availableURIs.add(new URI("http", null, peerCandidate.getAddress().getHostAddress(), peerCandidate.getPort(), "/rest/", null, null));
+				} catch (final URISyntaxException e1) {
+					log.warn("Cannot build ip only uri of " + peerCandidate, e1);
+				}
+				try {
+					availableURIs.add(new URI("http", null, peerCandidate.getAddress().getHostName(), peerCandidate.getPort(), "/rest/", null, null));
+				} catch (final URISyntaxException e1) {
+					log.warn("Cannot build named uri of " + peerCandidate, e1);
+				}
+				for (final URI candidateUri : availableURIs) {
+
+					try {
+						log.info("Try: " + candidateUri);
+						final ResponseEntity<PingResponse> responseEntity = ping(candidateUri);
+						if (!responseEntity.hasBody() || responseEntity.getStatusCode().series() != Series.SUCCESSFUL) {
+							continue;
+						}
+						final PingResponse pingResponse = responseEntity.getBody();
+						if (!pingResponse.getArchiveId().equals(getArchiveName())) {
+							continue;
+						}
+						if (pingResponse.getServerId().equals(getInstanceId())) {
+							continue;
+						}
+						foundPeers.put(pingResponse.getServerId(), candidateUri);
+					} catch (final RestClientException e) {
+						log.warn("ping " + peerCandidate, e);
 					}
-					final PingResponse pingResponse = responseEntity.getBody();
-					if (!pingResponse.getArchiveId().equals(getArchiveName())) {
-						continue;
-					}
-					if (pingResponse.getServerId().equals(getInstanceId())) {
-						continue;
-					}
-					foundPeers.put(pingResponse.getServerId(), candidateUri);
-				} catch (final URISyntaxException e) {
-					log.warn("Cannot build URL for " + peerCandidate, e);
-				} catch (final RestClientException e) {
-					log.warn("ping " + peerCandidate, e);
 				}
 
 			}
