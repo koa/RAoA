@@ -155,14 +155,14 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 	private ScheduledFuture<?>																					fastUpdatePollingFuture;
 	private final LruCache<String, Long>																idCache									= new LruCache<String, Long>(100) {
 
-		                                                                                            private final AtomicLong idGenerator = new AtomicLong(0);
+																																																private final AtomicLong idGenerator = new AtomicLong(0);
 
-		                                                                                            @Override
-		                                                                                            protected Long create(final String key) {
-			                                                                                            return idGenerator.incrementAndGet();
-		                                                                                            }
+																																																@Override
+																																																protected Long create(final String key) {
+																																																	return idGenerator.incrementAndGet();
+																																																}
 
-	                                                                                            };
+																																															};
 	private TxMaker																											mapDB;
 	private final int																										NOTIFICATION						= 0;
 
@@ -355,7 +355,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 			@Override
 			public String call() throws Exception {
 				final AlbumEntryDto entryDto = getCurrentDataProvider().getAlbumEntryMap()
-		                                                           .get(new AlbumEntryIndex(AlbumIndex.builder().archiveName(archive).albumId(albumId).build(), image));
+				                                                       .get(new AlbumEntryIndex(AlbumIndex.builder().archiveName(archive).albumId(albumId).build(), image));
 				if (entryDto == null) {
 					return null;
 				}
@@ -560,7 +560,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					}
 				} finally {
 					// Log.i("Performance", "Loaded Thumbnail " + archiveName + ":" + albumId + ":" + albumEntryId + " in " + (System.currentTimeMillis() -
-		      // startTime) + " ms");
+					// startTime) + " ms");
 				}
 			}
 		}, true);
@@ -686,7 +686,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					return null;
 				}
 				return Client.makeThumbnailString(value.getAlbumIndex().getArchiveName(), value.getAlbumIndex().getAlbumId(), value.getAlbumEntryId()).toString() + "/"
-		           + entryDto.getFileName();
+				       + entryDto.getFileName();
 			}
 		});
 		indexFieldReaders.put(Client.AlbumEntry.NUMERIC_ID, new NumericFieldReader<AlbumEntryIndex>(Cursor.FIELD_TYPE_INTEGER) {
@@ -841,10 +841,10 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				});
 
 				return cursorNotifications.addAllAlbumCursor(MapperUtil.loadCollectionIntoCursor(albums,
-		                                                                                     projection,
-		                                                                                     fieldReaders,
-		                                                                                     criterium,
-		                                                                                     order == null ? makeAlbumDefaultSortOrder() : order));
+				                                                                                 projection,
+				                                                                                 fieldReaders,
+				                                                                                 criterium,
+				                                                                                 order == null ? makeAlbumDefaultSortOrder() : order));
 			}
 		}, true);
 	}
@@ -866,7 +866,13 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 		return builder;
 	}
 
-	private URL makeUrl(final InetSocketAddress inetSocketAddress) {
+	private Collection<URL> makeUrl(final InetSocketAddress inetSocketAddress) {
+		final Collection<URL> ret = new ArrayList<URL>();
+		try {
+			ret.add(new URL("http", inetSocketAddress.getHostName(), inetSocketAddress.getPort(), "rest"));
+		} catch (final MalformedURLException e1) {
+			Log.w(SERVICE_TAG, "cannot create named url for " + inetSocketAddress, e1);
+		}
 		try {
 			final InetAddress targetAddress = inetSocketAddress.getAddress();
 			if (targetAddress instanceof Inet6Address) {
@@ -874,14 +880,17 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				final String hostName = targetAddress.getHostName();
 				if (scopedInterface != 0 && targetAddress.isLinkLocalAddress()) {
 					final String hostAddress = "[" + hostName + "%" + scopedInterface + "]";
-					return new URL("http", hostAddress, inetSocketAddress.getPort(), "rest");
+					ret.add(new URL("http", hostAddress, inetSocketAddress.getPort(), "rest"));
+				} else {
+					ret.add(new URL("http", "[" + hostName + "]", inetSocketAddress.getPort(), "rest"));
 				}
-				return new URL("http", "[" + hostName + "]", inetSocketAddress.getPort(), "rest");
+			} else {
+				ret.add(new URL("http", inetSocketAddress.getAddress().getHostAddress(), inetSocketAddress.getPort(), "rest"));
 			}
-			return new URL("http", inetSocketAddress.getAddress().getHostAddress(), inetSocketAddress.getPort(), "rest");
 		} catch (final MalformedURLException e) {
-			throw new RuntimeException("Cannot create URL for Socket " + inetSocketAddress, e);
+			Log.w(SERVICE_TAG, "cannot create url by ip for " + inetSocketAddress, e);
 		}
+		return ret;
 	}
 
 	private void notifyAlbumChanged(final AlbumIndex id) {
@@ -904,24 +913,28 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					Log.i(SERVICE_TAG, "Ping to " + inetSocketAddress + " failed");
 					continue;
 				}
+				Log.i(SERVICE_TAG, "Ping ok to " + inetSocketAddress);
 			} catch (final IOException e) {
 				Log.w(SERVICE_TAG, "Cannot ping to " + inetSocketAddress);
 				continue;
 			}
-			final URL url = makeUrl(inetSocketAddress);
-			try {
-				final PingResponse response = pingService(url);
-				if (response != null) {
-					if (pingResponses.containsKey(response.getArchiveId())) {
-						pingResponses.get(response.getArchiveId()).put(url, response);
-					} else {
-						final Map<URL, PingResponse> map = new HashMap<URL, PingResponse>();
-						map.put(url, response);
-						pingResponses.put(response.getArchiveId(), map);
+			for (final URL url : makeUrl(inetSocketAddress)) {
+				Log.i(SERVICE_TAG, "Try connect " + url);
+				try {
+					final PingResponse response = pingService(url);
+					Log.i(SERVICE_TAG, "Ping resonse from " + url + ": " + response);
+					if (response != null) {
+						if (pingResponses.containsKey(response.getArchiveId())) {
+							pingResponses.get(response.getArchiveId()).put(url, response);
+						} else {
+							final Map<URL, PingResponse> map = new HashMap<URL, PingResponse>();
+							map.put(url, response);
+							pingResponses.put(response.getArchiveId(), map);
+						}
 					}
+				} catch (final Throwable ex) {
+					Log.e(SERVICE_TAG, "Exception while polling " + url, ex);
 				}
-			} catch (final Throwable ex) {
-				Log.e(SERVICE_TAG, "Exception while polling " + url, ex);
 			}
 		}
 		final HashMap<String, ArchiveConnection> oldConnectionMap = new HashMap<String, ArchiveConnection>(connectionMap.get());
@@ -1199,8 +1212,8 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					return makeCursorForAlbumEntries(Collections.<AlbumEntryIndex> emptyList(), projection, Collections.singleton(album), criterium, order, provider);
 				}
 				final ReadOnlyIterableIndexedAccess<AlbumEntryIndex> readOnlyIterableIndexedAccess = new ReadOnlyIterableIndexedAccess<AlbumEntryIndex>(provider.listEntriesByAlbum(album)
-		                                                                                                                                                    .iterator(),
-		                                                                                                                                            albumMeta.getEntryCount());
+				                                                                                                                                                .iterator(),
+				                                                                                                                                        albumMeta.getEntryCount());
 				Log.i(SERVICE_TAG, "Iteration-Time: " + (System.currentTimeMillis() - startTime) + " " + albumMeta.getEntryCount());
 				return makeCursorForAlbumEntries(readOnlyIterableIndexedAccess, projection, Collections.singleton(album), criterium, order, provider);
 			}
@@ -1436,12 +1449,12 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				mappedFields.put(Client.Storage.STORAGE_ID, "storageId");
 				final Map<String, FieldReader<StorageEntry>> readers = MapperUtil.makeNamedFieldReaders(StorageEntry.class, mappedFields);
 				final Map<String, FieldReader<Pair<String, StorageEntry>>> delegateFieldReaders = MapperUtil.delegateFieldReaders(readers,
-		                                                                                                                      new Lookup<Pair<String, StorageEntry>, StorageEntry>() {
-					@Override
-					public StorageEntry get(final Pair<String, StorageEntry> key) {
-						return key.second;
-					}
-				});
+				                                                                                                                  new Lookup<Pair<String, StorageEntry>, StorageEntry>() {
+					                                                                                                                  @Override
+					                                                                                                                  public StorageEntry get(final Pair<String, StorageEntry> key) {
+						                                                                                                                  return key.second;
+					                                                                                                                  }
+				                                                                                                                  });
 				delegateFieldReaders.put(Client.Storage.ARCHIVE_NAME, new StringFieldReader<Pair<String, StorageEntry>>() {
 
 					@Override
@@ -1467,7 +1480,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 				final BTreeMap<AlbumEntryIndex, AlbumEntryDto> albumEntryMap = currentDataProvider.getAlbumEntryMap();
 				final AlbumMutationData mutationList = albumMutationDataMap.get(entry);
 				final Collection<Mutation> mutations = mutationList != null && mutationList.getMutations() != null ? new ArrayList<Mutation>(mutationList.getMutations())
-		        : Collections.<Mutation> emptyList();
+				    : Collections.<Mutation> emptyList();
 				final Collection<AlbumEntryIndex> entriesToRemove = new HashSet<AlbumEntryIndex>();
 				for (final AlbumEntryIndex entryIndex : currentDataProvider.listEntriesByAlbum(entry)) {
 					entriesToRemove.add(entryIndex);
@@ -1502,7 +1515,7 @@ public class SynchronisationServiceImpl extends Service implements ResultListene
 					for (final Iterator<Mutation> entryIterator = mutations.iterator(); entryIterator.hasNext();) {
 						final Mutation mutationEntry = entryIterator.next();
 						if (mutationEntry instanceof EntryMutation && ((EntryMutation) mutationEntry).getAlbumEntryId().equals(imageId)
-		            && !((EntryMutation) mutationEntry).getBaseVersion().equals(editableMetadataHash)) {
+						    && !((EntryMutation) mutationEntry).getBaseVersion().equals(editableMetadataHash)) {
 							entryIterator.remove();
 						}
 					}

@@ -43,6 +43,9 @@ import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import android.util.Log;
 import ch.bergturbenthal.raoa.data.model.AlbumDetail;
 import ch.bergturbenthal.raoa.data.model.AlbumEntry;
@@ -55,32 +58,29 @@ import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.data.model.state.IssueResolveAction;
 import ch.bergturbenthal.raoa.data.model.state.ServerState;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 public class ServerConnection {
 	private static interface ConnectionCallable<V> {
 		ResponseEntity<V> call(final URL baseUrl) throws Exception;
 	}
 
-	private static final String[]	                          DATE_FORMATS	   = new String[] { "EEE, dd MMM yyyy HH:mm:ss zzz",
-	    "EEE, dd-MMM-yy HH:mm:ss zzz",
-	    "EEE MMM dd HH:mm:ss yyyy"	                                         };
-	private static TimeZone	                                GMT	             = TimeZone.getTimeZone("GMT");
-	private static ObjectMapper	                            mapper	         = new ObjectMapper();
-	private static Set<HttpStatus>	                        okStates	       = new HashSet<HttpStatus>(Arrays.asList(HttpStatus.OK,
-	                                                                                                                 HttpStatus.CREATED,
-	                                                                                                                 HttpStatus.ACCEPTED,
-	                                                                                                                 HttpStatus.NOT_MODIFIED));
-	private final Map<String, SoftReference<AlbumDetail>>	  albumDetailCache	= new HashMap<String, SoftReference<AlbumDetail>>();
+	private static final String[]														DATE_FORMATS			= new String[] { "EEE, dd MMM yyyy HH:mm:ss zzz",
+	                                                                                           "EEE, dd-MMM-yy HH:mm:ss zzz",
+	                                                                                           "EEE MMM dd HH:mm:ss yyyy" };
+	private static TimeZone																	GMT								= TimeZone.getTimeZone("GMT");
+	private static ObjectMapper															mapper						= new ObjectMapper();
+	private static Set<HttpStatus>													okStates					= new HashSet<HttpStatus>(Arrays.asList(HttpStatus.OK,
+	                                                                                                                  HttpStatus.CREATED,
+	                                                                                                                  HttpStatus.ACCEPTED,
+	                                                                                                                  HttpStatus.NOT_MODIFIED));
+	private final Map<String, SoftReference<AlbumDetail>>		albumDetailCache	= new HashMap<String, SoftReference<AlbumDetail>>();
 
-	private final AtomicReference<SoftReference<AlbumList>>	albumIds	       = new AtomicReference<SoftReference<AlbumList>>();
-	private final AtomicReference<Collection<URL>>	        connections	     = new AtomicReference<Collection<URL>>(Collections.<URL> emptyList());
+	private final AtomicReference<SoftReference<AlbumList>>	albumIds					= new AtomicReference<SoftReference<AlbumList>>();
+	private final AtomicReference<Collection<URL>>					connections				= new AtomicReference<Collection<URL>>(Collections.<URL> emptyList());
 
-	private final String	                                  instanceId;
-	private final RestTemplate	                            restTemplate	   = new RestTemplate(false);
+	private final String																		instanceId;
+	private final RestTemplate															restTemplate			= new RestTemplate(false);
 
-	private String	                                        serverName;
+	private String																					serverName;
 
 	public ServerConnection(final String instanceId) {
 		this.instanceId = instanceId;
@@ -89,7 +89,7 @@ public class ServerConnection {
 		restTemplate.setMessageConverters((List<HttpMessageConverter<?>>) (List<?>) Collections.singletonList((HttpMessageConverter<?>) mappingJacksonHttpMessageConverter));
 		final SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
 		requestFactory.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(3));
-		requestFactory.setReadTimeout((int) TimeUnit.SECONDS.toMillis(20));
+		requestFactory.setReadTimeout((int) TimeUnit.SECONDS.toMillis(120));
 		restTemplate.setRequestFactory(requestFactory);
 	}
 

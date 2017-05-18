@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
 import android.content.Context;
+import android.util.Log;
 import lombok.Builder;
 
 public class DispatchingListener implements ServerDiscoveryListener {
@@ -18,6 +19,7 @@ public class DispatchingListener implements ServerDiscoveryListener {
 
 	@Override
 	public void pollForServices(final boolean withProgressUpdate) {
+		Log.i("Dispatcher", "poll for services");
 		for (final ServerDiscoveryListener serverDiscoveryListener : listeners) {
 			serverDiscoveryListener.pollForServices(withProgressUpdate);
 		}
