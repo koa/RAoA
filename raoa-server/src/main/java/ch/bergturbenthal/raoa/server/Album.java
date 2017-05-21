@@ -632,79 +632,77 @@ public class Album implements ApplicationContextAware {
 				}
 			}
 		}
-		synchronized (this) {
-			final Lock readLock = rwLock.readLock();
-			readLock.lock();
-			try {
-				final PicasaIniData picasaData = loadPicasaFile();
-				final Map<String, AlbumImage> imagesMap = new HashMap<String, AlbumImage>();
-				final Collection<String> filenames = new HashSet<>();
-				for (final File file : listImageFiles()) {
-					final String filename = file.getName();
-					filenames.add(filename);
-					final PicasaIniEntryData picasaIniData = picasaData.getEntries().get(filename);
-					final AlbumManager cacheManager = new AlbumManager() {
+		final Lock readLock = rwLock.readLock();
+		readLock.lock();
+		try {
+			final PicasaIniData picasaData = loadPicasaFile();
+			final Map<String, AlbumImage> imagesMap = new HashMap<String, AlbumImage>();
+			final Collection<String> filenames = new HashSet<>();
+			for (final File file : listImageFiles()) {
+				final String filename = file.getName();
+				filenames.add(filename);
+				final PicasaIniEntryData picasaIniData = picasaData.getEntries().get(filename);
+				final AlbumManager cacheManager = new AlbumManager() {
 
-						@Override
-						public void clearThumbnailException(final String image) {
-							stateManager.clearThumbnailException(getName(), image);
-						}
-
-						@Override
-						public AlbumEntryData getCachedData() {
-							return readAlbumEntryDataFromCache(filename);
-						}
-
-						@Override
-						public PicasaIniEntryData getPicasaData() {
-							return picasaIniData;
-						}
-
-						@Override
-						public void recordThumbnailException(final String image, final Throwable ex) {
-							stateManager.recordThumbnailException(getName(), image, ex);
-						}
-
-						@Override
-						public void updateCache(final AlbumEntryData entryData) {
-							updateAlbumEntryInCache(filename, entryData);
-						}
-					};
-					imagesMap.put(Util.encodeStringForUrl(filename), (AlbumImage) applicationContext.getBean("albumImage", file, cacheDir, lastModified, cacheManager));
-				}
-				boolean metadataModified = false;
-				final AlbumMetadata metadata;
-				final File metadataFile = metadataFile();
-				if (metadataFile.exists()) {
-					try {
-						metadata = mapper.reader(AlbumMetadata.class).readValue(metadataFile);
-					} catch (final IOException e) {
-						throw new RuntimeException("cannot read metadata from " + metadataFile, e);
+					@Override
+					public void clearThumbnailException(final String image) {
+						stateManager.clearThumbnailException(getName(), image);
 					}
-				} else {
-					metadata = new AlbumMetadata();
-					metadata.setAlbumTitle(picasaData.getName());
-					metadataModified = true;
-				}
-				if (!filenames.isEmpty() && (metadata.getTitleEntry() == null || !filenames.contains(metadata.getTitleEntry()))) {
-					metadata.setTitleEntry(filenames.iterator().next());
-					metadataModified = true;
-				}
-				if (metadata.getAlbumTitle() == null) {
-					metadata.setAlbumTitle(baseDir.getName());
-					metadataModified = true;
-				}
-				if (metadataModified) {
-					writeMetadata(metadata);
-				}
 
-				final long repoSize = FileUtils.sizeOfDirectory(git.getRepository().getDirectory());
-				final AlbumCache ret = new AlbumCache(imagesMap, dirLastModified, metadata, repoSize);
-				cache = new SoftReference<>(ret);
-				return ret;
-			} finally {
-				readLock.unlock();
+					@Override
+					public AlbumEntryData getCachedData() {
+						return readAlbumEntryDataFromCache(filename);
+					}
+
+					@Override
+					public PicasaIniEntryData getPicasaData() {
+						return picasaIniData;
+					}
+
+					@Override
+					public void recordThumbnailException(final String image, final Throwable ex) {
+						stateManager.recordThumbnailException(getName(), image, ex);
+					}
+
+					@Override
+					public void updateCache(final AlbumEntryData entryData) {
+						updateAlbumEntryInCache(filename, entryData);
+					}
+				};
+				imagesMap.put(Util.encodeStringForUrl(filename), (AlbumImage) applicationContext.getBean("albumImage", file, cacheDir, lastModified, cacheManager));
 			}
+			boolean metadataModified = false;
+			final AlbumMetadata metadata;
+			final File metadataFile = metadataFile();
+			if (metadataFile.exists()) {
+				try {
+					metadata = mapper.reader(AlbumMetadata.class).readValue(metadataFile);
+				} catch (final IOException e) {
+					throw new RuntimeException("cannot read metadata from " + metadataFile, e);
+				}
+			} else {
+				metadata = new AlbumMetadata();
+				metadata.setAlbumTitle(picasaData.getName());
+				metadataModified = true;
+			}
+			if (!filenames.isEmpty() && (metadata.getTitleEntry() == null || !filenames.contains(metadata.getTitleEntry()))) {
+				metadata.setTitleEntry(filenames.iterator().next());
+				metadataModified = true;
+			}
+			if (metadata.getAlbumTitle() == null) {
+				metadata.setAlbumTitle(baseDir.getName());
+				metadataModified = true;
+			}
+			if (metadataModified) {
+				writeMetadata(metadata);
+			}
+
+			final long repoSize = FileUtils.sizeOfDirectory(git.getRepository().getDirectory());
+			final AlbumCache ret = new AlbumCache(imagesMap, dirLastModified, metadata, repoSize);
+			cache = new SoftReference<>(ret);
+			return ret;
+		} finally {
+			readLock.unlock();
 		}
 	}
 
