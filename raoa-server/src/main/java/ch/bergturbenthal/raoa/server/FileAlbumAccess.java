@@ -1322,9 +1322,13 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			}
 			final Set<String> reLoadedAlbums = new HashSet<String>();
 			for (final Future<String> future : syncExecutorService.invokeAll(tasks)) {
-				final String albumId = future.get();
-				if (albumId != null) {
-					reLoadedAlbums.add(albumId);
+				try {
+					final String albumId = future.get();
+					if (albumId != null) {
+						reLoadedAlbums.add(albumId);
+					}
+				} catch (final Exception ex) {
+					log.warn("Canot sync Album to " + path, ex);
 				}
 			}
 			loadedAlbums.keySet().retainAll(reLoadedAlbums);
