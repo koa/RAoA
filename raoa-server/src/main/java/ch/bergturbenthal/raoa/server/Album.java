@@ -632,6 +632,10 @@ public class Album implements ApplicationContextAware {
 				}
 			}
 		}
+		return doLoadCache(lastModified, dirLastModified);
+	}
+
+	private AlbumCache doLoadCache(final Date lastModified, final long dirLastModified) {
 		final Lock readLock = rwLock.readLock();
 		readLock.lock();
 		try {
