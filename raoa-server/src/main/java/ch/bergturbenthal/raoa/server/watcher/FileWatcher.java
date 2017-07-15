@@ -58,7 +58,7 @@ public class FileWatcher implements Closeable {
 	}
 
 	public void poll() {
-		log.info("Poll for directories");
+		log.debug("Poll for directories");
 		for (final File f : basePath.listFiles()) {
 			if (!f.isDirectory()) {
 				continue;

@@ -644,9 +644,13 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			final HashSet<Album> modifiedAlbums = new HashSet<Album>();
 			final SortedMap<Date, Album> importAlbums = collectImportAlbums();
 			final Collection<File> deleteFiles = new ArrayList<File>();
-			for (final File file : collectImportFiles(importDir)) {
+			final Collection<File> collectImportFiles = collectImportFiles(importDir);
+			if (log.isDebugEnabled()) {
+				log.debug("Collected " + collectImportFiles.size() + " files");
+			}
+			for (final File file : collectImportFiles) {
 				try {
-					// logger.info("Read: " + file.getName());
+					log.debug("Read: " + file.getName());
 					final Metadata metadata = ImageMetadataReader.readMetadata(file);
 					if (metadata == null) {
 						continue;
@@ -658,7 +662,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 						// no album found
 						continue;
 					}
-					// logger.info(" ->" + album.getName());
+					log.debug(" ->" + album.getName());
 					if (album.importImage(file, createDate)) {
 						modifiedAlbums.add(album);
 						log.debug("image " + file + " imported successfully to " + album.getName());
@@ -681,7 +685,10 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 					log.error("Cannot delete File " + file);
 				}
 			}
+		} catch (final Exception ex) {
+			log.error("Cannot load images", ex);
 		} finally {
+			log.debug("Load finished");
 			refreshCache(true);
 		}
 	}
