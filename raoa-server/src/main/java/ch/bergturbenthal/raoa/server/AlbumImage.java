@@ -13,12 +13,17 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 
-import lombok.Cleanup;
-
 import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import com.adobe.xmp.XMPException;
+import com.adobe.xmp.XMPMeta;
+import com.adobe.xmp.XMPMetaFactory;
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.imaging.ImageProcessingException;
+import com.drew.metadata.Metadata;
 
 import ch.bergturbenthal.raoa.server.cache.AlbumManager;
 import ch.bergturbenthal.raoa.server.metadata.MetadataWrapper;
@@ -27,13 +32,7 @@ import ch.bergturbenthal.raoa.server.metadata.XmpWrapper;
 import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.thumbnails.ImageThumbnailMaker;
 import ch.bergturbenthal.raoa.server.thumbnails.VideoThumbnailMaker;
-
-import com.adobe.xmp.XMPException;
-import com.adobe.xmp.XMPMeta;
-import com.adobe.xmp.XMPMetaFactory;
-import com.drew.imaging.ImageMetadataReader;
-import com.drew.imaging.ImageProcessingException;
-import com.drew.metadata.Metadata;
+import lombok.Cleanup;
 
 public class AlbumImage {
 
@@ -187,8 +186,39 @@ public class AlbumImage {
 		return totalSize;
 	}
 
+	private Metadata getExifMetadata() {
+		try {
+			Metadata exifMetadata;
+			final long startTime = System.currentTimeMillis();
+			exifMetadata = ImageMetadataReader.readMetadata(file);
+			final long endTime = System.currentTimeMillis();
+			logger.info("Metadata-Read: " + (endTime - startTime) + " ms");
+			return exifMetadata;
+		} catch (final IOException e) {
+			logger.warn("Cannot reade metadata from " + file, e);
+		} catch (final ImageProcessingException e) {
+			logger.warn("Cannot reade metadata from " + file, e);
+		}
+		return null;
+	}
+
+	/**
+	 * @return
+	 */
+	private Date getMetadataLastModifiedTime() {
+		final File xmpSideFile = getXmpSideFile();
+		if (!xmpSideFile.exists()) {
+			return null;
+		}
+		return new Date(xmpSideFile.lastModified());
+	}
+
 	public String getName() {
 		return file.getName();
+	}
+
+	public File getOriginalFile() {
+		return file;
 	}
 
 	public long getOriginalFileSize() {
@@ -272,6 +302,14 @@ public class AlbumImage {
 		return lastModified;
 	}
 
+	private File makeCachedFile() {
+		final String name = file.getName();
+		if (isVideo()) {
+			return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
+		}
+		return new File(cacheDir, name);
+	}
+
 	public void removeKeyword(final String keyword) {
 		updateXmp(new XmpRunnable() {
 
@@ -304,41 +342,6 @@ public class AlbumImage {
 	@Override
 	public String toString() {
 		return "AlbumImage [file=" + file.getName() + "]";
-	}
-
-	private Metadata getExifMetadata() {
-		try {
-			Metadata exifMetadata;
-			final long startTime = System.currentTimeMillis();
-			exifMetadata = ImageMetadataReader.readMetadata(file);
-			final long endTime = System.currentTimeMillis();
-			logger.info("Metadata-Read: " + (endTime - startTime) + " ms");
-			return exifMetadata;
-		} catch (final IOException e) {
-			logger.warn("Cannot reade metadata from " + file, e);
-		} catch (final ImageProcessingException e) {
-			logger.warn("Cannot reade metadata from " + file, e);
-		}
-		return null;
-	}
-
-	/**
-	 * @return
-	 */
-	private Date getMetadataLastModifiedTime() {
-		final File xmpSideFile = getXmpSideFile();
-		if (!xmpSideFile.exists()) {
-			return null;
-		}
-		return new Date(xmpSideFile.lastModified());
-	}
-
-	private File makeCachedFile() {
-		final String name = file.getName();
-		if (isVideo()) {
-			return new File(cacheDir, name.substring(0, name.length() - 4) + ".mp4");
-		}
-		return new File(cacheDir, name);
 	}
 
 	private void updateXmp(final XmpRunnable runnable) {

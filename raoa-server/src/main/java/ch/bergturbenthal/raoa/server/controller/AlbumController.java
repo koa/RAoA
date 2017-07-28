@@ -4,20 +4,24 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -42,11 +46,13 @@ import ch.bergturbenthal.raoa.server.Util;
 import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.model.AlbumMetadata;
 import ch.bergturbenthal.raoa.server.watcher.DirectoryNotificationService;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Controller
 @RequestMapping("/albums")
 public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
-	private static Logger logger = LoggerFactory.getLogger(AlbumController.class);
 	@Autowired
 	private AlbumAccess albumAccess;
 
@@ -54,6 +60,19 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 
 	@Autowired
 	private DirectoryNotificationService directoryNotificationService;
+
+	private void appendFile(final File originalFile, final ZipOutputStream zipStream) throws IOException {
+		final byte[] buffer = new byte[4096];
+		@Cleanup
+		final FileInputStream inputStream = new FileInputStream(originalFile);
+		while (true) {
+			final int read = inputStream.read(buffer);
+			if (read < 0) {
+				break;
+			}
+			zipStream.write(buffer, 0, read);
+		}
+	}
 
 	@Override
 	@RequestMapping(method = RequestMethod.POST)
@@ -64,6 +83,58 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 			album.setAutoAddBeginDate(autoAddDate);
 		}
 		return makeAlbumEntry(Util.encodeStringForUrl(album.getName()), album);
+	}
+
+	@RequestMapping(value = "{albumid}/photos", method = RequestMethod.GET)
+	public void downloadAlbumPhotos(@PathVariable("albumid") final String albumid, final HttpServletResponse response) throws IOException {
+
+		final Album album = albumAccess.getAlbum(albumid);
+		if (album == null) {
+			response.sendError(HttpStatus.NOT_FOUND.value());
+			return;
+		}
+
+		final Stream<File> fileStream = album	.listImages()
+																					.values()
+																					.stream()
+																					.filter(i -> !i.isVideo())
+																					.flatMap(image -> Stream.of(image.getOriginalFile(), image.getXmpSideFile()))
+																					.filter(f -> f.exists());
+		streamZipFile(fileStream, response, lastComp(album.getNameComps()) + "-photos.zip");
+	}
+
+	@RequestMapping(value = "{albumid}/photo-thumbnails", method = RequestMethod.GET)
+	public void downloadAlbumPhotoThumbnails(@PathVariable("albumid") final String albumid, final HttpServletResponse response) throws IOException {
+
+		final Album album = albumAccess.getAlbum(albumid);
+		if (album == null) {
+			response.sendError(HttpStatus.NOT_FOUND.value());
+			return;
+		}
+		final Stream<File> fileStream = album	.listImages()
+																					.values()
+																					.stream()
+																					.filter(i -> !i.isVideo())
+																					.flatMap(image -> Stream.of(image.getThumbnail(), image.getXmpSideFile()))
+																					.filter(f -> f.exists());
+		streamZipFile(fileStream, response, lastComp(album.getNameComps()) + "-photos-thumbnails.zip");
+	}
+
+	@RequestMapping(value = "{albumid}/videos", method = RequestMethod.GET)
+	public void downloadAlbumVideos(@PathVariable("albumid") final String albumid, final HttpServletResponse response) throws IOException {
+
+		final Album album = albumAccess.getAlbum(albumid);
+		if (album == null) {
+			response.sendError(HttpStatus.NOT_FOUND.value());
+			return;
+		}
+		final Stream<File> fileStream = album	.listImages()
+																					.values()
+																					.stream()
+																					.filter(i -> i.isVideo())
+																					.flatMap(image -> Stream.of(image.getOriginalFile(), image.getXmpSideFile()))
+																					.filter(f -> f.exists());
+		streamZipFile(fileStream, response, lastComp(album.getNameComps()) + "-videos.zip");
 	}
 
 	private void fillAlbumImageEntry(final AlbumImage albumImage, final AlbumImageEntry entry) {
@@ -90,7 +161,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 			entry.setKeywords(albumEntryData.getKeywords());
 			entry.setRating(albumEntryData.getRating());
 		} catch (final RuntimeException ex) {
-			logger.warn("cannot read metadata from image " + albumImage.getName(), ex);
+			log.warn("cannot read metadata from image " + albumImage.getName(), ex);
 		}
 	}
 
@@ -110,6 +181,13 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@ResponseBody
 	public void importFile(@RequestBody final ImportFileRequest request) {
 		albumAccess.importFile(request.getFilename(), request.getData());
+	}
+
+	private String lastComp(final List<String> nameComps) {
+		if (nameComps == null || nameComps.isEmpty()) {
+			return null;
+		}
+		return nameComps.get(nameComps.size() - 1);
 	}
 
 	@Override
@@ -281,6 +359,28 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@RequestMapping(value = "{albumId}/setAutoAddDate", method = RequestMethod.PUT)
 	public void setAutoAddDate(@PathVariable("albumId") final String albumId, @RequestBody final Date autoAddDate, final HttpServletResponse response) {
 		setAutoAddDate(albumId, autoAddDate);
+	}
+
+	private void streamFiles(final Stream<File> stream, final OutputStream outputStream) throws IOException {
+		@Cleanup
+		final ZipOutputStream zipStream = new ZipOutputStream(outputStream);
+		stream.forEach(file -> {
+			try {
+				final ZipEntry sideFileEntry = new ZipEntry(file.getName());
+				sideFileEntry.setTime(file.lastModified());
+				sideFileEntry.setSize(file.length());
+				zipStream.putNextEntry(sideFileEntry);
+				appendFile(file, zipStream);
+			} catch (final IOException e) {
+				throw new RuntimeException("Cannot stream " + file.getName(), e);
+			}
+		});
+	}
+
+	private void streamZipFile(final Stream<File> fileStream, final HttpServletResponse response, final String filename) throws IOException {
+		response.setContentType("application/zip");
+		response.addHeader("content-disposition", "attachment; filename=\"" + filename + "\"");
+		streamFiles(fileStream, response.getOutputStream());
 	}
 
 	@Override
