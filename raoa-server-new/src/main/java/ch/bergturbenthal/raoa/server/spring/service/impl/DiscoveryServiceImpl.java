@@ -8,6 +8,7 @@ import javax.jmdns.JmmDNS;
 import javax.jmdns.ServiceEvent;
 import javax.jmdns.ServiceInfo;
 import javax.jmdns.ServiceListener;
+import javax.servlet.ServletContext;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
@@ -22,10 +23,12 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 	private final JmmDNS jmmdns = JmmDNS.Factory.getInstance();
 	@Autowired
 	private ServerProperties serverProperties;
+	@Autowired
+	private ServletContext servletContext;
 
 	@PostConstruct
 	public void init() throws IOException {
-		final String contextPath = serverProperties.getContextPath() == null ? "/" : serverProperties.getContextPath();
+		final String contextPath = servletContext.getContextPath() == null ? "/" : servletContext.getContextPath();
 		final int port = serverProperties.getPort() == null ? 8080 : serverProperties.getPort();
 		final ServiceInfo info = ServiceInfo.create("http", "RAoA", "raoa", port, 1, 1, Collections.singletonMap("path", contextPath));
 		jmmdns.registerService(info);

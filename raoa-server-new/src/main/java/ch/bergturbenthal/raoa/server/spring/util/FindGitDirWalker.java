@@ -7,11 +7,17 @@ import java.util.Collection;
 
 import org.apache.commons.io.DirectoryWalker;
 
+import reactor.core.publisher.Flux;
+
 public class FindGitDirWalker extends DirectoryWalker<File> {
-	public Collection<File> findGitDirs(final File start) throws IOException {
-		final ArrayList<File> foundDirs = new ArrayList<File>();
-		walk(start, foundDirs);
-		return foundDirs;
+	public Flux<File> findGitDirs(final File start) {
+		try {
+			final ArrayList<File> foundDirs = new ArrayList<File>();
+			walk(start, foundDirs);
+			return Flux.fromIterable(foundDirs);
+		} catch (final IOException ex) {
+			return Flux.error(ex);
+		}
 	}
 
 	@Override

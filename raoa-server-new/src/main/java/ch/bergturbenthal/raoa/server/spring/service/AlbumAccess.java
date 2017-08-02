@@ -4,11 +4,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 
 import ch.bergturbenthal.raoa.json.AlbumMetadata;
 import ch.bergturbenthal.raoa.json.InstanceData;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public interface AlbumAccess {
@@ -83,7 +83,7 @@ public interface AlbumAccess {
 
 	InstanceData getInstanceData();
 
-	List<String> listAlbums();
+	Flux<String> listAlbums();
 
 	Optional<ImageDataHandler> takeImageById(String albumId, String imageId);
 

@@ -27,7 +27,7 @@ import ch.bergturbenthal.raoa.data.model.CreateAlbumRequest;
 import ch.bergturbenthal.raoa.data.model.UpdateMetadataRequest;
 import ch.bergturbenthal.raoa.server.spring.service.AlbumAccess;
 import ch.bergturbenthal.raoa.server.spring.service.AlbumAccess.AlbumDataHandler;
-import reactor.core.Cancellation;
+import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import rx.Observable;
 import rx.Subscriber;
@@ -106,7 +106,8 @@ public class AlbumController {
 	public Mono<AlbumEntry> createAlbumObservable(@RequestBody final CreateAlbumRequest request) {
 		final Date autoAddDate = request.getAutoAddDate();
 		final Mono<String> createAlbum = albumAccess.createAlbum(request.getPathComps());
-		final Mono<String> created = createAlbum.then((Function<String, Mono<String>>) album -> {
+
+		final Mono<String> created = createAlbum.flatMap((Function<String, Mono<String>>) album -> {
 			if (autoAddDate != null) {
 				albumAccess.addAutoaddBeginDate(album, autoAddDate.toInstant());
 			}
@@ -138,7 +139,7 @@ public class AlbumController {
 	public AlbumList listAlbums() {
 		final AlbumList ret = new AlbumList();
 		final Collection<AlbumEntry> entryList = ret.getAlbumNames();
-		for (final String entry : albumAccess.listAlbums()) {
+		for (final String entry : albumAccess.listAlbums().toIterable()) {
 			final Optional<AlbumEntry> albumEntry = albumAccess.getAlbumData(entry).map(new AlbumEntryConverter(entry));
 			if (albumEntry.isPresent()) {
 				entryList.add(albumEntry.get());
@@ -149,7 +150,7 @@ public class AlbumController {
 
 	private <T> DeferredResult<T> mono2singleResult(final Mono<T> mono) {
 		final DeferredResult<T> ret = new DeferredResult<>();
-		final Cancellation cancellation = mono.subscribe(t -> ret.setResult(t), t -> ret.setErrorResult(t));
+		final Disposable cancellation = mono.subscribe(t -> ret.setResult(t), t -> ret.setErrorResult(t));
 		ret.onTimeout(() -> {
 			cancellation.dispose();
 		});

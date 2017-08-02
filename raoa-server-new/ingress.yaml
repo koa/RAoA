@@ -1,0 +1,14 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: frontend
+  namespace: raoa
+spec:
+  rules:
+  - host: raoa.kube.berg-turbenthal.ch
+    http:
+      paths:
+      - backend:
+          serviceName: raoa
+          servicePort: 8080
+

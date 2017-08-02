@@ -1,6 +1,7 @@
 package ch.bergturbenthal.raoa.server.spring.controller;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +30,6 @@ public class MainController {
 
 	@RequestMapping(path = "album", method = RequestMethod.GET)
 	public List<String> listAlbums() {
-		return albumAccess.listAlbums();
+		return albumAccess.listAlbums().collect(Collectors.toList()).block();
 	}
 }

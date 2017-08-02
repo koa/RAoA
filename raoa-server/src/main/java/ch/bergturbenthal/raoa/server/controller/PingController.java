@@ -17,7 +17,7 @@ import ch.bergturbenthal.raoa.server.AlbumAccess;
 import ch.bergturbenthal.raoa.server.ArchiveConfiguration;
 
 @Controller
-@RequestMapping("/ping")
+@RequestMapping("/rest/ping")
 public class PingController {
 	@Autowired
 	private ArchiveConfiguration archiveConfiguration;
@@ -27,8 +27,7 @@ public class PingController {
 	private Daemon gitDaemon;
 
 	@RequestMapping(method = RequestMethod.GET)
-	public @ResponseBody
-	PingResponse ping() {
+	public @ResponseBody PingResponse ping() {
 		final PingResponse response = new PingResponse();
 		response.setServerId(dataAccess.getInstanceId());
 		response.setServerName(archiveConfiguration.getInstanceName());

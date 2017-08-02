@@ -118,6 +118,7 @@ import ch.bergturbenthal.raoa.server.spring.util.FindGitDirWalker;
 import lombok.Cleanup;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -184,7 +185,6 @@ public class BareGitAlbumAccess implements AlbumAccess {
 	private static final ObjectMapper _OM = new ObjectMapper();
 
 	private static final String _REFS_HEADS = "refs/heads/";
-
 	private static final ObjectReader ALBUM_METADATA_READER = _OM.readerFor(AlbumMetadata.class);
 
 	private static final ObjectWriter ALBUM_METADATA_WRITER = _OM.writerFor(AlbumMetadata.class);
@@ -192,6 +192,7 @@ public class BareGitAlbumAccess implements AlbumAccess {
 	private static final String AUTOADD_FILE = ".autoadd";
 
 	private static final String COMMIT_ID_FILE = "commit-id";
+
 	private static final String CONFIG_JSON = "config.json";
 	private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = new DateTimeFormatter[] {	DateTimeFormatter.ISO_INSTANT,
 																																														DateTimeFormatter.ISO_ZONED_DATE_TIME,
@@ -895,7 +896,7 @@ public class BareGitAlbumAccess implements AlbumAccess {
 	}
 
 	@Override
-	public List<String> listAlbums() {
+	public Flux<String> listAlbums() {
 		// final List<String> ret = new ArrayList<String>();
 		// for (final Entry<String, AlbumData> albumEntry : albums.entrySet()) {
 		// try {
@@ -907,7 +908,7 @@ public class BareGitAlbumAccess implements AlbumAccess {
 		// log.error("Cannot load album data of " + albumEntry.getKey(), e);
 		// }
 		// }
-		return new ArrayList<String>(albums.keySet());
+		return Flux.fromIterable(albums.keySet());
 	}
 
 	private void notifyFoundAlbum(final AlbumData albumData) {
@@ -1031,82 +1032,78 @@ public class BareGitAlbumAccess implements AlbumAccess {
 			final File albumBaseFile = new File(albumBaseDir);
 			final FileSystem fs = FileSystems.getDefault();
 			final Path albumBasePath = fs.getPath(albumBaseFile.getPath());
-			try {
-				final FindGitDirWalker gitDirWalker = new FindGitDirWalker();
-				final HashSet<String> remainingAlbums = new HashSet<>(albums.keySet());
-				for (final File foundDir : gitDirWalker.findGitDirs(albumBaseFile)) {
-					log.info("Found Repository: " + foundDir);
-					final Instant repositoryStartTime = Instant.now();
-					final Path albumPath = fs.getPath(foundDir.getPath());
-					final String pathName = relative(albumBasePath, albumPath);
-					try {
-						final Repository repository = new FileRepositoryBuilder().readEnvironment().setGitDir(foundDir).setMustExist(true).setBare().build();
-						final AlbumData albumData = AlbumData.builder().fullAlbumName(pathName).albumRepository(repository).build();
-						final AlbumCache albumAlbumCache = getAlbumCache(albumData);
-						if (albumAlbumCache == null) {
+			final FindGitDirWalker gitDirWalker = new FindGitDirWalker();
+			final HashSet<String> remainingAlbums = new HashSet<>(albums.keySet());
+			for (final File foundDir : gitDirWalker.findGitDirs(albumBaseFile).toIterable()) {
+				log.info("Found Repository: " + foundDir);
+				final Instant repositoryStartTime = Instant.now();
+				final Path albumPath = fs.getPath(foundDir.getPath());
+				final String pathName = relative(albumBasePath, albumPath);
+				try {
+					final Repository repository = new FileRepositoryBuilder().readEnvironment().setGitDir(foundDir).setMustExist(true).setBare().build();
+					final AlbumData albumData = AlbumData.builder().fullAlbumName(pathName).albumRepository(repository).build();
+					final AlbumCache albumAlbumCache = getAlbumCache(albumData);
+					if (albumAlbumCache == null) {
+						continue;
+					}
+					final AlbumMetadata albumMetadata = albumAlbumCache.getAlbumMetadata();
+					final String albumKey;
+					if (albumMetadata == null) {
+						final AlbumMetadata newMetadata = new AlbumMetadata();
+						newMetadata.setAlbumId(hashGenerator.generateHash(pathName));
+						newMetadata.setAlbumTitle(foundDir.getName());
+						final Map<String, AlbumEntryData> entries = albumAlbumCache.getEntries();
+						if (entries != null && !entries.isEmpty()) {
+							newMetadata.setTitleEntry(entries.keySet().iterator().next());
+						}
+						final boolean updateOk = updateAlbumMeta(albumData, null, newMetadata);
+						if (!updateOk) {
+							log.warn("Cannot update write metadata to " + pathName);
 							continue;
 						}
-						final AlbumMetadata albumMetadata = albumAlbumCache.getAlbumMetadata();
-						final String albumKey;
-						if (albumMetadata == null) {
-							final AlbumMetadata newMetadata = new AlbumMetadata();
-							newMetadata.setAlbumId(hashGenerator.generateHash(pathName));
-							newMetadata.setAlbumTitle(foundDir.getName());
+						albumKey = newMetadata.getAlbumId();
+					} else if (albumMetadata.getAlbumId() == null || albumMetadata.getAlbumTitle() == null || albumMetadata.getTitleEntry() == null) {
+						final AlbumMetadata newAlbumMeta = new AlbumMetadata();
+						if (albumMetadata.getAlbumId() == null) {
+							newAlbumMeta.setAlbumId(hashGenerator.generateHash(pathName));
+						} else {
+							newAlbumMeta.setAlbumId(albumMetadata.getAlbumId());
+						}
+						if (albumMetadata.getAlbumTitle() == null) {
+							newAlbumMeta.setAlbumTitle(foundDir.getName());
+						} else {
+							newAlbumMeta.setAlbumTitle(albumMetadata.getAlbumTitle());
+						}
+						if (albumMetadata.getTitleEntry() == null) {
 							final Map<String, AlbumEntryData> entries = albumAlbumCache.getEntries();
 							if (entries != null && !entries.isEmpty()) {
-								newMetadata.setTitleEntry(entries.keySet().iterator().next());
+								newAlbumMeta.setTitleEntry(entries.keySet().iterator().next());
 							}
-							final boolean updateOk = updateAlbumMeta(albumData, null, newMetadata);
-							if (!updateOk) {
-								log.warn("Cannot update write metadata to " + pathName);
-								continue;
-							}
-							albumKey = newMetadata.getAlbumId();
-						} else if (albumMetadata.getAlbumId() == null || albumMetadata.getAlbumTitle() == null || albumMetadata.getTitleEntry() == null) {
-							final AlbumMetadata newAlbumMeta = new AlbumMetadata();
-							if (albumMetadata.getAlbumId() == null) {
-								newAlbumMeta.setAlbumId(hashGenerator.generateHash(pathName));
-							} else {
-								newAlbumMeta.setAlbumId(albumMetadata.getAlbumId());
-							}
-							if (albumMetadata.getAlbumTitle() == null) {
-								newAlbumMeta.setAlbumTitle(foundDir.getName());
-							} else {
-								newAlbumMeta.setAlbumTitle(albumMetadata.getAlbumTitle());
-							}
-							if (albumMetadata.getTitleEntry() == null) {
-								final Map<String, AlbumEntryData> entries = albumAlbumCache.getEntries();
-								if (entries != null && !entries.isEmpty()) {
-									newAlbumMeta.setTitleEntry(entries.keySet().iterator().next());
-								}
-							} else {
-								newAlbumMeta.setTitleEntry(albumMetadata.getTitleEntry());
-							}
-							final boolean updateOk = updateAlbumMeta(albumData, albumMetadata, newAlbumMeta);
-							if (!updateOk) {
-								log.warn("Cannot update write metadata to " + pathName);
-								continue;
-							}
-							albumKey = newAlbumMeta.getAlbumId();
 						} else {
-							albumKey = albumMetadata.getAlbumId();
+							newAlbumMeta.setTitleEntry(albumMetadata.getTitleEntry());
 						}
-						albums.put(albumKey, albumData);
-						remainingAlbums.remove(albumKey);
-					} catch (final IOException e) {
-						log.error("Cannot load repository " + pathName, e);
-					} finally {
-						log.info("Ended repository " + foundDir + ", Duration: " + Duration.between(repositoryStartTime, Instant.now()));
+						final boolean updateOk = updateAlbumMeta(albumData, albumMetadata, newAlbumMeta);
+						if (!updateOk) {
+							log.warn("Cannot update write metadata to " + pathName);
+							continue;
+						}
+						albumKey = newAlbumMeta.getAlbumId();
+					} else {
+						albumKey = albumMetadata.getAlbumId();
 					}
+					albums.put(albumKey, albumData);
+					remainingAlbums.remove(albumKey);
+				} catch (final IOException e) {
+					log.error("Cannot load repository " + pathName, e);
+				} finally {
+					log.info("Ended repository " + foundDir + ", Duration: " + Duration.between(repositoryStartTime, Instant.now()));
 				}
-				for (final String remainingAlbum : remainingAlbums) {
-					final AlbumData removedAlbum = albums.remove(remainingAlbum);
-					if (removedAlbum != null) {
-						notifyRemovedAlbum(removedAlbum);
-					}
+			}
+			for (final String remainingAlbum : remainingAlbums) {
+				final AlbumData removedAlbum = albums.remove(remainingAlbum);
+				if (removedAlbum != null) {
+					notifyRemovedAlbum(removedAlbum);
 				}
-			} catch (final IOException e) {
-				log.error("Cannot load album list", e);
 			}
 		} else {
 			log.error("no base dir configured");

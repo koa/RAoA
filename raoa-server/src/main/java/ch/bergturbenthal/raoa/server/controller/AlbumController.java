@@ -51,7 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Controller
-@RequestMapping("/albums")
+@RequestMapping("/rest/albums")
 public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 	@Autowired
 	private AlbumAccess albumAccess;

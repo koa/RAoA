@@ -16,12 +16,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
-import com.vaadin.spring.annotation.EnableVaadin;
-
 import ch.bergturbenthal.raoa.server.spring.configuration.ServerConfiguration;
 import ch.bergturbenthal.raoa.server.spring.controller.MainController;
-import ch.bergturbenthal.raoa.server.spring.interfaces.ui.MainUI;
-import ch.bergturbenthal.raoa.server.spring.interfaces.view.AlbumOverviewView;
 import ch.bergturbenthal.raoa.server.spring.service.impl.BareGitAlbumAccess;
 import springfox.documentation.builders.PathSelectors;
 import springfox.documentation.builders.RequestHandlerSelectors;
@@ -30,11 +26,10 @@ import springfox.documentation.spring.web.plugins.Docket;
 import springfox.documentation.swagger2.annotations.EnableSwagger2;
 
 @EnableAutoConfiguration
-@ComponentScan(basePackageClasses = { ServerConfiguration.class, BareGitAlbumAccess.class, MainController.class, MainUI.class, AlbumOverviewView.class })
+@ComponentScan(basePackageClasses = { ServerConfiguration.class, BareGitAlbumAccess.class, MainController.class })
 @EnableScheduling
 @EnableSwagger2
 @Configuration
-@EnableVaadin
 @EnableOAuth2Sso
 @EnableEurekaClient
 public class App {
