@@ -18,7 +18,7 @@ import ch.bergturbenthal.raoa.server.FileConfiguration;
 import ch.bergturbenthal.raoa.server.model.SettingsData;
 
 @Controller
-@RequestMapping("/settings")
+@RequestMapping("/rest/settings")
 public class SettingsController {
 	private static Logger logger = LoggerFactory.getLogger(SettingsController.class);
 	@Autowired
@@ -61,9 +61,10 @@ public class SettingsController {
 				result.addError(new FieldError("settingsData", "albumPath", albumPath, false, null, null, "cannot write to this directory"));
 			}
 		}
-		if (result.hasErrors())
+		if (result.hasErrors()) {
 			// display error messages
 			return "settings";
+		}
 		fileConfiguration.setBaseDir(albumPath);
 		fileConfiguration.setImportBaseDir(importBasePath);
 		archiveConfiguration.setArchiveName(data.getArchiveName());

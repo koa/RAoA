@@ -13,8 +13,8 @@
 		<module>raoa-data</module>
 		<module>raoa-client</module>
 		<module>raoa-provider-api</module>
-		<module>raoa-server-standalone</module>
-		<module>raoa-server-war</module>
+		
+		
 		<module>raoa-disk-agent</module>
 		<module>raoa-json</module>
 		<module>raoa-server-standalone-docker</module>

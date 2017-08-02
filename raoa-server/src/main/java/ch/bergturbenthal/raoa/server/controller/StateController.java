@@ -18,19 +18,20 @@ import ch.bergturbenthal.raoa.data.model.state.ServerState;
 import ch.bergturbenthal.raoa.server.state.StateManager;
 
 @Controller
-@RequestMapping("/state")
+@RequestMapping("/rest/state")
 public class StateController {
 	@Autowired
 	private StateManager stateManager;
 
 	@RequestMapping(method = RequestMethod.GET)
-	public @ResponseBody
-	ServerState getServerState() {
+	public @ResponseBody ServerState getServerState() {
 		return stateManager.getCurrentState();
 	}
 
 	@RequestMapping(method = RequestMethod.PUT, value = "issue/{issueId}/resolve")
-	public void resolveIssue(@PathVariable("issueId") final String issueId, @RequestBody final IssueResolveAction action, final HttpServletResponse response) throws UnsupportedEncodingException {
+	public void resolveIssue(	@PathVariable("issueId") final String issueId,
+														@RequestBody final IssueResolveAction action,
+														final HttpServletResponse response) throws UnsupportedEncodingException {
 		stateManager.resolveIssue(URLDecoder.decode(issueId, "utf-8"), action);
 	}
 }

@@ -12,15 +12,14 @@ import ch.bergturbenthal.raoa.data.model.ArchiveMeta;
 import ch.bergturbenthal.raoa.server.StorageAccess;
 
 @Controller
-@RequestMapping("/storages")
+@RequestMapping("/rest/storages")
 public class StorageController {
 	private static Logger logger = LoggerFactory.getLogger(AlbumController.class);
 	@Autowired
 	private StorageAccess storageAccess;
 
 	@RequestMapping(method = RequestMethod.GET)
-	public @ResponseBody
-	ArchiveMeta listClients() {
+	public @ResponseBody ArchiveMeta listClients() {
 		return storageAccess.listKnownStorage();
 	}
 }

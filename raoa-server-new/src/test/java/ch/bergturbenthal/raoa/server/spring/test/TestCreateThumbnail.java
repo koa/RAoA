@@ -8,9 +8,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -31,6 +28,8 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 import ch.bergturbenthal.raoa.server.spring.service.impl.FfmpegVideoThumbnailMaker;
 import ch.bergturbenthal.raoa.server.spring.service.impl.ImageMagickImageThumbnailMaker;
 import ch.bergturbenthal.raoa.server.spring.util.FindGitDirWalker;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class TestCreateThumbnail {
@@ -39,7 +38,7 @@ public class TestCreateThumbnail {
 		imageThumbnailMaker.init();
 		final FfmpegVideoThumbnailMaker ffmpegVideoThumbnailMaker = new FfmpegVideoThumbnailMaker();
 		ffmpegVideoThumbnailMaker.init();
-		final Collection<File> gitDirs = new FindGitDirWalker().findGitDirs(new File("/tmp/testdata"));
+		final Collection<File> gitDirs = new FindGitDirWalker().findGitDirs(new File("/tmp/testdata")).collectList().block();
 		for (final File file : gitDirs) {
 			log.info("Repository" + file);
 			final FileRepositoryBuilder builder = new FileRepositoryBuilder();

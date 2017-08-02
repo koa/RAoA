@@ -14,17 +14,16 @@ import ch.bergturbenthal.raoa.server.model.StorageStatistics;
 
 /**
  * returns statistical data about this server
- * 
+ *
  */
 @Controller
-@RequestMapping("/statistics")
+@RequestMapping("/rest/statistics")
 public class StatisticsController {
 	@Autowired
 	private AlbumAccess dataAccess;
 
 	@RequestMapping(method = RequestMethod.GET)
-	public @ResponseBody
-	StorageStatistics readStatistics() {
+	public @ResponseBody StorageStatistics readStatistics() {
 		return dataAccess.getStatistics();
 	}
 
