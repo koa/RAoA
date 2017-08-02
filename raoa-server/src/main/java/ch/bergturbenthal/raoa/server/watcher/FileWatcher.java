@@ -6,8 +6,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import javax.annotation.PostConstruct;
-
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -34,7 +32,6 @@ public class FileWatcher implements Closeable {
 		watcherThread.interrupt();
 	}
 
-	@PostConstruct
 	public void initPolling() {
 		if (scheduledFuture != null) {
 			scheduledFuture.cancel(false);

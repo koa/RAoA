@@ -6,7 +6,7 @@ RUN mkdir /data
 RUN chown nobody /data
 RUN usermod -d /tmp nobody
 WORKDIR /
-COPY target/raoa-server-standalone*.jar /app.jar
+COPY target/raoa-server-*.jar /app.jar
 USER nobody
 EXPOSE 8080
 ENV RAOA_ALBUM=/data

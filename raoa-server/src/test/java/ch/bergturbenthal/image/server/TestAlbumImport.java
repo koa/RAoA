@@ -7,14 +7,15 @@ import java.util.concurrent.ExecutorService;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.junit4.SpringRunner;
 
+import ch.bergturbenthal.image.server.configuration.TestConfiguration;
 import ch.bergturbenthal.raoa.server.AlbumAccess;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration("classpath:spring-test/services.xml")
+@RunWith(SpringRunner.class)
+@SpringBootTest(classes = TestConfiguration.class)
 public class TestAlbumImport {
 
 	@Autowired
