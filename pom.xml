@@ -17,7 +17,7 @@
 		
 		<module>raoa-disk-agent</module>
 		<module>raoa-json</module>
-		<module>raoa-server-standalone-docker</module>
+		
 		<!-- <module>raoa-document-client</module> -->
 		<!-- <module>raoa-server-new</module> -->
 	</modules>

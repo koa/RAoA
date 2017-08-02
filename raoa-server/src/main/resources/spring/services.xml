@@ -20,15 +20,6 @@
     <constructor-arg value="20" />
   </bean>
 
-  <bean name="album" class="ch.bergturbenthal.raoa.server.Album"
-    scope="prototype" factory-method="createAlbum">
-  </bean>
-  <bean name="albumImage" class="ch.bergturbenthal.raoa.server.AlbumImage"
-    scope="prototype" factory-method="createImage">
-  </bean>
-  <bean name="fileWatcher" class="ch.bergturbenthal.raoa.server.watcher.FileWatcher"
-    scope="prototype" factory-method="createWatcher">
-  </bean>
   <bean class="ch.bergturbenthal.raoa.server.metadata.MetadataFactoryImpl"/>
 
   <bean

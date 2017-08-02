@@ -7,34 +7,30 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-
-import org.springframework.beans.factory.annotation.Autowired;
 
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class FileWatcher implements Closeable {
 
-	public static FileWatcher createWatcher(final File basePath) {
-		return new FileWatcher(basePath);
-	}
-
 	private final File basePath;
-	@Autowired
-	private ScheduledExecutorService executorService;
-	@Autowired
-	private DirectoryNotificationService notificationService;
+	private final ScheduledExecutorService executorService;
+	private final DirectoryNotificationService notificationService;
 
 	private ScheduledFuture<?> scheduledFuture;
 	private Thread watcherThread;
 
-	public FileWatcher(final File basePath) {
+	public FileWatcher(final File basePath, final ScheduledExecutorService executorService, final DirectoryNotificationService notificationService) {
 		this.basePath = basePath;
+		this.executorService = executorService;
+		this.notificationService = notificationService;
 	}
 
 	@Override
 	public void close() {
+		if (scheduledFuture != null) {
+			scheduledFuture.cancel(true);
+		}
 		watcherThread.interrupt();
 	}
 
@@ -64,13 +60,6 @@ public class FileWatcher implements Closeable {
 				continue;
 			}
 			notificationService.notifyDirectory(f);
-		}
-	}
-
-	@PreDestroy
-	public void shutdownPolling() {
-		if (scheduledFuture != null) {
-			scheduledFuture.cancel(true);
 		}
 	}
 

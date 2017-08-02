@@ -4,19 +4,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.lang.ref.SoftReference;
 import java.util.Date;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Objects;
-import java.util.WeakHashMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import com.adobe.xmp.XMPException;
 import com.adobe.xmp.XMPMeta;
@@ -33,6 +28,7 @@ import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.thumbnails.ImageThumbnailMaker;
 import ch.bergturbenthal.raoa.server.thumbnails.VideoThumbnailMaker;
 import lombok.Cleanup;
+import lombok.Getter;
 
 public class AlbumImage {
 
@@ -40,37 +36,9 @@ public class AlbumImage {
 		void run(final XmpWrapper xmp);
 	}
 
-	private static Map<File, Object> imageLocks = new WeakHashMap<File, Object>();
-	private static Semaphore limitConcurrentScaleSemaphore = new Semaphore(4);
-	private static Map<File, SoftReference<AlbumImage>> loadedImages = new ConcurrentHashMap<File, SoftReference<AlbumImage>>();
 	private final static Logger logger = LoggerFactory.getLogger(AlbumImage.class);
 
 	private static final Integer STAR_RATING = Integer.valueOf(5);
-
-	public static AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
-		synchronized (lockFor(file)) {
-			final SoftReference<AlbumImage> softReference = loadedImages.get(file);
-			if (softReference != null) {
-				final AlbumImage cachedImage = softReference.get();
-				if (cachedImage != null && cachedImage.lastModified.equals(lastModified)) {
-					return cachedImage;
-				}
-			}
-			final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified, cacheManager);
-			loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
-			return newImage;
-		}
-	}
-
-	private static synchronized Object lockFor(final File file) {
-		final Object existingLock = imageLocks.get(file);
-		if (existingLock != null) {
-			return existingLock;
-		}
-		final Object newLock = new Object();
-		imageLocks.put(file, newLock);
-		return newLock;
-	}
 
 	private final AlbumManager albumManager;
 
@@ -80,19 +48,24 @@ public class AlbumImage {
 
 	private final File file;
 
-	@Autowired
-	private ImageThumbnailMaker imageThumbnailMaker;
+	private final ImageThumbnailMaker imageThumbnailMaker;
 
+	@Getter
 	private final Date lastModified;
 
-	@Autowired
-	private VideoThumbnailMaker videoThumbnailMaker;
+	private final Semaphore limitConcurrentScaleSemaphore;
 
-	private AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
+	private final VideoThumbnailMaker videoThumbnailMaker;
+
+	public AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager, final Semaphore limitConcurrentScaleSemaphore,
+										final ImageThumbnailMaker imageThumbnailMaker, final VideoThumbnailMaker videoThumbnailMaker) {
 		this.file = file;
 		this.cacheDir = cacheDir;
 		this.lastModified = lastModified;
 		this.albumManager = cacheManager;
+		this.limitConcurrentScaleSemaphore = limitConcurrentScaleSemaphore;
+		this.imageThumbnailMaker = imageThumbnailMaker;
+		this.videoThumbnailMaker = videoThumbnailMaker;
 	}
 
 	public void addKeyword(final String keyword) {

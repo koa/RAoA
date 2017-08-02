@@ -38,8 +38,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import javax.annotation.PostConstruct;
-
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -59,10 +57,6 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.joda.time.format.ISODateTimeFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Scope;
 
 import com.fasterxml.jackson.core.JsonGenerationException;
@@ -94,7 +88,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 
 @Scope("prototype")
-public class Album implements ApplicationContextAware {
+public class Album {
 	@Data
 	private static class AlbumCache {
 		private ConcurrentMap<String, AlbumEntryData> albumEntriesMetadataCache = new ConcurrentHashMap<String, AlbumEntryData>();
@@ -151,14 +145,9 @@ public class Album implements ApplicationContextAware {
 	private static Logger logger = LoggerFactory.getLogger(Album.class);
 	private static ObjectMapper mapper = new ObjectMapper();
 
-	public static Album createAlbum(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
-		return new Album(baseDir, nameComps, remoteUri, serverName);
-	}
-
 	private final ConcurrentMap<String, AlbumEntryData> albumEntriesMetadataCache = new ConcurrentHashMap<String, AlbumEntryData>();
 
-	private ApplicationContext applicationContext;
-
+	private final AlbumImageFactory albumImageFactory;
 	private final File baseDir;
 	private SoftReference<AlbumCache> cache = null;
 	private File cacheDir;
@@ -166,26 +155,28 @@ public class Album implements ApplicationContextAware {
 	private Collection<ImportEntry> importEntries = null;
 	private final String initRemoteServerName;
 	private final String initRemoteUri;
+
 	private final AtomicBoolean metadataModified = new AtomicBoolean(false);
-
 	private final String[] nameComps;
-	@Autowired
-	private RepositoryService repositoryService;
 
+	private final RepositoryService repositoryService;
 	private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
+
 	private final AtomicReference<AlbumState> state = new AtomicReference<Album.AlbumState>(AlbumState.READY);
 
-	@Autowired
-	private StateManager stateManager;
+	private final StateManager stateManager;
 
 	private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
 
-	private Album(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
+	public Album(	final File baseDir, final String[] nameComps, final String remoteUri, final String serverName, final RepositoryService repositoryService,
+								final StateManager stateManager, final AlbumImageFactory albumImageFactory) {
 		this.baseDir = baseDir;
 		this.nameComps = nameComps;
-		// this.repositoryService = repositoryService;
 		this.initRemoteUri = remoteUri;
 		this.initRemoteServerName = serverName;
+		this.repositoryService = repositoryService;
+		this.stateManager = stateManager;
+		this.albumImageFactory = albumImageFactory;
 	}
 
 	private void appendImportEntry(final ImportEntry newEntry) {
@@ -301,6 +292,81 @@ public class Album implements ApplicationContextAware {
 
 	private File conflictFile() {
 		return new File(cacheDir, CONFLICT_FILE);
+	}
+
+	private AlbumCache doLoadCache(final Date lastModified, final long dirLastModified) {
+		final Lock readLock = rwLock.readLock();
+		readLock.lock();
+		try {
+			final PicasaIniData picasaData = loadPicasaFile();
+			final Map<String, AlbumImage> imagesMap = new HashMap<String, AlbumImage>();
+			final Collection<String> filenames = new HashSet<>();
+			for (final File file : listImageFiles()) {
+				final String filename = file.getName();
+				filenames.add(filename);
+				final PicasaIniEntryData picasaIniData = picasaData.getEntries().get(filename);
+				final AlbumManager cacheManager = new AlbumManager() {
+
+					@Override
+					public void clearThumbnailException(final String image) {
+						stateManager.clearThumbnailException(getName(), image);
+					}
+
+					@Override
+					public AlbumEntryData getCachedData() {
+						return readAlbumEntryDataFromCache(filename);
+					}
+
+					@Override
+					public PicasaIniEntryData getPicasaData() {
+						return picasaIniData;
+					}
+
+					@Override
+					public void recordThumbnailException(final String image, final Throwable ex) {
+						stateManager.recordThumbnailException(getName(), image, ex);
+					}
+
+					@Override
+					public void updateCache(final AlbumEntryData entryData) {
+						updateAlbumEntryInCache(filename, entryData);
+					}
+				};
+				imagesMap.put(Util.encodeStringForUrl(filename), albumImageFactory.createImage(file, cacheDir, lastModified, cacheManager));
+			}
+			boolean metadataModified = false;
+			final AlbumMetadata metadata;
+			final File metadataFile = metadataFile();
+			if (metadataFile.exists()) {
+				try {
+					metadata = mapper.reader(AlbumMetadata.class).readValue(metadataFile);
+				} catch (final IOException e) {
+					throw new RuntimeException("cannot read metadata from " + metadataFile, e);
+				}
+			} else {
+				metadata = new AlbumMetadata();
+				metadata.setAlbumTitle(picasaData.getName());
+				metadataModified = true;
+			}
+			if (!filenames.isEmpty() && (metadata.getTitleEntry() == null || !filenames.contains(metadata.getTitleEntry()))) {
+				metadata.setTitleEntry(filenames.iterator().next());
+				metadataModified = true;
+			}
+			if (metadata.getAlbumTitle() == null) {
+				metadata.setAlbumTitle(baseDir.getName());
+				metadataModified = true;
+			}
+			if (metadataModified) {
+				writeMetadata(metadata);
+			}
+
+			final long repoSize = FileUtils.sizeOfDirectory(git.getRepository().getDirectory());
+			final AlbumCache ret = new AlbumCache(imagesMap, dirLastModified, metadata, repoSize);
+			cache = new SoftReference<>(ret);
+			return ret;
+		} finally {
+			readLock.unlock();
+		}
 	}
 
 	private void estimateCreationDates() {
@@ -560,7 +626,6 @@ public class Album implements ApplicationContextAware {
 		return new File(cacheDir, INDEX_FILE);
 	}
 
-	@PostConstruct
 	public void init() {
 		if (new File(baseDir, ".git").exists()) {
 			try {
@@ -633,81 +698,6 @@ public class Album implements ApplicationContextAware {
 			}
 		}
 		return doLoadCache(lastModified, dirLastModified);
-	}
-
-	private AlbumCache doLoadCache(final Date lastModified, final long dirLastModified) {
-		final Lock readLock = rwLock.readLock();
-		readLock.lock();
-		try {
-			final PicasaIniData picasaData = loadPicasaFile();
-			final Map<String, AlbumImage> imagesMap = new HashMap<String, AlbumImage>();
-			final Collection<String> filenames = new HashSet<>();
-			for (final File file : listImageFiles()) {
-				final String filename = file.getName();
-				filenames.add(filename);
-				final PicasaIniEntryData picasaIniData = picasaData.getEntries().get(filename);
-				final AlbumManager cacheManager = new AlbumManager() {
-
-					@Override
-					public void clearThumbnailException(final String image) {
-						stateManager.clearThumbnailException(getName(), image);
-					}
-
-					@Override
-					public AlbumEntryData getCachedData() {
-						return readAlbumEntryDataFromCache(filename);
-					}
-
-					@Override
-					public PicasaIniEntryData getPicasaData() {
-						return picasaIniData;
-					}
-
-					@Override
-					public void recordThumbnailException(final String image, final Throwable ex) {
-						stateManager.recordThumbnailException(getName(), image, ex);
-					}
-
-					@Override
-					public void updateCache(final AlbumEntryData entryData) {
-						updateAlbumEntryInCache(filename, entryData);
-					}
-				};
-				imagesMap.put(Util.encodeStringForUrl(filename), (AlbumImage) applicationContext.getBean("albumImage", file, cacheDir, lastModified, cacheManager));
-			}
-			boolean metadataModified = false;
-			final AlbumMetadata metadata;
-			final File metadataFile = metadataFile();
-			if (metadataFile.exists()) {
-				try {
-					metadata = mapper.reader(AlbumMetadata.class).readValue(metadataFile);
-				} catch (final IOException e) {
-					throw new RuntimeException("cannot read metadata from " + metadataFile, e);
-				}
-			} else {
-				metadata = new AlbumMetadata();
-				metadata.setAlbumTitle(picasaData.getName());
-				metadataModified = true;
-			}
-			if (!filenames.isEmpty() && (metadata.getTitleEntry() == null || !filenames.contains(metadata.getTitleEntry()))) {
-				metadata.setTitleEntry(filenames.iterator().next());
-				metadataModified = true;
-			}
-			if (metadata.getAlbumTitle() == null) {
-				metadata.setAlbumTitle(baseDir.getName());
-				metadataModified = true;
-			}
-			if (metadataModified) {
-				writeMetadata(metadata);
-			}
-
-			final long repoSize = FileUtils.sizeOfDirectory(git.getRepository().getDirectory());
-			final AlbumCache ret = new AlbumCache(imagesMap, dirLastModified, metadata, repoSize);
-			cache = new SoftReference<>(ret);
-			return ret;
-		} finally {
-			readLock.unlock();
-		}
 	}
 
 	private void loadImportEntries() {
@@ -884,11 +874,6 @@ public class Album implements ApplicationContextAware {
 
 	private void saveMetadataWithoutCommit(final AlbumMetadata metadata) throws IOException, JsonGenerationException, JsonMappingException {
 		mapper.writer().writeValue(metadataFile(), metadata);
-	}
-
-	@Override
-	public void setApplicationContext(final ApplicationContext applicationContext) throws BeansException {
-		this.applicationContext = applicationContext;
 	}
 
 	public void setAutoAddBeginDate(final Date date) {

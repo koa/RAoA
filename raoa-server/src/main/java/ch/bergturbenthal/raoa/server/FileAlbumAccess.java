@@ -73,12 +73,9 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormat;
-import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
 import org.springframework.http.HttpStatus.Series;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
@@ -122,7 +119,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfiguration, ArchiveConfiguration, FileNotification, ApplicationContextAware {
+public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfiguration, ArchiveConfiguration, FileNotification {
 	private static final String ALBUM_PATH_PREFERENCE = "album_path";
 	private static final String CLIENTID_FILENAME = ".clientid";
 	private static final String IMPORT_BASE_PATH_REFERENCE = "import_base_path";
@@ -136,7 +133,8 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	static {
 		TEMP_DIR = new File(System.getProperty("java.io.tmpdir"));
 	}
-	private ApplicationContext applicationContext;
+	@Autowired
+	private AlbumFactory albumFactory;
 
 	private File baseDir;
 	@Value("${raoa.album:}")
@@ -146,8 +144,10 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private final ConcurrentMap<String, Object> createAlbumLocks = new ConcurrentHashMap<String, Object>();
 	@Autowired
 	private ScheduledExecutorService executorService;
-	private FileWatcher fileWatcher = null;
 
+	private FileWatcher fileWatcher = null;
+	@Autowired
+	private FileWatcherFactory fileWatcherFactory;
 	private File importBaseDir;
 	private final String instanceId = UUID.randomUUID().toString();
 	private String instanceName;
@@ -155,9 +155,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	private JmmDNS jmmDNS;
 	private final AtomicLong lastLoadedDate = new AtomicLong(0);
 	private final Map<String, Album> loadedAlbums = new ConcurrentHashMap<String, Album>();
-	private Git metaGit;
+	private Git metaGit;;
 	private final ReadWriteLock metaRwLock = new ReentrantReadWriteLock();
-	private Preferences preferences = null;;
+	private Preferences preferences = null;
 	private final Object processPeersLock = new Object();
 	private final Semaphore refreshThumbnailsSemaphore = new Semaphore(1);
 	@Autowired
@@ -179,7 +179,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 		synchronized (getAlbumLock(albumDir)) {
 			final Album existingAlbum = albumMap.get(albumId);
 			if (existingAlbum == null) {
-				final Album newAlbum = (Album) applicationContext.getBean("album", albumDir, nameComps, remoteUri, serverName);
+				final Album newAlbum = albumFactory.createAlbum(albumDir, nameComps, remoteUri, serverName);
 				albumMap.put(albumId, newAlbum);
 				album = newAlbum;
 			} else {
@@ -328,7 +328,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 	}
 
 	private FileWatcher createFileWatcher() {
-		return (FileWatcher) applicationContext.getBean("fileWatcher", importBaseDir);
+		return fileWatcherFactory.createWatcher(importBaseDir);
 	}
 
 	private CustomizableThreadFactory createSynchThreadFactory() {
@@ -701,15 +701,12 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 			@Override
 			public void run() {
 				try {
-					log.info("Ready for create filewatcher " + importBaseDir + ", " + executorService);
 					if (importBaseDir != null && executorService != null) {
 						fileWatcher = createFileWatcher();
 					}
-					log.info("Filewatcher created: " + fileWatcher);
 				} catch (final Exception ex) {
 					log.error("Cannot start filewatcher", ex);
 				}
-				log.info("Closing");
 			}
 		}, 30, TimeUnit.SECONDS);
 		executorService.scheduleWithFixedDelay(new Runnable() {
@@ -1100,11 +1097,6 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 				return null;
 			}
 		});
-	}
-
-	@Override
-	public void setApplicationContext(final ApplicationContext applicationContext) throws BeansException {
-		this.applicationContext = applicationContext;
 	}
 
 	@Override
