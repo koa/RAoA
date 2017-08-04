@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.annotation.PostConstruct;
 
@@ -20,8 +23,11 @@ public class ImageMagickImageThumbnailMaker implements ImageThumbnailMaker {
 	private ImageCommand cmd = null;
 	private String gmBinary = null;
 	private String imConvertBinary = null;
-
-	private int thumbnailSize = 1600;
+	private final Map<ThumbnailSize, Integer> sizeMap = Collections.synchronizedMap(new HashMap<ThumbnailSize, Integer>());
+	{
+		sizeMap.put(ThumbnailSize.BIG, 1600);
+		sizeMap.put(ThumbnailSize.SMALL, 200);
+	}
 
 	private boolean checkCommand(final ImageCommand cmd) {
 		final IMOperation imOperation = new IMOperation();
@@ -59,14 +65,20 @@ public class ImageMagickImageThumbnailMaker implements ImageThumbnailMaker {
 				break;
 			}
 		}
-		if (cmd == null)
+		if (cmd == null) {
 			throw new RuntimeException("No compatible Image-Magick found");
+		}
+	}
+
+	private Integer lengthOf(final ThumbnailSize size) {
+		return sizeMap.get(size);
 	}
 
 	@Override
-	public boolean makeImageThumbnail(final File originalFile, final File thumbnailFile, final File tempDir) {
-		if (cmd == null)
+	public boolean makeImageThumbnail(final File originalFile, final File thumbnailFile, final File tempDir, final ThumbnailSize size) {
+		if (cmd == null) {
 			return false;
+		}
 		boolean deleteInputFileAfter = false;
 		final File tempFile = new File(tempDir, originalFile.getName() + ".tmp.jpg");
 
@@ -80,7 +92,7 @@ public class ImageMagickImageThumbnailMaker implements ImageThumbnailMaker {
 		File secondStepInputFile = null;
 		try {
 			if (!file.getName().toLowerCase().endsWith("jpg")) {
-				secondStepInputFile = new File(tempDir, thumbnailFile.getName() + ".tmp.png");
+				secondStepInputFile = new File(tempDir, thumbnailFile.getName() + "-" + size + ".tmp.png");
 				if (secondStepInputFile.exists()) {
 					secondStepInputFile.delete();
 				}
@@ -97,7 +109,8 @@ public class ImageMagickImageThumbnailMaker implements ImageThumbnailMaker {
 			final IMOperation secondOperation = new IMOperation();
 			secondOperation.addImage(secondStepInputFile.getAbsolutePath());
 			secondOperation.autoOrient();
-			secondOperation.resize(Integer.valueOf(thumbnailSize), Integer.valueOf(thumbnailSize));
+			final Integer sizeNr = lengthOf(size);
+			secondOperation.resize(sizeNr, sizeNr);
 			secondOperation.quality(Double.valueOf(70));
 			secondOperation.addImage(tempFile.getAbsolutePath());
 			// logger.debug("Start conversion: " + secondOperation);
@@ -121,8 +134,8 @@ public class ImageMagickImageThumbnailMaker implements ImageThumbnailMaker {
 		this.imConvertBinary = imConvertBinary;
 	}
 
-	public void setThumbnailSize(final int thumbnailSize) {
-		this.thumbnailSize = thumbnailSize;
+	public void setThumbnailSize(final ThumbnailSize size, final int thumbnailSize) {
+		sizeMap.put(size, thumbnailSize);
 	}
 
 }

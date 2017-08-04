@@ -161,7 +161,6 @@ public class ServerConfiguration {
 	@Bean
 	public ImageThumbnailMaker imageThumbnailMaker() {
 		final ImageMagickImageThumbnailMaker imageMagickImageThumbnailMaker = new ImageMagickImageThumbnailMaker();
-		imageMagickImageThumbnailMaker.setThumbnailSize(1600);
 		return imageMagickImageThumbnailMaker;
 	}
 

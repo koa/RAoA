@@ -1,0 +1,29 @@
+<html>
+<head>
+<title th:text="${album.name}">An Album</title>
+<link type="text/css" rel="stylesheet" href="css/lightgallery.css"
+	th:href="@{/css/lightgallery.css}" />
+</head>
+<body>
+	<!-- 	<ol>
+		<li th:each="image: ${images}"><img th:alt="${image.filename}"
+			height="100" th:width="${100*image.widthRatio}"
+			th:src="@{'/rest/albums/'+${album.id}+'/image/'+${image.id}+'.jpg'}">
+			<span th:text="${image.filename}">Image</span></li>
+	</ol>
+ -->
+	<div id="lightgallery">
+		<a href="img/img1.jpg"
+			th:href="@{'/rest/albums/'+${album.id}+'/image/'+${image.id}+'.jpg'}"
+			th:each="image: ${images}"> <img src="img/thumb1.jpg"
+			height="100" th:width="${100*image.widthRatio}"
+			th:src="@{'/rest/albums/'+${album.id}+'/image/'+${image.id}+'/small'}" />
+		</a>
+	</div>
+	<script src="js/lightgallery.min.js"
+		th:src="@{/js/lightgallery.min.js}"></script>
+	<script type="text/javascript">
+		lightGallery(document.getElementById('lightgallery'));
+	</script>
+</body>
+</html>

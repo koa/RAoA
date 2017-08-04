@@ -1,5 +1,6 @@
 package ch.bergturbenthal.raoa.server.metadata;
 
+import java.awt.Dimension;
 import java.text.MessageFormat;
 import java.text.ParseException;
 import java.util.Arrays;
@@ -7,6 +8,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.LinkedHashSet;
+import java.util.Optional;
 import java.util.TimeZone;
 
 import org.slf4j.Logger;
@@ -82,6 +84,10 @@ public class MetadataWrapper implements MetadataHolder {
 		loadedMetaData.setCameraModel(readCameraModel());
 		loadedMetaData.setCaption(readCaption());
 		loadedMetaData.setCameraSerial(readCameraSerial());
+		final Optional<CameraOrientation> readOrientation = readOrientation();
+		loadedMetaData.setOrientation(readOrientation);
+		final Optional<Dimension> originalDimension = readOriginalDimension();
+		loadedMetaData.setOriginalDimension(originalDimension);
 	}
 
 	/*
@@ -253,6 +259,16 @@ public class MetadataWrapper implements MetadataHolder {
 			}
 		}
 		return ret;
+	}
+
+	private Optional<CameraOrientation> readOrientation() {
+		return Optional.ofNullable(readInteger(ExifIFD0Directory.class, ExifIFD0Directory.TAG_ORIENTATION)).map(v -> CameraOrientation.findById(v));
+	}
+
+	private Optional<Dimension> readOriginalDimension() {
+		// readInteger(ExifIFD0Directory.class, ExifIFD0Directory.TAG_EXIF_IMAGE_WIDTH);
+		// TODO Auto-generated method stub
+		return Optional.empty();
 	}
 
 	private Integer readRating() {

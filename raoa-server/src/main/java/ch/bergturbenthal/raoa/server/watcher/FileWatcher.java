@@ -16,7 +16,6 @@ public class FileWatcher implements Closeable {
 	private final DirectoryNotificationService notificationService;
 
 	private ScheduledFuture<?> scheduledFuture;
-	private Thread watcherThread;
 
 	public FileWatcher(final File basePath, final ScheduledExecutorService executorService, final DirectoryNotificationService notificationService) {
 		this.basePath = basePath;
@@ -29,7 +28,6 @@ public class FileWatcher implements Closeable {
 		if (scheduledFuture != null) {
 			scheduledFuture.cancel(true);
 		}
-		watcherThread.interrupt();
 	}
 
 	public void initPolling() {

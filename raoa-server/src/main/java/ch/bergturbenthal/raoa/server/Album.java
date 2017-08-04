@@ -58,6 +58,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Scope;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -143,7 +144,7 @@ public class Album {
 	private static String CONFLICT_FILE = "conflict.json";
 	private static String INDEX_FILE = ".index";
 	private static Logger logger = LoggerFactory.getLogger(Album.class);
-	private static ObjectMapper mapper = new ObjectMapper();
+	private static ObjectMapper mapper = Jackson2ObjectMapperBuilder.json().build();
 
 	private final ConcurrentMap<String, AlbumEntryData> albumEntriesMetadataCache = new ConcurrentHashMap<String, AlbumEntryData>();
 

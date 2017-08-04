@@ -1,10 +1,13 @@
 package ch.bergturbenthal.raoa.server.model;
 
+import java.awt.Dimension;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Optional;
 
-import lombok.Data;
 import ch.bergturbenthal.raoa.data.model.Location;
+import ch.bergturbenthal.raoa.server.metadata.CameraOrientation;
+import lombok.Data;
 
 @Data
 public class AlbumEntryData {
@@ -23,13 +26,17 @@ public class AlbumEntryData {
 	private Collection<String> keywords;
 	private Date lastModifiedMetadata;
 	private Location location;
+	private Optional<CameraOrientation> orientation;
+	private Optional<Dimension> originalDimension;
 	private Integer rating;
 
 	public Date estimateCreationDate() {
-		if (creationDate != null)
+		if (creationDate != null) {
 			return creationDate;
-		if (gpsDate != null)
+		}
+		if (gpsDate != null) {
 			return gpsDate;
+		}
 		return cameraDate;
 	}
 }

@@ -14,6 +14,8 @@ public interface Album {
 
 	AlbumEntry createAlbum(final CreateAlbumRequest request);
 
+	void importFile(final ImportFileRequest request);
+
 	AlbumDetail listAlbumContent(final String albumid);
 
 	AlbumList listAlbums();
@@ -27,7 +29,5 @@ public interface Album {
 	void unRegisterClient(final String albumId, final String clientId);
 
 	void updateMetadata(final String albumId, final UpdateMetadataRequest request);
-
-	void importFile(final ImportFileRequest request);
 
 }

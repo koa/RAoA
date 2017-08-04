@@ -13,16 +13,16 @@ public class ImageResult {
 		InputStream getInputStream() throws IOException;
 	}
 
-	public static ImageResult makeModifiedResult(final Date lastModified, final Date created, final StreamSource dataStream, final String mimeType) {
-		return new ImageResult(lastModified, created, dataStream, mimeType, ResultCode.OK);
+	public static ImageResult makeModifiedResult(final Date lastModified, final Date created, final StreamSource dataStream, final String mimeType, final long fileSize) {
+		return new ImageResult(lastModified, created, dataStream, mimeType, ResultCode.OK, fileSize);
 	}
 
 	public static ImageResult makeNotModifiedResult() {
-		return new ImageResult(null, null, null, null, ResultCode.NOT_MODIFIED);
+		return new ImageResult(null, null, null, null, ResultCode.NOT_MODIFIED, 0);
 	}
 
 	public static ImageResult makeTryLaterResult() {
-		return new ImageResult(null, null, null, null, ResultCode.TRY_LATER);
+		return new ImageResult(null, null, null, null, ResultCode.TRY_LATER, 0);
 	}
 
 	private final Date created;
@@ -31,15 +31,17 @@ public class ImageResult {
 
 	private final String mimeType;
 
+	private final long size;
 	private final ResultCode status;
 
-	private ImageResult(final Date lastModified, final Date created, final StreamSource dataStream, final String mimeType, final ResultCode status) {
+	private ImageResult(final Date lastModified, final Date created, final StreamSource dataStream, final String mimeType, final ResultCode status, final long size) {
 		super();
 		this.lastModified = lastModified;
 		this.created = created;
 		this.dataStream = dataStream;
 		this.mimeType = mimeType;
 		this.status = status;
+		this.size = size;
 	}
 
 	public Date getCreated() {
@@ -60,16 +62,20 @@ public class ImageResult {
 
 	/**
 	 * Returns the mimeType.
-	 * 
+	 *
 	 * @return the mimeType
 	 */
 	public String getMimeType() {
 		return mimeType;
 	}
 
+	public long getSize() {
+		return size;
+	}
+
 	/**
 	 * Returns the status.
-	 * 
+	 *
 	 * @return the status
 	 */
 	public ResultCode getStatus() {

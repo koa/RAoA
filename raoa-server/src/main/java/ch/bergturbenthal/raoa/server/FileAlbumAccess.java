@@ -110,6 +110,7 @@ import ch.bergturbenthal.raoa.server.model.StorageStatistics;
 import ch.bergturbenthal.raoa.server.state.ProgressHandler;
 import ch.bergturbenthal.raoa.server.state.StateManager;
 import ch.bergturbenthal.raoa.server.store.LocalStore;
+import ch.bergturbenthal.raoa.server.thumbnails.ThumbnailSize;
 import ch.bergturbenthal.raoa.server.util.ConcurrentUtil;
 import ch.bergturbenthal.raoa.server.util.RepositoryService;
 import ch.bergturbenthal.raoa.server.watcher.FileNotification;
@@ -1217,7 +1218,9 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 								@Override
 								public void run() {
 									try {
-										image.getThumbnail();
+										for (final ThumbnailSize size : ThumbnailSize.values()) {
+											image.getThumbnail(size);
+										}
 									} finally {
 										thumbnailSemaphore.release();
 									}

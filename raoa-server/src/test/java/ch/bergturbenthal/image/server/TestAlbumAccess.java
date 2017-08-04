@@ -16,6 +16,7 @@ import ch.bergturbenthal.image.server.configuration.TestConfiguration;
 import ch.bergturbenthal.raoa.server.Album;
 import ch.bergturbenthal.raoa.server.AlbumAccess;
 import ch.bergturbenthal.raoa.server.AlbumImage;
+import ch.bergturbenthal.raoa.server.thumbnails.ThumbnailSize;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = TestConfiguration.class)
@@ -35,7 +36,7 @@ public class TestAlbumAccess {
 
 					@Override
 					public Void call() throws Exception {
-						final File thumbnail = image.getThumbnail();
+						final File thumbnail = image.getThumbnail(ThumbnailSize.SMALL);
 						System.out.println(image + ":" + thumbnail.length());
 						return null;
 					}

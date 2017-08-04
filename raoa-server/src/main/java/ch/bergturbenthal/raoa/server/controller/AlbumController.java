@@ -1,17 +1,23 @@
 package ch.bergturbenthal.raoa.server.controller;
 
+import java.awt.Dimension;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -21,14 +27,21 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import ch.bergturbenthal.raoa.data.api.ImageResult;
 import ch.bergturbenthal.raoa.data.api.ImageResult.ResultCode;
@@ -45,6 +58,9 @@ import ch.bergturbenthal.raoa.server.AlbumImage;
 import ch.bergturbenthal.raoa.server.Util;
 import ch.bergturbenthal.raoa.server.model.AlbumEntryData;
 import ch.bergturbenthal.raoa.server.model.AlbumMetadata;
+import ch.bergturbenthal.raoa.server.model.gallery.GalleryEntry;
+import ch.bergturbenthal.raoa.server.thumbnails.ThumbnailSize;
+import ch.bergturbenthal.raoa.server.util.AlbumEntryComparator;
 import ch.bergturbenthal.raoa.server.watcher.DirectoryNotificationService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -115,7 +131,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 																					.values()
 																					.stream()
 																					.filter(i -> !i.isVideo())
-																					.flatMap(image -> Stream.of(image.getThumbnail(), image.getXmpSideFile()))
+																					.flatMap(image -> Stream.of(image.getThumbnail(ThumbnailSize.BIG), image.getXmpSideFile()))
 																					.filter(f -> f.exists());
 		streamZipFile(fileStream, response, lastComp(album.getNameComps()) + "-photos-thumbnails.zip");
 	}
@@ -142,7 +158,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		entry.setVideo(albumImage.isVideo());
 		entry.setLastModified(albumImage.lastModified());
 		entry.setOriginalFileSize(albumImage.getOriginalFileSize());
-		final File thumbnail = albumImage.getThumbnail(true);
+		final File thumbnail = albumImage.getThumbnail(ThumbnailSize.BIG, true);
 		if (thumbnail != null) {
 			entry.setThumbnailFileSize(thumbnail.length());
 		}
@@ -240,6 +256,60 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		return albumList;
 	}
 
+	@GetMapping("{albumid}/gallery")
+	public @ResponseBody Collection<GalleryEntry> listGallery(@PathVariable("albumid") final String albumid) {
+		return Optional.ofNullable(albumAccess.getAlbum(albumid)).map(album -> {
+			return album.listImages().entrySet().stream().filter(e -> !e.getValue().isVideo()).sorted(new AlbumEntryComparator()).map(entry -> {
+				final URI smallPath = ServletUriComponentsBuilder	.fromCurrentContextPath()
+																													.pathSegment("rest", "albums", albumid, "image", entry.getKey(), "small")
+																													.build()
+																													.toUri();
+				final URI bigPath = ServletUriComponentsBuilder.fromCurrentContextPath().pathSegment("rest", "albums", albumid, "image", entry.getKey() + ".jpg").build().toUri();
+				final AlbumImage albumImage = entry.getValue();
+				final AlbumEntryData albumEntryData = albumImage.getAlbumEntryData();
+				final Dimension dimension = albumEntryData.getOriginalDimension().orElse(new Dimension(1600, 1200));
+				final double tHeight = 100;
+				final double tWidth = tHeight / dimension.getHeight() * dimension.getWidth();
+				return GalleryEntry	.builder()
+														.thumbnail(smallPath.toString())
+														.enlarged(bigPath.toString())
+														.title(albumImage.getName())
+														.categories(Collections.emptyList())
+														.eWidth(dimension.width)
+														.eHeight(dimension.height)
+														.tWidth(tWidth)
+														.tHeight(tHeight)
+														.build();
+			}).collect(Collectors.toList());
+		}).orElse(Collections.emptyList());
+	}
+
+	@GetMapping("{albumId}/image/{imageId}/small")
+	public HttpEntity<InputStreamResource> loadImageSmallImage(	@PathVariable("albumId") final String albumId,
+																															@PathVariable("imageId") final String imageId,
+																															@RequestHeader(value = "If-Modified-Since", required = false) final Date ifModifiedSince) throws IOException {
+		return readImage(	albumId,
+											imageId,
+											ifModifiedSince,
+											ThumbnailSize.SMALL).map((Function<ImageResult, ResponseEntity<InputStreamResource>>) (final ImageResult result) -> {
+												switch (result.getStatus()) {
+												case NOT_MODIFIED:
+													return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
+												case OK:
+													final InputStreamResource inputStreamResource = new InputStreamResource(result.getDataStream());
+													return ResponseEntity	.ok()
+																								.contentType(MediaType.parseMediaType(result.getMimeType()))
+																								.lastModified(result.getLastModified().getTime())
+																								.contentLength(result.getSize())
+																								.body(inputStreamResource);
+												case TRY_LATER:
+													return ResponseEntity.status(HttpStatus.ACCEPTED).build();
+												default:
+													throw new IllegalArgumentException("Status " + result.getStatus() + " not supported");
+												}
+											}).orElseGet(() -> ResponseEntity.notFound().build());
+	}
+
 	private AlbumEntry makeAlbumEntry(final String id, final Album album) {
 		final AlbumEntry albumEntry = new AlbumEntry(id, album.getName());
 		albumEntry.setLastModified(album.getLastModified());
@@ -257,7 +327,7 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 				public InputStream getInputStream() throws IOException {
 					return new FileInputStream(sourceFile);
 				}
-			}, image.isVideo() ? "video/mp4" : "image/jpeg");
+			}, image.isVideo() ? "video/mp4" : "image/jpeg", sourceFile.length());
 		} else {
 			return ImageResult.makeNotModifiedResult();
 		}
@@ -273,13 +343,13 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 		if (image == null) {
 			return null;
 		}
-		final File thumbnailImage = image.getThumbnail(true);
+		final File thumbnailImage = image.getThumbnail(ThumbnailSize.BIG, true);
 		if (thumbnailImage != null) {
 			return makeImageResult(thumbnailImage, image, ifModifiedSince);
 		}
 		if (concurrentBuildThumbnailSemaphore.tryAcquire()) {
 			try {
-				final File newThumbnailFile = image.getThumbnail(false);
+				final File newThumbnailFile = image.getThumbnail(ThumbnailSize.BIG, false);
 				if (newThumbnailFile != null) {
 					return makeImageResult(newThumbnailFile, image, ifModifiedSince);
 				}
@@ -288,6 +358,27 @@ public class AlbumController implements ch.bergturbenthal.raoa.data.api.Album {
 			}
 		}
 		return null;
+	}
+
+	private Optional<ImageResult> readImage(final String albumId, final String imageId, final Date ifModifiedSince, final ThumbnailSize size) throws IOException {
+		final Album album = albumAccess.getAlbum(albumId);
+		return Optional.ofNullable(album).flatMap(a -> Optional.ofNullable(a.getImage(imageId))).filter(image -> {
+			final File thumbnailImage = image.getThumbnail(size, true);
+			if (thumbnailImage != null) {
+				return true;
+			}
+			if (concurrentBuildThumbnailSemaphore.tryAcquire()) {
+				try {
+					final File newThumbnailFile = image.getThumbnail(size, false);
+					if (newThumbnailFile != null) {
+						return true;
+					}
+				} finally {
+					concurrentBuildThumbnailSemaphore.release();
+				}
+			}
+			return false;
+		}).map(image -> makeImageResult(image.getThumbnail(size, true), image, ifModifiedSince));
 	}
 
 	@RequestMapping(value = "{albumId}/image/{imageId}.jpg", method = RequestMethod.GET)
