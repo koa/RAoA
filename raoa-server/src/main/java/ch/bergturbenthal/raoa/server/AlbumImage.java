@@ -331,7 +331,7 @@ public class AlbumImage {
 	 */
 	public boolean isVideo() {
 		final String lowerFilename = file.getName().toLowerCase();
-		return lowerFilename.endsWith(".mkv") || lowerFilename.endsWith(".mp4");
+		return lowerFilename.endsWith(".mkv") || lowerFilename.endsWith(".mp4") || lowerFilename.endsWith(".mov");
 	}
 
 	public Date lastModified() {

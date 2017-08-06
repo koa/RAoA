@@ -225,7 +225,8 @@ public class Album {
 
 	private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
 
-	public Album(	final File baseDir, final String[] nameComps, final RepositoryService repositoryService, final StateManager stateManager, final AlbumImageFactory albumImageFactory) {
+	public Album(	final File baseDir, final String[] nameComps, final RepositoryService repositoryService, final StateManager stateManager,
+								final AlbumImageFactory albumImageFactory) {
 		this.baseDir = baseDir;
 		this.nameComps = nameComps;
 		this.repositoryService = repositoryService;
@@ -721,7 +722,8 @@ public class Album {
 		final boolean isImage = lowerFilename.endsWith(".jpg")	|| lowerFilename.endsWith(".jpeg")
 														|| lowerFilename.endsWith(".nef")
 														|| lowerFilename.endsWith(".mkv")
-														|| lowerFilename.endsWith(".mp4");
+														|| lowerFilename.endsWith(".mp4")
+														|| lowerFilename.endsWith(".mov");
 		return isImage;
 	}
 
