@@ -1218,9 +1218,7 @@ public class FileAlbumAccess implements AlbumAccess, StorageAccess, FileConfigur
 								@Override
 								public void run() {
 									try {
-										for (final ThumbnailSize size : ThumbnailSize.values()) {
-											image.getThumbnail(size);
-										}
+										image.getThumbnail(ThumbnailSize.BIG);
 									} finally {
 										thumbnailSemaphore.release();
 									}

@@ -96,8 +96,11 @@ public class ServerConfiguration {
 
 			@Override
 			public Album createAlbum(final File baseDir, final String[] nameComps, final String remoteUri, final String serverName) {
-				final Album album = new Album(baseDir, nameComps, remoteUri, serverName, repositoryService, stateManager, albumImageFactory);
-				album.init();
+				final Album album = new Album(baseDir, nameComps, repositoryService, stateManager, albumImageFactory);
+				if (remoteUri != null) {
+					album.pull(remoteUri, serverName);
+				}
+
 				return album;
 			}
 		};
@@ -111,7 +114,11 @@ public class ServerConfiguration {
 			private final Map<File, SoftReference<AlbumImage>> loadedImages = new ConcurrentHashMap<File, SoftReference<AlbumImage>>();
 
 			@Override
-			public AlbumImage createImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager) {
+			public AlbumImage createImage(final File file,
+																		final File cacheDir,
+																		final Date lastModified,
+																		final AlbumManager cacheManager,
+																		final FileExistsManager existFunction) {
 				synchronized (lockFor(file)) {
 					final SoftReference<AlbumImage> softReference = loadedImages.get(file);
 					if (softReference != null) {
@@ -120,7 +127,14 @@ public class ServerConfiguration {
 							return cachedImage;
 						}
 					}
-					final AlbumImage newImage = new AlbumImage(file, cacheDir, lastModified, cacheManager, limitConcurrentScaleSemaphore, imageThumbnailMaker, videoThumbnailMaker);
+					final AlbumImage newImage = new AlbumImage(	file,
+																											cacheDir,
+																											lastModified,
+																											cacheManager,
+																											limitConcurrentScaleSemaphore,
+																											imageThumbnailMaker,
+																											videoThumbnailMaker,
+																											existFunction);
 					loadedImages.put(file, new SoftReference<AlbumImage>(newImage));
 					return newImage;
 				}
@@ -135,6 +149,7 @@ public class ServerConfiguration {
 				imageLocks.put(file, newLock);
 				return newLock;
 			}
+
 		};
 	}
 

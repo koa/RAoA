@@ -27,6 +27,7 @@ import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Metadata;
 
+import ch.bergturbenthal.raoa.server.AlbumImageFactory.FileExistsManager;
 import ch.bergturbenthal.raoa.server.cache.AlbumManager;
 import ch.bergturbenthal.raoa.server.metadata.MetadataWrapper;
 import ch.bergturbenthal.raoa.server.metadata.PicasaIniEntryData;
@@ -38,6 +39,8 @@ import ch.bergturbenthal.raoa.server.thumbnails.VideoThumbnailMaker;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSink;
 
 @Slf4j
 public class AlbumImage {
@@ -90,17 +93,20 @@ public class AlbumImage {
 
 	private final File file;
 
+	private final FileExistsManager fileExistsManager;
+
 	private final ImageThumbnailMaker imageThumbnailMaker;
 
 	@Getter
 	private final Date lastModified;
-
 	private final Semaphore limitConcurrentScaleSemaphore;
+
+	private final Mono<Long> totalSize;
 
 	private final VideoThumbnailMaker videoThumbnailMaker;
 
 	public AlbumImage(final File file, final File cacheDir, final Date lastModified, final AlbumManager cacheManager, final Semaphore limitConcurrentScaleSemaphore,
-										final ImageThumbnailMaker imageThumbnailMaker, final VideoThumbnailMaker videoThumbnailMaker) {
+										final ImageThumbnailMaker imageThumbnailMaker, final VideoThumbnailMaker videoThumbnailMaker, final FileExistsManager fileExistsManager) {
 		this.file = file;
 		this.cacheDir = cacheDir;
 		this.lastModified = lastModified;
@@ -108,6 +114,10 @@ public class AlbumImage {
 		this.limitConcurrentScaleSemaphore = limitConcurrentScaleSemaphore;
 		this.imageThumbnailMaker = imageThumbnailMaker;
 		this.videoThumbnailMaker = videoThumbnailMaker;
+		this.fileExistsManager = fileExistsManager;
+		totalSize = Mono.create((final MonoSink<Long> sink) -> {
+			sink.success(calcTotalSize());
+		}).cache();
 	}
 
 	public void addKeyword(final String keyword) {
@@ -120,8 +130,22 @@ public class AlbumImage {
 		});
 	}
 
+	private long calcTotalSize() {
+		long totalSize = file.length();
+		totalSize += Stream.of(ThumbnailSize.values()).map(s -> makeCachedFile(s)).distinct().filter(f -> exists(f)).mapToLong(f -> f.length()).sum();
+		final File xmpSideFile = getXmpSideFile();
+		if (exists(xmpSideFile)) {
+			totalSize += xmpSideFile.length();
+		}
+		return totalSize;
+	}
+
 	public Date captureDate() {
 		return getAlbumEntryData().estimateCreationDate();
+	}
+
+	private boolean exists(final File file) {
+		return fileExistsManager.exists(file);
 	}
 
 	public AlbumEntryData getAlbumEntryData() {
@@ -158,7 +182,7 @@ public class AlbumImage {
 				log.warn("Cannot load dimension of " + file, e1);
 			}
 			final File xmpSideFile = getXmpSideFile();
-			if (xmpSideFile.exists()) {
+			if (exists(xmpSideFile)) {
 				try {
 					{
 						@Cleanup
@@ -197,13 +221,7 @@ public class AlbumImage {
 	}
 
 	public long getAllFilesSize() {
-		long totalSize = file.length();
-		totalSize += Stream.of(ThumbnailSize.values()).map(s -> makeCachedFile(s)).distinct().filter(f -> f.exists()).mapToLong(f -> f.length()).sum();
-		final File xmpSideFile = getXmpSideFile();
-		if (xmpSideFile.exists()) {
-			totalSize += xmpSideFile.length();
-		}
-		return totalSize;
+		return totalSize.block();
 	}
 
 	private Metadata getExifMetadata() {
@@ -227,7 +245,7 @@ public class AlbumImage {
 	 */
 	private Date getMetadataLastModifiedTime() {
 		final File xmpSideFile = getXmpSideFile();
-		if (!xmpSideFile.exists()) {
+		if (!exists(xmpSideFile)) {
 			return null;
 		}
 		return new Date(xmpSideFile.lastModified());
@@ -253,7 +271,7 @@ public class AlbumImage {
 		try {
 			final File cachedFile = makeCachedFile(size);
 			final long originalLastModified = file.lastModified();
-			if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified) {
+			if (exists(cachedFile) && cachedFile.lastModified() == originalLastModified) {
 				albumManager.clearThumbnailException(getName());
 				return cachedFile;
 			}
@@ -261,7 +279,7 @@ public class AlbumImage {
 				return null;
 			}
 			synchronized (this) {
-				if (cachedFile.exists() && cachedFile.lastModified() == originalLastModified) {
+				if (exists(cachedFile) && cachedFile.lastModified() == originalLastModified) {
 					albumManager.clearThumbnailException(getName());
 					return cachedFile;
 				}
@@ -272,6 +290,7 @@ public class AlbumImage {
 					} else {
 						imageThumbnailMaker.makeImageThumbnail(file, cachedFile, cacheDir, size);
 					}
+					fileExistsManager.reCheck(cachedFile);
 					cachedFile.setLastModified(originalLastModified);
 				} finally {
 					limitConcurrentScaleSemaphore.release();
@@ -295,11 +314,11 @@ public class AlbumImage {
 			baseName = name;
 		}
 		final File shortFilename = new File(file.getParentFile(), baseName + ".xmp");
-		if (shortFilename.exists()) {
+		if (exists(shortFilename)) {
 			return shortFilename;
 		}
 		final File longFilename = new File(file.getParentFile(), name + ".xmp");
-		if (longFilename.exists()) {
+		if (exists(longFilename)) {
 			return longFilename;
 		}
 		return longFilename;
@@ -368,7 +387,7 @@ public class AlbumImage {
 	private void updateXmp(final XmpRunnable runnable) {
 		final File xmpSideFile = getXmpSideFile();
 		final XMPMeta xmpMeta;
-		if (xmpSideFile.exists()) {
+		if (exists(xmpSideFile)) {
 			try {
 				@Cleanup
 				final FileInputStream fis = new FileInputStream(xmpSideFile);
@@ -391,6 +410,7 @@ public class AlbumImage {
 				XMPMetaFactory.serialize(xmpMeta, fos);
 			}
 			tempSideFile.renameTo(xmpSideFile);
+			fileExistsManager.reCheck(xmpSideFile);
 		} catch (final IOException e) {
 			throw new RuntimeException("Cannot write " + tempSideFile, e);
 		} catch (final XMPException e) {

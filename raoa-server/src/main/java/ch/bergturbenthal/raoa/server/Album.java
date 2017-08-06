@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Stream;
 
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.io.FileUtils;
@@ -75,6 +76,7 @@ import ch.bergturbenthal.raoa.data.model.mutation.Mutation;
 import ch.bergturbenthal.raoa.data.model.mutation.RatingMutationEntry;
 import ch.bergturbenthal.raoa.data.model.mutation.TitleImageMutation;
 import ch.bergturbenthal.raoa.data.model.mutation.TitleMutation;
+import ch.bergturbenthal.raoa.server.AlbumImageFactory.FileExistsManager;
 import ch.bergturbenthal.raoa.server.cache.AlbumManager;
 import ch.bergturbenthal.raoa.server.metadata.PicasaIniData;
 import ch.bergturbenthal.raoa.server.metadata.PicasaIniEntryData;
@@ -106,6 +108,60 @@ public class Album {
 		private final boolean importAvailable;
 		@Getter
 		private final boolean reCheckAvailable;
+	}
+
+	private final class FileManager implements FileExistsManager {
+		private final Set<File> baseFiles;
+		private final Set<File> cacheFiles;
+
+		private FileManager() {
+			this.baseFiles = Collections.synchronizedSet(new HashSet<>(Arrays.asList(listAllFiles())));
+			this.cacheFiles = Collections.synchronizedSet(new HashSet<>(Arrays.asList(listCacheFiles())));
+		}
+
+		@Override
+		public boolean exists(final File file) {
+			return baseFiles.contains(file) || cacheFiles.contains(file);
+		}
+
+		public Stream<File> listImageFiles() {
+			return baseFiles.stream().filter(f -> isImageFile(f));
+		}
+
+		@Override
+		public void reCheck(final File file) {
+			if (file.exists()) {
+				final File parentFile = file.getParentFile();
+				if (parentFile.equals(baseDir)) {
+					baseFiles.add(file);
+				} else if (parentFile.equals(cacheDir)) {
+					cacheFiles.add(file);
+				} else {
+					throw new IllegalArgumentException("File " + file + " not in " + baseDir);
+				}
+			} else {
+				baseFiles.remove(file);
+				cacheFiles.remove(file);
+			}
+		}
+
+		public void reCheckAll() {
+			update(listAllFiles(), baseFiles);
+			update(listCacheFiles(), cacheFiles);
+		}
+
+		private void update(final File[] existingFiles, final Set<File> cachedFiles) {
+			final Set<File> newFiles = new HashSet<>(Arrays.asList(existingFiles));
+			final Set<File> removeFiles = new HashSet<>();
+			for (final File file : cachedFiles) {
+				final boolean keepFile = newFiles.remove(file);
+				if (!keepFile) {
+					removeFiles.add(file);
+				}
+			}
+			cachedFiles.removeAll(removeFiles);
+			cachedFiles.addAll(newFiles);
+		}
 	}
 
 	private static class ImportEntry {
@@ -151,16 +207,16 @@ public class Album {
 	private final AlbumImageFactory albumImageFactory;
 	private final File baseDir;
 	private SoftReference<AlbumCache> cache = null;
-	private File cacheDir;
-	private Git git;
+	private final File cacheDir;
+	private final FileManager fileExistsManager;
+	private final Git git;
 	private Collection<ImportEntry> importEntries = null;
-	private final String initRemoteServerName;
-	private final String initRemoteUri;
 
 	private final AtomicBoolean metadataModified = new AtomicBoolean(false);
-	private final String[] nameComps;
 
+	private final String[] nameComps;
 	private final RepositoryService repositoryService;
+
 	private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
 	private final AtomicReference<AlbumState> state = new AtomicReference<Album.AlbumState>(AlbumState.READY);
@@ -169,15 +225,28 @@ public class Album {
 
 	private final Semaphore writeAlbumEntryCacheSemaphore = new Semaphore(1);
 
-	public Album(	final File baseDir, final String[] nameComps, final String remoteUri, final String serverName, final RepositoryService repositoryService,
-								final StateManager stateManager, final AlbumImageFactory albumImageFactory) {
+	public Album(	final File baseDir, final String[] nameComps, final RepositoryService repositoryService, final StateManager stateManager, final AlbumImageFactory albumImageFactory) {
 		this.baseDir = baseDir;
 		this.nameComps = nameComps;
-		this.initRemoteUri = remoteUri;
-		this.initRemoteServerName = serverName;
 		this.repositoryService = repositoryService;
 		this.stateManager = stateManager;
 		this.albumImageFactory = albumImageFactory;
+		cacheDir = new File(baseDir, CACHE_DIR);
+
+		if (new File(baseDir, ".git").exists()) {
+			try {
+				git = Git.open(baseDir);
+			} catch (final IOException e) {
+				throw new RuntimeException("Cannot access to git-repository of " + baseDir, e);
+			}
+		} else {
+			try {
+				git = Git.init().setDirectory(baseDir).call();
+			} catch (final GitAPIException e) {
+				throw new RuntimeException("Cannot create Album", e);
+			}
+		}
+		fileExistsManager = new FileManager();
 	}
 
 	private void appendImportEntry(final ImportEntry newEntry) {
@@ -302,7 +371,7 @@ public class Album {
 			final PicasaIniData picasaData = loadPicasaFile();
 			final Map<String, AlbumImage> imagesMap = new HashMap<String, AlbumImage>();
 			final Collection<String> filenames = new HashSet<>();
-			for (final File file : listImageFiles()) {
+			fileExistsManager.listImageFiles().forEach(file -> {
 				final String filename = file.getName();
 				filenames.add(filename);
 				final PicasaIniEntryData picasaIniData = picasaData.getEntries().get(filename);
@@ -333,8 +402,8 @@ public class Album {
 						updateAlbumEntryInCache(filename, entryData);
 					}
 				};
-				imagesMap.put(Util.encodeStringForUrl(filename), albumImageFactory.createImage(file, cacheDir, lastModified, cacheManager));
-			}
+				imagesMap.put(Util.encodeStringForUrl(filename), albumImageFactory.createImage(file, cacheDir, lastModified, cacheManager, fileExistsManager));
+			});
 			boolean metadataModified = false;
 			final AlbumMetadata metadata;
 			final File metadataFile = metadataFile();
@@ -439,6 +508,16 @@ public class Album {
 			logger.warn("Cannot query log from " + git.getRepository(), e);
 		}
 		return 0;
+	}
+
+	private File[] filterImageFiles(final File[] foundFiles) {
+		final List<File> imageFiles = new ArrayList<>();
+		for (final File file : foundFiles) {
+			if (isImageFile(file)) {
+				imageFiles.add(file);
+			}
+		}
+		return imageFiles.toArray(new File[imageFiles.size()]);
 	}
 
 	private ImportEntry findExistingImportEntry(final String sha1OfFile) {
@@ -617,6 +696,7 @@ public class Album {
 					} finally {
 						// clear cache
 						cache = null;
+						fileExistsManager.reCheck(targetFile);
 					}
 				}
 			}
@@ -627,60 +707,34 @@ public class Album {
 		return new File(cacheDir, INDEX_FILE);
 	}
 
-	public void init() {
-		if (new File(baseDir, ".git").exists()) {
-			try {
-				git = Git.open(baseDir);
-			} catch (final IOException e) {
-				throw new RuntimeException("Cannot access to git-repository of " + baseDir, e);
-			}
-		} else {
-			try {
-				git = Git.init().setDirectory(baseDir).call();
-			} catch (final GitAPIException e) {
-				throw new RuntimeException("Cannot create Album", e);
-			}
-		}
-		if (initRemoteUri != null) {
-			pull(initRemoteUri, initRemoteServerName);
-		}
-		cacheDir = new File(baseDir, CACHE_DIR);
-	}
-
 	private void invalidateCache() {
 		final File conflictFile = conflictFile();
 		if (conflictFile.exists()) {
 			conflictFile.delete();
 		}
 		updateConflictStatus();
+		fileExistsManager.reCheckAll();
+	}
+
+	private boolean isImageFile(final File file) {
+		final String lowerFilename = file.getName().toLowerCase();
+		final boolean isImage = lowerFilename.endsWith(".jpg")	|| lowerFilename.endsWith(".jpeg")
+														|| lowerFilename.endsWith(".nef")
+														|| lowerFilename.endsWith(".mkv")
+														|| lowerFilename.endsWith(".mp4");
+		return isImage;
 	}
 
 	public long lastModified() {
-		long lastModified = 0;
-		for (final File imageFile : listImageFiles()) {
-			final long currentLastModified = imageFile.lastModified();
-			if (currentLastModified > lastModified) {
-				lastModified = currentLastModified;
-			}
-		}
-		return lastModified;
+		return fileExistsManager.listImageFiles().mapToLong(imageFile -> imageFile.lastModified()).max().orElse(0);
 	}
 
-	private File[] listImageFiles() {
-		final File[] foundFiles = baseDir.listFiles(new FileFilter() {
-			@Override
-			public boolean accept(final File file) {
-				if (!file.isFile() || !file.canRead()) {
-					return false;
-				}
-				final String lowerFilename = file.getName().toLowerCase();
-				return lowerFilename.endsWith(".jpg")	|| lowerFilename.endsWith(".jpeg")
-								|| lowerFilename.endsWith(".nef")
-								|| lowerFilename.endsWith(".mkv")
-								|| lowerFilename.endsWith(".mp4");
-			}
-		});
-		return foundFiles;
+	private File[] listAllFiles() {
+		return baseDir.listFiles((FileFilter) file -> file.isFile() && file.canRead());
+	}
+
+	private File[] listCacheFiles() {
+		return cacheDir.listFiles((FileFilter) file -> file.isFile() && file.canRead());
 	}
 
 	public Map<String, AlbumImage> listImages() {
