@@ -160,12 +160,12 @@
 		<repository>
 			<id>berg-turbenthal-snapshots</id>
 			<name>Neptun-snapshots</name>
-			<url>http://nexus.berg-turbenthal.ch/content/repositories/snapshots/</url>
+			<url>http://nexus.berg-turbenthal.ch/repository/maven-snapshots</url>
 		</repository>
 		<repository>
 			<id>berg-turbenthal-releases</id>
 			<name>Neptun-releases</name>
-			<url>http://nexus.berg-turbenthal.ch/content/repositories/releases/</url>
+			<url>http://nexus.berg-turbenthal.ch/repository/maven-releases/</url>
 		</repository>
 		<repository>
 			<id>manipulated-3rd-party</id>
