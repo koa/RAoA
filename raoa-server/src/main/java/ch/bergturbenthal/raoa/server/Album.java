@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -736,7 +737,7 @@ public class Album {
 	}
 
 	private File[] listCacheFiles() {
-		return cacheDir.listFiles((FileFilter) file -> file.isFile() && file.canRead());
+		return Optional.ofNullable(cacheDir.listFiles((FileFilter) file -> file.isFile() && file.canRead())).orElse(new File[] {});
 	}
 
 	public Map<String, AlbumImage> listImages() {
