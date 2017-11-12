@@ -34,7 +34,7 @@ spec:
         run: raoa
     spec:
       containers:
-      - image: koa1/raoa:latest
+      - image: koa1/raoa:SN22
         name: raoa
         resources: {}
         terminationMessagePath: /dev/termination-log
@@ -43,6 +43,16 @@ spec:
           name: data
         - mountPath: "/import"
           name: import
+      initContainers:
+      - image: busybox
+        name: chown
+        command: 
+        - chown 
+        - nobody.nogroup 
+        - /data
+        volumeMounts:
+        - mountPath: "/data"
+          name: data
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       securityContext: {}
@@ -58,12 +68,11 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  creationTimestamp: 2017-05-12T07:41:50Z
   name: photos-old-pvc
   namespace: raoa
 spec:
   resources:
     requests:
-      storage: 2Ti
+      storage: 5Ti
   accessModes:
     - ReadWriteOnce
